@@ -8,7 +8,7 @@
     "start": "node .next/standalone/server.js",
     "worker": "tsx workers/daily-sync.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node scripts/migrate.mjs",
     "start:railway": "node scripts/check-railway-env.mjs && node .next/standalone/server.js"
   },
   "dependencies": {
