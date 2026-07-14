@@ -10,6 +10,7 @@ import type {
   LocalStore,
   ManualAsset,
   OwnerType,
+  PlatinumPrice,
   Scope,
   Snapshot,
   StorageAdapter,
@@ -18,13 +19,38 @@ import type {
 } from "./types";
 
 const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".north-star", "data.json");
-const EMPTY: LocalStore = { version: 3, transactions: [], positions: [], cashAccounts: [], manualAssets: [], snapshots: [], imports: [] };
+const EMPTY: LocalStore = { version: 4, transactions: [], positions: [], cashAccounts: [], manualAssets: [], platinumPrices: [], snapshots: [], imports: [] };
 
 async function readStore(): Promise<LocalStore> {
   try {
-    const parsed = JSON.parse(await readFile(DATA_FILE, "utf8")) as LocalStore | (Omit<LocalStore, "version" | "manualAssets"> & { version: 2 });
-    if (parsed.version === 3) return parsed;
-    if (parsed.version === 2) return { ...parsed, version: 3, manualAssets: [] };
+    const parsed = JSON.parse(await readFile(DATA_FILE, "utf8")) as Record<string, unknown>;
+    if (parsed.version === 4) {
+      return { ...(parsed as unknown as LocalStore), platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [] };
+    }
+    if (parsed.version === 3) {
+      const legacyAssets = (parsed.manualAssets as Array<Record<string, unknown>> | undefined) ?? [];
+      const manualAssets: ManualAsset[] = legacyAssets.map(asset => {
+        const quantityTroyOz = Number(asset.quantityTroyOz ?? 0);
+        const quantityKg = quantityTroyOz / 32.1507465686;
+        const totalCostAud = Number(asset.totalCostAud ?? 0);
+        const buybackAudPerKg = Number(asset.currentPriceAudPerOz ?? 0) * 32.1507465686;
+        const marketValueAud = quantityKg * buybackAudPerKg;
+        const pnlAud = marketValueAud - totalCostAud;
+        return {
+          id: String(asset.id), ownerType: asset.ownerType as OwnerType, assetType: "PLATINUM", name: String(asset.name ?? "Physical platinum"),
+          quantityKg, totalCostAud, costAudPerKg: quantityKg ? totalCostAud / quantityKg : 0,
+          buybackAudPerKg, retailAudPerKg: buybackAudPerKg, marketValueAud, pnlAud,
+          pnlPercent: totalCostAud ? pnlAud / totalCostAud * 100 : 0,
+          dealerSpreadAudPerKg: 0, dealerSpreadPercent: 0, priceProvider: "Legacy manual price",
+          priceSourceUrl: "", purchaseDate: String(asset.purchaseDate), asOfDate: String(asset.asOfDate),
+          priceRetrievedAt: String(asset.updatedAt ?? new Date().toISOString()), updatedAt: String(asset.updatedAt ?? new Date().toISOString()),
+        };
+      });
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices">), version: 4, manualAssets, platinumPrices: [] };
+    }
+    if (parsed.version === 2) {
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices">), version: 4, manualAssets: [], platinumPrices: [] };
+    }
     return structuredClone(EMPTY);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return structuredClone(EMPTY);
@@ -106,9 +132,9 @@ function manualAssetPosition(asset: ManualAsset): StoredPosition {
   return {
     id: asset.id, ownerType: asset.ownerType, broker: "Physical", accountKey: `${asset.ownerType}-PHYSICAL`,
     instrumentKey: `manual:${asset.id}`, symbol: "PLATINUM", name: asset.name, exchange: "PHYSICAL",
-    currency: "AUD", assetClass: "Physical platinum", quantity: asset.quantityTroyOz,
-    lastPrice: asset.currentPriceAudPerOz,
-    averageCostAud: asset.quantityTroyOz ? asset.totalCostAud / asset.quantityTroyOz : 0,
+    currency: "AUD", assetClass: "Physical platinum", quantity: asset.quantityKg,
+    lastPrice: asset.buybackAudPerKg,
+    averageCostAud: asset.costAudPerKg,
     costAud: asset.totalCostAud, marketValueAud: asset.marketValueAud,
     dayGainAud: 0, pnlAud: asset.pnlAud, pnlPercent: asset.pnlPercent,
     valuationBasis: "market", asOfDate: asset.asOfDate, source: "Manual physical",
@@ -176,7 +202,7 @@ function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
   for (const account of cashAccounts) accountRows.push({ name: `${account.institution} · ${account.name}`, detail: `${account.currency} ${account.balance.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`, status: "Cash current", ownerType: account.ownerType });
   for (const owner of ["PERSONAL", "SMSF"] as const) {
     const assets = manualAssets.filter(asset => asset.ownerType === owner);
-    if (assets.length) accountRows.push({ name: `Physical platinum ${owner === "SMSF" ? "SMSF" : "Personal"}`, detail: `${assets.reduce((sum, asset) => sum + asset.quantityTroyOz, 0).toLocaleString("en-AU", { maximumFractionDigits: 4 })} troy oz`, status: `${assets.length} position${assets.length === 1 ? "" : "s"}`, ownerType: owner });
+    if (assets.length) accountRows.push({ name: `Physical platinum ${owner === "SMSF" ? "SMSF" : "Personal"}`, detail: `${assets.reduce((sum, asset) => sum + asset.quantityKg, 0).toLocaleString("en-AU", { maximumFractionDigits: 4 })} kg`, status: `${assets.length} position${assets.length === 1 ? "" : "s"}`, ownerType: owner });
   }
 
   const updatedValues = [...imports.map(record => record.importedAt), ...cashAccounts.map(account => account.updatedAt), ...manualAssets.map(asset => asset.updatedAt)].sort();
@@ -257,17 +283,22 @@ export class LocalStorageAdapter implements StorageAdapter {
     return store.manualAssets.filter(asset => !ownerType || asset.ownerType === ownerType).sort((a, b) => b.purchaseDate.localeCompare(a.purchaseDate));
   }
 
-  async upsertManualAsset(input: Omit<ManualAsset, "id" | "updatedAt" | "marketValueAud" | "pnlAud" | "pnlPercent"> & { id?: string }) {
+  async upsertManualAsset(input: Omit<ManualAsset, "id" | "updatedAt" | "marketValueAud" | "pnlAud" | "pnlPercent" | "costAudPerKg" | "dealerSpreadAudPerKg" | "dealerSpreadPercent"> & { id?: string }) {
     const store = await readStore();
     const existing = input.id ? store.manualAssets.find(asset => asset.id === input.id && asset.ownerType === input.ownerType) : undefined;
-    const marketValueAud = input.quantityTroyOz * input.currentPriceAudPerOz;
+    const marketValueAud = input.quantityKg * input.buybackAudPerKg;
     const pnlAud = marketValueAud - input.totalCostAud;
+    const spread = Math.max(0, input.retailAudPerKg - input.buybackAudPerKg);
     const asset: ManualAsset = {
       id: existing?.id ?? randomUUID(), ownerType: input.ownerType, assetType: "PLATINUM", name: input.name.trim(),
-      quantityTroyOz: input.quantityTroyOz, totalCostAud: input.totalCostAud,
-      currentPriceAudPerOz: input.currentPriceAudPerOz, marketValueAud, pnlAud,
-      pnlPercent: input.totalCostAud ? pnlAud / input.totalCostAud * 100 : 0,
-      purchaseDate: input.purchaseDate, asOfDate: input.asOfDate, updatedAt: new Date().toISOString(),
+      quantityKg: input.quantityKg, totalCostAud: input.totalCostAud,
+      costAudPerKg: input.quantityKg ? input.totalCostAud / input.quantityKg : 0,
+      buybackAudPerKg: input.buybackAudPerKg, retailAudPerKg: input.retailAudPerKg,
+      marketValueAud, pnlAud, pnlPercent: input.totalCostAud ? pnlAud / input.totalCostAud * 100 : 0,
+      dealerSpreadAudPerKg: spread, dealerSpreadPercent: input.retailAudPerKg ? spread / input.retailAudPerKg * 100 : 0,
+      priceProvider: input.priceProvider, priceSourceUrl: input.priceSourceUrl,
+      purchaseDate: input.purchaseDate, asOfDate: input.asOfDate, priceRetrievedAt: input.priceRetrievedAt,
+      updatedAt: new Date().toISOString(),
     };
     if (existing) Object.assign(existing, asset); else store.manualAssets.push(asset);
     captureSnapshot(store, input.ownerType);
@@ -280,6 +311,36 @@ export class LocalStorageAdapter implements StorageAdapter {
     store.manualAssets = store.manualAssets.filter(asset => !(asset.id === id && asset.ownerType === ownerType));
     captureSnapshot(store, ownerType);
     await writeStore(store);
+  }
+
+  async getLatestPlatinumPrice(): Promise<PlatinumPrice | null> {
+    const store = await readStore();
+    return [...store.platinumPrices].sort((a, b) => b.retrievedAt.localeCompare(a.retrievedAt))[0] ?? null;
+  }
+
+  async recordPlatinumPrice(price: PlatinumPrice): Promise<PlatinumPrice> {
+    const store = await readStore();
+    const existing = store.platinumPrices.find(item => item.provider === price.provider && item.productKey === price.productKey && item.priceDate === price.priceDate);
+    if (existing) Object.assign(existing, price); else store.platinumPrices.push(price);
+    const owners = new Set<OwnerType>();
+    for (const asset of store.manualAssets) {
+      asset.buybackAudPerKg = price.buybackAudPerKg;
+      asset.retailAudPerKg = price.retailAudPerKg;
+      asset.marketValueAud = asset.quantityKg * price.buybackAudPerKg;
+      asset.pnlAud = asset.marketValueAud - asset.totalCostAud;
+      asset.pnlPercent = asset.totalCostAud ? asset.pnlAud / asset.totalCostAud * 100 : 0;
+      asset.dealerSpreadAudPerKg = price.spreadAudPerKg;
+      asset.dealerSpreadPercent = price.spreadPercentOfRetail;
+      asset.priceProvider = price.provider;
+      asset.priceSourceUrl = price.sourceUrl;
+      asset.asOfDate = price.priceDate;
+      asset.priceRetrievedAt = price.retrievedAt;
+      asset.updatedAt = new Date().toISOString();
+      owners.add(asset.ownerType);
+    }
+    for (const owner of owners) captureSnapshot(store, owner);
+    await writeStore(store);
+    return price;
   }
 
   async dashboard(scope: Scope) { return dashboardFromStore(await readStore(), scope); }

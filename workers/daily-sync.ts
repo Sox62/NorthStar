@@ -1,4 +1,32 @@
-import {IbkrFlexAdapter} from "../lib/integrations/ibkr";
-import {SharesightAdapter} from "../lib/integrations/sharesight";
-async function main(){const today=new Date().toISOString().slice(0,10);const adapters=[new IbkrFlexAdapter(),new SharesightAdapter()];console.log(`[sync] ${today} starting`);for(const adapter of adapters){try{const rows=await adapter.importTransactions(today,today);console.log(`[sync] ${adapter.name}: ${rows.length} rows`)}catch(error){console.error(`[sync] ${adapter.name}:`,error)}}console.log("[sync] price, FX, valuation and snapshot stages scaffolded");}
-main().catch(e=>{console.error(e);process.exit(1)});
+import { fetchAbcPlatinumPrice } from "../lib/integrations/abc-bullion";
+import { fetchIbkrFlexReport } from "../lib/integrations/ibkr";
+import { getStorage, type OwnerType } from "../lib/storage";
+
+async function main() {
+  const today = new Date().toISOString().slice(0, 10);
+  const storage = getStorage();
+  console.log(`[sync] ${today} starting`);
+
+  if (process.env.IBKR_FLEX_TOKEN && process.env.IBKR_FLEX_QUERY_ID) {
+    const owner = ((process.env.IBKR_FLEX_OWNER || "SMSF").toUpperCase() === "PERSONAL" ? "PERSONAL" : "SMSF") as OwnerType;
+    try {
+      const report = await fetchIbkrFlexReport();
+      const result = await storage.importIbkr(report, owner);
+      console.log(`[sync] IBKR: ${result.imported} new trades, ${result.positions} positions, cash ${result.cashAud ?? 0}`);
+    } catch (error) {
+      console.error("[sync] IBKR:", error);
+    }
+  } else {
+    console.log("[sync] IBKR skipped: token or query ID missing");
+  }
+
+  try {
+    const price = await fetchAbcPlatinumPrice();
+    await storage.recordPlatinumPrice(price);
+    console.log(`[sync] ABC Bullion platinum buyback: AUD ${price.buybackAudPerKg.toFixed(2)} per kg`);
+  } catch (error) {
+    console.error("[sync] ABC Bullion:", error);
+  }
+}
+
+main().catch(error => { console.error(error); process.exit(1); });

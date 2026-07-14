@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+
 type ImportType = "ibkr" | "directshares";
 type OwnerType = "PERSONAL" | "SMSF";
 type Result = Record<string, unknown> & { error?: string; preview?: boolean };
@@ -14,6 +15,8 @@ export default function Imports() {
   const [owners, setOwners] = useState<Record<ImportType, OwnerType>>({ ibkr: "SMSF", directshares: "PERSONAL" });
   const [results, setResults] = useState<Partial<Record<ImportType, Result>>>({});
   const [busy, setBusy] = useState<ImportType | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<Result | undefined>();
 
   const send = async (type: ImportType, commit: boolean) => {
     const file = files[type];
@@ -32,11 +35,34 @@ export default function Imports() {
     }
   };
 
+  const syncIbkr = async () => {
+    setSyncing(true);
+    setSyncResult(undefined);
+    try {
+      const response = await fetch(`/api/sync/ibkr?owner=${owners.ibkr}`, { method: "POST" });
+      setSyncResult(await response.json());
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return <main className="shell">
     <div className="pageNav"><Link href="/">← Dashboard</Link><Link href="/cash">Cash accounts</Link><Link href="/assets">Physical platinum</Link></div>
-    <div className="brand"><h1>North Star imports</h1><p>Validate a broker file, confirm its legal owner, then save it permanently.</p></div>
-    <section className="grid two equal" style={{ marginTop: 24 }}>
-      <Importer type="ibkr" title="IBKR Flex XML" accept=".xml" owner={owners.ibkr} result={results.ibkr} busy={busy === "ibkr"}
+    <div className="brand"><h1>North Star imports</h1><p>Sync IBKR directly from its Flex Web Service or upload broker files manually.</p></div>
+
+    <section className="card syncCard" style={{ marginTop: 24 }}>
+      <div>
+        <div className="label">Automated broker feed</div>
+        <div className="value">IBKR Flex Web Service</div>
+        <p className="small">Uses the private IBKR token and Flex Query ID stored in Railway. It updates trades, Open Positions and IBKR cash without uploading an XML file.</p>
+        <label className="field compactOwner"><span>Legal owner</span><select value={owners.ibkr} onChange={event => setOwners(value => ({ ...value, ibkr: event.target.value as OwnerType }))}><option value="SMSF">SMSF</option><option value="PERSONAL">Personal</option></select></label>
+      </div>
+      <div><button className="primary" type="button" onClick={syncIbkr} disabled={syncing}>{syncing ? "Syncing IBKR…" : "Sync IBKR now"}</button></div>
+      {syncResult && <div style={{ gridColumn: "1 / -1" }}><ImportSummary result={syncResult} /></div>}
+    </section>
+
+    <section className="grid two equal" style={{ marginTop: 16 }}>
+      <Importer type="ibkr" title="IBKR Flex XML — manual fallback" accept=".xml" owner={owners.ibkr} result={results.ibkr} busy={busy === "ibkr"}
         onOwner={owner => setOwners(value => ({ ...value, ibkr: owner }))}
         onFile={file => { setFiles(value => ({ ...value, ibkr: file })); setResults(value => ({ ...value, ibkr: undefined })); }}
         onPreview={() => send("ibkr", false)} onCommit={() => send("ibkr", true)} />
@@ -46,8 +72,8 @@ export default function Imports() {
         onPreview={() => send("directshares", false)} onCommit={() => send("directshares", true)} />
     </section>
     <section className="card notice" style={{ marginTop: 16 }}>
-      <strong>Valuation note</strong>
-      <p>Directshares supplies current market values. An IBKR Flex file containing Open Positions and Cash Report updates current holdings and IBKR cash directly. A Trades-only file remains provisional at remaining cost basis.</p>
+      <strong>IBKR valuation</strong>
+      <p>North Star treats Open Positions as the authoritative current holdings snapshot and Cash Report as the IBKR cash balance. Trades are deduplicated using IBKR transaction identifiers.</p>
     </section>
   </main>;
 }
@@ -70,10 +96,10 @@ function Importer({ title, accept, owner, result, busy, onOwner, onFile, onPrevi
 
 function ImportSummary({ result }: { result: Result }) {
   if (result.error) return <div className="result error">{result.error}</div>;
-  const entries = Object.entries(result).filter(([key]) => !["preview", "note", "source", "owner", "storageMode"].includes(key));
+  const entries = Object.entries(result).filter(([key]) => !["preview", "note", "source", "owner", "ownerType", "storageMode", "synced", "generatedAt"].includes(key));
   return <div className="result">
-    <strong>{result.preview ? "Validated" : "Saved"}</strong>
-    <div className="summaryGrid">{entries.map(([key, value]) => <div key={key}><span>{key.replace(/([A-Z])/g, " $1")}</span><strong>{/value|cost|pnl/i.test(key) ? money(value) : String(value)}</strong></div>)}</div>
+    <strong>{result.preview ? "Validated" : result.synced ? "Synced" : "Saved"}</strong>
+    <div className="summaryGrid">{entries.map(([key, value]) => <div key={key}><span>{key.replace(/([A-Z])/g, " $1")}</span><strong>{/value|cost|pnl|cash/i.test(key) ? money(value) : String(value)}</strong></div>)}</div>
     {result.note != null && <p className="small">{String(result.note)}</p>}
     {result.storageMode != null && <p className="small">Storage: {String(result.storageMode)}</p>}
   </div>;

@@ -40,6 +40,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (request.nextUrl.pathname === "/api/sync") {
+    const syncSecret = process.env.SYNC_SECRET;
+    const supplied = request.headers.get("x-sync-key");
+    if (syncSecret && supplied && await secureEqual(supplied, syncSecret)) return NextResponse.next();
+  }
+
   const authorization = request.headers.get("authorization");
   if (!authorization?.startsWith("Basic ")) return challenge();
 

@@ -148,10 +148,87 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
   return { accountId, fromDate, toDate, whenGenerated, transactions, openPositions, cash };
 }
 
+type FlexServiceResponse = {
+  status: string;
+  referenceCode?: string;
+  url?: string;
+  errorCode?: string;
+  errorMessage?: string;
+};
+
+function parseFlexServiceResponse(xml: string): FlexServiceResponse {
+  const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "", parseAttributeValue: false });
+  const root = parser.parse(xml)?.FlexStatementResponse;
+  if (!root) throw new Error("IBKR returned an unexpected Flex Web Service response.");
+  return {
+    status: String(root.Status ?? ""),
+    referenceCode: root.ReferenceCode == null ? undefined : String(root.ReferenceCode),
+    url: root.Url == null ? undefined : String(root.Url),
+    errorCode: root.ErrorCode == null ? undefined : String(root.ErrorCode),
+    errorMessage: root.ErrorMessage == null ? undefined : String(root.ErrorMessage),
+  };
+}
+
+async function flexFetch(url: URL) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      headers: { "user-agent": `Node.js/${process.versions.node} NorthStar/0.3.2` },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`IBKR Flex Web Service returned HTTP ${response.status}.`);
+    return await response.text();
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw new Error("IBKR Flex Web Service did not respond in time.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+const sleep = (milliseconds: number) => new Promise(resolve => setTimeout(resolve, milliseconds));
+
+export async function fetchIbkrFlexXml(token = process.env.IBKR_FLEX_TOKEN, queryId = process.env.IBKR_FLEX_QUERY_ID): Promise<string> {
+  if (!token?.trim() || !queryId?.trim()) throw new Error("IBKR_FLEX_TOKEN and IBKR_FLEX_QUERY_ID are not configured.");
+
+  const sendUrl = new URL("https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/SendRequest");
+  sendUrl.searchParams.set("t", token.trim());
+  sendUrl.searchParams.set("q", queryId.trim());
+  sendUrl.searchParams.set("v", "3");
+  const sendText = await flexFetch(sendUrl);
+  const send = parseFlexServiceResponse(sendText);
+  if (send.status.toLowerCase() !== "success" || !send.referenceCode) {
+    throw new Error(`IBKR Flex request failed${send.errorCode ? ` (${send.errorCode})` : ""}: ${send.errorMessage || "Unknown error"}`);
+  }
+
+  const statementBase = send.url || "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService/GetStatement";
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    if (attempt) await sleep(2000);
+    const getUrl = new URL(statementBase);
+    getUrl.searchParams.set("t", token.trim());
+    getUrl.searchParams.set("q", send.referenceCode);
+    getUrl.searchParams.set("v", "3");
+    const text = await flexFetch(getUrl);
+    if (text.includes("<FlexQueryResponse")) return text;
+
+    const response = parseFlexServiceResponse(text);
+    const pending = response.errorCode === "1019" || /progress|not ready|generation/i.test(response.errorMessage || "");
+    if (pending) continue;
+    throw new Error(`IBKR Flex retrieval failed${response.errorCode ? ` (${response.errorCode})` : ""}: ${response.errorMessage || "Unknown error"}`);
+  }
+  throw new Error("IBKR took too long to generate the Flex report. Try Sync IBKR again shortly.");
+}
+
+export async function fetchIbkrFlexReport(): Promise<IbkrFlexReport> {
+  return parseIbkrFlexXml(await fetchIbkrFlexXml());
+}
+
 export class IbkrFlexAdapter implements BrokerAdapter {
   name = "IBKR Flex";
   async importTransactions(_from: string, _to: string) {
     if (!process.env.IBKR_FLEX_TOKEN || !process.env.IBKR_FLEX_QUERY_ID) return [];
-    throw new Error("Live Flex retrieval is not enabled in this build; XML upload parsing is available.");
+    return (await fetchIbkrFlexReport()).transactions;
   }
 }

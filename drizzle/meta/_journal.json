@@ -15,6 +15,13 @@
       "when": 1784008198015,
       "tag": "0001_wild_true_believers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784011187887,
+      "tag": "0002_abc_platinum_and_flex",
+      "breakpoints": true
     }
   ]
 }

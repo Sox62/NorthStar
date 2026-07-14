@@ -2,7 +2,7 @@ import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db/client";
 import type { IbkrFlexReport, OpeningPosition } from "@/lib/integrations/types";
 import { classifyAsset } from "./classify";
-import type { CashAccount, DashboardData, ImportResult, ManualAsset, OwnerType, Scope, StorageAdapter, StoredPosition } from "./types";
+import type { CashAccount, DashboardData, ImportResult, ManualAsset, OwnerType, PlatinumPrice, Scope, StorageAdapter, StoredPosition } from "./types";
 
 const maskAccount = (account: string) => account.length <= 4 ? account : `${account.slice(0, 2)}••••${account.slice(-3)}`;
 const numberValue = (value: unknown) => Number(value ?? 0);
@@ -259,47 +259,72 @@ export class PostgresStorageAdapter implements StorageAdapter {
     const filter = ownerType ? "WHERE p.legal_owner_type=$1" : "";
     if (ownerType) values.push(ownerType);
     const result = await getPool().query(`
-      SELECT ma.id,p.legal_owner_type,ma.asset_type,ma.name,ma.quantity_troy_oz,ma.total_cost_aud,
-        ma.current_price_aud_per_oz,ma.market_value_aud,ma.purchase_date::text,ma.as_of_date::text,ma.updated_at::text
+      SELECT ma.id,p.legal_owner_type,ma.asset_type,ma.name,ma.quantity_kg,ma.total_cost_aud,
+        ma.buyback_aud_per_kg,ma.retail_aud_per_kg,ma.market_value_aud,ma.price_provider,
+        ma.price_source_url,ma.price_retrieved_at::text,ma.purchase_date::text,ma.as_of_date::text,ma.updated_at::text
       FROM manual_assets ma JOIN portfolios p ON p.id=ma.portfolio_id
       ${filter} ORDER BY ma.purchase_date DESC, ma.name
     `, values);
     return result.rows.map(row => {
+      const quantityKg = numberValue(row.quantity_kg);
       const totalCostAud = numberValue(row.total_cost_aud);
+      const buybackAudPerKg = numberValue(row.buyback_aud_per_kg);
+      const retailAudPerKg = numberValue(row.retail_aud_per_kg);
       const marketValueAud = numberValue(row.market_value_aud);
       const pnlAud = marketValueAud - totalCostAud;
+      const dealerSpreadAudPerKg = Math.max(0, retailAudPerKg - buybackAudPerKg);
       return { id: row.id, ownerType: row.legal_owner_type, assetType: row.asset_type, name: row.name,
-        quantityTroyOz: numberValue(row.quantity_troy_oz), totalCostAud, currentPriceAudPerOz: numberValue(row.current_price_aud_per_oz),
-        marketValueAud, pnlAud, pnlPercent: totalCostAud ? pnlAud / totalCostAud * 100 : 0,
-        purchaseDate: row.purchase_date, asOfDate: row.as_of_date, updatedAt: row.updated_at } as ManualAsset;
+        quantityKg, totalCostAud, costAudPerKg: quantityKg ? totalCostAud / quantityKg : 0,
+        buybackAudPerKg, retailAudPerKg, marketValueAud, pnlAud,
+        pnlPercent: totalCostAud ? pnlAud / totalCostAud * 100 : 0,
+        dealerSpreadAudPerKg, dealerSpreadPercent: retailAudPerKg ? dealerSpreadAudPerKg / retailAudPerKg * 100 : 0,
+        priceProvider: row.price_provider, priceSourceUrl: row.price_source_url,
+        purchaseDate: row.purchase_date, asOfDate: row.as_of_date,
+        priceRetrievedAt: row.price_retrieved_at, updatedAt: row.updated_at } as ManualAsset;
     });
   }
 
-  async upsertManualAsset(input: Omit<ManualAsset, "id" | "updatedAt" | "marketValueAud" | "pnlAud" | "pnlPercent"> & { id?: string }): Promise<ManualAsset> {
+  async upsertManualAsset(input: Omit<ManualAsset, "id" | "updatedAt" | "marketValueAud" | "pnlAud" | "pnlPercent" | "costAudPerKg" | "dealerSpreadAudPerKg" | "dealerSpreadPercent"> & { id?: string }): Promise<ManualAsset> {
     const client = await getPool().connect();
     try {
       await client.query("BEGIN");
       const portfolioId = await ensurePortfolio(client, input.ownerType);
-      const marketValueAud = input.quantityTroyOz * input.currentPriceAudPerOz;
+      const marketValueAud = input.quantityKg * input.buybackAudPerKg;
+      const quantityTroyOz = input.quantityKg * 32.1507465686;
+      const currentPriceAudPerOz = input.buybackAudPerKg / 32.1507465686;
       const result = input.id
         ? await client.query(`
-            UPDATE manual_assets SET asset_type='PLATINUM',name=$1,quantity_troy_oz=$2,total_cost_aud=$3,
-              current_price_aud_per_oz=$4,market_value_aud=$5,purchase_date=$6,as_of_date=$7,updated_at=NOW()
-            WHERE id=$8 AND portfolio_id=$9 RETURNING id,updated_at::text
-          `, [input.name, input.quantityTroyOz, input.totalCostAud, input.currentPriceAudPerOz, marketValueAud, input.purchaseDate, input.asOfDate, input.id, portfolioId])
+            UPDATE manual_assets SET asset_type='PLATINUM',name=$1,quantity_kg=$2,quantity_troy_oz=$3,
+              total_cost_aud=$4,buyback_aud_per_kg=$5,retail_aud_per_kg=$6,current_price_aud_per_oz=$7,
+              market_value_aud=$8,price_provider=$9,price_source_url=$10,price_retrieved_at=$11,
+              purchase_date=$12,as_of_date=$13,updated_at=NOW()
+            WHERE id=$14 AND portfolio_id=$15 RETURNING id,updated_at::text
+          `, [input.name, input.quantityKg, quantityTroyOz, input.totalCostAud, input.buybackAudPerKg,
+            input.retailAudPerKg, currentPriceAudPerOz, marketValueAud, input.priceProvider,
+            input.priceSourceUrl, input.priceRetrievedAt, input.purchaseDate, input.asOfDate, input.id, portfolioId])
         : await client.query(`
-            INSERT INTO manual_assets (portfolio_id,asset_type,name,quantity_troy_oz,total_cost_aud,current_price_aud_per_oz,market_value_aud,purchase_date,as_of_date,updated_at)
-            VALUES ($1,'PLATINUM',$2,$3,$4,$5,$6,$7,$8,NOW()) RETURNING id,updated_at::text
-          `, [portfolioId, input.name, input.quantityTroyOz, input.totalCostAud, input.currentPriceAudPerOz, marketValueAud, input.purchaseDate, input.asOfDate]);
+            INSERT INTO manual_assets (portfolio_id,asset_type,name,quantity_kg,quantity_troy_oz,total_cost_aud,
+              buyback_aud_per_kg,retail_aud_per_kg,current_price_aud_per_oz,market_value_aud,price_provider,
+              price_source_url,price_retrieved_at,purchase_date,as_of_date,updated_at)
+            VALUES ($1,'PLATINUM',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+            RETURNING id,updated_at::text
+          `, [portfolioId, input.name, input.quantityKg, quantityTroyOz, input.totalCostAud,
+            input.buybackAudPerKg, input.retailAudPerKg, currentPriceAudPerOz, marketValueAud,
+            input.priceProvider, input.priceSourceUrl, input.priceRetrievedAt, input.purchaseDate, input.asOfDate]);
       if (!result.rows[0]) throw new Error("Physical platinum position was not found.");
       await captureSnapshot(client, portfolioId);
       await client.query("COMMIT");
       const pnlAud = marketValueAud - input.totalCostAud;
+      const spread = Math.max(0, input.retailAudPerKg - input.buybackAudPerKg);
       return { id: result.rows[0].id, ownerType: input.ownerType, assetType: "PLATINUM", name: input.name,
-        quantityTroyOz: input.quantityTroyOz, totalCostAud: input.totalCostAud,
-        currentPriceAudPerOz: input.currentPriceAudPerOz, marketValueAud, pnlAud,
-        pnlPercent: input.totalCostAud ? pnlAud / input.totalCostAud * 100 : 0,
-        purchaseDate: input.purchaseDate, asOfDate: input.asOfDate, updatedAt: result.rows[0].updated_at };
+        quantityKg: input.quantityKg, totalCostAud: input.totalCostAud,
+        costAudPerKg: input.quantityKg ? input.totalCostAud / input.quantityKg : 0,
+        buybackAudPerKg: input.buybackAudPerKg, retailAudPerKg: input.retailAudPerKg,
+        marketValueAud, pnlAud, pnlPercent: input.totalCostAud ? pnlAud / input.totalCostAud * 100 : 0,
+        dealerSpreadAudPerKg: spread, dealerSpreadPercent: input.retailAudPerKg ? spread / input.retailAudPerKg * 100 : 0,
+        priceProvider: input.priceProvider, priceSourceUrl: input.priceSourceUrl,
+        purchaseDate: input.purchaseDate, asOfDate: input.asOfDate, priceRetrievedAt: input.priceRetrievedAt,
+        updatedAt: result.rows[0].updated_at };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -314,6 +339,52 @@ export class PostgresStorageAdapter implements StorageAdapter {
       await client.query(`DELETE FROM manual_assets WHERE id=$1 AND portfolio_id=$2`, [id, portfolioId]);
       await captureSnapshot(client, portfolioId);
       await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally { client.release(); }
+  }
+
+  async getLatestPlatinumPrice(): Promise<PlatinumPrice | null> {
+    const result = await getPool().query(`
+      SELECT provider,product_key,product_name,retail_aud_per_kg,buyback_aud_per_kg,
+        source_url,price_date::text,retrieved_at::text
+      FROM platinum_prices ORDER BY retrieved_at DESC LIMIT 1
+    `);
+    const row = result.rows[0];
+    if (!row) return null;
+    const retailAudPerKg = numberValue(row.retail_aud_per_kg);
+    const buybackAudPerKg = numberValue(row.buyback_aud_per_kg);
+    const spreadAudPerKg = Math.max(0, retailAudPerKg - buybackAudPerKg);
+    return { provider: row.provider, productKey: row.product_key, productName: row.product_name,
+      retailAudPerKg, buybackAudPerKg, spreadAudPerKg,
+      spreadPercentOfRetail: retailAudPerKg ? spreadAudPerKg / retailAudPerKg * 100 : 0,
+      sourceUrl: row.source_url, priceDate: row.price_date, retrievedAt: row.retrieved_at } as PlatinumPrice;
+  }
+
+  async recordPlatinumPrice(price: PlatinumPrice): Promise<PlatinumPrice> {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`
+        INSERT INTO platinum_prices (provider,product_key,product_name,retail_aud_per_kg,buyback_aud_per_kg,source_url,price_date,retrieved_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        ON CONFLICT (provider,product_key,price_date) DO UPDATE SET product_name=EXCLUDED.product_name,
+          retail_aud_per_kg=EXCLUDED.retail_aud_per_kg,buyback_aud_per_kg=EXCLUDED.buyback_aud_per_kg,
+          source_url=EXCLUDED.source_url,retrieved_at=EXCLUDED.retrieved_at
+      `, [price.provider, price.productKey, price.productName, price.retailAudPerKg,
+        price.buybackAudPerKg, price.sourceUrl, price.priceDate, price.retrievedAt]);
+      await client.query(`
+        UPDATE manual_assets SET buyback_aud_per_kg=$1,retail_aud_per_kg=$2,
+          current_price_aud_per_oz=$1/32.1507465686,market_value_aud=quantity_kg*$1,
+          price_provider=$3,price_source_url=$4,price_retrieved_at=$5,as_of_date=$6,updated_at=NOW()
+        WHERE asset_type='PLATINUM'
+      `, [price.buybackAudPerKg, price.retailAudPerKg, price.provider, price.sourceUrl,
+        price.retrievedAt, price.priceDate]);
+      const portfolios = await client.query<{ portfolio_id: string }>(`SELECT DISTINCT portfolio_id FROM manual_assets WHERE asset_type='PLATINUM'`);
+      for (const row of portfolios.rows) await captureSnapshot(client, row.portfolio_id);
+      await client.query("COMMIT");
+      return price;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -348,8 +419,8 @@ export class PostgresStorageAdapter implements StorageAdapter {
     for (const asset of manualAssets) positions.push({
       id: asset.id, ownerType: asset.ownerType, broker: "Physical", accountKey: `${asset.ownerType}-PHYSICAL`,
       instrumentKey: `manual:${asset.id}`, symbol: "PLATINUM", name: asset.name, exchange: "PHYSICAL",
-      currency: "AUD", assetClass: "Physical platinum", quantity: asset.quantityTroyOz,
-      lastPrice: asset.currentPriceAudPerOz, averageCostAud: asset.quantityTroyOz ? asset.totalCostAud / asset.quantityTroyOz : 0,
+      currency: "AUD", assetClass: "Physical platinum", quantity: asset.quantityKg,
+      lastPrice: asset.buybackAudPerKg, averageCostAud: asset.costAudPerKg,
       costAud: asset.totalCostAud, marketValueAud: asset.marketValueAud, dayGainAud: 0,
       pnlAud: asset.pnlAud, pnlPercent: asset.pnlPercent, valuationBasis: "market",
       asOfDate: asset.asOfDate, source: "Manual physical",
@@ -395,7 +466,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
     for(const account of cashAccounts)accounts.push({name:`${account.institution} · ${account.name}`,detail:`${account.currency} ${account.balance.toLocaleString("en-AU",{maximumFractionDigits:2})}`,status:"Cash current",ownerType:account.ownerType});
     for (const owner of ["PERSONAL", "SMSF"] as const) {
       const assets = manualAssets.filter(asset => asset.ownerType === owner);
-      if (assets.length) accounts.push({name:`Physical platinum ${owner==="SMSF"?"SMSF":"Personal"}`,detail:`${assets.reduce((sum,asset)=>sum+asset.quantityTroyOz,0).toLocaleString("en-AU",{maximumFractionDigits:4})} troy oz`,status:`${assets.length} position${assets.length===1?"":"s"}`,ownerType:owner});
+      if (assets.length) accounts.push({name:`Physical platinum ${owner==="SMSF"?"SMSF":"Personal"}`,detail:`${assets.reduce((sum,asset)=>sum+asset.quantityKg,0).toLocaleString("en-AU",{maximumFractionDigits:4})} kg`,status:`${assets.length} position${assets.length===1?"":"s"}`,ownerType:owner});
     }
     const updated=[...importRows.rows.map(row=>row.imported_at),...cashAccounts.map(account=>account.updatedAt),...manualAssets.map(asset=>asset.updatedAt)].sort();
 

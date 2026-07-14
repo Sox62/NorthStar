@@ -47,19 +47,39 @@ export type CashAccount = {
   updatedAt: string;
 };
 
+export type PlatinumPrice = {
+  provider: "ABC Bullion";
+  productKey: "abc-platinum-1kg-minted-tablet";
+  productName: string;
+  retailAudPerKg: number;
+  buybackAudPerKg: number;
+  spreadAudPerKg: number;
+  spreadPercentOfRetail: number;
+  sourceUrl: string;
+  priceDate: string;
+  retrievedAt: string;
+};
+
 export type ManualAsset = {
   id: string;
   ownerType: OwnerType;
   assetType: "PLATINUM";
   name: string;
-  quantityTroyOz: number;
+  quantityKg: number;
   totalCostAud: number;
-  currentPriceAudPerOz: number;
+  costAudPerKg: number;
+  buybackAudPerKg: number;
+  retailAudPerKg: number;
   marketValueAud: number;
   pnlAud: number;
   pnlPercent: number;
+  dealerSpreadAudPerKg: number;
+  dealerSpreadPercent: number;
+  priceProvider: string;
+  priceSourceUrl: string;
   purchaseDate: string;
   asOfDate: string;
+  priceRetrievedAt: string | null;
   updatedAt: string;
 };
 
@@ -73,11 +93,12 @@ export type Snapshot = {
 };
 
 export type LocalStore = {
-  version: 3;
+  version: 4;
   transactions: StoredTransaction[];
   positions: StoredPosition[];
   cashAccounts: CashAccount[];
   manualAssets: ManualAsset[];
+  platinumPrices: PlatinumPrice[];
   snapshots: Snapshot[];
   imports: Array<{
     id: string;
@@ -127,7 +148,9 @@ export interface StorageAdapter {
   listCashAccounts(ownerType?: OwnerType): Promise<CashAccount[]>;
   upsertCashAccount(input: Omit<CashAccount, "id" | "updatedAt" | "balanceAud"> & { id?: string }): Promise<CashAccount>;
   listManualAssets(ownerType?: OwnerType): Promise<ManualAsset[]>;
-  upsertManualAsset(input: Omit<ManualAsset, "id" | "updatedAt" | "marketValueAud" | "pnlAud" | "pnlPercent"> & { id?: string }): Promise<ManualAsset>;
+  upsertManualAsset(input: Omit<ManualAsset, "id" | "updatedAt" | "marketValueAud" | "pnlAud" | "pnlPercent" | "costAudPerKg" | "dealerSpreadAudPerKg" | "dealerSpreadPercent"> & { id?: string }): Promise<ManualAsset>;
   deleteManualAsset(id: string, ownerType: OwnerType): Promise<void>;
+  getLatestPlatinumPrice(): Promise<PlatinumPrice | null>;
+  recordPlatinumPrice(price: PlatinumPrice): Promise<PlatinumPrice>;
   dashboard(scope: Scope): Promise<DashboardData>;
 }

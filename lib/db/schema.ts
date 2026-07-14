@@ -115,14 +115,33 @@ export const manualAssets = pgTable("manual_assets", {
   portfolioId: uuid("portfolio_id").references(() => portfolios.id).notNull(),
   assetType: text("asset_type").notNull(),
   name: text("name").notNull(),
+  // Legacy columns remain for a safe in-place migration from v0.3.1.
   quantityTroyOz: numeric("quantity_troy_oz", { precision: 28, scale: 10 }).notNull(),
-  totalCostAud: numeric("total_cost_aud", { precision: 28, scale: 2 }).notNull().default("0"),
   currentPriceAudPerOz: numeric("current_price_aud_per_oz", { precision: 28, scale: 10 }).notNull().default("0"),
+  quantityKg: numeric("quantity_kg", { precision: 28, scale: 10 }).notNull().default("0"),
+  totalCostAud: numeric("total_cost_aud", { precision: 28, scale: 2 }).notNull().default("0"),
+  buybackAudPerKg: numeric("buyback_aud_per_kg", { precision: 28, scale: 10 }).notNull().default("0"),
+  retailAudPerKg: numeric("retail_aud_per_kg", { precision: 28, scale: 10 }).notNull().default("0"),
   marketValueAud: numeric("market_value_aud", { precision: 28, scale: 2 }).notNull().default("0"),
+  priceProvider: text("price_provider").notNull().default("ABC Bullion"),
+  priceSourceUrl: text("price_source_url").notNull().default("https://www.abcbullion.com/sell/platinum"),
+  priceRetrievedAt: timestamp("price_retrieved_at", { withTimezone: true }),
   purchaseDate: date("purchase_date").notNull(),
   asOfDate: date("as_of_date").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, table => [index("manual_asset_portfolio_idx").on(table.portfolioId)]);
+
+export const platinumPrices = pgTable("platinum_prices", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  provider: text("provider").notNull(),
+  productKey: text("product_key").notNull(),
+  productName: text("product_name").notNull(),
+  retailAudPerKg: numeric("retail_aud_per_kg", { precision: 28, scale: 10 }).notNull(),
+  buybackAudPerKg: numeric("buyback_aud_per_kg", { precision: 28, scale: 10 }).notNull(),
+  sourceUrl: text("source_url").notNull(),
+  priceDate: date("price_date").notNull(),
+  retrievedAt: timestamp("retrieved_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [uniqueIndex("platinum_price_provider_product_date_uq").on(table.provider, table.productKey, table.priceDate)]);
 
 export const importRuns = pgTable("import_runs", {
   id: uuid("id").defaultRandom().primaryKey(),
