@@ -32,11 +32,11 @@ function parseMoney(value: string) {
 export function parseAbcPlatinumPricePage(html: string, retrievedAt = new Date().toISOString()): PlatinumPrice {
   const text = htmlToText(html);
   const index = text.toLowerCase().indexOf(PRODUCT_NAME.toLowerCase());
-  if (index < 0) throw new Error("North Star could not find ABC Bullion's 1 kg platinum product on the pricing page.");
+  if (index < 0) throw new Error("NorthStar could not find ABC Bullion's 1 kg platinum product on the pricing page.");
 
   const productWindow = text.slice(index, index + 550);
   const values = [...productWindow.matchAll(/\$\s*([0-9][0-9,]*(?:\.\d{1,2})?)/g)].map(match => parseMoney(match[1]));
-  if (values.length < 2) throw new Error("North Star could not read ABC Bullion's platinum selling and buying prices.");
+  if (values.length < 2) throw new Error("NorthStar could not read ABC Bullion's platinum selling and buying prices.");
 
   const retailAudPerKg = values[0];
   const buybackAudPerKg = values[1];
@@ -71,7 +71,7 @@ export async function fetchAbcPlatinumPrice(): Promise<PlatinumPrice> {
     const response = await fetch(SOURCE_URL, {
       cache: "no-store",
       headers: {
-        "user-agent": "NorthStar/0.3.2 (private portfolio valuation; contact via account owner)",
+        "user-agent": "NorthStar/0.3.4 (private portfolio valuation; contact via account owner)",
         accept: "text/html,application/xhtml+xml",
       },
       signal: controller.signal,

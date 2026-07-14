@@ -15,7 +15,11 @@ const assetSchema = z.object({
   retailAudPerKg: z.coerce.number().positive(),
   priceProvider: z.string().trim().min(1),
   priceSourceUrl: z.string().url(),
-  priceRetrievedAt: z.string().datetime().nullable(),
+  priceRetrievedAt: z.preprocess((value) => {
+    if (value === null || value === undefined || value === "") return null;
+    const parsed = new Date(String(value));
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+  }, z.string().datetime().nullable()),
   purchaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   asOfDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });

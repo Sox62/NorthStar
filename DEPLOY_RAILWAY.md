@@ -1,4 +1,4 @@
-# Deploy North Star v0.3.2 to Railway
+# Deploy NorthStar v0.3.4 to Railway
 
 ## Existing Railway installation
 
@@ -8,7 +8,7 @@ Replace the repository files with this release, commit and push. Railway will au
 2. apply migration `0002_abc_platinum_and_flex`;
 3. preserve existing PostgreSQL data;
 4. convert any v0.3.1 platinum entries from troy ounces to kilograms;
-5. restart North Star and check `/api/health`.
+5. restart NorthStar and check `/api/health`.
 
 No database reset is required.
 

@@ -9,9 +9,17 @@ const numberValue = (value: unknown) => Number(value ?? 0);
 const ownerForScope = (scope: Scope): OwnerType | undefined => scope === "personal" ? "PERSONAL" : scope === "smsf" ? "SMSF" : undefined;
 
 async function ensurePortfolio(client: PoolClient, ownerType: OwnerType) {
+  // Preserve existing installations while correcting the displayed product name.
+  const previousProductName = ["North", "Star"].join(" ");
+  await client.query(`
+    UPDATE portfolio_groups
+    SET name = 'NorthStar'
+    WHERE name = $1
+      AND NOT EXISTS (SELECT 1 FROM portfolio_groups WHERE name = 'NorthStar')
+  `, [previousProductName]);
   const group = await client.query<{ id: string }>(`
     INSERT INTO portfolio_groups (name, base_currency)
-    VALUES ('North Star', 'AUD')
+    VALUES ('NorthStar', 'AUD')
     ON CONFLICT (name) DO UPDATE SET base_currency = EXCLUDED.base_currency
     RETURNING id
   `);
@@ -280,7 +288,8 @@ export class PostgresStorageAdapter implements StorageAdapter {
         dealerSpreadAudPerKg, dealerSpreadPercent: retailAudPerKg ? dealerSpreadAudPerKg / retailAudPerKg * 100 : 0,
         priceProvider: row.price_provider, priceSourceUrl: row.price_source_url,
         purchaseDate: row.purchase_date, asOfDate: row.as_of_date,
-        priceRetrievedAt: row.price_retrieved_at, updatedAt: row.updated_at } as ManualAsset;
+        priceRetrievedAt: row.price_retrieved_at ? new Date(row.price_retrieved_at).toISOString() : null,
+        updatedAt: new Date(row.updated_at).toISOString() } as ManualAsset;
     });
   }
 
@@ -348,7 +357,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
   async getLatestPlatinumPrice(): Promise<PlatinumPrice | null> {
     const result = await getPool().query(`
       SELECT provider,product_key,product_name,retail_aud_per_kg,buyback_aud_per_kg,
-        source_url,price_date::text,retrieved_at::text
+        source_url,price_date::text,retrieved_at
       FROM platinum_prices ORDER BY retrieved_at DESC LIMIT 1
     `);
     const row = result.rows[0];
@@ -359,7 +368,8 @@ export class PostgresStorageAdapter implements StorageAdapter {
     return { provider: row.provider, productKey: row.product_key, productName: row.product_name,
       retailAudPerKg, buybackAudPerKg, spreadAudPerKg,
       spreadPercentOfRetail: retailAudPerKg ? spreadAudPerKg / retailAudPerKg * 100 : 0,
-      sourceUrl: row.source_url, priceDate: row.price_date, retrievedAt: row.retrieved_at } as PlatinumPrice;
+      sourceUrl: row.source_url, priceDate: row.price_date,
+      retrievedAt: new Date(row.retrieved_at).toISOString() } as PlatinumPrice;
   }
 
   async recordPlatinumPrice(price: PlatinumPrice): Promise<PlatinumPrice> {

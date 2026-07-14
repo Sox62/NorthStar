@@ -7,7 +7,7 @@ const required = [
 const missing = required.filter((name) => !process.env[name]?.trim());
 
 if (missing.length > 0) {
-  console.error(`North Star cannot start on Railway. Missing environment variables: ${missing.join(", ")}`);
+  console.error(`NorthStar cannot start on Railway. Missing environment variables: ${missing.join(", ")}`);
   process.exit(1);
 }
 
@@ -16,4 +16,4 @@ if ((process.env.NORTH_STAR_PASSWORD ?? "").length < 16) {
   process.exit(1);
 }
 
-console.log("North Star Railway environment verified.");
+console.log("NorthStar Railway environment verified.");

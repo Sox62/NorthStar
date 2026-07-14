@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "North Star",
+  title: "NorthStar",
   description: "Personal and SMSF portfolio reporting",
 };
 

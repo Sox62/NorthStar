@@ -59,7 +59,7 @@ export default function PhysicalAssetsPage() {
         retailAudPerKg: price.retailAudPerKg,
         priceProvider: price.provider,
         priceSourceUrl: price.sourceUrl,
-        priceRetrievedAt: price.retrievedAt,
+        priceRetrievedAt: new Date(price.retrievedAt).toISOString(),
         asOfDate: price.priceDate,
       }),
     });

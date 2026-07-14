@@ -5,7 +5,7 @@ function challenge(message = "Authentication required") {
   return new NextResponse(message, {
     status: 401,
     headers: {
-      "WWW-Authenticate": 'Basic realm="North Star", charset="UTF-8"',
+      "WWW-Authenticate": 'Basic realm="NorthStar", charset="UTF-8"',
       "Cache-Control": "no-store",
     },
   });
@@ -32,7 +32,7 @@ export async function proxy(request: NextRequest) {
 
   if (!expectedUsername || !expectedPassword) {
     if (process.env.NODE_ENV === "production") {
-      return new NextResponse("North Star authentication is not configured.", {
+      return new NextResponse("NorthStar authentication is not configured.", {
         status: 503,
         headers: { "Cache-Control": "no-store" },
       });

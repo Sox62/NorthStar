@@ -48,7 +48,7 @@ export default function Imports() {
 
   return <main className="shell">
     <div className="pageNav"><Link href="/">← Dashboard</Link><Link href="/cash">Cash accounts</Link><Link href="/assets">Physical platinum</Link></div>
-    <div className="brand"><h1>North Star imports</h1><p>Sync IBKR directly from its Flex Web Service or upload broker files manually.</p></div>
+    <div className="brand"><h1>NorthStar imports</h1><p>Sync IBKR directly from its Flex Web Service or upload broker files manually.</p></div>
 
     <section className="card syncCard" style={{ marginTop: 24 }}>
       <div>
@@ -73,7 +73,7 @@ export default function Imports() {
     </section>
     <section className="card notice" style={{ marginTop: 16 }}>
       <strong>IBKR valuation</strong>
-      <p>North Star treats Open Positions as the authoritative current holdings snapshot and Cash Report as the IBKR cash balance. Trades are deduplicated using IBKR transaction identifiers.</p>
+      <p>NorthStar treats Open Positions as the authoritative current holdings snapshot and Cash Report as the IBKR cash balance. Trades are deduplicated using IBKR transaction identifiers.</p>
     </section>
   </main>;
 }
@@ -85,7 +85,7 @@ function Importer({ title, accept, owner, result, busy, onOwner, onFile, onPrevi
   const isPreview = result?.preview === true;
   return <section className="card importCard">
     <div className="value">{title}</div>
-    <p className="small">File contents remain inside this North Star instance.</p>
+    <p className="small">File contents remain inside this NorthStar instance.</p>
     <label className="field"><span>Legal owner</span><select value={owner} onChange={event => onOwner(event.target.value as OwnerType)}><option value="PERSONAL">Personal</option><option value="SMSF">SMSF</option></select></label>
     <label className="fileButton"><input type="file" accept={accept} onChange={event => event.target.files?.[0] && onFile(event.target.files[0])} />Choose file</label>
     <div className="buttonRow"><button onClick={onPreview} disabled={busy}>Validate</button>{isPreview && <button className="primary" onClick={onCommit} disabled={busy}>Save import</button>}</div>

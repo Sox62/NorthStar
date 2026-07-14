@@ -1,10 +1,12 @@
-# North Star v0.3.2 — Railway-ready
+# NorthStar v0.3.4 — Railway-ready
 
 *In Via Recta Celeriter*
 
 A private portfolio system that preserves the legal separation between **Personal** and **SMSF** assets while providing a consolidated analytical view.
 
-## What v0.3.2 adds
+## What v0.3.4 adds
+
+- Fixes platinum saves when a cached PostgreSQL timestamp is returned in database format instead of strict ISO-8601.
 
 - Activates the **IBKR Flex Web Service** using `IBKR_FLEX_TOKEN` and `IBKR_FLEX_QUERY_ID` stored privately in Railway.
 - Adds a **Sync IBKR now** button that downloads the saved Flex Query and updates trades, Open Positions and IBKR cash.
@@ -46,7 +48,7 @@ The saved Flex Query should contain:
 - Open Positions
 - Trades
 
-North Star uses Open Positions as the authoritative holdings snapshot and `CashReport → BASE_SUMMARY → endingCash` as the IBKR cash balance.
+NorthStar uses Open Positions as the authoritative holdings snapshot and `CashReport → BASE_SUMMARY → endingCash` as the IBKR cash balance.
 
 ## Platinum valuation
 
