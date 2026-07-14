@@ -1,0 +1,1 @@
+export async function POST(request:Request){const key=request.headers.get("x-sync-key");if(!process.env.SYNC_SECRET||key!==process.env.SYNC_SECRET)return Response.json({error:"Unauthorized"},{status:401});return Response.json({accepted:true,message:"Sync endpoint scaffolded. Use the worker for scheduled production runs."},{status:202})}
