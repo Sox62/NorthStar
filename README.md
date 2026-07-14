@@ -1,11 +1,14 @@
-# NorthStar v0.3.5 — Railway-ready
+# NorthStar v0.3.6 — Railway-ready
 
 *In Via Recta Celeriter*
 
 A private portfolio system that preserves the legal separation between **Personal** and **SMSF** assets while providing a consolidated analytical view.
 
-## What v0.3.5 adds
+## What v0.3.6 adds
 
+- Applies the uploaded NorthStar design system across the dashboard, broker imports, cash accounts and physical platinum pages.
+- Adds semantic design tokens and reusable cards, KPI, status, split-bar, breakdown-bar, navigation and notice components.
+- Improves responsive layouts, focus states, account status presentation and portfolio composition reporting without changing stored portfolio data.
 - Fixes the PostgreSQL platinum INSERT statement that caused `INSERT has more expressions than target columns`.
 - Adds installable PWA support for iPhone, iPad, Android, Mac and desktop browsers.
 - Adds NorthStar app icons, standalone display mode and an install button where supported.

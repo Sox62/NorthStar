@@ -1,4 +1,4 @@
-# Deploy NorthStar v0.3.5 to Railway
+# Deploy NorthStar v0.3.6 to Railway
 
 ## Existing Railway installation
 
@@ -8,10 +8,10 @@ Replace the repository files with this release, commit and push. Railway will au
 2. apply migration `0002_abc_platinum_and_flex`;
 3. preserve existing PostgreSQL data;
 4. preserve the existing platinum schema and data;
-5. publish the PWA manifest, icons and service worker;
+5. publish the redesigned NorthStar interface and PWA assets;
 6. restart NorthStar and check `/api/health`.
 
-No database reset is required.
+No database reset or new Railway variable is required for the redesign.
 
 ## Variables
 

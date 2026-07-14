@@ -1,0 +1,169 @@
+/* NorthStar design tokens — concatenated from the design system.
+   Import once in app/layout.tsx: import "@/northstar/styles/tokens.css"; */
+
+/* ===== tokens/colors.css ===== */
+/* NorthStar — color tokens. Values copied verbatim from app/globals.css. */
+:root {
+  /* Base palette */
+  --ns-navy-950: #071019;
+  --ns-navy-900: #081019;
+  --ns-navy-850: #0a1420;
+  --ns-navy-800: #0d1722;
+  --ns-navy-700: #101b27;
+  --ns-navy-600: #213244;
+  --ns-slate-400: #8ea0b2;
+  --ns-ice-100: #edf3f8;
+  --ns-ice-050: #cbd6df;
+
+  --ns-gold-500: #d7b56d;
+  --ns-blue-400: #77a9d8;
+  --ns-green-400: #8dc6a0;
+  --ns-mauve-400: #c78db8;
+  --ns-slate-500: #8493a3;
+  --ns-terracotta-400: #dd8b6f;
+
+  --ns-mint-400: #7ee2a8;
+  --ns-red-300: #ff9b9b;
+  --ns-amber-400: #f3c36b;
+
+  --ns-status-good-bg: #123220;
+  --ns-status-good-fg: #83e7a9;
+  --ns-status-warning-bg: #3a2c10;
+  --ns-notice-border: #5c4b28;
+  --ns-notice-bg: #151d25;
+  --ns-result-good-border: #25533a;
+  --ns-result-good-bg: #0b2017;
+  --ns-result-error-border: #653333;
+  --ns-result-error-bg: #251111;
+  --ns-dashed-border: #4a5c6d;
+
+  /* Semantic aliases — use these in components */
+  --surface-page-top: var(--ns-navy-950);
+  --surface-page-bottom: var(--ns-navy-850);
+  --surface-card: rgba(16, 27, 39, 0.94);
+  --surface-sunken: var(--ns-navy-900);
+  --surface-control: var(--ns-navy-800);
+  --surface-tag: var(--ns-navy-800);
+
+  --border-default: var(--ns-navy-600);
+  --border-dashed: var(--ns-dashed-border);
+  --border-notice: var(--ns-notice-border);
+
+  --text-primary: var(--ns-ice-100);
+  --text-secondary: var(--ns-ice-050);
+  --text-muted: var(--ns-slate-400);
+  --text-on-accent: #151515;
+
+  --accent: var(--ns-gold-500);
+  --accent-contrast: var(--text-on-accent);
+
+  --status-positive: var(--ns-mint-400);
+  --status-negative: var(--ns-red-300);
+  --status-warning: var(--ns-amber-400);
+  --status-good-bg: var(--ns-status-good-bg);
+  --status-good-fg: var(--ns-status-good-fg);
+  --status-warning-bg: var(--ns-status-warning-bg);
+
+  --notice-bg: var(--ns-notice-bg);
+  --result-good-border: var(--ns-result-good-border);
+  --result-good-bg: var(--ns-result-good-bg);
+  --result-error-border: var(--ns-result-error-border);
+  --result-error-bg: var(--ns-result-error-bg);
+
+  /* Chart series, in order */
+  --chart-1: var(--ns-gold-500);
+  --chart-2: var(--ns-blue-400);
+  --chart-3: var(--ns-green-400);
+  --chart-4: var(--ns-mauve-400);
+  --chart-5: var(--ns-slate-500);
+  --chart-6: var(--ns-terracotta-400);
+}
+
+
+/* ===== tokens/typography.css ===== */
+/* NorthStar — type tokens. Body face is Arial/Helvetica (system); the italic
+   motto is set in Georgia (system serif). No custom webfonts are used in the
+   source app — see readme.md "Fonts" note. */
+:root {
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-serif-motto: Georgia, serif;
+
+  /* Sizes as used in the app, smallest to largest */
+  --text-2xs: 11px;   /* summaryGrid span, priceStats small */
+  --text-xs: 12px;    /* labels, status pills, mutedName */
+  --text-sm: 13px;    /* small/empty/lastUpdated/field labels */
+  --text-base: 15px;  /* summaryGrid strong */
+  --text-md: 16px;    /* body default */
+  --text-lg: 27px;    /* .value — KPI figures */
+  --text-xl: 28px;    /* h1 / brand title */
+
+  --leading-tight: 1;
+  --leading-normal: 1.4;
+  --leading-relaxed: 1.55; /* onboarding / notice paragraphs */
+
+  --tracking-label: 0.08em;  /* uppercase labels */
+  --tracking-motto: 0.06em;  /* italic motto */
+
+  --weight-regular: 400;
+  --weight-bold: 700;
+}
+
+
+/* ===== tokens/spacing.css ===== */
+/* NorthStar — spacing + sizing tokens, copied from exact values in use. */
+:root {
+  --space-3: 3px;
+  --space-5: 5px;
+  --space-6: 6px;
+  --space-7: 7px;
+  --space-8: 8px;
+  --space-9: 9px;
+  --space-10: 10px;
+  --space-11: 11px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-18: 18px;
+  --space-20: 20px;
+  --space-22: 22px;
+  --space-24: 24px;
+  --space-28: 28px;
+  --space-36: 36px;
+
+  --content-max-width: 1440px;
+  --shell-padding: 28px;
+  --shell-padding-narrow: 16px;
+}
+
+
+/* ===== tokens/effects.css ===== */
+/* NorthStar — radius + shadow tokens. */
+:root {
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 12px 30px rgba(0, 0, 0, 0.2);
+
+  --border-width: 1px;
+  --border-dash: 1px dashed var(--border-dashed);
+}
+
+
+/* ===== base.css ===== */
+/* NorthStar — base element resets, copied from app/globals.css */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: linear-gradient(180deg, var(--surface-page-top) 0%, var(--surface-page-bottom) 100%);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+}
+button, input, select { font: inherit; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+

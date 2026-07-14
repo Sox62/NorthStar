@@ -71,7 +71,7 @@ export async function fetchAbcPlatinumPrice(): Promise<PlatinumPrice> {
     const response = await fetch(SOURCE_URL, {
       cache: "no-store",
       headers: {
-        "user-agent": "NorthStar/0.3.5 (private portfolio valuation; contact via account owner)",
+        "user-agent": "NorthStar/0.3.6 (private portfolio valuation; contact via account owner)",
         accept: "text/html,application/xhtml+xml",
       },
       signal: controller.signal,

@@ -175,7 +175,7 @@ async function flexFetch(url: URL) {
   try {
     const response = await fetch(url, {
       cache: "no-store",
-      headers: { "user-agent": `Node.js/${process.versions.node} NorthStar/0.3.5` },
+      headers: { "user-agent": `Node.js/${process.versions.node} NorthStar/0.3.6` },
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(`IBKR Flex Web Service returned HTTP ${response.status}.`);

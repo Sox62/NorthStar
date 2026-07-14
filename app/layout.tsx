@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import PwaRegistration from "@/components/PwaRegistration";
+import "@/northstar/styles/tokens.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
