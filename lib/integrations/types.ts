@@ -28,6 +28,50 @@ export type ImportedTransaction = {
   raw?: Record<string, unknown>;
 };
 
+export type IbkrOpenPosition = {
+  externalAccountId: string;
+  instrumentKey: string;
+  symbol: string;
+  description: string;
+  exchange: string;
+  currency: string;
+  quantity: number;
+  lastPrice: number;
+  fxRateToBase: number;
+  averageCostAud: number;
+  costAud: number;
+  marketValueAud: number;
+  pnlAud: number;
+  pnlPercent: number;
+  asOfDate: string;
+  conid?: string;
+  isin?: string;
+  assetCategory?: string;
+  subCategory?: string;
+  raw?: Record<string, unknown>;
+};
+
+export type IbkrCashSnapshot = {
+  externalAccountId: string;
+  currency: "AUD";
+  balance: number;
+  balanceAud: number;
+  settledBalance: number;
+  fxRateToAud: 1;
+  asOfDate: string;
+  raw?: Record<string, unknown>;
+};
+
+export type IbkrFlexReport = {
+  accountId: string;
+  fromDate: string;
+  toDate: string;
+  whenGenerated?: string;
+  transactions: ImportedTransaction[];
+  openPositions: IbkrOpenPosition[];
+  cash: IbkrCashSnapshot | null;
+};
+
 export type OpeningPosition = {
   externalAccountId?: string;
   accountName?: string;

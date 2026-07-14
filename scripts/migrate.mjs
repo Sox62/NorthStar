@@ -12,7 +12,7 @@ if (!connectionString) {
 const pool = new Pool({
   connectionString,
   max: 1,
-  connectionTimeoutMillis: 15000,
+  connectionTimeoutMillis: 15_000,
 });
 
 try {

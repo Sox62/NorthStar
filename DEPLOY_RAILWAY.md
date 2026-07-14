@@ -1,66 +1,36 @@
-# Deploy North Star to Railway
+# Deploy North Star v0.3.1 to Railway
 
-North Star should be deployed as a separate Railway project from Raisonné.
+## Existing Railway installation
 
-## Services
+Replace the repository files with this release, commit and push. Railway will automatically:
 
-- North Star web service
-- PostgreSQL database
+1. run `npm run build`;
+2. apply the new Drizzle migration, including the `manual_assets` table;
+3. verify the Railway environment;
+4. restart North Star;
+5. check `/api/health`.
 
-## 1. Put the project in a private GitHub repository
+No database reset is required. Existing imports, cash accounts and snapshots remain in PostgreSQL.
 
-Create a private repository named `north-star`, copy this folder's contents into it, then commit and push.
-
-## 2. Create the Railway project
-
-In Railway, create a new project and select **Deploy from GitHub repo**. Select the private `north-star` repository.
-
-## 3. Add PostgreSQL
-
-On the project canvas choose **+ New → Database → PostgreSQL**.
-
-## 4. Add web-service variables
-
-In the North Star web service, open **Variables** and add:
+## Required variables
 
 ```text
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 NORTH_STAR_USERNAME=stephen
 NORTH_STAR_PASSWORD=<a unique password of at least 16 characters>
 SYNC_SECRET=<a different long random value>
+HOSTNAME=0.0.0.0
 ```
 
-Use Railway's **Add Reference Variable** control for `DATABASE_URL` where possible. The database service may be named something other than `Postgres`; select its `DATABASE_URL` variable in the UI.
+Use Railway's **Add Reference Variable** control for `DATABASE_URL`. Do not add or replace Railway's supplied `PORT` variable.
 
-Do not add IBKR credentials until the automated Flex sync is enabled.
+## After deployment
 
-## 5. Deploy
+1. Open `/imports` and import the latest IBKR Flex XML containing Open Positions and Cash Report.
+2. Confirm that `IBKR Cash` appears automatically.
+3. Remove any differently named temporary manual IBKR cash account if one was previously created.
+4. Open `/assets` and enter personally owned physical platinum positions.
 
-Railway reads `railway.json` and will:
+## New installation
 
-1. run `npm run build`;
-2. run the Drizzle migration as a pre-deploy command;
-3. verify that database and authentication variables exist;
-4. start Next.js;
-5. check `/api/health`.
-
-## 6. Generate the HTTPS domain
-
-Open the web service's **Settings → Networking** and choose **Generate Domain**.
-
-The first visit will show a browser username/password prompt. Use the values set in `NORTH_STAR_USERNAME` and `NORTH_STAR_PASSWORD`.
-
-## 7. Import data
-
-Open `/imports` on the Railway domain and save:
-
-- IBKR Flex XML into SMSF;
-- Directshares CSV into Personal.
-
-Add Macquarie balances under `/cash`.
-
-## Notes
-
-- Railway Postgres is the durable source of truth. The local `.north-star/data.json` file is not uploaded.
-- Keep the GitHub repository private.
-- Railway cron automation is not enabled in this release; new broker files remain manual imports.
+Create a private GitHub repository, deploy it to Railway, add PostgreSQL, add the variables above, generate a Railway domain, then import broker files.

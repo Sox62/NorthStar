@@ -33,7 +33,7 @@ export default function Imports() {
   };
 
   return <main className="shell">
-    <div className="pageNav"><Link href="/">← Dashboard</Link><Link href="/cash">Cash accounts</Link></div>
+    <div className="pageNav"><Link href="/">← Dashboard</Link><Link href="/cash">Cash accounts</Link><Link href="/assets">Physical platinum</Link></div>
     <div className="brand"><h1>North Star imports</h1><p>Validate a broker file, confirm its legal owner, then save it permanently.</p></div>
     <section className="grid two equal" style={{ marginTop: 24 }}>
       <Importer type="ibkr" title="IBKR Flex XML" accept=".xml" owner={owners.ibkr} result={results.ibkr} busy={busy === "ibkr"}
@@ -47,7 +47,7 @@ export default function Imports() {
     </section>
     <section className="card notice" style={{ marginTop: 16 }}>
       <strong>Valuation note</strong>
-      <p>Directshares supplies current market values. The uploaded IBKR Trades report supplies transactions and remaining cost basis, but not a current cash or Open Positions snapshot. North Star marks that portion as provisional rather than inventing a market value.</p>
+      <p>Directshares supplies current market values. An IBKR Flex file containing Open Positions and Cash Report updates current holdings and IBKR cash directly. A Trades-only file remains provisional at remaining cost basis.</p>
     </section>
   </main>;
 }

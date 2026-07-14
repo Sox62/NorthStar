@@ -1,9 +1,8 @@
-import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db/client";
-import type { ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
+import type { IbkrFlexReport, OpeningPosition } from "@/lib/integrations/types";
 import { classifyAsset } from "./classify";
-import type { CashAccount, DashboardData, ImportResult, OwnerType, Scope, StorageAdapter, StoredPosition } from "./types";
+import type { CashAccount, DashboardData, ImportResult, ManualAsset, OwnerType, Scope, StorageAdapter, StoredPosition } from "./types";
 
 const maskAccount = (account: string) => account.length <= 4 ? account : `${account.slice(0, 2)}••••${account.slice(-3)}`;
 const numberValue = (value: unknown) => Number(value ?? 0);
@@ -62,7 +61,10 @@ async function ensureInstrument(client: PoolClient, input: {
 async function captureSnapshot(client: PoolClient, portfolioId: string) {
   const totals = await client.query<{ market_value: string; cash_value: string }>(`
     SELECT
-      COALESCE((SELECT SUM(market_value_aud) FROM current_positions WHERE portfolio_id=$1),0)::text AS market_value,
+      (
+        COALESCE((SELECT SUM(market_value_aud) FROM current_positions WHERE portfolio_id=$1),0)
+        + COALESCE((SELECT SUM(market_value_aud) FROM manual_assets WHERE portfolio_id=$1),0)
+      )::text AS market_value,
       COALESCE((SELECT SUM(balance_aud) FROM cash_accounts WHERE portfolio_id=$1 AND is_active=true),0)::text AS cash_value
   `, [portfolioId]);
   await client.query(`
@@ -73,35 +75,19 @@ async function captureSnapshot(client: PoolClient, portfolioId: string) {
 
 async function rebuildIbkrPositions(client: PoolClient, portfolioId: string, accountId: string) {
   const rows = await client.query<{
-    instrument_id: string;
-    ticker: string;
-    name: string;
-    exchange: string;
-    currency: string;
-    asset_class: string;
-    quantity: string;
-    cost_aud: string;
-    last_price: string | null;
-    as_of_date: string;
+    instrument_id: string; quantity: string; cost_aud: string; last_price: string | null; as_of_date: string;
   }>(`
-    SELECT
-      i.id AS instrument_id,
-      i.ticker,
-      i.name,
-      i.exchange,
-      i.currency,
-      i.asset_class,
+    SELECT i.id AS instrument_id,
       SUM(COALESCE(t.quantity,0))::text AS quantity,
       SUM(COALESCE(t.cost,0) * COALESCE(t.fx_rate_to_base,1))::text AS cost_aud,
       (ARRAY_AGG(COALESCE(t.close_price,t.price) ORDER BY t.trade_date DESC, t.created_at DESC))[1]::text AS last_price,
       MAX(t.trade_date)::text AS as_of_date
-    FROM transactions t
-    JOIN instruments i ON i.id=t.instrument_id
+    FROM transactions t JOIN instruments i ON i.id=t.instrument_id
     WHERE t.account_id=$1 AND t.type <> 'FX'
-    GROUP BY i.id, i.ticker, i.name, i.exchange, i.currency, i.asset_class
+    GROUP BY i.id
   `, [accountId]);
 
-  await client.query(`DELETE FROM current_positions WHERE account_id=$1 AND source='IBKR Flex'`, [accountId]);
+  await client.query(`DELETE FROM current_positions WHERE account_id=$1`, [accountId]);
   let count = 0;
   for (const row of rows.rows) {
     const quantity = numberValue(row.quantity);
@@ -118,32 +104,54 @@ async function rebuildIbkrPositions(client: PoolClient, portfolioId: string, acc
   return count;
 }
 
+async function replaceIbkrOpenPositions(client: PoolClient, report: IbkrFlexReport, portfolioId: string, accountId: string) {
+  await client.query(`DELETE FROM current_positions WHERE account_id=$1`, [accountId]);
+  for (const position of report.openPositions) {
+    const instrumentId = await ensureInstrument(client, {
+      source: "IBKR", externalKey: position.instrumentKey, name: position.description,
+      ticker: position.symbol, exchange: position.exchange, currency: position.currency,
+      assetClass: classifyAsset(position.symbol, position.description), conid: position.conid, isin: position.isin,
+    });
+    await client.query(`
+      INSERT INTO current_positions (
+        portfolio_id, account_id, instrument_id, source, quantity, last_price, average_cost_aud,
+        cost_aud, market_value_aud, day_gain_aud, pnl_aud, pnl_percent, valuation_basis, as_of_date, updated_at
+      ) VALUES ($1,$2,$3,'IBKR Open Positions',$4,$5,$6,$7,$8,0,$9,$10,'market',$11,NOW())
+    `, [portfolioId, accountId, instrumentId, position.quantity, position.lastPrice, position.averageCostAud,
+      position.costAud, position.marketValueAud, position.pnlAud, position.pnlPercent, position.asOfDate]);
+  }
+  return report.openPositions.length;
+}
+
+async function upsertIbkrCash(client: PoolClient, report: IbkrFlexReport, portfolioId: string) {
+  if (!report.cash) return;
+  await client.query(`
+    INSERT INTO cash_accounts (portfolio_id,institution,name,currency,balance,fx_rate_to_aud,balance_aud,as_of_date,is_active,updated_at)
+    VALUES ($1,'IBKR','IBKR Cash','AUD',$2,1,$3,$4,true,NOW())
+    ON CONFLICT (portfolio_id,institution,name) DO UPDATE SET currency='AUD',balance=EXCLUDED.balance,
+      fx_rate_to_aud=1,balance_aud=EXCLUDED.balance_aud,as_of_date=EXCLUDED.as_of_date,is_active=true,updated_at=NOW()
+  `, [portfolioId, report.cash.balance, report.cash.balanceAud, report.cash.asOfDate]);
+}
+
 export class PostgresStorageAdapter implements StorageAdapter {
-  async importIbkr(transactions: ImportedTransaction[], ownerType: OwnerType): Promise<ImportResult> {
+  async importIbkr(report: IbkrFlexReport, ownerType: OwnerType): Promise<ImportResult> {
     const client = await getPool().connect();
     try {
       await client.query("BEGIN");
       const portfolioId = await ensurePortfolio(client, ownerType);
-      const accountKey = transactions.find(transaction => transaction.externalAccountId)?.externalAccountId || "IBKR";
+      const accountKey = report.accountId || report.transactions.find(transaction => transaction.externalAccountId)?.externalAccountId || "IBKR";
       const accountId = await ensureBrokerAccount(client, portfolioId, "IBKR", accountKey, "AUD");
       let imported = 0;
       let duplicates = 0;
 
-      for (const transaction of transactions) {
+      for (const transaction of report.transactions) {
         let instrumentId: string | null = null;
-        if (transaction.type !== "FX") {
-          instrumentId = await ensureInstrument(client, {
-            source: "IBKR",
-            externalKey: transaction.instrumentKey || `${transaction.symbol}:${transaction.exchange}`,
-            name: transaction.description || transaction.symbol,
-            ticker: transaction.symbol,
-            exchange: transaction.exchange,
-            currency: transaction.currency,
-            assetClass: classifyAsset(transaction.symbol, transaction.description || ""),
-            conid: transaction.conid,
-            isin: transaction.isin,
-          });
-        }
+        if (transaction.type !== "FX") instrumentId = await ensureInstrument(client, {
+          source: "IBKR", externalKey: transaction.instrumentKey || `${transaction.symbol}:${transaction.exchange}`,
+          name: transaction.description || transaction.symbol, ticker: transaction.symbol, exchange: transaction.exchange,
+          currency: transaction.currency, assetClass: classifyAsset(transaction.symbol, transaction.description || ""),
+          conid: transaction.conid, isin: transaction.isin,
+        });
         const inserted = await client.query(`
           INSERT INTO transactions (
             portfolio_id, account_id, instrument_id, type, trade_date, settle_date, quantity, price, close_price,
@@ -158,17 +166,18 @@ export class PostgresStorageAdapter implements StorageAdapter {
         if (inserted.rowCount) imported += 1; else duplicates += 1;
       }
 
-      const positionCount = await rebuildIbkrPositions(client, portfolioId, accountId);
-      await client.query(`INSERT INTO import_runs (portfolio_id, account_id, source, record_count) VALUES ($1,$2,'IBKR',$3)`, [portfolioId, accountId, transactions.length]);
+      const positionCount = report.openPositions.length
+        ? await replaceIbkrOpenPositions(client, report, portfolioId, accountId)
+        : await rebuildIbkrPositions(client, portfolioId, accountId);
+      await upsertIbkrCash(client, report, portfolioId);
+      await client.query(`INSERT INTO import_runs (portfolio_id, account_id, source, record_count) VALUES ($1,$2,'IBKR',$3)`, [portfolioId, accountId, report.transactions.length]);
       await captureSnapshot(client, portfolioId);
       await client.query("COMMIT");
-      return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, storageMode: "postgresql" };
+      return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, openPositions: report.openPositions.length, cashAud: report.cash?.balanceAud, valuationSource: report.openPositions.length ? "open_positions" : "trade_cost_basis", storageMode: "postgresql" };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
-    } finally {
-      client.release();
-    }
+    } finally { client.release(); }
   }
 
   async importDirectshares(positions: OpeningPosition[], ownerType: OwnerType): Promise<ImportResult> {
@@ -183,12 +192,8 @@ export class PostgresStorageAdapter implements StorageAdapter {
 
       for (const position of positions) {
         const instrumentId = await ensureInstrument(client, {
-          source: "Directshares",
-          externalKey: `${position.symbol}:${position.exchange}`,
-          name: position.symbol,
-          ticker: position.symbol,
-          exchange: position.exchange,
-          currency: position.currency,
+          source: "Directshares", externalKey: `${position.symbol}:${position.exchange}`, name: position.symbol,
+          ticker: position.symbol, exchange: position.exchange, currency: position.currency,
           assetClass: classifyAsset(position.symbol, position.symbol),
         });
         await client.query(`
@@ -206,9 +211,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
-    } finally {
-      client.release();
-    }
+    } finally { client.release(); }
   }
 
   async listCashAccounts(ownerType?: OwnerType): Promise<CashAccount[]> {
@@ -219,21 +222,11 @@ export class PostgresStorageAdapter implements StorageAdapter {
       SELECT c.id, p.legal_owner_type, c.institution, c.name, c.currency, c.balance, c.balance_aud,
         c.fx_rate_to_aud, c.as_of_date::text, c.updated_at::text
       FROM cash_accounts c JOIN portfolios p ON p.id=c.portfolio_id
-      ${filter}
-      ORDER BY c.institution, c.name
+      ${filter} ORDER BY c.institution, c.name
     `, values);
-    return result.rows.map(row => ({
-      id: row.id,
-      ownerType: row.legal_owner_type,
-      institution: row.institution,
-      name: row.name,
-      currency: row.currency,
-      balance: numberValue(row.balance),
-      balanceAud: numberValue(row.balance_aud),
-      fxRateToAud: numberValue(row.fx_rate_to_aud),
-      asOfDate: row.as_of_date,
-      updatedAt: row.updated_at,
-    }));
+    return result.rows.map(row => ({ id: row.id, ownerType: row.legal_owner_type, institution: row.institution,
+      name: row.name, currency: row.currency, balance: numberValue(row.balance), balanceAud: numberValue(row.balance_aud),
+      fxRateToAud: numberValue(row.fx_rate_to_aud), asOfDate: row.as_of_date, updatedAt: row.updated_at }));
   }
 
   async upsertCashAccount(input: Omit<CashAccount, "id" | "updatedAt" | "balanceAud"> & { id?: string }): Promise<CashAccount> {
@@ -243,11 +236,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const portfolioId = await ensurePortfolio(client, input.ownerType);
       const balanceAud = input.balance * input.fxRateToAud;
       const result = input.id
-        ? await client.query(`
-            UPDATE cash_accounts SET institution=$1,name=$2,currency=$3,balance=$4,fx_rate_to_aud=$5,balance_aud=$6,
-              as_of_date=$7,updated_at=NOW() WHERE id=$8 AND portfolio_id=$9
-            RETURNING id, updated_at::text
-          `, [input.institution, input.name, input.currency, input.balance, input.fxRateToAud, balanceAud, input.asOfDate, input.id, portfolioId])
+        ? await client.query(`UPDATE cash_accounts SET institution=$1,name=$2,currency=$3,balance=$4,fx_rate_to_aud=$5,balance_aud=$6,as_of_date=$7,updated_at=NOW() WHERE id=$8 AND portfolio_id=$9 RETURNING id, updated_at::text`, [input.institution, input.name, input.currency, input.balance, input.fxRateToAud, balanceAud, input.asOfDate, input.id, portfolioId])
         : await client.query(`
             INSERT INTO cash_accounts (portfolio_id,institution,name,currency,balance,fx_rate_to_aud,balance_aud,as_of_date,updated_at)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW())
@@ -255,15 +244,80 @@ export class PostgresStorageAdapter implements StorageAdapter {
               fx_rate_to_aud=EXCLUDED.fx_rate_to_aud,balance_aud=EXCLUDED.balance_aud,as_of_date=EXCLUDED.as_of_date,updated_at=NOW()
             RETURNING id, updated_at::text
           `, [portfolioId, input.institution, input.name, input.currency, input.balance, input.fxRateToAud, balanceAud, input.asOfDate]);
+      if (!result.rows[0]) throw new Error("Cash account was not found.");
       await captureSnapshot(client, portfolioId);
       await client.query("COMMIT");
       return { ...input, id: result.rows[0].id, balanceAud, updatedAt: result.rows[0].updated_at };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
-    } finally {
-      client.release();
-    }
+    } finally { client.release(); }
+  }
+
+  async listManualAssets(ownerType?: OwnerType): Promise<ManualAsset[]> {
+    const values: unknown[] = [];
+    const filter = ownerType ? "WHERE p.legal_owner_type=$1" : "";
+    if (ownerType) values.push(ownerType);
+    const result = await getPool().query(`
+      SELECT ma.id,p.legal_owner_type,ma.asset_type,ma.name,ma.quantity_troy_oz,ma.total_cost_aud,
+        ma.current_price_aud_per_oz,ma.market_value_aud,ma.purchase_date::text,ma.as_of_date::text,ma.updated_at::text
+      FROM manual_assets ma JOIN portfolios p ON p.id=ma.portfolio_id
+      ${filter} ORDER BY ma.purchase_date DESC, ma.name
+    `, values);
+    return result.rows.map(row => {
+      const totalCostAud = numberValue(row.total_cost_aud);
+      const marketValueAud = numberValue(row.market_value_aud);
+      const pnlAud = marketValueAud - totalCostAud;
+      return { id: row.id, ownerType: row.legal_owner_type, assetType: row.asset_type, name: row.name,
+        quantityTroyOz: numberValue(row.quantity_troy_oz), totalCostAud, currentPriceAudPerOz: numberValue(row.current_price_aud_per_oz),
+        marketValueAud, pnlAud, pnlPercent: totalCostAud ? pnlAud / totalCostAud * 100 : 0,
+        purchaseDate: row.purchase_date, asOfDate: row.as_of_date, updatedAt: row.updated_at } as ManualAsset;
+    });
+  }
+
+  async upsertManualAsset(input: Omit<ManualAsset, "id" | "updatedAt" | "marketValueAud" | "pnlAud" | "pnlPercent"> & { id?: string }): Promise<ManualAsset> {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      const portfolioId = await ensurePortfolio(client, input.ownerType);
+      const marketValueAud = input.quantityTroyOz * input.currentPriceAudPerOz;
+      const result = input.id
+        ? await client.query(`
+            UPDATE manual_assets SET asset_type='PLATINUM',name=$1,quantity_troy_oz=$2,total_cost_aud=$3,
+              current_price_aud_per_oz=$4,market_value_aud=$5,purchase_date=$6,as_of_date=$7,updated_at=NOW()
+            WHERE id=$8 AND portfolio_id=$9 RETURNING id,updated_at::text
+          `, [input.name, input.quantityTroyOz, input.totalCostAud, input.currentPriceAudPerOz, marketValueAud, input.purchaseDate, input.asOfDate, input.id, portfolioId])
+        : await client.query(`
+            INSERT INTO manual_assets (portfolio_id,asset_type,name,quantity_troy_oz,total_cost_aud,current_price_aud_per_oz,market_value_aud,purchase_date,as_of_date,updated_at)
+            VALUES ($1,'PLATINUM',$2,$3,$4,$5,$6,$7,$8,NOW()) RETURNING id,updated_at::text
+          `, [portfolioId, input.name, input.quantityTroyOz, input.totalCostAud, input.currentPriceAudPerOz, marketValueAud, input.purchaseDate, input.asOfDate]);
+      if (!result.rows[0]) throw new Error("Physical platinum position was not found.");
+      await captureSnapshot(client, portfolioId);
+      await client.query("COMMIT");
+      const pnlAud = marketValueAud - input.totalCostAud;
+      return { id: result.rows[0].id, ownerType: input.ownerType, assetType: "PLATINUM", name: input.name,
+        quantityTroyOz: input.quantityTroyOz, totalCostAud: input.totalCostAud,
+        currentPriceAudPerOz: input.currentPriceAudPerOz, marketValueAud, pnlAud,
+        pnlPercent: input.totalCostAud ? pnlAud / input.totalCostAud * 100 : 0,
+        purchaseDate: input.purchaseDate, asOfDate: input.asOfDate, updatedAt: result.rows[0].updated_at };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally { client.release(); }
+  }
+
+  async deleteManualAsset(id: string, ownerType: OwnerType) {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      const portfolioId = await ensurePortfolio(client, ownerType);
+      await client.query(`DELETE FROM manual_assets WHERE id=$1 AND portfolio_id=$2`, [id, portfolioId]);
+      await captureSnapshot(client, portfolioId);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally { client.release(); }
   }
 
   async dashboard(scope: Scope): Promise<DashboardData> {
@@ -273,14 +327,11 @@ export class PostgresStorageAdapter implements StorageAdapter {
     if (ownerType) values.push(ownerType);
 
     const positionRows = await getPool().query(`
-      SELECT cp.id, p.legal_owner_type, ba.broker, ba.external_account_id, i.external_key, i.ticker, i.name,
-        i.exchange, i.currency, i.asset_class, cp.quantity, cp.last_price, cp.average_cost_aud, cp.cost_aud,
-        cp.market_value_aud, cp.day_gain_aud, cp.pnl_aud, cp.pnl_percent, cp.valuation_basis,
-        cp.as_of_date::text, cp.source
-      FROM current_positions cp
-      JOIN portfolios p ON p.id=cp.portfolio_id
-      JOIN broker_accounts ba ON ba.id=cp.account_id
-      JOIN instruments i ON i.id=cp.instrument_id
+      SELECT cp.id,p.legal_owner_type,ba.broker,ba.external_account_id,i.external_key,i.ticker,i.name,
+        i.exchange,i.currency,i.asset_class,cp.quantity,cp.last_price,cp.average_cost_aud,cp.cost_aud,
+        cp.market_value_aud,cp.day_gain_aud,cp.pnl_aud,cp.pnl_percent,cp.valuation_basis,cp.as_of_date::text,cp.source
+      FROM current_positions cp JOIN portfolios p ON p.id=cp.portfolio_id
+      JOIN broker_accounts ba ON ba.id=cp.account_id JOIN instruments i ON i.id=cp.instrument_id
       WHERE 1=1 ${ownerFilter}
     `, values);
     const positions: StoredPosition[] = positionRows.rows.map(row => ({
@@ -292,6 +343,18 @@ export class PostgresStorageAdapter implements StorageAdapter {
       pnlAud: numberValue(row.pnl_aud), pnlPercent: numberValue(row.pnl_percent), valuationBasis: row.valuation_basis,
       asOfDate: row.as_of_date, source: row.source,
     }));
+
+    const manualAssets = await this.listManualAssets(ownerType);
+    for (const asset of manualAssets) positions.push({
+      id: asset.id, ownerType: asset.ownerType, broker: "Physical", accountKey: `${asset.ownerType}-PHYSICAL`,
+      instrumentKey: `manual:${asset.id}`, symbol: "PLATINUM", name: asset.name, exchange: "PHYSICAL",
+      currency: "AUD", assetClass: "Physical platinum", quantity: asset.quantityTroyOz,
+      lastPrice: asset.currentPriceAudPerOz, averageCostAud: asset.quantityTroyOz ? asset.totalCostAud / asset.quantityTroyOz : 0,
+      costAud: asset.totalCostAud, marketValueAud: asset.marketValueAud, dayGainAud: 0,
+      pnlAud: asset.pnlAud, pnlPercent: asset.pnlPercent, valuationBasis: "market",
+      asOfDate: asset.asOfDate, source: "Manual physical",
+    });
+
     const cashAccounts = await this.listCashAccounts(ownerType);
     const investedValue = positions.reduce((sum, position) => sum + position.marketValueAud, 0);
     const cashValue = cashAccounts.reduce((sum, account) => sum + account.balanceAud, 0);
@@ -300,8 +363,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
     const unrealised = positions.reduce((sum, position) => sum + position.pnlAud, 0);
     const realisedResult = await getPool().query(`
       SELECT COALESCE(SUM(COALESCE(t.realised_pnl,0)*COALESCE(t.fx_rate_to_base,1)),0)::text AS realised
-      FROM transactions t JOIN portfolios p ON p.id=t.portfolio_id
-      WHERE t.type='SELL' ${ownerFilter}
+      FROM transactions t JOIN portfolios p ON p.id=t.portfolio_id WHERE t.type='SELL' ${ownerFilter}
     `, values);
     const totalReturn = unrealised + numberValue(realisedResult.rows[0]?.realised);
     const totalCost = positions.reduce((sum, position) => sum + position.costAud, 0);
@@ -310,16 +372,14 @@ export class PostgresStorageAdapter implements StorageAdapter {
     const holdings = [...positions].sort((a,b)=>b.marketValueAud-a.marketValueAud).map(position => ({ ...position, weight: totalValue ? position.marketValueAud/totalValue*100 : 0 }));
     const allocationMap = new Map<string,number>();
     for (const position of positions) allocationMap.set(position.assetClass,(allocationMap.get(position.assetClass)??0)+position.marketValueAud);
-    if(cashValue) allocationMap.set("Cash",cashValue);
+    if (cashValue) allocationMap.set("Cash",cashValue);
     const allocations=[...allocationMap.entries()].map(([name,amount])=>({name,amount,value:totalValue?amount/totalValue*100:0})).sort((a,b)=>b.amount-a.amount);
 
     const snapshotRows = await getPool().query(`
-      SELECT ps.captured_at::date::text AS day, p.legal_owner_type,
+      SELECT ps.captured_at::date::text AS day,p.legal_owner_type,
         (ARRAY_AGG((ps.market_value+ps.cash_value) ORDER BY ps.captured_at DESC))[1]::text AS value
       FROM portfolio_snapshots ps JOIN portfolios p ON p.id=ps.portfolio_id
-      WHERE 1=1 ${ownerFilter}
-      GROUP BY ps.captured_at::date, p.legal_owner_type
-      ORDER BY day DESC LIMIT 180
+      WHERE 1=1 ${ownerFilter} GROUP BY ps.captured_at::date,p.legal_owner_type ORDER BY day DESC LIMIT 180
     `, values);
     const dayMap=new Map<string,{personal?:number;smsf?:number}>();
     for(const row of snapshotRows.rows){const entry=dayMap.get(row.day)??{};if(row.legal_owner_type==="PERSONAL")entry.personal=numberValue(row.value);else entry.smsf=numberValue(row.value);dayMap.set(row.day,entry)}
@@ -333,7 +393,11 @@ export class PostgresStorageAdapter implements StorageAdapter {
     `,values);
     const accounts=importRows.rows.map(row=>({name:`${row.source} ${row.legal_owner_type==="SMSF"?"SMSF":"Personal"}`,detail:maskAccount(row.external_account_id),status:`${row.record_count} records`,ownerType:row.legal_owner_type as OwnerType}));
     for(const account of cashAccounts)accounts.push({name:`${account.institution} · ${account.name}`,detail:`${account.currency} ${account.balance.toLocaleString("en-AU",{maximumFractionDigits:2})}`,status:"Cash current",ownerType:account.ownerType});
-    const updated=[...importRows.rows.map(row=>row.imported_at),...cashAccounts.map(account=>account.updatedAt)].sort();
+    for (const owner of ["PERSONAL", "SMSF"] as const) {
+      const assets = manualAssets.filter(asset => asset.ownerType === owner);
+      if (assets.length) accounts.push({name:`Physical platinum ${owner==="SMSF"?"SMSF":"Personal"}`,detail:`${assets.reduce((sum,asset)=>sum+asset.quantityTroyOz,0).toLocaleString("en-AU",{maximumFractionDigits:4})} troy oz`,status:`${assets.length} position${assets.length===1?"":"s"}`,ownerType:owner});
+    }
+    const updated=[...importRows.rows.map(row=>row.imported_at),...cashAccounts.map(account=>account.updatedAt),...manualAssets.map(asset=>asset.updatedAt)].sort();
 
     return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,accounts,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
   }

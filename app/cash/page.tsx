@@ -23,7 +23,7 @@ export default function CashPage() {
   };
 
   return <main className="shell">
-    <div className="pageNav"><Link href="/">← Dashboard</Link><Link href="/imports">Broker imports</Link></div>
+    <div className="pageNav"><Link href="/">← Dashboard</Link><Link href="/imports">Broker imports</Link><Link href="/assets">Physical platinum</Link></div>
     <div className="brand"><h1>Cash accounts</h1><p>Add Macquarie and other cash positions without mixing Personal and SMSF ownership.</p></div>
     <section className="grid two equal" style={{ marginTop: 24 }}>
       <form className="card form" onSubmit={submit}>

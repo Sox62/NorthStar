@@ -109,6 +109,21 @@ export const cashAccounts = pgTable("cash_accounts", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, table => [uniqueIndex("cash_account_portfolio_name_uq").on(table.portfolioId, table.institution, table.name)]);
 
+
+export const manualAssets = pgTable("manual_assets", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  portfolioId: uuid("portfolio_id").references(() => portfolios.id).notNull(),
+  assetType: text("asset_type").notNull(),
+  name: text("name").notNull(),
+  quantityTroyOz: numeric("quantity_troy_oz", { precision: 28, scale: 10 }).notNull(),
+  totalCostAud: numeric("total_cost_aud", { precision: 28, scale: 2 }).notNull().default("0"),
+  currentPriceAudPerOz: numeric("current_price_aud_per_oz", { precision: 28, scale: 10 }).notNull().default("0"),
+  marketValueAud: numeric("market_value_aud", { precision: 28, scale: 2 }).notNull().default("0"),
+  purchaseDate: date("purchase_date").notNull(),
+  asOfDate: date("as_of_date").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [index("manual_asset_portfolio_idx").on(table.portfolioId)]);
+
 export const importRuns = pgTable("import_runs", {
   id: uuid("id").defaultRandom().primaryKey(),
   portfolioId: uuid("portfolio_id").references(() => portfolios.id).notNull(),

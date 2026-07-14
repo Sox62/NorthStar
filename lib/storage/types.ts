@@ -1,4 +1,4 @@
-import type { ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
+import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
 
 export type OwnerType = "PERSONAL" | "SMSF";
 export type Scope = "overall" | "personal" | "smsf";
@@ -47,6 +47,22 @@ export type CashAccount = {
   updatedAt: string;
 };
 
+export type ManualAsset = {
+  id: string;
+  ownerType: OwnerType;
+  assetType: "PLATINUM";
+  name: string;
+  quantityTroyOz: number;
+  totalCostAud: number;
+  currentPriceAudPerOz: number;
+  marketValueAud: number;
+  pnlAud: number;
+  pnlPercent: number;
+  purchaseDate: string;
+  asOfDate: string;
+  updatedAt: string;
+};
+
 export type Snapshot = {
   id: string;
   ownerType: OwnerType;
@@ -57,10 +73,11 @@ export type Snapshot = {
 };
 
 export type LocalStore = {
-  version: 2;
+  version: 3;
   transactions: StoredTransaction[];
   positions: StoredPosition[];
   cashAccounts: CashAccount[];
+  manualAssets: ManualAsset[];
   snapshots: Snapshot[];
   imports: Array<{
     id: string;
@@ -99,12 +116,18 @@ export type ImportResult = {
   duplicates: number;
   positions: number;
   storageMode: "local-file" | "postgresql";
+  openPositions?: number;
+  cashAud?: number;
+  valuationSource?: "open_positions" | "trade_cost_basis";
 };
 
 export interface StorageAdapter {
-  importIbkr(transactions: ImportedTransaction[], ownerType: OwnerType): Promise<ImportResult>;
+  importIbkr(report: IbkrFlexReport, ownerType: OwnerType): Promise<ImportResult>;
   importDirectshares(positions: OpeningPosition[], ownerType: OwnerType): Promise<ImportResult>;
   listCashAccounts(ownerType?: OwnerType): Promise<CashAccount[]>;
   upsertCashAccount(input: Omit<CashAccount, "id" | "updatedAt" | "balanceAud"> & { id?: string }): Promise<CashAccount>;
+  listManualAssets(ownerType?: OwnerType): Promise<ManualAsset[]>;
+  upsertManualAsset(input: Omit<ManualAsset, "id" | "updatedAt" | "marketValueAud" | "pnlAud" | "pnlPercent"> & { id?: string }): Promise<ManualAsset>;
+  deleteManualAsset(id: string, ownerType: OwnerType): Promise<void>;
   dashboard(scope: Scope): Promise<DashboardData>;
 }

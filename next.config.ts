@@ -9,6 +9,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  experimental: { cpus: 1 },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
