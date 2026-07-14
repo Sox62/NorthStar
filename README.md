@@ -1,12 +1,15 @@
-# NorthStar v0.3.4 — Railway-ready
+# NorthStar v0.3.5 — Railway-ready
 
 *In Via Recta Celeriter*
 
 A private portfolio system that preserves the legal separation between **Personal** and **SMSF** assets while providing a consolidated analytical view.
 
-## What v0.3.4 adds
+## What v0.3.5 adds
 
-- Fixes platinum saves when a cached PostgreSQL timestamp is returned in database format instead of strict ISO-8601.
+- Fixes the PostgreSQL platinum INSERT statement that caused `INSERT has more expressions than target columns`.
+- Adds installable PWA support for iPhone, iPad, Android, Mac and desktop browsers.
+- Adds NorthStar app icons, standalone display mode and an install button where supported.
+- Keeps portfolio pages and API data network-only; sensitive balances and holdings are not cached for offline viewing.
 
 - Activates the **IBKR Flex Web Service** using `IBKR_FLEX_TOKEN` and `IBKR_FLEX_QUERY_ID` stored privately in Railway.
 - Adds a **Sync IBKR now** button that downloads the saved Flex Query and updates trades, Open Positions and IBKR cash.
@@ -61,6 +64,12 @@ quantity in kg × ABC Bullion 1 kg platinum tablet buyback price
 Investment return is measured against actual purchase cost. ABC’s current retail-to-buyback spread is shown separately and is not treated as the investment return.
 
 The ABC price is refreshed when the platinum page opens, when **Refresh ABC price** is pressed, and through the scheduled sync worker/endpoint.
+
+## PWA installation
+
+NorthStar can be installed from its Railway URL. On Chrome or Edge, use the **Install NorthStar** link when it appears. On iPhone or iPad, open NorthStar in Safari, use **Share**, then choose **Add to Home Screen**. On Safari for Mac, use **File → Add to Dock**.
+
+The PWA requires an internet connection for portfolio data. The service worker caches only static application files and a generic offline page; it does not cache API responses, holdings, balances or transactions.
 
 ## Local development
 

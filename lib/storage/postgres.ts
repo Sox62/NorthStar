@@ -315,7 +315,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
             INSERT INTO manual_assets (portfolio_id,asset_type,name,quantity_kg,quantity_troy_oz,total_cost_aud,
               buyback_aud_per_kg,retail_aud_per_kg,current_price_aud_per_oz,market_value_aud,price_provider,
               price_source_url,price_retrieved_at,purchase_date,as_of_date,updated_at)
-            VALUES ($1,'PLATINUM',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+            VALUES ($1,'PLATINUM',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
             RETURNING id,updated_at::text
           `, [portfolioId, input.name, input.quantityKg, quantityTroyOz, input.totalCostAud,
             input.buybackAudPerKg, input.retailAudPerKg, currentPriceAudPerOz, marketValueAud,

@@ -1,4 +1,4 @@
-# Deploy NorthStar v0.3.4 to Railway
+# Deploy NorthStar v0.3.5 to Railway
 
 ## Existing Railway installation
 
@@ -7,8 +7,9 @@ Replace the repository files with this release, commit and push. Railway will au
 1. run `npm run build`;
 2. apply migration `0002_abc_platinum_and_flex`;
 3. preserve existing PostgreSQL data;
-4. convert any v0.3.1 platinum entries from troy ounces to kilograms;
-5. restart NorthStar and check `/api/health`.
+4. preserve the existing platinum schema and data;
+5. publish the PWA manifest, icons and service worker;
+6. restart NorthStar and check `/api/health`.
 
 No database reset is required.
 
@@ -37,6 +38,7 @@ Do not add or replace Railway’s supplied `PORT` variable.
 4. Open **Physical platinum**.
 5. Confirm the ABC Bullion buyback price loads.
 6. Add each Personal platinum position using kilograms and actual total purchase cost.
+7. Install NorthStar from the browser menu or the **Install NorthStar** link when shown.
 
 If a temporary manually entered IBKR cash account has a different name, remove it after confirming the automatic `IBKR Cash` balance, to avoid double-counting.
 

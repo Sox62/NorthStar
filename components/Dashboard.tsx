@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Cell, CartesianGrid, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { DashboardData, Scope } from "@/lib/storage";
+import PwaInstallButton from "@/components/PwaInstallButton";
 
 const money = (value: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value);
 const colours = ["#d7b56d", "#77a9d8", "#8dc6a0", "#c78db8", "#8493a3", "#dd8b6f"];
@@ -27,7 +28,7 @@ export default function Dashboard() {
   return <main className="shell">
     <div className="top">
       <div className="brand"><div className="star">✦</div><h1>NorthStar</h1><p className="motto">In Via Recta Celeriter</p><p>Personal, SMSF and consolidated investment reporting</p></div>
-      <div className="topActions"><div className="tabs"><ScopeButton value="overall" current={scope} onClick={setScope}>Overall</ScopeButton><ScopeButton value="personal" current={scope} onClick={setScope}>Personal</ScopeButton><ScopeButton value="smsf" current={scope} onClick={setScope}>SMSF</ScopeButton></div><div className="links"><Link href="/imports">Import broker data</Link><Link href="/cash">Cash accounts</Link><Link href="/assets">Physical platinum</Link></div></div>
+      <div className="topActions"><div className="tabs"><ScopeButton value="overall" current={scope} onClick={setScope}>Overall</ScopeButton><ScopeButton value="personal" current={scope} onClick={setScope}>Personal</ScopeButton><ScopeButton value="smsf" current={scope} onClick={setScope}>SMSF</ScopeButton></div><div className="links"><Link href="/imports">Import broker data</Link><Link href="/cash">Cash accounts</Link><Link href="/assets">Physical platinum</Link><PwaInstallButton /></div></div>
     </div>
 
     {error && <div className="result error">{error}</div>}
