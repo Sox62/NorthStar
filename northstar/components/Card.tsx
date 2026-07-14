@@ -4,19 +4,9 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
 }
 
-export function Card({ children, style, ...rest }: CardProps) {
+export function Card({ children, className = "", ...rest }: CardProps) {
   return (
-    <div
-      style={{
-        background: "var(--surface-card)",
-        border: "1px solid var(--border-default)",
-        borderRadius: "var(--radius-xl)",
-        padding: "18px",
-        boxShadow: "var(--shadow-card)",
-        ...style,
-      }}
-      {...rest}
-    >
+    <div className={["nsCard", className].filter(Boolean).join(" ")} {...rest}>
       {children}
     </div>
   );

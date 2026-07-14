@@ -13,23 +13,34 @@ const scopeOptions = [
 
 export default function AppHeader({ scope, onScopeChange }: { scope: Scope; onScopeChange: (scope: Scope) => void }) {
   return (
-    <header className="appHeader">
-      <div className="brandLockup">
-        <div className="starMark" aria-hidden="true">✦</div>
-        <div>
-          <h1>NorthStar</h1>
-          <p className="motto">In Via Recta Celeriter</p>
-          <p className="brandDescription">Personal, SMSF and consolidated investment reporting</p>
+    <header className="appMasthead">
+      <div className="mastheadTopline">
+        <div className="brandLockup">
+          <div className="starMark" aria-hidden="true"><span>✦</span></div>
+          <div>
+            <div className="brandTitleRow">
+              <h1>NorthStar</h1>
+              <span className="privateBadge">Private</span>
+            </div>
+            <p className="motto">In Via Recta Celeriter</p>
+          </div>
         </div>
-      </div>
-      <div className="headerControls">
-        <TabBar value={scope} onChange={(value) => onScopeChange(value as Scope)} options={scopeOptions} />
-        <nav className="headerLinks" aria-label="NorthStar tools">
+
+        <nav className="primaryNav" aria-label="NorthStar tools">
+          <Link href="/" className="isActive">Overview</Link>
           <Link href="/imports">Imports</Link>
           <Link href="/cash">Cash</Link>
           <Link href="/assets">Platinum</Link>
           <PwaInstallButton />
         </nav>
+      </div>
+
+      <div className="mastheadContext">
+        <div>
+          <p className="eyebrow">Portfolio intelligence</p>
+          <p className="mastheadDescription">Personal, SMSF and consolidated investment reporting in one private view.</p>
+        </div>
+        <TabBar value={scope} onChange={(value) => onScopeChange(value as Scope)} options={scopeOptions} />
       </div>
     </header>
   );

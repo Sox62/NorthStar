@@ -1,4 +1,4 @@
-# Deploy NorthStar v0.3.6 to Railway
+# Deploy NorthStar v0.3.7 to Railway
 
 ## Existing Railway installation
 

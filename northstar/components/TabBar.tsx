@@ -1,5 +1,3 @@
-import React from "react";
-
 export interface TabOption {
   value: string;
   label: string;
@@ -13,22 +11,15 @@ export interface TabBarProps {
 
 export function TabBar({ value, onChange, options }: TabBarProps) {
   return (
-    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+    <div className="nsTabBar" role="tablist" aria-label="Portfolio ownership scope">
       {options.map((opt) => (
         <button
           key={opt.value}
           type="button"
+          role="tab"
+          aria-selected={value === opt.value}
           onClick={() => onChange(opt.value)}
-          style={{
-            padding: "9px 14px",
-            border: "1px solid var(--border-default)",
-            borderRadius: "var(--radius-pill)",
-            background: value === opt.value ? "var(--accent)" : "var(--surface-control)",
-            color: value === opt.value ? "var(--accent-contrast)" : "var(--text-secondary)",
-            fontWeight: value === opt.value ? "var(--weight-bold)" : "var(--weight-regular)",
-            cursor: "pointer",
-            font: "inherit",
-          }}
+          className={`nsTab ${value === opt.value ? "isActive" : ""}`}
         >
           {opt.label}
         </button>

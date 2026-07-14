@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
   Cell,
-  Legend,
   Line,
   LineChart,
   Pie,
@@ -28,11 +27,12 @@ import {
   StatusBadge,
 } from "@/northstar/components";
 
-const money = (value: number) =>
+const money = (value: number, digits = 0) =>
   new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency: "AUD",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
   }).format(value);
 
 const chartColours = ["#d7b56d", "#77a9d8", "#8dc6a0", "#c78db8", "#8493a3", "#dd8b6f"];
@@ -60,6 +60,12 @@ const initial: DashboardData = {
   provisionalValue: 0,
   currentValue: 0,
   lastUpdated: null,
+};
+
+const scopeName: Record<Scope, string> = {
+  overall: "Consolidated portfolio",
+  personal: "Personal portfolio",
+  smsf: "SMSF portfolio",
 };
 
 export default function Dashboard() {
@@ -112,6 +118,8 @@ export default function Dashboard() {
     [data.allocations],
   );
 
+  const status = data.provisionalValue ? "Part provisional" : data.totalValue ? "Current" : "Awaiting imports";
+
   return (
     <main className="shell">
       <AppHeader scope={scope} onScopeChange={setScope} />
@@ -119,38 +127,53 @@ export default function Dashboard() {
       {error && <Notice tone="error" title="Unable to load NorthStar">{error}</Notice>}
 
       {loading ? (
-        <Card className="empty">Loading NorthStar…</Card>
+        <Card className="empty loadingCard">Loading NorthStar…</Card>
       ) : (
         <>
-          <section className="grid kpis" aria-label="Portfolio summary">
-            <Kpi label="Total value" value={money(data.totalValue)} />
-            <Kpi
-              label="Daily movement"
-              value={`${data.dailyMovement >= 0 ? "+" : ""}${money(data.dailyMovement)}`}
-              tone={data.dailyMovement >= 0 ? "positive" : "negative"}
-            />
-            <Kpi
-              label="Total return"
-              value={`${data.totalReturn >= 0 ? "+" : ""}${money(data.totalReturn)} · ${data.totalReturnPercent.toFixed(2)}%`}
-              tone={data.totalReturn >= 0 ? "positive" : "negative"}
-            />
-            <Kpi label="Available cash" value={money(data.cashValue)} />
-            <Kpi
-              label="Data status"
-              value={data.provisionalValue ? "Part provisional" : data.totalValue ? "Current" : "Awaiting imports"}
-              tone={data.provisionalValue ? "warning" : "default"}
-              badge
-            />
+          <section className="portfolioHero" aria-label="Portfolio summary">
+            <div className="heroValueBlock">
+              <div className="heroHeadingRow">
+                <div>
+                  <p className="eyebrow">{scopeName[scope]}</p>
+                  <h2>Portfolio value</h2>
+                </div>
+                <StatusBadge tone={data.provisionalValue ? "warning" : "good"}>{status}</StatusBadge>
+              </div>
+              <div className="heroValue">{money(data.totalValue)}</div>
+              <div className="heroSubline">
+                <span>{data.holdings.length} positions</span>
+                <span>{data.accounts.length} data sources</span>
+                <span>{data.storageMode === "postgresql" ? "Railway PostgreSQL" : "Local application file"}</span>
+              </div>
+            </div>
+
+            <div className="heroKpis">
+              <Kpi
+                label="Daily movement"
+                value={`${data.dailyMovement >= 0 ? "+" : ""}${money(data.dailyMovement)}`}
+                tone={data.dailyMovement >= 0 ? "positive" : "negative"}
+                note="Latest recorded session"
+              />
+              <Kpi
+                label="Total return"
+                value={`${data.totalReturn >= 0 ? "+" : ""}${money(data.totalReturn)}`}
+                tone={data.totalReturn >= 0 ? "positive" : "negative"}
+                note={`${data.totalReturnPercent.toFixed(2)}% since acquisition`}
+              />
+              <Kpi label="Available cash" value={money(data.cashValue)} note="Immediately deployable" />
+              <Kpi label="Invested capital" value={money(data.investedValue)} note="Current marked value" />
+            </div>
           </section>
 
           {!data.totalValue && (
-            <Card className="onboarding">
-              <p className="eyebrow">First steps</p>
-              <h2 className="cardTitle">Start with your real data</h2>
-              <p>
-                Sync IBKR, import the Directshares holdings CSV, add Macquarie cash, then record any physical platinum.
-                NorthStar keeps Personal and SMSF ownership legally separate in every view.
-              </p>
+            <Card className="onboarding onboardingRedesign">
+              <div>
+                <p className="eyebrow">Build the first view</p>
+                <h2 className="cardTitle">Bring your investment records together</h2>
+                <p>
+                  Sync IBKR, import Directshares, add Macquarie cash and record physical platinum. NorthStar keeps Personal and SMSF ownership legally separate at every level.
+                </p>
+              </div>
               <div className="buttonRow">
                 <Link className="button primary" href="/imports">Import broker data</Link>
                 <Link className="button" href="/cash">Add cash position</Link>
@@ -159,71 +182,85 @@ export default function Dashboard() {
             </Card>
           )}
 
-          <section className="grid two sectionStack">
-            <Card>
-              <p className="eyebrow">Portfolio history</p>
-              <h2 className="cardTitle">Recorded value over time</h2>
-              <p className="cardIntro">Daily portfolio snapshots for the selected legal ownership scope.</p>
+          <section className="dashboardGrid dashboardGridTop">
+            <Card className="panel historyPanel">
+              <div className="panelHeader">
+                <div>
+                  <p className="eyebrow">Performance</p>
+                  <h2 className="cardTitle">Portfolio history</h2>
+                  <p className="cardIntro">Recorded value through time for the selected ownership scope.</p>
+                </div>
+                {data.lastUpdated && (
+                  <span className="panelTimestamp">
+                    Updated {new Intl.DateTimeFormat("en-AU", { dateStyle: "medium", timeStyle: "short" }).format(new Date(data.lastUpdated))}
+                  </span>
+                )}
+              </div>
               {data.performance.length ? (
-                <div className="chart">
+                <div className="chart chartLarge">
                   <ResponsiveContainer>
-                    <LineChart data={data.performance} margin={{ top: 28, right: 18, left: 16, bottom: 0 }}>
-                      <CartesianGrid stroke="#213244" vertical={false} />
-                      <XAxis dataKey="date" stroke="#8ea0b2" />
-                      <YAxis stroke="#8ea0b2" tickFormatter={(value) => `${Math.round(value / 1000)}k`} />
+                    <LineChart data={data.performance} margin={{ top: 24, right: 20, left: 8, bottom: 0 }}>
+                      <CartesianGrid stroke="rgba(142,160,178,0.15)" vertical={false} />
+                      <XAxis dataKey="date" stroke="#8ea0b2" tickLine={false} axisLine={false} />
+                      <YAxis stroke="#8ea0b2" tickLine={false} axisLine={false} tickFormatter={(value) => `${Math.round(value / 1000)}k`} />
                       <Tooltip
                         formatter={(value) => money(Number(value))}
-                        contentStyle={{ background: "#081019", border: "1px solid #213244", borderRadius: 10 }}
+                        contentStyle={{ background: "#081019", border: "1px solid #304255", borderRadius: 14, boxShadow: "0 18px 38px rgba(0,0,0,.35)" }}
                         labelStyle={{ color: "#cbd6df" }}
                       />
-                      <Legend />
-                      {scope === "overall" && (
-                        <Line type="monotone" dataKey="overall" name="Overall" stroke="#d7b56d" strokeWidth={3} dot={data.performance.length < 3} connectNulls />
-                      )}
-                      {scope !== "smsf" && (
-                        <Line type="monotone" dataKey="personal" name="Personal" stroke="#77a9d8" strokeWidth={2} dot={data.performance.length < 3} connectNulls />
-                      )}
-                      {scope !== "personal" && (
-                        <Line type="monotone" dataKey="smsf" name="SMSF" stroke="#8dc6a0" strokeWidth={2} dot={data.performance.length < 3} connectNulls />
-                      )}
+                      {scope === "overall" && <Line type="monotone" dataKey="overall" name="Overall" stroke="#d7b56d" strokeWidth={3} dot={data.performance.length < 3} connectNulls />}
+                      {scope !== "smsf" && <Line type="monotone" dataKey="personal" name="Personal" stroke="#77a9d8" strokeWidth={2.4} dot={data.performance.length < 3} connectNulls />}
+                      {scope !== "personal" && <Line type="monotone" dataKey="smsf" name="SMSF" stroke="#8dc6a0" strokeWidth={2.4} dot={data.performance.length < 3} connectNulls />}
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <p className="empty">History begins when the first import or cash balance is saved.</p>
+                <div className="emptyStateCompact">History begins when the first import or cash balance is saved.</div>
               )}
             </Card>
 
-            <Card>
-              <p className="eyebrow">Composition</p>
-              <h2 className="cardTitle">Where the portfolio sits</h2>
-              <div className="compositionBlock">
-                <p className="cardIntro">Invested capital versus immediately available cash.</p>
+            <Card className="panel allocationPanel">
+              <div className="panelHeader">
+                <div>
+                  <p className="eyebrow">Capital structure</p>
+                  <h2 className="cardTitle">Deployment & allocation</h2>
+                </div>
+              </div>
+
+              <div className="allocationSection">
+                <div className="sectionLabelRow"><span>Invested versus cash</span><strong>{data.totalValue ? ((data.investedValue / data.totalValue) * 100).toFixed(1) : "0.0"}% deployed</strong></div>
                 <SplitBar segments={capitalSegments} />
               </div>
-              <div className="compositionBlock">
-                <p className="cardIntro">Current asset-class exposure.</p>
+
+              <div className="allocationSection allocationSectionBordered">
+                <div className="sectionLabelRow"><span>Asset-class exposure</span><strong>{data.allocations.length} groups</strong></div>
                 {data.allocations.length ? (
-                  <div className="allocationLayout">
-                    <div className="chart chartCompact">
-                      <ResponsiveContainer>
-                        <PieChart>
-                          <Pie data={data.allocations} dataKey="amount" nameKey="name" innerRadius={55} outerRadius={86} paddingAngle={2}>
-                            {data.allocations.map((allocation, index) => (
-                              <Cell key={allocation.name} fill={assetColours[allocation.name] ?? chartColours[index % chartColours.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            formatter={(value, _name, item) => [money(Number(value)), `${item.payload.name} · ${item.payload.value.toFixed(1)}%`]}
-                            contentStyle={{ background: "#081019", border: "1px solid #213244", borderRadius: 10 }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                  <>
+                    <div className="donutWrap">
+                      <div className="chart chartDonut">
+                        <ResponsiveContainer>
+                          <PieChart>
+                            <Pie data={data.allocations} dataKey="amount" nameKey="name" innerRadius={55} outerRadius={88} paddingAngle={3} stroke="none">
+                              {data.allocations.map((allocation, index) => (
+                                <Cell key={allocation.name} fill={assetColours[allocation.name] ?? chartColours[index % chartColours.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              formatter={(value, _name, item) => [money(Number(value)), `${item.payload.name} · ${item.payload.value.toFixed(1)}%`]}
+                              contentStyle={{ background: "#081019", border: "1px solid #304255", borderRadius: 14 }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="donutCentre">
+                        <strong>{money(data.investedValue)}</strong>
+                        <span>invested</span>
+                      </div>
                     </div>
                     <BreakdownBars items={allocationItems} />
-                  </div>
+                  </>
                 ) : (
-                  <p className="empty">Allocation appears after data is imported.</p>
+                  <div className="emptyStateCompact">Allocation appears after data is imported.</div>
                 )}
               </div>
             </Card>
@@ -231,72 +268,85 @@ export default function Dashboard() {
 
           {data.provisionalValue > 0 && (
             <Notice tone="neutral" title={`${money(data.provisionalValue)} is provisional IBKR value`}>
-              The Trades-only Flex file establishes quantities and remaining cost basis. NorthStar deliberately uses cost basis until an IBKR Open Positions section or a live price provider supplies current market values.
+              NorthStar is using cost basis for any position not supplied by IBKR Open Positions or another current price source.
             </Notice>
           )}
 
-          <section className="grid three sectionStack">
-            <Card style={{ gridColumn: "span 2" }}>
-              <p className="eyebrow">Largest positions</p>
-              <h2 className="cardTitle">Current exposure</h2>
-              <div className="positionList">
-                {data.holdings.length ? (
-                  data.holdings.slice(0, 12).map((holding) => (
-                    <div className="positionRow" key={holding.id}>
-                      <div>
-                        <strong>{holding.symbol} <span className="mutedName">{holding.name !== holding.symbol ? holding.name : ""}</span></strong>
-                        <div className="positionMeta">
+          <section className="dashboardGrid dashboardGridBottom">
+            <Card className="panel holdingsPanel">
+              <div className="panelHeader">
+                <div>
+                  <p className="eyebrow">Exposure register</p>
+                  <h2 className="cardTitle">Largest positions</h2>
+                  <p className="cardIntro">Ranked by current AUD market value in this view.</p>
+                </div>
+                <span className="panelCount">Top {Math.min(data.holdings.length, 12)} of {data.holdings.length}</span>
+              </div>
+
+              {data.holdings.length ? (
+                <div className="holdingsTable" role="table" aria-label="Largest portfolio positions">
+                  <div className="holdingsHeader" role="row">
+                    <span>Position</span><span>Owner</span><span>Weight</span><span>Value</span><span>Return</span>
+                  </div>
+                  {data.holdings.slice(0, 12).map((holding) => (
+                    <div className="holdingRow" role="row" key={holding.id}>
+                      <div className="holdingIdentity">
+                        <strong>{holding.symbol}</strong>
+                        <span>{holding.name !== holding.symbol ? holding.name : holding.broker}</span>
+                        <div className="holdingTags">
                           <SectorTag label={holding.assetClass} color={assetColours[holding.assetClass] ?? "#8ea0b2"} />
-                          <span className="small">{holding.ownerType === "SMSF" ? "SMSF" : "Personal"}</span>
-                          <span className="small">{holding.broker}</span>
-                          <span className="small">{holding.weight.toFixed(1)}% of this view</span>
                           {holding.valuationBasis === "cost_basis" && <StatusBadge tone="warning">Provisional</StatusBadge>}
                         </div>
-                        <div style={{ marginTop: 9 }}>
-                          <ProgressBar percent={holding.weight} width={200} />
-                        </div>
                       </div>
-                      <div className="positionValue">
-                        <strong>{money(holding.marketValueAud)}</strong>
-                        <div className={holding.pnlAud >= 0 ? "positive" : "negative"}>
-                          {holding.valuationBasis === "market" ? `${holding.pnlAud >= 0 ? "+" : ""}${money(holding.pnlAud)}` : "Cost basis"}
-                        </div>
+                      <div className="holdingOwner">
+                        <span>{holding.ownerType === "SMSF" ? "SMSF" : "Personal"}</span>
+                        <small>{holding.broker}</small>
+                      </div>
+                      <div className="holdingWeight">
+                        <strong>{holding.weight.toFixed(1)}%</strong>
+                        <ProgressBar percent={holding.weight} />
+                      </div>
+                      <div className="holdingAmount"><strong>{money(holding.marketValueAud)}</strong></div>
+                      <div className={`holdingReturn ${holding.pnlAud >= 0 ? "positive" : "negative"}`}>
+                        {holding.valuationBasis === "market" ? `${holding.pnlAud >= 0 ? "+" : ""}${money(holding.pnlAud)}` : "Cost basis"}
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <p className="empty">No positions saved for this view.</p>
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="emptyStateCompact">No positions saved for this view.</div>
+              )}
             </Card>
 
-            <Card>
-              <p className="eyebrow">Accounts</p>
-              <h2 className="cardTitle">Data sources</h2>
-              <div className="accountList">
-                {data.accounts.length ? (
-                  data.accounts.map((account, index) => (
-                    <div className="accountRow" key={`${account.name}-${index}`}>
-                      <div>
-                        <strong>{account.name}</strong>
-                        <div className="small">{account.detail}</div>
-                      </div>
-                      <StatusBadge>{account.status}</StatusBadge>
-                    </div>
-                  ))
-                ) : (
-                  <p className="empty">No accounts connected yet.</p>
-                )}
+            <Card className="panel sourcesPanel">
+              <div className="panelHeader">
+                <div>
+                  <p className="eyebrow">Data integrity</p>
+                  <h2 className="cardTitle">Accounts & sources</h2>
+                </div>
               </div>
-              <div className="storageMode">Storage: {data.storageMode === "postgresql" ? "PostgreSQL" : "local application file"}</div>
+              <div className="sourceList">
+                {data.accounts.length ? data.accounts.map((account, index) => (
+                  <div className="sourceRow" key={`${account.name}-${index}`}>
+                    <div className="sourceIcon" aria-hidden="true">{index + 1}</div>
+                    <div>
+                      <strong>{account.name}</strong>
+                      <span>{account.detail}</span>
+                    </div>
+                    <StatusBadge>{account.status}</StatusBadge>
+                  </div>
+                )) : <div className="emptyStateCompact">No accounts connected yet.</div>}
+              </div>
+              <div className="sourceFooter">
+                <span>Storage</span>
+                <strong>{data.storageMode === "postgresql" ? "PostgreSQL" : "Local application file"}</strong>
+              </div>
+              <div className="sourceActions">
+                <Link href="/imports" className="button primary">Manage imports</Link>
+                <Link href="/cash" className="button">Cash accounts</Link>
+              </div>
             </Card>
           </section>
-
-          {data.lastUpdated && (
-            <p className="lastUpdated">
-              Last updated {new Intl.DateTimeFormat("en-AU", { dateStyle: "medium", timeStyle: "short" }).format(new Date(data.lastUpdated))}
-            </p>
-          )}
         </>
       )}
     </main>
