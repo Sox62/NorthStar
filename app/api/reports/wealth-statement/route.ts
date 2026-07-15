@@ -1,4 +1,6 @@
 import { getStorage, type DashboardData, type Scope } from "@/lib/storage";
+import { allocationDriftForSectors, type SectorValue } from "@/northstar/lib/allocation-drift";
+import { sectorForInstrument } from "@/northstar/lib/sector-map";
 
 export const runtime = "nodejs";
 
@@ -28,6 +30,16 @@ function percent(value: number) {
 
 function reportDate(data: DashboardData) {
   return (data.lastUpdated ?? new Date().toISOString()).slice(0, 10);
+}
+
+function sectorValues(data: DashboardData): SectorValue[] {
+  const values = new Map<SectorValue["sector"], number>();
+  for (const holding of data.holdings) {
+    const sector = sectorForInstrument(holding);
+    values.set(sector, (values.get(sector) ?? 0) + holding.marketValueAud);
+  }
+  if (data.cashValue > 0) values.set("Cash", (values.get("Cash") ?? 0) + data.cashValue);
+  return [...values.entries()].map(([sector, value]) => ({ sector, value }));
 }
 
 function addDashboardRows(rows: CsvRow[], data: DashboardData) {
@@ -64,6 +76,19 @@ function addDashboardRows(rows: CsvRow[], data: DashboardData) {
       money(item.amount),
       percent(item.value),
       "Asset allocation by current market value",
+      data.lastUpdated,
+    ]);
+  }
+
+  for (const item of allocationDriftForSectors(sectorValues(data), data.totalValue)) {
+    rows.push([
+      "allocation_drift",
+      data.scope,
+      item.sector,
+      "",
+      money(item.valueToTarget),
+      percent(item.driftPercent),
+      `${item.valueToTarget > 0 ? "Add" : "Trim"} ${money(Math.abs(item.valueToTarget))}; current ${percent(item.currentPercent)}%; target ${percent(item.targetPercent)}%; current value ${money(item.currentValue)}; target value ${money(item.targetValue)}`,
       data.lastUpdated,
     ]);
   }

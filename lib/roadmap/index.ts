@@ -100,11 +100,11 @@ export const roadmapPhases: RoadmapPhase[] = [
     objective: "Generate repeatable reports from stored, dated portfolio snapshots.",
     status: "in_progress",
     items: [
-      { title: "SMSF report", status: "shipped", detail: "Scoped CSV export covers SMSF holdings, allocations, currency exposure and period returns." },
-      { title: "Personal report", status: "shipped", detail: "Scoped CSV export covers personal holdings, allocations, currency exposure and period returns." },
+      { title: "SMSF report", status: "shipped", detail: "Scoped CSV export covers SMSF holdings, allocations, allocation drift, currency exposure and period returns." },
+      { title: "Personal report", status: "shipped", detail: "Scoped CSV export covers personal holdings, allocations, allocation drift, currency exposure and period returns." },
       { title: "Tax report", status: "planned", detail: "CGT, dividend and income export." },
       { title: "Estate summary", status: "planned", detail: "Consolidated but ownership-aware wealth summary." },
-      { title: "Wealth statement", status: "shipped", detail: "CSV export generates consolidated, account, allocation, currency, return and holding rows." },
+      { title: "Wealth statement", status: "shipped", detail: "CSV export generates consolidated, account, allocation, drift, currency, return and holding rows." },
     ],
   },
 ];
