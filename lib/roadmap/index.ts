@@ -84,9 +84,9 @@ export const roadmapPhases: RoadmapPhase[] = [
     phase: "Phase 5",
     title: "Analytics",
     objective: "Turn stored portfolio data into return, risk and tax insight.",
-    status: "planned",
+    status: "in_progress",
     items: [
-      { title: "NAV history", status: "in_progress", detail: "Portfolio snapshots exist; chart should be wired to live data next." },
+      { title: "NAV history", status: "shipped", detail: "Overview chart is wired to portfolio snapshots for Overall, Personal and SMSF views." },
       { title: "Period returns", status: "shipped", detail: "Dashboard shows daily, MTD, YTD and since-inception NAV movement from snapshots." },
       { title: "XIRR", status: "planned", detail: "Money-weighted return by account and consolidated." },
       { title: "Exposure analysis", status: "in_progress", detail: "Currency and commodity exposure are live on the dashboard; allocation drift remains." },
@@ -98,7 +98,7 @@ export const roadmapPhases: RoadmapPhase[] = [
     phase: "Phase 6",
     title: "Reports",
     objective: "Generate repeatable reports from stored, dated portfolio snapshots.",
-    status: "planned",
+    status: "in_progress",
     items: [
       { title: "SMSF report", status: "shipped", detail: "Scoped CSV export covers SMSF holdings, allocations, currency exposure and period returns." },
       { title: "Personal report", status: "shipped", detail: "Scoped CSV export covers personal holdings, allocations, currency exposure and period returns." },
