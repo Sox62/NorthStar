@@ -2,6 +2,38 @@ import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib
 
 export type OwnerType = "PERSONAL" | "SMSF";
 export type Scope = "overall" | "personal" | "smsf";
+export type SyncTrigger = "manual" | "scheduled" | "system";
+export type SyncStatus = "success" | "partial" | "failed" | "skipped";
+
+export type SyncRun = {
+  id: string;
+  source: string;
+  ownerType: OwnerType | null;
+  trigger: SyncTrigger;
+  status: SyncStatus;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number | null;
+  recordCount: number | null;
+  positionCount: number | null;
+  cashAud: number | null;
+  message: string | null;
+  error: string | null;
+};
+
+export type NewSyncRun = {
+  source: string;
+  ownerType?: OwnerType | null;
+  trigger: SyncTrigger;
+  status: SyncStatus;
+  startedAt: string;
+  finishedAt?: string;
+  recordCount?: number | null;
+  positionCount?: number | null;
+  cashAud?: number | null;
+  message?: string | null;
+  error?: string | null;
+};
 
 export type StoredPosition = {
   id: string;
@@ -93,13 +125,14 @@ export type Snapshot = {
 };
 
 export type LocalStore = {
-  version: 4;
+  version: 5;
   transactions: StoredTransaction[];
   positions: StoredPosition[];
   cashAccounts: CashAccount[];
   manualAssets: ManualAsset[];
   platinumPrices: PlatinumPrice[];
   snapshots: Snapshot[];
+  syncRuns: SyncRun[];
   imports: Array<{
     id: string;
     source: string;
@@ -124,6 +157,7 @@ export type DashboardData = {
   allocations: Array<{ name: string; value: number; amount: number }>;
   performance: Array<{ date: string; overall?: number; personal?: number; smsf?: number }>;
   accounts: Array<{ name: string; detail: string; status: string; ownerType: OwnerType }>;
+  syncRuns: SyncRun[];
   provisionalValue: number;
   currentValue: number;
   lastUpdated: string | null;
@@ -152,5 +186,7 @@ export interface StorageAdapter {
   deleteManualAsset(id: string, ownerType: OwnerType): Promise<void>;
   getLatestPlatinumPrice(): Promise<PlatinumPrice | null>;
   recordPlatinumPrice(price: PlatinumPrice): Promise<PlatinumPrice>;
+  recordSyncRun(input: NewSyncRun): Promise<SyncRun>;
+  listSyncRuns(limit?: number, ownerType?: OwnerType): Promise<SyncRun[]>;
   dashboard(scope: Scope): Promise<DashboardData>;
 }

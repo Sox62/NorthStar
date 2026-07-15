@@ -256,6 +256,59 @@ body.northstar .nsRangeTabs button.isActive {
   color:var(--gold);
 }
 
+body.northstar .nsFreshnessStrip {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:14px;
+}
+
+body.northstar .nsFreshnessItem {
+  min-width:0;
+  padding:14px 16px;
+  border:1px solid rgba(122,149,178,0.18);
+  border-radius:16px;
+  background:rgba(14,26,39,0.72);
+}
+
+body.northstar .nsFreshnessItem span,
+body.northstar .nsFreshnessItem em {
+  display:block;
+  color:var(--muted);
+  font-size:11px;
+}
+
+body.northstar .nsFreshnessItem strong {
+  display:block;
+  margin-top:6px;
+  color:#eef3f8;
+  font-size:13px;
+  font-weight:700;
+}
+
+body.northstar .nsFreshnessItem em {
+  margin-top:5px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-style:normal;
+}
+
+body.northstar .nsFreshnessItem.is-success {
+  border-color:rgba(113,223,162,0.24);
+  background:rgba(19,48,34,0.42);
+}
+
+body.northstar .nsFreshnessItem.is-failed {
+  border-color:rgba(255,125,125,0.30);
+  background:rgba(70,24,27,0.42);
+}
+
+body.northstar .nsFreshnessItem.is-skipped,
+body.northstar .nsFreshnessItem.is-partial {
+  border-color:rgba(215,181,109,0.30);
+  background:rgba(64,49,21,0.34);
+}
+
 body.northstar .nsHeroPanel,
 body.northstar .nsMetricCard,
 body.northstar .nsPanel {
@@ -405,7 +458,8 @@ body.northstar .nsHistoryChart {
 
 body.northstar .nsChartMonths {
   display:grid;
-  grid-template-columns:repeat(7, 1fr);
+  grid-template-columns:repeat(auto-fit, minmax(48px, 1fr));
+  gap:8px;
   color:var(--muted-dim);
   font-size:11px;
 }
@@ -665,7 +719,8 @@ body.northstar .nsSectorList em {
 
   body.northstar .nsHeroPanel,
   body.northstar .nsMetricGrid,
-  body.northstar .nsLowerGrid {
+  body.northstar .nsLowerGrid,
+  body.northstar .nsFreshnessStrip {
     grid-template-columns:1fr;
   }
 

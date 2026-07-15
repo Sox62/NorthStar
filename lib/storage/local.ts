@@ -9,23 +9,37 @@ import type {
   ImportResult,
   LocalStore,
   ManualAsset,
+  NewSyncRun,
   OwnerType,
   PlatinumPrice,
   Scope,
   Snapshot,
   StorageAdapter,
+  SyncRun,
   StoredPosition,
   StoredTransaction,
 } from "./types";
 
 const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".north-star", "data.json");
-const EMPTY: LocalStore = { version: 4, transactions: [], positions: [], cashAccounts: [], manualAssets: [], platinumPrices: [], snapshots: [], imports: [] };
+const EMPTY: LocalStore = { version: 5, transactions: [], positions: [], cashAccounts: [], manualAssets: [], platinumPrices: [], snapshots: [], syncRuns: [], imports: [] };
 
 async function readStore(): Promise<LocalStore> {
   try {
     const parsed = JSON.parse(await readFile(DATA_FILE, "utf8")) as Record<string, unknown>;
+    if (parsed.version === 5) {
+      return {
+        ...(parsed as unknown as LocalStore),
+        platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
+        syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
+      };
+    }
     if (parsed.version === 4) {
-      return { ...(parsed as unknown as LocalStore), platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [] };
+      return {
+        ...(parsed as unknown as Omit<LocalStore, "version" | "syncRuns">),
+        version: 5,
+        platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
+        syncRuns: [],
+      };
     }
     if (parsed.version === 3) {
       const legacyAssets = (parsed.manualAssets as Array<Record<string, unknown>> | undefined) ?? [];
@@ -46,10 +60,10 @@ async function readStore(): Promise<LocalStore> {
           priceRetrievedAt: String(asset.updatedAt ?? new Date().toISOString()), updatedAt: String(asset.updatedAt ?? new Date().toISOString()),
         };
       });
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices">), version: 4, manualAssets, platinumPrices: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "syncRuns">), version: 5, manualAssets, platinumPrices: [], syncRuns: [] };
     }
     if (parsed.version === 2) {
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices">), version: 4, manualAssets: [], platinumPrices: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "syncRuns">), version: 5, manualAssets: [], platinumPrices: [], syncRuns: [] };
     }
     return structuredClone(EMPTY);
   } catch (error) {
@@ -154,6 +168,26 @@ function captureSnapshot(store: LocalStore, ownerType: OwnerType) {
   if (store.snapshots.length > 2000) store.snapshots = store.snapshots.slice(-2000);
 }
 
+function buildSyncRun(input: NewSyncRun): SyncRun {
+  const finishedAt = input.finishedAt ?? new Date().toISOString();
+  const durationMs = Math.max(0, new Date(finishedAt).getTime() - new Date(input.startedAt).getTime());
+  return {
+    id: randomUUID(),
+    source: input.source,
+    ownerType: input.ownerType ?? null,
+    trigger: input.trigger,
+    status: input.status,
+    startedAt: input.startedAt,
+    finishedAt,
+    durationMs: Number.isFinite(durationMs) ? durationMs : null,
+    recordCount: input.recordCount ?? null,
+    positionCount: input.positionCount ?? null,
+    cashAud: input.cashAud ?? null,
+    message: input.message ?? null,
+    error: input.error ?? null,
+  };
+}
+
 function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
   const ownerType = ownerForScope(scope);
   const importedPositions = store.positions.filter(position => !ownerType || position.ownerType === ownerType);
@@ -206,7 +240,11 @@ function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
   }
 
   const updatedValues = [...imports.map(record => record.importedAt), ...cashAccounts.map(account => account.updatedAt), ...manualAssets.map(asset => asset.updatedAt)].sort();
-  return { scope, storageMode: "local-file", totalValue, investedValue, cashValue, dailyMovement, totalReturn, totalReturnPercent: totalCost ? totalReturn / totalCost * 100 : 0, holdings, allocations, performance, accounts: accountRows, provisionalValue, currentValue, lastUpdated: updatedValues.at(-1) ?? null };
+  const syncRuns = [...store.syncRuns]
+    .filter(run => !ownerType || !run.ownerType || run.ownerType === ownerType)
+    .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
+    .slice(0, 8);
+  return { scope, storageMode: "local-file", totalValue, investedValue, cashValue, dailyMovement, totalReturn, totalReturnPercent: totalCost ? totalReturn / totalCost * 100 : 0, holdings, allocations, performance, accounts: accountRows, syncRuns, provisionalValue, currentValue, lastUpdated: updatedValues.at(-1) ?? null };
 }
 
 export class LocalStorageAdapter implements StorageAdapter {
@@ -341,6 +379,23 @@ export class LocalStorageAdapter implements StorageAdapter {
     for (const owner of owners) captureSnapshot(store, owner);
     await writeStore(store);
     return price;
+  }
+
+  async recordSyncRun(input: NewSyncRun): Promise<SyncRun> {
+    const store = await readStore();
+    const run = buildSyncRun(input);
+    store.syncRuns.push(run);
+    store.syncRuns = store.syncRuns.sort((a, b) => a.finishedAt.localeCompare(b.finishedAt)).slice(-500);
+    await writeStore(store);
+    return run;
+  }
+
+  async listSyncRuns(limit = 20, ownerType?: OwnerType): Promise<SyncRun[]> {
+    const store = await readStore();
+    return [...store.syncRuns]
+      .filter(run => !ownerType || !run.ownerType || run.ownerType === ownerType)
+      .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
+      .slice(0, limit);
   }
 
   async dashboard(scope: Scope) { return dashboardFromStore(await readStore(), scope); }

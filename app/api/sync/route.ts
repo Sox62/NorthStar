@@ -16,20 +16,70 @@ export async function POST(request: Request) {
   const errors: string[] = [];
 
   if (process.env.IBKR_FLEX_TOKEN && process.env.IBKR_FLEX_QUERY_ID) {
+    const startedAt = new Date().toISOString();
+    const owner = ((process.env.IBKR_FLEX_OWNER || "SMSF").toUpperCase() === "PERSONAL" ? "PERSONAL" : "SMSF") as OwnerType;
     try {
-      const owner = ((process.env.IBKR_FLEX_OWNER || "SMSF").toUpperCase() === "PERSONAL" ? "PERSONAL" : "SMSF") as OwnerType;
       const report = await fetchIbkrFlexReport();
-      output.ibkr = await storage.importIbkr(report, owner);
+      const result = await storage.importIbkr(report, owner);
+      output.ibkr = result;
+      await storage.recordSyncRun({
+        source: "IBKR",
+        ownerType: owner,
+        trigger: "scheduled",
+        status: "success",
+        startedAt,
+        recordCount: report.transactions.length,
+        positionCount: result.positions,
+        cashAud: result.cashAud ?? null,
+        message: `${result.positions} positions from Flex statement ending ${report.toDate}`,
+      });
     } catch (error) {
-      errors.push(`IBKR: ${error instanceof Error ? error.message : "Unknown sync error"}`);
+      const message = error instanceof Error ? error.message : "Unknown sync error";
+      errors.push(`IBKR: ${message}`);
+      await storage.recordSyncRun({
+        source: "IBKR",
+        ownerType: owner,
+        trigger: "scheduled",
+        status: "failed",
+        startedAt,
+        error: message,
+      }).catch(() => {});
     }
+  } else {
+    await storage.recordSyncRun({
+      source: "IBKR",
+      ownerType: ((process.env.IBKR_FLEX_OWNER || "SMSF").toUpperCase() === "PERSONAL" ? "PERSONAL" : "SMSF") as OwnerType,
+      trigger: "scheduled",
+      status: "skipped",
+      startedAt: new Date().toISOString(),
+      message: "IBKR_FLEX_TOKEN or IBKR_FLEX_QUERY_ID is not configured.",
+    }).catch(() => {});
   }
 
+  const platinumStartedAt = new Date().toISOString();
   try {
     const price = await fetchAbcPlatinumPrice();
     output.platinum = await storage.recordPlatinumPrice(price);
+    await storage.recordSyncRun({
+      source: "ABC Bullion",
+      ownerType: null,
+      trigger: "scheduled",
+      status: "success",
+      startedAt: platinumStartedAt,
+      recordCount: 1,
+      message: `Platinum buyback ${price.buybackAudPerKg.toLocaleString("en-AU", { style: "currency", currency: "AUD" })} per kg`,
+    });
   } catch (error) {
-    errors.push(`ABC Bullion: ${error instanceof Error ? error.message : "Unknown price error"}`);
+    const message = error instanceof Error ? error.message : "Unknown price error";
+    errors.push(`ABC Bullion: ${message}`);
+    await storage.recordSyncRun({
+      source: "ABC Bullion",
+      ownerType: null,
+      trigger: "scheduled",
+      status: "failed",
+      startedAt: platinumStartedAt,
+      error: message,
+    }).catch(() => {});
   }
 
   return Response.json({ ok: errors.length === 0, ...output, errors }, { status: errors.length ? 207 : 200 });

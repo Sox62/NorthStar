@@ -6,7 +6,7 @@ import { Card, Notice, OverviewScreen } from "@/northstar/components";
 import type { Holding } from "@/northstar/types";
 import { dashboardToNorthstarHoldings } from "./northstar-adapter";
 
-async function loadDashboard(scope: "personal" | "smsf"): Promise<DashboardData> {
+async function loadDashboard(scope: DashboardData["scope"]): Promise<DashboardData> {
   const response = await fetch(`/api/dashboard?scope=${scope}`, { cache: "no-store" });
   const payload = await response.json();
   if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load dashboard");
@@ -15,6 +15,8 @@ async function loadDashboard(scope: "personal" | "smsf"): Promise<DashboardData>
 
 export default function Dashboard() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [performance, setPerformance] = useState<DashboardData["performance"]>([]);
+  const [syncRuns, setSyncRuns] = useState<DashboardData["syncRuns"]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -25,8 +27,12 @@ export default function Dashboard() {
       setLoading(true);
       setError("");
       try {
-        const [personal, smsf] = await Promise.all([loadDashboard("personal"), loadDashboard("smsf")]);
-        if (!cancelled) setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
+        const [overall, personal, smsf] = await Promise.all([loadDashboard("overall"), loadDashboard("personal"), loadDashboard("smsf")]);
+        if (!cancelled) {
+          setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
+          setPerformance(overall.performance ?? []);
+          setSyncRuns(overall.syncRuns ?? []);
+        }
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load NorthStar");
       } finally {
@@ -56,5 +62,5 @@ export default function Dashboard() {
     );
   }
 
-  return <OverviewScreen holdings={holdings} />;
+  return <OverviewScreen holdings={holdings} performance={performance} syncRuns={syncRuns} />;
 }

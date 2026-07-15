@@ -2,7 +2,7 @@ import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db/client";
 import type { IbkrFlexReport, OpeningPosition } from "@/lib/integrations/types";
 import { classifyAsset } from "./classify";
-import type { CashAccount, DashboardData, ImportResult, ManualAsset, OwnerType, PlatinumPrice, Scope, StorageAdapter, StoredPosition } from "./types";
+import type { CashAccount, DashboardData, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, Scope, StorageAdapter, StoredPosition, SyncRun } from "./types";
 
 const maskAccount = (account: string) => account.length <= 4 ? account : `${account.slice(0, 2)}••••${account.slice(-3)}`;
 const numberValue = (value: unknown) => Number(value ?? 0);
@@ -139,6 +139,24 @@ async function upsertIbkrCash(client: PoolClient, report: IbkrFlexReport, portfo
     ON CONFLICT (portfolio_id,institution,name) DO UPDATE SET currency='AUD',balance=EXCLUDED.balance,
       fx_rate_to_aud=1,balance_aud=EXCLUDED.balance_aud,as_of_date=EXCLUDED.as_of_date,is_active=true,updated_at=NOW()
   `, [portfolioId, report.cash.balance, report.cash.balanceAud, report.cash.asOfDate]);
+}
+
+function syncRunFromRow(row: Record<string, unknown>): SyncRun {
+  return {
+    id: String(row.id),
+    source: String(row.source),
+    ownerType: row.owner_type == null ? null : row.owner_type as OwnerType,
+    trigger: row.trigger as SyncRun["trigger"],
+    status: row.status as SyncRun["status"],
+    startedAt: new Date(String(row.started_at)).toISOString(),
+    finishedAt: new Date(String(row.finished_at)).toISOString(),
+    durationMs: row.duration_ms == null ? null : numberValue(row.duration_ms),
+    recordCount: row.record_count == null ? null : numberValue(row.record_count),
+    positionCount: row.position_count == null ? null : numberValue(row.position_count),
+    cashAud: row.cash_aud == null ? null : numberValue(row.cash_aud),
+    message: row.message == null ? null : String(row.message),
+    error: row.error == null ? null : String(row.error),
+  };
 }
 
 export class PostgresStorageAdapter implements StorageAdapter {
@@ -401,6 +419,48 @@ export class PostgresStorageAdapter implements StorageAdapter {
     } finally { client.release(); }
   }
 
+  async recordSyncRun(input: NewSyncRun): Promise<SyncRun> {
+    const finishedAt = input.finishedAt ?? new Date().toISOString();
+    const durationMs = Math.max(0, new Date(finishedAt).getTime() - new Date(input.startedAt).getTime());
+    const result = await getPool().query(`
+      INSERT INTO sync_runs (
+        source, owner_type, trigger, status, started_at, finished_at, duration_ms,
+        record_count, position_count, cash_aud, message, error
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      RETURNING id,source,owner_type,trigger,status,started_at,finished_at,duration_ms,
+        record_count,position_count,cash_aud,message,error
+    `, [
+      input.source,
+      input.ownerType ?? null,
+      input.trigger,
+      input.status,
+      input.startedAt,
+      finishedAt,
+      Number.isFinite(durationMs) ? durationMs : null,
+      input.recordCount ?? null,
+      input.positionCount ?? null,
+      input.cashAud ?? null,
+      input.message ?? null,
+      input.error ?? null,
+    ]);
+    return syncRunFromRow(result.rows[0]);
+  }
+
+  async listSyncRuns(limit = 20, ownerType?: OwnerType): Promise<SyncRun[]> {
+    const values: unknown[] = [Math.max(1, Math.min(100, limit))];
+    const filter = ownerType ? "WHERE owner_type=$2 OR owner_type IS NULL" : "";
+    if (ownerType) values.push(ownerType);
+    const result = await getPool().query(`
+      SELECT id,source,owner_type,trigger,status,started_at,finished_at,duration_ms,
+        record_count,position_count,cash_aud,message,error
+      FROM sync_runs
+      ${filter}
+      ORDER BY finished_at DESC
+      LIMIT $1
+    `, values);
+    return result.rows.map(syncRunFromRow);
+  }
+
   async dashboard(scope: Scope): Promise<DashboardData> {
     const ownerType = ownerForScope(scope);
     const values: unknown[] = [];
@@ -479,7 +539,8 @@ export class PostgresStorageAdapter implements StorageAdapter {
       if (assets.length) accounts.push({name:`Physical platinum ${owner==="SMSF"?"SMSF":"Personal"}`,detail:`${assets.reduce((sum,asset)=>sum+asset.quantityKg,0).toLocaleString("en-AU",{maximumFractionDigits:4})} kg`,status:`${assets.length} position${assets.length===1?"":"s"}`,ownerType:owner});
     }
     const updated=[...importRows.rows.map(row=>row.imported_at),...cashAccounts.map(account=>account.updatedAt),...manualAssets.map(asset=>asset.updatedAt)].sort();
+    const syncRuns = await this.listSyncRuns(8, ownerType);
 
-    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,accounts,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
+    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,accounts,syncRuns,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
   }
 }

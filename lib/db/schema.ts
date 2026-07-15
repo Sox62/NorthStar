@@ -2,6 +2,7 @@ import {
   boolean,
   date,
   index,
+  integer,
   jsonb,
   numeric,
   pgTable,
@@ -151,6 +152,25 @@ export const importRuns = pgTable("import_runs", {
   recordCount: numeric("record_count", { precision: 12, scale: 0 }).notNull(),
   importedAt: timestamp("imported_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const syncRuns = pgTable("sync_runs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  source: text("source").notNull(),
+  ownerType: text("owner_type"),
+  trigger: text("trigger").notNull(),
+  status: text("status").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }).notNull(),
+  durationMs: integer("duration_ms"),
+  recordCount: integer("record_count"),
+  positionCount: integer("position_count"),
+  cashAud: numeric("cash_aud", { precision: 28, scale: 2 }),
+  message: text("message"),
+  error: text("error"),
+}, table => [
+  index("sync_runs_source_finished_idx").on(table.source, table.finishedAt),
+  index("sync_runs_status_finished_idx").on(table.status, table.finishedAt),
+]);
 
 export const portfolioSnapshots = pgTable("portfolio_snapshots", {
   id: uuid("id").defaultRandom().primaryKey(),

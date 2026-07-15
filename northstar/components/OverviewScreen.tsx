@@ -5,6 +5,16 @@ import { NavRail } from "./NavRail";
 import { byComposition, byScope, bySector, fmtAud, totals } from "../lib/portfolio-metrics";
 import { COMPOSITION_OF, SECTOR_COLORS, type CompositionGroup, type Holding, type PortfolioScope, type Sector } from "../types";
 
+type PerformancePoint = { date: string; overall?: number; personal?: number; smsf?: number };
+type SyncRunSummary = {
+  source: string;
+  trigger: string;
+  status: "success" | "partial" | "failed" | "skipped";
+  finishedAt: string;
+  message: string | null;
+  error: string | null;
+};
+
 const scopeOptions: PortfolioScope[] = ["overall", "personal", "smsf"];
 const groupLabel: Record<CompositionGroup, string> = {
   miners: "Miners",
@@ -16,32 +26,6 @@ const groupColor: Record<CompositionGroup, string> = {
   metals: "#9fb4ca",
   other: "#647587",
 };
-
-const chartPoints = [
-  [0, 132],
-  [24, 119],
-  [48, 101],
-  [72, 78],
-  [96, 45],
-  [120, 39],
-  [144, 29],
-  [168, 47],
-  [192, 50],
-  [216, 42],
-  [240, 51],
-  [264, 33],
-  [288, 27],
-  [312, 21],
-  [336, 20],
-  [360, 12],
-  [384, 0],
-  [408, 22],
-  [432, 31],
-  [456, 20],
-  [480, 6],
-  [504, 50],
-  [528, 68],
-];
 
 function pct(value: number, total: number) {
   return total ? (value / total) * 100 : 0;
@@ -59,6 +43,24 @@ function fmtShortAud(value: number) {
   if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
   if (Math.abs(value) >= 1_000) return `$${Math.round(value / 1_000)}k`;
   return fmtAud(value);
+}
+
+function valueForScope(point: PerformancePoint, scope: PortfolioScope) {
+  if (scope === "personal") return point.personal;
+  if (scope === "smsf") return point.smsf;
+  return point.overall ?? ((point.personal ?? 0) + (point.smsf ?? 0) || undefined);
+}
+
+function fmtRunTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "unknown time";
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function sectorShortName(sector: Sector) {
@@ -122,10 +124,29 @@ function SplitBar({ segments, total }: {
   );
 }
 
-function HistoryChart({ now }: { now: number }) {
-  const peak = now * 1.5;
-  const line = chartPoints.map(([x, y]) => `${x},${y}`).join(" ");
-  const fill = `0,160 ${line} 528,160`;
+function HistoryChart({ now, scope, performance }: { now: number; scope: PortfolioScope; performance: PerformancePoint[] }) {
+  const width = 528;
+  const baseline = 160;
+  const series = performance
+    .map((point) => ({ label: point.date, value: valueForScope(point, scope) }))
+    .filter((point): point is { label: string; value: number } => typeof point.value === "number" && Number.isFinite(point.value) && point.value > 0)
+    .slice(-90);
+  const values = series.length ? series.map((point) => point.value) : [now];
+  const peak = Math.max(now, ...values);
+  const floor = Math.min(...values, now);
+  const range = Math.max(1, peak - floor);
+  const points = (series.length >= 2 ? series : [{ label: "Now", value: now }, { label: "Now", value: now }]).map((point, index, all) => {
+    const x = all.length === 1 ? width : (index / Math.max(1, all.length - 1)) * width;
+    const y = 132 - ((point.value - floor) / range) * 112;
+    return { ...point, x, y };
+  });
+  const line = points.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" ");
+  const fill = `0,${baseline} ${line} ${width},${baseline}`;
+  const last = points.at(-1);
+  const monthLabels = points.filter((_, index) => {
+    if (points.length <= 6) return true;
+    return index % Math.max(1, Math.floor(points.length / 6)) === 0 || index === points.length - 1;
+  }).slice(-7);
 
   return (
     <div className="nsHistoryPanel">
@@ -149,12 +170,32 @@ function HistoryChart({ now }: { now: number }) {
         </defs>
         <polygon points={fill} fill="url(#nsHistoryFill)" />
         <polyline points={line} fill="none" stroke="#d7b56d" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="528" cy="68" r="4" fill="#d7b56d" />
+        {last && <circle cx={last.x} cy={last.y} r="4" fill="#d7b56d" />}
       </svg>
       <div className="nsChartMonths" aria-hidden="true">
-        <span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span>
+        {monthLabels.length ? monthLabels.map((point, index) => <span key={`${point.label}-${index}`}>{point.label}</span>) : <span>Now</span>}
       </div>
     </div>
+  );
+}
+
+function FreshnessStrip({ syncRuns }: { syncRuns: SyncRunSummary[] }) {
+  const sources = ["IBKR", "ABC Bullion"];
+  const latest = sources.map((source) => syncRuns.find((run) => run.source === source));
+  return (
+    <section className="nsFreshnessStrip" aria-label="Data freshness">
+      {latest.map((run, index) => {
+        const source = sources[index];
+        const status = run?.status ?? "skipped";
+        return (
+          <div key={source} className={`nsFreshnessItem is-${status}`}>
+            <span>{source}</span>
+            <strong>{run ? `${status === "success" ? "Synced" : status} · ${fmtRunTime(run.finishedAt)}` : "No run recorded"}</strong>
+            <em>{run?.error ?? run?.message ?? "Waiting for first sync run."}</em>
+          </div>
+        );
+      })}
+    </section>
   );
 }
 
@@ -232,7 +273,12 @@ function SectorDonut({ sectors, total }: { sectors: Array<{ sector: Sector; valu
 }
 
 /** Full redesigned overview dashboard matching the screenshot reference. */
-export function OverviewScreen({ holdings, logoSrc }: { holdings: Holding[]; logoSrc?: string }) {
+export function OverviewScreen({ holdings, logoSrc, performance = [], syncRuns = [] }: {
+  holdings: Holding[];
+  logoSrc?: string;
+  performance?: PerformancePoint[];
+  syncRuns?: SyncRunSummary[];
+}) {
   const [scope, setScope] = useState<PortfolioScope>("overall");
   const view = byScope(holdings, scope);
   const t = totals(view);
@@ -269,6 +315,8 @@ export function OverviewScreen({ holdings, logoSrc }: { holdings: Holding[]; log
           </div>
         </header>
 
+        <FreshnessStrip syncRuns={syncRuns} />
+
         <section className="nsHeroPanel">
           <div className="nsHeroSummary">
             <p className="nsEyebrow">{scope === "overall" ? "Total net asset value" : scope === "smsf" ? "SMSF net asset value" : "Personal net asset value"}</p>
@@ -280,7 +328,7 @@ export function OverviewScreen({ holdings, logoSrc }: { holdings: Holding[]; log
             <SplitBar segments={groupSegments} total={t.marketValue} />
             <SplitLegend segments={groupSegments} total={t.marketValue} />
           </div>
-          <HistoryChart now={t.marketValue} />
+          <HistoryChart now={t.marketValue} scope={scope} performance={performance} />
         </section>
 
         <section className="nsMetricGrid" aria-label="Portfolio summary cards">
