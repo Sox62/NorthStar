@@ -830,6 +830,12 @@ body.northstar .nsSectorList em {
   font-weight:500;
 }
 
+body.northstar .nsAnalyticsGrid {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:24px;
+}
+
 body.northstar .nsExposurePanel {
   overflow:hidden;
 }
@@ -940,6 +946,7 @@ body.northstar .nsExposureRow em {
   body.northstar .nsReturnStrip,
   body.northstar .nsAccountItems,
   body.northstar .nsLowerGrid,
+  body.northstar .nsAnalyticsGrid,
   body.northstar .nsFreshnessStrip,
   body.northstar .nsValuationChecks {
     grid-template-columns:1fr;

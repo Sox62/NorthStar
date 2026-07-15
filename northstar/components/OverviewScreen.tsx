@@ -52,6 +52,12 @@ type AccountBreakdownSummary = {
   shareOfOverall: number;
   lastUpdated: string | null;
 };
+type CommodityExposureSummary = {
+  name: string;
+  value: number;
+  positionCount: number;
+  color: string;
+};
 
 const scopeOptions: PortfolioScope[] = ["overall", "personal", "smsf"];
 const groupLabel: Record<CompositionGroup, string> = {
@@ -63,6 +69,16 @@ const groupColor: Record<CompositionGroup, string> = {
   miners: "#d7b56d",
   metals: "#9fb4ca",
   other: "#647587",
+};
+const commodityBySector: Record<Sector, { name: string; color: string }> = {
+  "Silver miners": { name: "Silver", color: "#b9c4d0" },
+  "Silver bullion": { name: "Silver", color: "#e3e9f0" },
+  "Gold miners": { name: "Gold", color: "#d7b56d" },
+  "Uranium miners": { name: "Uranium", color: "#8dc6a0" },
+  "Platinum bullion": { name: "Platinum", color: "#8fa6bf" },
+  "Rhodium metal": { name: "Rhodium", color: "#c78db8" },
+  Oil: { name: "Oil", color: "#dd8b6f" },
+  Cash: { name: "Cash", color: "#5d6f81" },
 };
 
 function pct(value: number, total: number) {
@@ -135,6 +151,18 @@ function sectorShortName(sector: Sector) {
 
 function isShareLike(holding: Holding) {
   return COMPOSITION_OF[holding.sector] === "miners" || holding.sector === "Oil";
+}
+
+function commodityExposureFor(holdings: Holding[]): CommodityExposureSummary[] {
+  const buckets = new Map<string, CommodityExposureSummary>();
+  for (const holding of holdings) {
+    const meta = commodityBySector[holding.sector];
+    const bucket = buckets.get(meta.name) ?? { name: meta.name, value: 0, positionCount: 0, color: meta.color };
+    bucket.value += holding.marketValueAud;
+    bucket.positionCount += 1;
+    buckets.set(meta.name, bucket);
+  }
+  return [...buckets.values()].sort((a, b) => b.value - a.value);
 }
 
 function makeDonut(sectors: Array<{ sector: Sector; value: number }>, total: number) {
@@ -402,6 +430,33 @@ function CurrencyExposurePanel({ exposures }: { exposures: CurrencyExposureSumma
   );
 }
 
+function CommodityExposurePanel({ exposures, total }: { exposures: CommodityExposureSummary[]; total: number }) {
+  if (!exposures.length) return null;
+  const max = Math.max(...exposures.map((item) => item.value), 1);
+  return (
+    <section className="nsPanel nsExposurePanel">
+      <div className="nsPanelTopline">
+        <div>
+          <p className="nsEyebrow">Commodity exposure</p>
+          <h2>Economic exposure</h2>
+        </div>
+      </div>
+      <div className="nsExposureRows">
+        {exposures.map((item) => (
+          <div key={item.name} className="nsExposureRow">
+            <div>
+              <strong>{item.name}</strong>
+              <span>{item.positionCount} positions</span>
+            </div>
+            <span className="nsExposureBar"><i style={{ width: `${Math.max(3, (item.value / max) * 100)}%`, background: item.color }} /></span>
+            <strong>{fmtAud(item.value)} <em>{fmtPct(pct(item.value, total))}</em></strong>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function AccountBreakdownPanel({ accounts, scope }: { accounts: AccountBreakdownSummary[]; scope: PortfolioScope }) {
   const visibleAccounts = scope === "overall" ? accounts : accounts.filter((account) => account.scope === scope);
   if (!visibleAccounts.length) return null;
@@ -456,6 +511,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
     () => view.filter(isShareLike).sort((a, b) => b.marketValueAud - a.marketValueAud),
     [view],
   );
+  const commodityExposure = useMemo(() => commodityExposureFor(view), [view]);
   const largestSector = sectors[0];
   const bestPerformer = shareHoldings.reduce<Holding | undefined>(
     (best, holding) => (!best || holding.pnlPercent > best.pnlPercent ? holding : best),
@@ -521,7 +577,10 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
           <SectorDonut sectors={sectors} total={t.marketValue} />
         </div>
 
-        <CurrencyExposurePanel exposures={currencyExposure} />
+        <div className="nsAnalyticsGrid">
+          <CommodityExposurePanel exposures={commodityExposure} total={t.marketValue} />
+          <CurrencyExposurePanel exposures={currencyExposure} />
+        </div>
       </main>
     </div>
   );
