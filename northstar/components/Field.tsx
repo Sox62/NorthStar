@@ -1,32 +1,26 @@
-import type { CSSProperties, ChangeEvent, InputHTMLAttributes, SelectHTMLAttributes } from "react";
+import React from "react";
 
 export interface FieldOption {
   value: string;
   label: string;
 }
 
-type SharedProps = {
+export interface FieldProps {
+  
   label: string;
-  style?: CSSProperties;
-};
+  
+  as?: "input" | "select";
+  
+  options?: FieldOption[];
+  style?: React.CSSProperties;
+  type?: string;
+  value?: string | number;
+  placeholder?: string;
+  required?: boolean;
+  onChange?: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+}
 
-type InputFieldProps = SharedProps & {
-  as?: "input";
-  options?: never;
-  controlProps?: InputHTMLAttributes<HTMLInputElement>;
-  onChange?: (event: ChangeEvent<HTMLInputElement>) => void;
-};
-
-type SelectFieldProps = SharedProps & {
-  as: "select";
-  options: FieldOption[];
-  controlProps?: SelectHTMLAttributes<HTMLSelectElement>;
-  onChange?: (event: ChangeEvent<HTMLSelectElement>) => void;
-};
-
-export type FieldProps = InputFieldProps | SelectFieldProps;
-
-const fieldStyle: CSSProperties = {
+const fieldStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "7px",
@@ -35,7 +29,7 @@ const fieldStyle: CSSProperties = {
   fontSize: "var(--text-sm)",
 };
 
-const controlStyle: CSSProperties = {
+const controlStyle: React.CSSProperties = {
   width: "100%",
   padding: "11px",
   border: "1px solid var(--border-default)",
@@ -45,26 +39,21 @@ const controlStyle: CSSProperties = {
   font: "inherit",
 };
 
-export function Field(props: FieldProps) {
-  if (props.as === "select") {
-    return (
-      <label style={{ ...fieldStyle, ...props.style }}>
-        <span>{props.label}</span>
-        <select style={controlStyle} {...props.controlProps} onChange={props.onChange}>
-          {props.options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
+export function Field({ label, as = "input", options, style, ...rest }: FieldProps) {
+  return (
+    <label style={{ ...fieldStyle, ...style }}>
+      <span>{label}</span>
+      {as === "select" ? (
+        <select style={controlStyle} {...rest}>
+          {(options || []).map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
             </option>
           ))}
         </select>
-      </label>
-    );
-  }
-
-  return (
-    <label style={{ ...fieldStyle, ...props.style }}>
-      <span>{props.label}</span>
-      <input style={controlStyle} {...props.controlProps} onChange={props.onChange} />
+      ) : (
+        <input style={controlStyle} {...rest} />
+      )}
     </label>
   );
 }

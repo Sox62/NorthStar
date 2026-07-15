@@ -1,12 +1,23 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import React from "react";
 
-export interface CardProps extends HTMLAttributes<HTMLDivElement> {
-  children: ReactNode;
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: React.ReactNode;
+  style?: React.CSSProperties;
 }
 
-export function Card({ children, className = "", ...rest }: CardProps) {
+export function Card({ children, style, ...rest }: CardProps) {
   return (
-    <div className={["nsCard", className].filter(Boolean).join(" ")} {...rest}>
+    <div
+      style={{
+        background: "var(--surface-card)",
+        border: "1px solid var(--border-default)",
+        borderRadius: "var(--radius-xl)",
+        padding: "18px",
+        boxShadow: "var(--shadow-card)",
+        ...style,
+      }}
+      {...rest}
+    >
       {children}
     </div>
   );

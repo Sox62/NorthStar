@@ -1,0 +1,300 @@
+"use client";
+
+import React, { useMemo, useState } from "react";
+import { NavRail } from "./NavRail";
+import { byComposition, byScope, bySector, fmtAud, totals } from "../lib/portfolio-metrics";
+import { COMPOSITION_OF, SECTOR_COLORS, type CompositionGroup, type Holding, type PortfolioScope, type Sector } from "../types";
+
+const scopeOptions: PortfolioScope[] = ["overall", "personal", "smsf"];
+const groupLabel: Record<CompositionGroup, string> = {
+  miners: "Miners",
+  metals: "Metals & bullion",
+  other: "Oil & cash",
+};
+const groupColor: Record<CompositionGroup, string> = {
+  miners: "#d7b56d",
+  metals: "#9fb4ca",
+  other: "#647587",
+};
+
+const chartPoints = [
+  [0, 132],
+  [24, 119],
+  [48, 101],
+  [72, 78],
+  [96, 45],
+  [120, 39],
+  [144, 29],
+  [168, 47],
+  [192, 50],
+  [216, 42],
+  [240, 51],
+  [264, 33],
+  [288, 27],
+  [312, 21],
+  [336, 20],
+  [360, 12],
+  [384, 0],
+  [408, 22],
+  [432, 31],
+  [456, 20],
+  [480, 6],
+  [504, 50],
+  [528, 68],
+];
+
+function pct(value: number, total: number) {
+  return total ? (value / total) * 100 : 0;
+}
+
+function fmtPct(value: number) {
+  return `${value.toFixed(value >= 10 ? 1 : 1)}%`;
+}
+
+function fmtSignedAud(value: number) {
+  return `${value >= 0 ? "+" : ""}${fmtAud(value)}`;
+}
+
+function fmtShortAud(value: number) {
+  if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
+  if (Math.abs(value) >= 1_000) return `$${Math.round(value / 1_000)}k`;
+  return fmtAud(value);
+}
+
+function sectorShortName(sector: Sector) {
+  return sector.replace(" miners", "").replace(" bullion", "");
+}
+
+function isShareLike(holding: Holding) {
+  return COMPOSITION_OF[holding.sector] === "miners" || holding.sector === "Oil";
+}
+
+function makeDonut(sectors: Array<{ sector: Sector; value: number }>, total: number) {
+  if (!total) return "conic-gradient(rgba(122,149,178,0.18) 0 100%)";
+  let start = 0;
+  const stops = sectors.map((sector) => {
+    const end = start + pct(sector.value, total);
+    const stop = `${SECTOR_COLORS[sector.sector]} ${start.toFixed(2)}% ${end.toFixed(2)}%`;
+    start = end;
+    return stop;
+  });
+  return `conic-gradient(${stops.join(", ")})`;
+}
+
+function ScopeTabs({ value, onChange }: { value: PortfolioScope; onChange: (scope: PortfolioScope) => void }) {
+  return (
+    <div className="nsScopeTabs" aria-label="Portfolio scope">
+      {scopeOptions.map((scope) => (
+        <button key={scope} type="button" className={scope === value ? "isActive" : ""} onClick={() => onChange(scope)}>
+          {scope === "smsf" ? "SMSF" : scope[0].toUpperCase() + scope.slice(1)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SplitLegend({ segments, total }: {
+  segments: Array<{ key: string; label: string; value: number; color: string }>;
+  total: number;
+}) {
+  return (
+    <div className="nsSplitLegend">
+      {segments.map((segment) => (
+        <div key={segment.key}>
+          <span style={{ background: segment.color }} />
+          {segment.label} <strong>{fmtAud(segment.value)}</strong> <em>{fmtPct(pct(segment.value, total))}</em>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SplitBar({ segments, total }: {
+  segments: Array<{ key: string; value: number; color: string }>;
+  total: number;
+}) {
+  return (
+    <div className="nsHeroSplitBar" aria-hidden="true">
+      {segments.map((segment) => (
+        <span key={segment.key} style={{ width: `${pct(segment.value, total)}%`, background: segment.color }} />
+      ))}
+    </div>
+  );
+}
+
+function HistoryChart({ now }: { now: number }) {
+  const peak = now * 1.5;
+  const line = chartPoints.map(([x, y]) => `${x},${y}`).join(" ");
+  const fill = `0,160 ${line} 528,160`;
+
+  return (
+    <div className="nsHistoryPanel">
+      <div className="nsPanelTopline">
+        <div>
+          <p className="nsEyebrow">Total NAV — since inception</p>
+          <h2>Peak {fmtShortAud(peak)} · now {fmtShortAud(now)}</h2>
+        </div>
+        <div className="nsRangeTabs" aria-label="Chart range">
+          <button className="isActive" type="button">All</button>
+          <button type="button">6M</button>
+          <button type="button">3M</button>
+        </div>
+      </div>
+      <svg className="nsHistoryChart" viewBox="0 0 528 172" role="img" aria-label="Portfolio history chart">
+        <defs>
+          <linearGradient id="nsHistoryFill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#d7b56d" stopOpacity="0.42" />
+            <stop offset="100%" stopColor="#d7b56d" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polygon points={fill} fill="url(#nsHistoryFill)" />
+        <polyline points={line} fill="none" stroke="#d7b56d" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="528" cy="68" r="4" fill="#d7b56d" />
+      </svg>
+      <div className="nsChartMonths" aria-hidden="true">
+        <span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span><span>Jan</span><span>Feb</span><span>Mar</span>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, note, tone }: { label: string; value: React.ReactNode; note: React.ReactNode; tone?: "positive" }) {
+  return (
+    <section className="nsMetricCard">
+      <p className="nsEyebrow">{label}</p>
+      <strong className={tone === "positive" ? "isPositive" : undefined}>{value}</strong>
+      <span>{note}</span>
+    </section>
+  );
+}
+
+function HoldingsTable({ holdings, total, count }: { holdings: Holding[]; total: number; count: number }) {
+  const max = holdings[0]?.marketValueAud || 1;
+  return (
+    <section id="holdings" className="nsPanel nsPositionsPanel">
+      <div className="nsPanelTopline">
+        <div>
+          <p className="nsEyebrow">Largest positions</p>
+          <h2>Allocation of shares</h2>
+        </div>
+        <a href="/#holdings">View all {count} -&gt;</a>
+      </div>
+      <div className="nsHoldingsTable" role="table" aria-label="Largest share positions">
+        <div className="nsHoldingsHeader" role="row">
+          <span>Holding</span>
+          <span>Sector · Weight</span>
+          <span>Value</span>
+          <span>P/L</span>
+        </div>
+        {holdings.slice(0, 6).map((holding) => (
+          <div className="nsHoldingRow" role="row" key={holding.id}>
+            <div>
+              <strong>{holding.symbol}</strong>
+              <span>{holding.name}</span>
+            </div>
+            <div>
+              <em style={{ background: `${SECTOR_COLORS[holding.sector]}30`, color: SECTOR_COLORS[holding.sector] }}>{sectorShortName(holding.sector)}</em>
+              <span className="nsWeightBar"><i style={{ width: `${pct(holding.marketValueAud, max)}%`, background: SECTOR_COLORS[holding.sector] }} /></span>
+            </div>
+            <div>
+              <strong>{fmtAud(holding.marketValueAud)}</strong>
+              <span>{fmtPct(pct(holding.marketValueAud, total))} of NAV</span>
+            </div>
+            <div className={holding.pnlAud >= 0 ? "isPositive" : "isNegative"}>
+              {holding.pnlPercent >= 0 ? "+" : ""}{holding.pnlPercent.toFixed(1)}%
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SectorDonut({ sectors, total }: { sectors: Array<{ sector: Sector; value: number }>; total: number }) {
+  return (
+    <section className="nsPanel nsSectorPanel">
+      <p className="nsEyebrow">Sector distribution</p>
+      <div className="nsDonutWrap">
+        <div className="nsDonut" style={{ background: makeDonut(sectors, total) }}>
+          <div><span>NAV</span><strong>{fmtShortAud(total)}</strong></div>
+        </div>
+      </div>
+      <div className="nsSectorList">
+        {sectors.map((sector) => (
+          <div key={sector.sector}>
+            <span><i style={{ background: SECTOR_COLORS[sector.sector] }} />{sector.sector}</span>
+            <strong>{fmtAud(sector.value)} <em>{fmtPct(pct(sector.value, total))}</em></strong>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Full redesigned overview dashboard matching the screenshot reference. */
+export function OverviewScreen({ holdings, logoSrc }: { holdings: Holding[]; logoSrc?: string }) {
+  const [scope, setScope] = useState<PortfolioScope>("overall");
+  const view = byScope(holdings, scope);
+  const t = totals(view);
+  const comp = byComposition(view);
+  const sectors = bySector(view);
+  const shareHoldings = useMemo(
+    () => view.filter(isShareLike).sort((a, b) => b.marketValueAud - a.marketValueAud),
+    [view],
+  );
+  const largestSector = sectors[0];
+  const bestPerformer = shareHoldings.reduce<Holding | undefined>(
+    (best, holding) => (!best || holding.pnlPercent > best.pnlPercent ? holding : best),
+    undefined,
+  );
+  const groupSegments = (["miners", "metals", "other"] as CompositionGroup[]).map((group) => ({
+    key: group,
+    label: groupLabel[group],
+    value: comp[group],
+    color: groupColor[group],
+  }));
+
+  return (
+    <div className="nsScreen">
+      <NavRail active="overview" logoSrc={logoSrc} />
+      <main className="nsScreenMain nsOverview">
+        <header className="nsOverviewHeader">
+          <div>
+            <h1>Good morning, Stephen</h1>
+            <p>Live portfolio — stocks, bullion &amp; cash</p>
+          </div>
+          <div className="nsHeaderControls">
+            <ScopeTabs value={scope} onChange={setScope} />
+            <p><span />Close of day · ASX 14 Jul 2026</p>
+          </div>
+        </header>
+
+        <section className="nsHeroPanel">
+          <div className="nsHeroSummary">
+            <p className="nsEyebrow">{scope === "overall" ? "Total net asset value" : scope === "smsf" ? "SMSF net asset value" : "Personal net asset value"}</p>
+            <div className="nsHeroValue">{fmtAud(t.marketValue)}</div>
+            <div className="nsHeroStats">
+              <div><span>Profit / loss</span><strong className={t.pnl >= 0 ? "isPositive" : "isNegative"}>{fmtSignedAud(t.pnl)}</strong></div>
+              <div><span>Return on cost</span><strong className={t.pnl >= 0 ? "isPositive" : "isNegative"}>{t.pnlPercent >= 0 ? "+" : ""}{t.pnlPercent.toFixed(1)}%</strong></div>
+            </div>
+            <SplitBar segments={groupSegments} total={t.marketValue} />
+            <SplitLegend segments={groupSegments} total={t.marketValue} />
+          </div>
+          <HistoryChart now={t.marketValue} />
+        </section>
+
+        <section className="nsMetricGrid" aria-label="Portfolio summary cards">
+          <MetricCard label="Profit / loss" value={fmtSignedAud(t.pnl)} note={`${t.pnlPercent >= 0 ? "+" : ""}${t.pnlPercent.toFixed(1)}% on cost`} tone={t.pnl >= 0 ? "positive" : undefined} />
+          <MetricCard label="Positions" value={t.count} note="stocks, ETFs & bullion" />
+          <MetricCard label="Largest sector" value={largestSector?.sector ?? "No sector"} note={largestSector ? `${fmtPct(pct(largestSector.value, t.marketValue))} · ${fmtAud(largestSector.value)}` : "No holdings yet"} />
+          <MetricCard label="Best performer" value={bestPerformer?.name.replace(" Metals", "") ?? "No performer"} note={bestPerformer ? `${bestPerformer.pnlPercent >= 0 ? "+" : ""}${bestPerformer.pnlPercent.toFixed(1)}% · ${bestPerformer.symbol}` : "No holdings yet"} />
+        </section>
+
+        <div className="nsLowerGrid">
+          <HoldingsTable holdings={shareHoldings} total={t.marketValue} count={t.count} />
+          <SectorDonut sectors={sectors} total={t.marketValue} />
+        </div>
+      </main>
+    </div>
+  );
+}

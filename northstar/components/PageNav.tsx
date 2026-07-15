@@ -1,8 +1,8 @@
-import type { ReactNode } from "react";
+import React from "react";
 
 export interface PageNavLink {
   href: string;
-  label: ReactNode;
+  label: string;
 }
 
 export interface PageNavProps {
@@ -11,12 +11,12 @@ export interface PageNavProps {
 
 export function PageNav({ links }: PageNavProps) {
   return (
-    <nav className="pageNav" aria-label="Page navigation">
+    <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", justifyContent: "space-between", margin: "0 0 24px" }}>
       {links.map((link) => (
-        <a key={link.href} href={link.href}>
+        <a key={link.href} href={link.href} style={{ color: "var(--accent)", textDecoration: "none" }}>
           {link.label}
         </a>
       ))}
-    </nav>
+    </div>
   );
 }

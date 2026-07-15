@@ -1,0 +1,708 @@
+/* NorthStar Private — theme layer for the REDESIGN.
+   Import this in app/layout.tsx AFTER (or instead of) the old globals.css:
+     import "@/northstar/styles/theme.css";
+   These variables are what the redesigned screens use. If the old globals.css
+   is still imported, its .card/.shell/.tab classes will keep painting the old
+   look on any page you haven't migrated — migrate a page fully, don't mix. */
+
+:root {
+  --ink-900:#060c14; --ink-850:#0a1220;
+  --panel:rgba(19,30,45,0.72); --sunken:#0b1524;
+  --line:rgba(122,149,178,0.16);
+  --gold:#d7b56d; --ice:#eaf1f8; --muted:#8ea0b2; --muted-dim:#5d6f81;
+  --pos:#7ee2a8; --neg:#ff9b9b; --warn:#f3c36b;
+  --silver:#b9c4d0; --silverb:#e3e9f0; --platinum:#8fa6bf; --uranium:#8dc6a0;
+  --rhodium:#c78db8; --oil:#dd8b6f; --cash:#5d6f81;
+  --ns-sans:"Hanken Grotesk", system-ui, sans-serif;
+  --ns-serif:"Spectral", Georgia, serif;
+}
+
+body.northstar {
+  margin:0;
+  font-family:var(--ns-sans);
+  color:var(--ice);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(215,181,109,0.10), transparent 60%),
+    radial-gradient(700px 500px at 100% 0%, rgba(119,169,216,0.06), transparent 55%),
+    linear-gradient(180deg, var(--ink-900), var(--ink-850));
+  background-attachment:fixed;
+}
+
+body.northstar .nsScreen {
+  display:grid;
+  grid-template-columns:264px minmax(0, 1fr);
+  min-height:100vh;
+}
+
+body.northstar .nsScreenMain {
+  width:100%;
+  max-width:1342px;
+  padding:34px 40px 56px;
+}
+
+body.northstar .nsLoadingState {
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+}
+
+body.northstar .nsRail {
+  position:sticky;
+  top:0;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  gap:34px;
+  padding:36px 20px 22px;
+  border-right:1px solid rgba(122,149,178,0.16);
+  background:linear-gradient(180deg, rgba(7,14,22,0.72), rgba(6,12,20,0.96));
+}
+
+body.northstar .nsRailBrand {
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+
+body.northstar .nsRailLogo,
+body.northstar .nsRailMark {
+  width:42px;
+  height:42px;
+  border-radius:12px;
+  flex:0 0 auto;
+}
+
+body.northstar .nsRailMark {
+  display:grid;
+  place-items:center;
+  position:relative;
+  border:1px solid rgba(122,149,178,0.22);
+  background:#0d1929;
+  color:var(--gold);
+  box-shadow:inset 0 0 18px rgba(215,181,109,0.06), 0 10px 22px rgba(0,0,0,0.18);
+}
+
+body.northstar .nsRailMark span {
+  font-size:20px;
+  line-height:1;
+}
+
+body.northstar .nsRailMark small {
+  position:absolute;
+  right:6px;
+  bottom:5px;
+  color:#e8eef4;
+  font-size:7px;
+  font-weight:700;
+  letter-spacing:0;
+}
+
+body.northstar .nsRailTitle {
+  font-family:var(--ns-serif);
+  font-size:25px;
+  line-height:1;
+  color:#eef3f8;
+}
+
+body.northstar .nsRailMotto {
+  margin-top:8px;
+  color:var(--gold);
+  font-family:var(--ns-serif);
+  font-size:12px;
+  font-style:italic;
+  letter-spacing:0.04em;
+}
+
+body.northstar .nsRailNav {
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-top:2px;
+}
+
+body.northstar .nsRailNav a {
+  min-height:44px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:10px 16px;
+  border-radius:10px;
+  color:var(--muted);
+  font-size:15px;
+  font-weight:600;
+  text-decoration:none;
+}
+
+body.northstar .nsRailNav a:hover {
+  color:#edf3f8;
+  background:rgba(122,149,178,0.08);
+}
+
+body.northstar .nsRailNav a.isActive {
+  background:var(--gold);
+  color:#111820;
+}
+
+body.northstar .nsRailFooter {
+  margin-top:auto;
+  color:var(--muted-dim);
+  font-size:12px;
+  line-height:1.6;
+}
+
+body.northstar .nsRailFooter b {
+  color:var(--muted);
+  font-weight:700;
+}
+
+body.northstar .nsOverview {
+  display:flex;
+  flex-direction:column;
+  gap:24px;
+}
+
+body.northstar .nsOverviewHeader {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:24px;
+}
+
+body.northstar .nsOverviewHeader h1 {
+  margin:0;
+  color:#eef3f8;
+  font-family:var(--ns-serif);
+  font-size:28px;
+  font-weight:500;
+  line-height:1.05;
+  letter-spacing:0;
+}
+
+body.northstar .nsOverviewHeader p {
+  margin:12px 0 0;
+  color:var(--muted);
+  font-size:14px;
+}
+
+body.northstar .nsHeaderControls {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:10px;
+}
+
+body.northstar .nsHeaderControls p {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:0;
+  color:var(--muted-dim);
+  font-size:12px;
+}
+
+body.northstar .nsHeaderControls p span {
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#71dfa2;
+}
+
+body.northstar .nsScopeTabs,
+body.northstar .nsRangeTabs {
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:4px;
+  border:1px solid rgba(122,149,178,0.20);
+  border-radius:999px;
+  background:#0b1524;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+
+body.northstar .nsScopeTabs button,
+body.northstar .nsRangeTabs button {
+  border:0;
+  border-radius:999px;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  font:inherit;
+  font-size:13px;
+  font-weight:700;
+}
+
+body.northstar .nsScopeTabs button {
+  min-width:76px;
+  min-height:34px;
+  padding:7px 15px;
+}
+
+body.northstar .nsRangeTabs button {
+  min-width:38px;
+  min-height:28px;
+  padding:5px 10px;
+  border:1px solid transparent;
+}
+
+body.northstar .nsScopeTabs button.isActive {
+  background:var(--gold);
+  color:#111820;
+}
+
+body.northstar .nsRangeTabs button.isActive {
+  border-color:var(--gold);
+  color:var(--gold);
+}
+
+body.northstar .nsHeroPanel,
+body.northstar .nsMetricCard,
+body.northstar .nsPanel {
+  border:1px solid rgba(122,149,178,0.20);
+  border-radius:18px;
+  background:rgba(18,30,45,0.78);
+  box-shadow:0 20px 60px rgba(0,0,0,0.20), inset 0 1px 0 rgba(255,255,255,0.025);
+}
+
+body.northstar .nsHeroPanel {
+  display:grid;
+  grid-template-columns:minmax(390px, 0.88fr) minmax(470px, 1.12fr);
+  overflow:hidden;
+  min-height:352px;
+}
+
+body.northstar .nsHeroSummary {
+  padding:27px 26px;
+  border-right:1px solid rgba(122,149,178,0.11);
+}
+
+body.northstar .nsEyebrow {
+  margin:0;
+  color:var(--muted);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:0.16em;
+  line-height:1.35;
+  text-transform:uppercase;
+}
+
+body.northstar .nsHeroValue {
+  margin-top:20px;
+  color:#f1f4f8;
+  font-family:var(--ns-serif);
+  font-size:54px;
+  line-height:1;
+  letter-spacing:0;
+  font-variant-numeric:tabular-nums;
+}
+
+body.northstar .nsHeroStats {
+  display:flex;
+  gap:32px;
+  margin-top:22px;
+}
+
+body.northstar .nsHeroStats span,
+body.northstar .nsMetricCard span,
+body.northstar .nsHoldingRow span,
+body.northstar .nsSectorList em {
+  color:var(--muted);
+}
+
+body.northstar .nsHeroStats span {
+  display:block;
+  font-size:12px;
+  margin-bottom:7px;
+}
+
+body.northstar .nsHeroStats strong {
+  font-size:20px;
+  font-weight:500;
+}
+
+body.northstar .isPositive {
+  color:var(--pos) !important;
+}
+
+body.northstar .isNegative {
+  color:var(--neg) !important;
+}
+
+body.northstar .nsHeroSplitBar {
+  height:14px;
+  display:flex;
+  gap:2px;
+  overflow:hidden;
+  margin-top:31px;
+  border-radius:999px;
+  background:rgba(122,149,178,0.16);
+}
+
+body.northstar .nsHeroSplitBar span {
+  min-width:0;
+}
+
+body.northstar .nsSplitLegend {
+  display:flex;
+  flex-wrap:wrap;
+  gap:18px 24px;
+  margin-top:15px;
+  color:var(--muted);
+  font-size:13px;
+}
+
+body.northstar .nsSplitLegend div {
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+
+body.northstar .nsSplitLegend span {
+  width:10px;
+  height:10px;
+  border-radius:3px;
+  flex:0 0 auto;
+}
+
+body.northstar .nsSplitLegend strong {
+  color:#eaf1f8;
+  font-weight:700;
+}
+
+body.northstar .nsSplitLegend em {
+  color:var(--muted-dim);
+  font-style:normal;
+}
+
+body.northstar .nsHistoryPanel {
+  padding:27px 25px 24px;
+}
+
+body.northstar .nsPanelTopline {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:20px;
+}
+
+body.northstar .nsPanelTopline h2,
+body.northstar .nsHistoryPanel h2 {
+  margin:12px 0 0;
+  color:#eaf1f8;
+  font-family:var(--ns-serif);
+  font-size:24px;
+  font-weight:500;
+  line-height:1.1;
+}
+
+body.northstar .nsHistoryChart {
+  width:100%;
+  height:175px;
+  margin-top:28px;
+  display:block;
+}
+
+body.northstar .nsChartMonths {
+  display:grid;
+  grid-template-columns:repeat(7, 1fr);
+  color:var(--muted-dim);
+  font-size:11px;
+}
+
+body.northstar .nsMetricGrid {
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:22px;
+}
+
+body.northstar .nsMetricCard {
+  min-height:154px;
+  padding:25px;
+}
+
+body.northstar .nsMetricCard strong {
+  display:block;
+  margin-top:20px;
+  color:#eef3f8;
+  font-family:var(--ns-serif);
+  font-size:27px;
+  font-weight:500;
+  line-height:1.1;
+}
+
+body.northstar .nsMetricCard span {
+  display:block;
+  margin-top:13px;
+  font-size:13px;
+}
+
+body.northstar .nsLowerGrid {
+  display:grid;
+  grid-template-columns:minmax(560px, 1.34fr) minmax(360px, 0.86fr);
+  gap:24px;
+  align-items:start;
+}
+
+body.northstar .nsPanel {
+  padding:27px 26px;
+}
+
+body.northstar .nsPositionsPanel a {
+  align-self:center;
+  color:var(--gold);
+  font-size:13px;
+  font-weight:700;
+  text-decoration:none;
+}
+
+body.northstar .nsHoldingsTable {
+  margin-top:24px;
+}
+
+body.northstar .nsHoldingsHeader,
+body.northstar .nsHoldingRow {
+  display:grid;
+  grid-template-columns:minmax(190px, 1.35fr) minmax(170px, 1fr) minmax(100px, 0.72fr) minmax(70px, 0.5fr);
+  gap:18px;
+  align-items:center;
+}
+
+body.northstar .nsHoldingsHeader {
+  padding-bottom:17px;
+  color:var(--muted-dim);
+  border-bottom:1px solid rgba(122,149,178,0.16);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+}
+
+body.northstar .nsHoldingRow {
+  min-height:80px;
+  border-bottom:1px solid rgba(122,149,178,0.13);
+}
+
+body.northstar .nsHoldingRow strong {
+  display:block;
+  color:#eaf1f8;
+  font-family:var(--ns-serif);
+  font-size:19px;
+  font-weight:500;
+}
+
+body.northstar .nsHoldingRow span {
+  display:block;
+  margin-top:5px;
+  font-size:12px;
+}
+
+body.northstar .nsHoldingRow em {
+  display:inline-flex;
+  min-width:54px;
+  align-items:center;
+  justify-content:center;
+  padding:5px 9px;
+  border-radius:7px;
+  font-size:11px;
+  font-style:normal;
+  font-weight:800;
+}
+
+body.northstar .nsWeightBar {
+  width:160px;
+  max-width:100%;
+  height:7px;
+  overflow:hidden;
+  border-radius:999px;
+  background:rgba(122,149,178,0.16);
+}
+
+body.northstar .nsWeightBar i {
+  display:block;
+  height:100%;
+  border-radius:999px;
+}
+
+body.northstar .nsHoldingRow > div:nth-child(3) {
+  text-align:right;
+}
+
+body.northstar .nsHoldingRow > div:nth-child(4) {
+  text-align:right;
+  font-size:15px;
+  font-weight:700;
+}
+
+body.northstar .nsSectorPanel {
+  min-height:520px;
+}
+
+body.northstar .nsDonutWrap {
+  display:grid;
+  place-items:center;
+  margin:34px 0 28px;
+}
+
+body.northstar .nsDonut {
+  width:170px;
+  height:170px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  position:relative;
+}
+
+body.northstar .nsDonut::after {
+  content:"";
+  position:absolute;
+  inset:30px;
+  border-radius:50%;
+  background:#0f1b2b;
+  box-shadow:inset 0 0 0 1px rgba(122,149,178,0.10);
+}
+
+body.northstar .nsDonut div {
+  position:relative;
+  z-index:1;
+  display:grid;
+  place-items:center;
+  color:var(--muted);
+  font-size:10px;
+  line-height:1.25;
+}
+
+body.northstar .nsDonut strong {
+  color:#eaf1f8;
+  font-family:var(--ns-serif);
+  font-size:19px;
+  font-weight:500;
+}
+
+body.northstar .nsSectorList {
+  display:flex;
+  flex-direction:column;
+}
+
+body.northstar .nsSectorList div {
+  min-height:45px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  border-top:1px solid rgba(122,149,178,0.14);
+  color:var(--muted);
+  font-size:13px;
+}
+
+body.northstar .nsSectorList span {
+  display:flex;
+  align-items:center;
+  gap:11px;
+}
+
+body.northstar .nsSectorList i {
+  width:10px;
+  height:10px;
+  border-radius:3px;
+  flex:0 0 auto;
+}
+
+body.northstar .nsSectorList strong {
+  color:#d9e2eb;
+  font-size:12px;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+body.northstar .nsSectorList em {
+  font-style:normal;
+  font-weight:500;
+}
+
+@media (max-width: 760px) {
+  body.northstar .nsScreen {
+    grid-template-columns:1fr;
+  }
+
+  body.northstar .nsScreen > aside {
+    position:relative !important;
+    top:auto !important;
+    height:auto !important;
+    border-right:0 !important;
+    border-bottom:1px solid var(--line) !important;
+  }
+
+  body.northstar .nsScreenMain {
+    padding:18px 16px 34px;
+  }
+
+  body.northstar .nsRail {
+    position:relative;
+    height:auto;
+    gap:26px;
+    padding:28px 18px;
+  }
+
+  body.northstar .nsOverviewHeader,
+  body.northstar .nsPanelTopline {
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  body.northstar .nsHeaderControls {
+    align-items:flex-start;
+  }
+
+  body.northstar .nsScopeTabs {
+    width:100%;
+  }
+
+  body.northstar .nsScopeTabs button {
+    min-width:0;
+    flex:1;
+  }
+
+  body.northstar .nsHeroPanel,
+  body.northstar .nsMetricGrid,
+  body.northstar .nsLowerGrid {
+    grid-template-columns:1fr;
+  }
+
+  body.northstar .nsHeroSummary {
+    border-right:0;
+    border-bottom:1px solid rgba(122,149,178,0.11);
+  }
+
+  body.northstar .nsHeroValue {
+    font-size:44px;
+  }
+
+  body.northstar .nsHeroStats,
+  body.northstar .nsSplitLegend {
+    gap:16px;
+  }
+
+  body.northstar .nsMetricGrid {
+    gap:14px;
+  }
+
+  body.northstar .nsHoldingsHeader {
+    display:none;
+  }
+
+  body.northstar .nsHoldingRow {
+    grid-template-columns:1fr;
+    gap:12px;
+    padding:16px 0;
+  }
+
+  body.northstar .nsHoldingRow > div:nth-child(3),
+  body.northstar .nsHoldingRow > div:nth-child(4) {
+    text-align:left;
+  }
+
+  body.northstar .nsSectorPanel {
+    min-height:auto;
+  }
+}

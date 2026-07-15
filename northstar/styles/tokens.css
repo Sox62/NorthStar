@@ -85,9 +85,8 @@
    motto is set in Georgia (system serif). No custom webfonts are used in the
    source app — see readme.md "Fonts" note. */
 :root {
-  --font-sans: "Avenir Next", "Segoe UI", Helvetica, Arial, sans-serif;
-  --font-display: Georgia, "Times New Roman", serif;
-  --font-serif-motto: Georgia, "Times New Roman", serif;
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-serif-motto: Georgia, serif;
 
   /* Sizes as used in the app, smallest to largest */
   --text-2xs: 11px;   /* summaryGrid span, priceStats small */

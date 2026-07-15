@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { DashboardData } from "@/lib/storage";
-import { Card, Notice, OverviewScreen } from "@/northstar/components";
+import { Card, Notice, SectorsScreen } from "@/northstar/components";
 import type { Holding } from "@/northstar/types";
 import { dashboardToNorthstarHoldings } from "./northstar-adapter";
 
@@ -13,7 +13,7 @@ async function loadDashboard(scope: "personal" | "smsf"): Promise<DashboardData>
   return payload as DashboardData;
 }
 
-export default function Dashboard() {
+export default function SectorsDashboard() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -28,7 +28,7 @@ export default function Dashboard() {
         const [personal, smsf] = await Promise.all([loadDashboard("personal"), loadDashboard("smsf")]);
         if (!cancelled) setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
       } catch (reason) {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load NorthStar");
+        if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load sectors");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -43,7 +43,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <main className="nsScreenMain nsLoadingState">
-        <Card>Loading NorthStar...</Card>
+        <Card>Loading sectors...</Card>
       </main>
     );
   }
@@ -51,10 +51,10 @@ export default function Dashboard() {
   if (error) {
     return (
       <main className="nsScreenMain nsLoadingState">
-        <Notice tone="error" title="Unable to load NorthStar">{error}</Notice>
+        <Notice tone="error" title="Unable to load sectors">{error}</Notice>
       </main>
     );
   }
 
-  return <OverviewScreen holdings={holdings} />;
+  return <SectorsScreen holdings={holdings} />;
 }

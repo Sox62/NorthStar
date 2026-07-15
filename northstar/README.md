@@ -5,24 +5,39 @@ Drop-in React/TypeScript components, design tokens, and portfolio helpers matchi
 ## Install
 
 1. Copy this `nextjs/` folder into your app, e.g. `src/northstar/`.
-2. Import the tokens once, in `app/layout.tsx`:
+2. Import the theme once, in `app/layout.tsx`, and add the `northstar` class to `<body>`:
 
-   ```ts
-   import "@/northstar/styles/tokens.css";
+   ```tsx
+   import "@/northstar/styles/theme.css";       // redesign look (ink bg, glass, tokens)
+   import { northstarFonts } from "@/northstar/lib/fonts";  // optional Spectral + Hanken
+
+   export default function RootLayout({ children }) {
+     return <html><body className={`northstar ${northstarFonts}`}>{children}</body></html>;
+   }
    ```
 
-   (These are additive CSS custom properties — they don't clash with your existing `globals.css`. They're the same tokens the current app uses, just named semantically.)
+   ⚠️ **Why the old design "stays" if you skip this:** the primitives alone (Button, Kpi…) render on top of whatever layout + `globals.css` a page already has. To actually replace the old look you must (a) load `theme.css` + the `northstar` body class, and (b) render a **composed screen** (`OverviewScreen` / `SectorsScreen`) or rebuild the page from the primitives — don't leave the old `.card`/`.shell` markup in place. Migrate a route fully; don't mix old and new on one page.
 3. Use components:
 
    ```tsx
-   import { Kpi, SplitBar, SectorTag, BreakdownBars, TabBar } from "@/northstar/components";
+   import { OverviewScreen, SectorsScreen, Kpi, SplitBar } from "@/northstar/components";
    ```
 
-No dependencies beyond `react`. All styling is inline + CSS variables — no CSS-in-JS, no Tailwind requirement.
+No dependencies beyond `react` (and `next/font` only if you use `lib/fonts.ts`). All styling is inline + CSS variables — no CSS-in-JS, no Tailwind requirement.
+
+## Composed screens (drop-in pages)
+
+These replace the old layout wholesale — nav rail, hero, scope switcher, breakdowns:
+
+- **`OverviewScreen`** — `{ holdings, logoSrc? }`. The redesigned dashboard: Personal/SMSF/Overall scope switch, owner split (in Overall), metals-vs-miners split, sector distribution. See `examples/overview-page.tsx`.
+- **`SectorsScreen`** — `{ holdings, logoSrc? }`. The dedicated Sectors page: composition split, then per-sector cards grouped miners / metals / other, each listing its holdings with owner tags.
+- **`NavRail`** — the shared left rail (`active`, `logoSrc`, `onNavigate`).
+
+Both take a `Holding[]` and derive everything live via `lib/portfolio-metrics.ts`, so Personal/SMSF stay separate and figures update on every sync.
 
 ## Components
 
-`Button` · `Field` · `Card` · `Kpi` · `Row` · `SummaryGrid` · `StatusBadge` · `Notice` · `ProgressBar` · `TabBar` · `PageNav` · `SectorTag` · `SplitBar` · `BreakdownBars`
+`Button` · `Field` · `Card` · `Kpi` · `Row` · `SummaryGrid` · `StatusBadge` · `Notice` · `ProgressBar` · `TabBar` · `PageNav` · `SectorTag` · `SplitBar` · `BreakdownBars` · `NavRail` · `OverviewScreen` · `SectorsScreen`
 
 Each is a named export with a typed props interface in the same file.
 
