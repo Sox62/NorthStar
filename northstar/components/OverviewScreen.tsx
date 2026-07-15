@@ -58,6 +58,16 @@ type CommodityExposureSummary = {
   positionCount: number;
   color: string;
 };
+type AllocationDriftSummary = {
+  sector: Sector;
+  currentValue: number;
+  targetValue: number;
+  currentPercent: number;
+  targetPercent: number;
+  driftPercent: number;
+  valueToTarget: number;
+  color: string;
+};
 
 const scopeOptions: PortfolioScope[] = ["overall", "personal", "smsf"];
 const groupLabel: Record<CompositionGroup, string> = {
@@ -79,6 +89,16 @@ const commodityBySector: Record<Sector, { name: string; color: string }> = {
   "Rhodium metal": { name: "Rhodium", color: "#c78db8" },
   Oil: { name: "Oil", color: "#dd8b6f" },
   Cash: { name: "Cash", color: "#5d6f81" },
+};
+const targetAllocation: Record<Sector, number> = {
+  "Silver miners": 30,
+  "Gold miners": 20,
+  "Uranium miners": 20,
+  "Platinum bullion": 20,
+  "Rhodium metal": 4,
+  "Silver bullion": 2,
+  Oil: 2,
+  Cash: 2,
 };
 
 function pct(value: number, total: number) {
@@ -163,6 +183,26 @@ function commodityExposureFor(holdings: Holding[]): CommodityExposureSummary[] {
     buckets.set(meta.name, bucket);
   }
   return [...buckets.values()].sort((a, b) => b.value - a.value);
+}
+
+function allocationDriftFor(sectors: Array<{ sector: Sector; value: number }>, total: number): AllocationDriftSummary[] {
+  const current = new Map<Sector, number>(sectors.map((item) => [item.sector, item.value]));
+  return (Object.keys(targetAllocation) as Sector[]).map((sector) => {
+    const currentValue = current.get(sector) ?? 0;
+    const targetPercent = targetAllocation[sector];
+    const targetValue = total * targetPercent / 100;
+    const currentPercent = pct(currentValue, total);
+    return {
+      sector,
+      currentValue,
+      targetValue,
+      currentPercent,
+      targetPercent,
+      driftPercent: currentPercent - targetPercent,
+      valueToTarget: targetValue - currentValue,
+      color: SECTOR_COLORS[sector],
+    };
+  }).sort((a, b) => Math.abs(b.driftPercent) - Math.abs(a.driftPercent));
 }
 
 function makeDonut(sectors: Array<{ sector: Sector; value: number }>, total: number) {
@@ -430,6 +470,41 @@ function CurrencyExposurePanel({ exposures }: { exposures: CurrencyExposureSumma
   );
 }
 
+function AllocationDriftPanel({ drift }: { drift: AllocationDriftSummary[] }) {
+  if (!drift.length) return null;
+  return (
+    <section className="nsPanel nsDriftPanel">
+      <div className="nsPanelTopline">
+        <div>
+          <p className="nsEyebrow">Allocation drift</p>
+          <h2>Current vs draft target</h2>
+        </div>
+      </div>
+      <div className="nsDriftRows">
+        {drift.slice(0, 6).map((item) => {
+          const underTarget = item.valueToTarget > 0;
+          return (
+            <article key={item.sector} className="nsDriftRow">
+              <div>
+                <strong>{item.sector}</strong>
+                <span>{fmtPct(item.currentPercent)} now · {fmtPct(item.targetPercent)} target</span>
+              </div>
+              <div className="nsDriftBars" aria-hidden="true">
+                <span><i style={{ width: `${Math.min(100, Math.max(0, item.currentPercent))}%`, background: item.color }} /></span>
+                <span><i style={{ width: `${Math.min(100, Math.max(0, item.targetPercent))}%` }} /></span>
+              </div>
+              <strong className={underTarget ? "isUnder" : "isOver"}>
+                {underTarget ? "Add" : "Trim"} {fmtAud(Math.abs(item.valueToTarget))}
+                <em>{item.driftPercent >= 0 ? "+" : ""}{item.driftPercent.toFixed(1)} pts</em>
+              </strong>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function CommodityExposurePanel({ exposures, total }: { exposures: CommodityExposureSummary[]; total: number }) {
   if (!exposures.length) return null;
   const max = Math.max(...exposures.map((item) => item.value), 1);
@@ -546,6 +621,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
     [view],
   );
   const commodityExposure = useMemo(() => commodityExposureFor(view), [view]);
+  const allocationDrift = useMemo(() => allocationDriftFor(sectors, t.marketValue), [sectors, t.marketValue]);
   const largestSector = sectors[0];
   const bestPerformer = shareHoldings.reduce<Holding | undefined>(
     (best, holding) => (!best || holding.pnlPercent > best.pnlPercent ? holding : best),
@@ -614,6 +690,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
         <div className="nsAnalyticsGrid">
           <CommodityExposurePanel exposures={commodityExposure} total={t.marketValue} />
           <CurrencyExposurePanel exposures={currencyExposure} />
+          <AllocationDriftPanel drift={allocationDrift} />
           <RecentActivityPanel syncRuns={syncRuns} />
         </div>
       </main>
