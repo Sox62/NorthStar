@@ -898,6 +898,75 @@ body.northstar .nsExposureRow em {
   font-weight:500;
 }
 
+body.northstar .nsActivityPanel {
+  grid-column:1 / -1;
+}
+
+body.northstar .nsActivityRows {
+  display:grid;
+  gap:0;
+  margin-top:18px;
+}
+
+body.northstar .nsActivityRow {
+  display:grid;
+  grid-template-columns:minmax(180px, 0.45fr) minmax(86px, 0.2fr) minmax(260px, 1fr);
+  gap:18px;
+  align-items:center;
+  min-height:58px;
+  border-top:1px solid rgba(122,149,178,0.14);
+}
+
+body.northstar .nsActivityRow strong,
+body.northstar .nsActivityRow span,
+body.northstar .nsActivityRow p,
+body.northstar .nsActivityRow em {
+  min-width:0;
+}
+
+body.northstar .nsActivityRow strong {
+  display:block;
+  color:#eaf1f8;
+  font-size:13px;
+  font-weight:800;
+}
+
+body.northstar .nsActivityRow span,
+body.northstar .nsActivityRow p {
+  color:var(--muted);
+  font-size:12px;
+}
+
+body.northstar .nsActivityRow span {
+  display:block;
+  margin-top:5px;
+}
+
+body.northstar .nsActivityRow p {
+  margin:0;
+}
+
+body.northstar .nsActivityRow em {
+  justify-self:start;
+  padding:5px 9px;
+  border-radius:7px;
+  background:rgba(122,149,178,0.14);
+  color:var(--muted);
+  font-size:11px;
+  font-style:normal;
+  font-weight:800;
+}
+
+body.northstar .nsActivityRow.is-success em {
+  background:rgba(96,211,143,0.14);
+  color:var(--pos);
+}
+
+body.northstar .nsActivityRow.is-failed em {
+  background:rgba(255,112,112,0.14);
+  color:var(--neg);
+}
+
 @media (max-width: 760px) {
   body.northstar .nsScreen {
     grid-template-columns:1fr;
@@ -1003,5 +1072,11 @@ body.northstar .nsExposureRow em {
 
   body.northstar .nsExposureRow > strong {
     text-align:left;
+  }
+
+  body.northstar .nsActivityRow {
+    grid-template-columns:1fr;
+    gap:8px;
+    padding:13px 0;
   }
 }

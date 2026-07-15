@@ -457,6 +457,40 @@ function CommodityExposurePanel({ exposures, total }: { exposures: CommodityExpo
   );
 }
 
+function RecentActivityPanel({ syncRuns }: { syncRuns: SyncRunSummary[] }) {
+  return (
+    <section className="nsPanel nsActivityPanel">
+      <div className="nsPanelTopline">
+        <div>
+          <p className="nsEyebrow">Recent activity</p>
+          <h2>Sync and pricing runs</h2>
+        </div>
+      </div>
+      <div className="nsActivityRows">
+        {syncRuns.length ? syncRuns.slice(0, 5).map((run, index) => (
+          <article key={`${run.source}-${run.finishedAt}-${index}`} className={`nsActivityRow is-${run.status}`}>
+            <div>
+              <strong>{run.source}</strong>
+              <span>{run.trigger} · {fmtRunTime(run.finishedAt)}</span>
+            </div>
+            <em>{run.status}</em>
+            <p>{run.error ?? run.message ?? "Completed without a message."}</p>
+          </article>
+        )) : (
+          <article className="nsActivityRow is-skipped">
+            <div>
+              <strong>No sync runs recorded</strong>
+              <span>Waiting for the next broker or pricing sync.</span>
+            </div>
+            <em>pending</em>
+            <p>Recent activity will appear here after scheduled or manual syncs run.</p>
+          </article>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function AccountBreakdownPanel({ accounts, scope }: { accounts: AccountBreakdownSummary[]; scope: PortfolioScope }) {
   const visibleAccounts = scope === "overall" ? accounts : accounts.filter((account) => account.scope === scope);
   if (!visibleAccounts.length) return null;
@@ -580,6 +614,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
         <div className="nsAnalyticsGrid">
           <CommodityExposurePanel exposures={commodityExposure} total={t.marketValue} />
           <CurrencyExposurePanel exposures={currencyExposure} />
+          <RecentActivityPanel syncRuns={syncRuns} />
         </div>
       </main>
     </div>

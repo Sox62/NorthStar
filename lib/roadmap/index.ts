@@ -62,7 +62,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "IBKR scheduled sync", status: "shipped", detail: "Morning sync runs from the Railway web process." },
       { title: "Sharesight API", status: "planned", detail: "Add once API credentials and target data contracts are confirmed." },
       { title: "Directshares path", status: "planned", detail: "Prefer API, then Sharesight, then contract-note parsing." },
-      { title: "Sync run monitor", status: "shipped", detail: "Dashboard shows latest IBKR and ABC Bullion sync status from recorded sync runs." },
+      { title: "Sync run monitor", status: "shipped", detail: "Dashboard shows latest IBKR and ABC Bullion status plus recent sync and pricing activity." },
     ],
   },
   {
