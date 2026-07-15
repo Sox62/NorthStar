@@ -9,7 +9,7 @@
     "worker": "tsx workers/daily-sync.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate.mjs",
-    "start:railway": "node scripts/check-railway-env.mjs && node .next/standalone/server.js"
+    "start:railway": "node scripts/start-railway.mjs"
   },
   "dependencies": {
     "csv-parse": "^6.2.1",

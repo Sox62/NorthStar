@@ -70,6 +70,33 @@ Investment return is measured against actual purchase cost. ABC’s current reta
 
 The ABC price is refreshed when the platinum page opens, when **Refresh ABC price** is pressed, and through the scheduled sync worker/endpoint.
 
+## Scheduled sync
+
+Railway starts NorthStar with `npm run start:railway`, which schedules an automatic local call to:
+
+```text
+/api/sync
+```
+
+The default schedule is `20:30 UTC`, which is 06:30 Sydney during AEST and 07:30 during AEDT. It refreshes IBKR Flex, ABC Bullion platinum and portfolio snapshots.
+
+Required Railway variables:
+
+```text
+SYNC_SECRET=<different long random value>
+IBKR_FLEX_TOKEN=<private Flex Web Service token>
+IBKR_FLEX_QUERY_ID=<IBKR NS query ID>
+IBKR_FLEX_OWNER=SMSF
+```
+
+Optional overrides:
+
+```text
+NORTHSTAR_AUTO_SYNC=false
+NORTHSTAR_AUTO_SYNC_HOUR_UTC=20
+NORTHSTAR_AUTO_SYNC_MINUTE_UTC=30
+```
+
 ## PWA installation
 
 NorthStar can be installed from its Railway URL. On Chrome or Edge, use the **Install NorthStar** link when it appears. On iPhone or iPad, open NorthStar in Safari, use **Share**, then choose **Add to Home Screen**. On Safari for Mac, use **File → Add to Dock**.

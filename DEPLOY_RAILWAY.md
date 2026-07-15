@@ -42,7 +42,29 @@ Do not add or replace Railway’s supplied `PORT` variable.
 
 If a temporary manually entered IBKR cash account has a different name, remove it after confirming the automatic `IBKR Cash` balance, to avoid double-counting.
 
-## Optional scheduled sync
+## Scheduled sync
+
+The Railway web process schedules an automatic local call to `/api/sync` every morning. No separate GitHub Actions workflow is required.
+
+Default schedule:
+
+```text
+20:30 UTC
+```
+
+That is 06:30 Sydney during AEST and 07:30 during AEDT.
+
+Confirm Railway has `SYNC_SECRET`, `IBKR_FLEX_TOKEN`, `IBKR_FLEX_QUERY_ID` and `IBKR_FLEX_OWNER`. The scheduler uses `SYNC_SECRET` locally, so it does not need the NorthStar login password.
+
+Optional Railway variables:
+
+```text
+NORTHSTAR_AUTO_SYNC=false
+NORTHSTAR_AUTO_SYNC_HOUR_UTC=20
+NORTHSTAR_AUTO_SYNC_MINUTE_UTC=30
+```
+
+## Optional Railway worker
 
 The included worker command is:
 
