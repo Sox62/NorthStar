@@ -3,6 +3,7 @@ import { getPool } from "@/lib/db/client";
 import type { IbkrFlexReport, OpeningPosition } from "@/lib/integrations/types";
 import { classifyAsset } from "./classify";
 import { buildValuationFreshness } from "./freshness";
+import { buildPeriodReturns, type NavPoint } from "./returns";
 import type { CashAccount, DashboardData, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, Scope, StorageAdapter, StoredPosition, SyncRun } from "./types";
 
 const maskAccount = (account: string) => account.length <= 4 ? account : `${account.slice(0, 2)}••••${account.slice(-3)}`;
@@ -526,6 +527,11 @@ export class PostgresStorageAdapter implements StorageAdapter {
     const dayMap=new Map<string,{personal?:number;smsf?:number}>();
     for(const row of snapshotRows.rows){const entry=dayMap.get(row.day)??{};if(row.legal_owner_type==="PERSONAL")entry.personal=numberValue(row.value);else entry.smsf=numberValue(row.value);dayMap.set(row.day,entry)}
     const performance=[...dayMap.entries()].sort(([a],[b])=>a.localeCompare(b)).slice(-90).map(([day,item])=>({date:new Intl.DateTimeFormat("en-AU",{day:"numeric",month:"short"}).format(new Date(`${day}T12:00:00Z`)),personal:item.personal,smsf:item.smsf,overall:item.personal!==undefined||item.smsf!==undefined?(item.personal??0)+(item.smsf??0):undefined}));
+    const navSeries: NavPoint[] = [...dayMap.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([date,item]) => {
+      const value = ownerType === "PERSONAL" ? item.personal : ownerType === "SMSF" ? item.smsf : (item.personal ?? 0) + (item.smsf ?? 0);
+      return { date, value: value ?? 0 };
+    });
+    const periodReturns = buildPeriodReturns(navSeries);
 
     const importRows=await getPool().query(`
       SELECT ir.source,ir.record_count,ir.imported_at::text,p.legal_owner_type,ba.external_account_id
@@ -543,6 +549,6 @@ export class PostgresStorageAdapter implements StorageAdapter {
     const syncRuns = await this.listSyncRuns(8, ownerType);
     const freshness = buildValuationFreshness({ positions, cashAccounts, manualAssets, syncRuns });
 
-    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,accounts,syncRuns,freshness,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
+    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,periodReturns,accounts,syncRuns,freshness,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
   }
 }

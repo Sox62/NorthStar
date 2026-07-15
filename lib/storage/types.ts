@@ -31,6 +31,19 @@ export type ValuationFreshness = {
   detail: string;
 };
 
+export type PeriodReturnKey = "daily" | "mtd" | "ytd" | "since_inception";
+export type PeriodReturn = {
+  key: PeriodReturnKey;
+  label: string;
+  valueAud: number | null;
+  valuePercent: number | null;
+  startValue: number | null;
+  endValue: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  note: string;
+};
+
 export type NewSyncRun = {
   source: string;
   ownerType?: OwnerType | null;
@@ -166,6 +179,7 @@ export type DashboardData = {
   holdings: DashboardHolding[];
   allocations: Array<{ name: string; value: number; amount: number }>;
   performance: Array<{ date: string; overall?: number; personal?: number; smsf?: number }>;
+  periodReturns: PeriodReturn[];
   accounts: Array<{ name: string; detail: string; status: string; ownerType: OwnerType }>;
   syncRuns: SyncRun[];
   freshness: ValuationFreshness[];

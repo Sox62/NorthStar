@@ -23,6 +23,15 @@ type ValuationFreshnessSummary = {
   staleAfterDays: number | null;
   detail: string;
 };
+type PeriodReturnSummary = {
+  key: "daily" | "mtd" | "ytd" | "since_inception";
+  label: string;
+  valueAud: number | null;
+  valuePercent: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  note: string;
+};
 
 const scopeOptions: PortfolioScope[] = ["overall", "personal", "smsf"];
 const groupLabel: Record<CompositionGroup, string> = {
@@ -46,6 +55,11 @@ function fmtPct(value: number) {
 
 function fmtSignedAud(value: number) {
   return `${value >= 0 ? "+" : ""}${fmtAud(value)}`;
+}
+
+function fmtSignedPct(value: number | null) {
+  if (value == null) return "n/a";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
 function fmtShortAud(value: number) {
@@ -237,6 +251,25 @@ function ValuationChecks({ freshness }: { freshness: ValuationFreshnessSummary[]
   );
 }
 
+function PeriodReturnStrip({ returns }: { returns: PeriodReturnSummary[] }) {
+  if (!returns.length) return null;
+  return (
+    <section className="nsReturnStrip" aria-label="Period NAV movement">
+      {returns.map((item) => {
+        const hasValue = item.valueAud != null && item.valuePercent != null;
+        const positive = (item.valueAud ?? 0) >= 0;
+        return (
+          <article key={item.key} className="nsReturnItem">
+            <span>{item.label}</span>
+            <strong className={hasValue ? positive ? "isPositive" : "isNegative" : undefined}>{fmtSignedPct(item.valuePercent)}</strong>
+            <em>{hasValue ? `${fmtSignedAud(item.valueAud ?? 0)} NAV` : item.note}</em>
+          </article>
+        );
+      })}
+    </section>
+  );
+}
+
 function MetricCard({ label, value, note, tone }: { label: string; value: React.ReactNode; note: React.ReactNode; tone?: "positive" }) {
   return (
     <section className="nsMetricCard">
@@ -311,10 +344,11 @@ function SectorDonut({ sectors, total }: { sectors: Array<{ sector: Sector; valu
 }
 
 /** Full redesigned overview dashboard matching the screenshot reference. */
-export function OverviewScreen({ holdings, logoSrc, performance = [], syncRuns = [], freshnessByScope }: {
+export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, syncRuns = [], freshnessByScope }: {
   holdings: Holding[];
   logoSrc?: string;
   performance?: PerformancePoint[];
+  periodReturnsByScope?: Partial<Record<PortfolioScope, PeriodReturnSummary[]>>;
   syncRuns?: SyncRunSummary[];
   freshnessByScope?: Partial<Record<PortfolioScope, ValuationFreshnessSummary[]>>;
 }) {
@@ -339,6 +373,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], syncRuns =
     color: groupColor[group],
   }));
   const freshness = freshnessByScope?.[scope] ?? freshnessByScope?.overall ?? [];
+  const periodReturns = periodReturnsByScope?.[scope] ?? periodReturnsByScope?.overall ?? [];
 
   return (
     <div className="nsScreen">
@@ -378,6 +413,8 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], syncRuns =
           <MetricCard label="Largest sector" value={largestSector?.sector ?? "No sector"} note={largestSector ? `${fmtPct(pct(largestSector.value, t.marketValue))} · ${fmtAud(largestSector.value)}` : "No holdings yet"} />
           <MetricCard label="Best performer" value={bestPerformer?.name.replace(" Metals", "") ?? "No performer"} note={bestPerformer ? `${bestPerformer.pnlPercent >= 0 ? "+" : ""}${bestPerformer.pnlPercent.toFixed(1)}% · ${bestPerformer.symbol}` : "No holdings yet"} />
         </section>
+
+        <PeriodReturnStrip returns={periodReturns} />
 
         <div className="nsLowerGrid">
           <HoldingsTable holdings={shareHoldings} total={t.marketValue} count={t.count} />

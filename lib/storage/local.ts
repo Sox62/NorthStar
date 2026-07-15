@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
 import { classifyAsset } from "./classify";
 import { buildValuationFreshness } from "./freshness";
+import { buildPeriodReturns, type NavPoint } from "./returns";
 import type {
   CashAccount,
   DashboardData,
@@ -232,6 +233,13 @@ function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
     const smsf = item.SMSF ? item.SMSF.marketValue + item.SMSF.cashValue : undefined;
     return { date: new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short" }).format(new Date(`${date}T12:00:00Z`)), overall: personal !== undefined || smsf !== undefined ? (personal ?? 0) + (smsf ?? 0) : undefined, personal, smsf };
   });
+  const navSeries: NavPoint[] = [...daily.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, item]) => {
+    const personal = item.PERSONAL ? item.PERSONAL.marketValue + item.PERSONAL.cashValue : undefined;
+    const smsf = item.SMSF ? item.SMSF.marketValue + item.SMSF.cashValue : undefined;
+    const value = ownerType === "PERSONAL" ? personal : ownerType === "SMSF" ? smsf : (personal ?? 0) + (smsf ?? 0);
+    return { date, value: value ?? 0 };
+  });
+  const periodReturns = buildPeriodReturns(navSeries);
 
   const accountRows = imports.map(record => ({ name: `${record.source} ${record.ownerType === "SMSF" ? "SMSF" : "Personal"}`, detail: maskAccount(record.accountKey), status: `${record.recordCount} records`, ownerType: record.ownerType }));
   for (const account of cashAccounts) accountRows.push({ name: `${account.institution} · ${account.name}`, detail: `${account.currency} ${account.balance.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`, status: "Cash current", ownerType: account.ownerType });
@@ -246,7 +254,7 @@ function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
     .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
     .slice(0, 8);
   const freshness = buildValuationFreshness({ positions, cashAccounts, manualAssets, syncRuns });
-  return { scope, storageMode: "local-file", totalValue, investedValue, cashValue, dailyMovement, totalReturn, totalReturnPercent: totalCost ? totalReturn / totalCost * 100 : 0, holdings, allocations, performance, accounts: accountRows, syncRuns, freshness, provisionalValue, currentValue, lastUpdated: updatedValues.at(-1) ?? null };
+  return { scope, storageMode: "local-file", totalValue, investedValue, cashValue, dailyMovement, totalReturn, totalReturnPercent: totalCost ? totalReturn / totalCost * 100 : 0, holdings, allocations, performance, periodReturns, accounts: accountRows, syncRuns, freshness, provisionalValue, currentValue, lastUpdated: updatedValues.at(-1) ?? null };
 }
 
 export class LocalStorageAdapter implements StorageAdapter {

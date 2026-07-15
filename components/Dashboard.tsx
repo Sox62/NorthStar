@@ -16,6 +16,7 @@ async function loadDashboard(scope: DashboardData["scope"]): Promise<DashboardDa
 export default function Dashboard() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [performance, setPerformance] = useState<DashboardData["performance"]>([]);
+  const [periodReturnsByScope, setPeriodReturnsByScope] = useState<Partial<Record<DashboardData["scope"], DashboardData["periodReturns"]>>>({});
   const [syncRuns, setSyncRuns] = useState<DashboardData["syncRuns"]>([]);
   const [freshnessByScope, setFreshnessByScope] = useState<Partial<Record<DashboardData["scope"], DashboardData["freshness"]>>>({});
   const [loading, setLoading] = useState(true);
@@ -32,6 +33,7 @@ export default function Dashboard() {
         if (!cancelled) {
           setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
           setPerformance(overall.performance ?? []);
+          setPeriodReturnsByScope({ overall: overall.periodReturns ?? [], personal: personal.periodReturns ?? [], smsf: smsf.periodReturns ?? [] });
           setSyncRuns(overall.syncRuns ?? []);
           setFreshnessByScope({ overall: overall.freshness ?? [], personal: personal.freshness ?? [], smsf: smsf.freshness ?? [] });
         }
@@ -64,5 +66,5 @@ export default function Dashboard() {
     );
   }
 
-  return <OverviewScreen holdings={holdings} performance={performance} syncRuns={syncRuns} freshnessByScope={freshnessByScope} />;
+  return <OverviewScreen holdings={holdings} performance={performance} periodReturnsByScope={periodReturnsByScope} syncRuns={syncRuns} freshnessByScope={freshnessByScope} />;
 }

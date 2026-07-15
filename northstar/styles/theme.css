@@ -543,6 +543,37 @@ body.northstar .nsMetricCard span {
   font-size:13px;
 }
 
+body.northstar .nsReturnStrip {
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:14px;
+}
+
+body.northstar .nsReturnItem {
+  min-width:0;
+  padding:18px;
+  border:1px solid rgba(122,149,178,0.18);
+  border-radius:18px;
+  background:rgba(12,24,37,0.70);
+}
+
+body.northstar .nsReturnItem span,
+body.northstar .nsReturnItem em {
+  display:block;
+  color:var(--muted);
+  font-size:11px;
+  font-style:normal;
+}
+
+body.northstar .nsReturnItem strong {
+  display:block;
+  margin:10px 0 6px;
+  color:#eef3f8;
+  font-family:var(--ns-serif);
+  font-size:24px;
+  font-weight:500;
+}
+
 body.northstar .nsLowerGrid {
   display:grid;
   grid-template-columns:minmax(560px, 1.34fr) minmax(360px, 0.86fr);
@@ -771,6 +802,7 @@ body.northstar .nsSectorList em {
 
   body.northstar .nsHeroPanel,
   body.northstar .nsMetricGrid,
+  body.northstar .nsReturnStrip,
   body.northstar .nsLowerGrid,
   body.northstar .nsFreshnessStrip,
   body.northstar .nsValuationChecks {

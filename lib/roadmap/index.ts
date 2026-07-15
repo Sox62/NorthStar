@@ -87,7 +87,7 @@ export const roadmapPhases: RoadmapPhase[] = [
     status: "planned",
     items: [
       { title: "NAV history", status: "in_progress", detail: "Portfolio snapshots exist; chart should be wired to live data next." },
-      { title: "Period returns", status: "planned", detail: "Daily, monthly, YTD and since-inception returns." },
+      { title: "Period returns", status: "shipped", detail: "Dashboard shows daily, MTD, YTD and since-inception NAV movement from snapshots." },
       { title: "XIRR", status: "planned", detail: "Money-weighted return by account and consolidated." },
       { title: "Exposure analysis", status: "planned", detail: "Commodity, currency and allocation drift views." },
       { title: "Tax position", status: "planned", detail: "CGT, dividend and realised/unrealised reporting." },
