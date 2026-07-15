@@ -34,7 +34,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "GitHub and Railway release path", status: "shipped", detail: "Main branch deploys to the existing Railway service." },
       { title: "Daily auto-sync", status: "shipped", detail: "Railway start process schedules the protected sync endpoint each morning." },
       { title: "Passkeys", status: "planned", detail: "Replace Basic Auth with WebAuthn after core accounting contracts settle." },
-      { title: "Backups and recovery runbook", status: "planned", detail: "Document PostgreSQL backup, restore and rollback operations." },
+      { title: "Backups and recovery runbook", status: "shipped", detail: "PostgreSQL backup, restore drill, production recovery and rollback steps are documented." },
     ],
   },
   {
