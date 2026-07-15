@@ -14,6 +14,15 @@ type SyncRunSummary = {
   message: string | null;
   error: string | null;
 };
+type FreshnessStatus = "fresh" | "stale" | "missing" | "fallback";
+type ValuationFreshnessSummary = {
+  source: string;
+  status: FreshnessStatus;
+  asOf: string | null;
+  ageDays: number | null;
+  staleAfterDays: number | null;
+  detail: string;
+};
 
 const scopeOptions: PortfolioScope[] = ["overall", "personal", "smsf"];
 const groupLabel: Record<CompositionGroup, string> = {
@@ -60,6 +69,17 @@ function fmtRunTime(value: string) {
     month: "short",
     hour: "numeric",
     minute: "2-digit",
+  }).format(date);
+}
+
+function fmtDate(value: string | null) {
+  if (!value) return "No date";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "No date";
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    day: "numeric",
+    month: "short",
   }).format(date);
 }
 
@@ -199,6 +219,24 @@ function FreshnessStrip({ syncRuns }: { syncRuns: SyncRunSummary[] }) {
   );
 }
 
+function ValuationChecks({ freshness }: { freshness: ValuationFreshnessSummary[] }) {
+  if (!freshness.length) return null;
+  return (
+    <section className="nsValuationChecks" aria-label="Valuation freshness checks">
+      {freshness.map((check) => (
+        <article key={check.source} className={`nsValuationCheck is-${check.status}`}>
+          <div>
+            <span>{check.source}</span>
+            <strong>{check.status === "fresh" ? "Current" : check.status === "fallback" ? "Cost basis" : check.status}</strong>
+          </div>
+          <p>{check.detail}</p>
+          <em>{check.ageDays == null ? fmtDate(check.asOf) : `${fmtDate(check.asOf)} · ${check.ageDays.toFixed(1)}d old`}</em>
+        </article>
+      ))}
+    </section>
+  );
+}
+
 function MetricCard({ label, value, note, tone }: { label: string; value: React.ReactNode; note: React.ReactNode; tone?: "positive" }) {
   return (
     <section className="nsMetricCard">
@@ -273,11 +311,12 @@ function SectorDonut({ sectors, total }: { sectors: Array<{ sector: Sector; valu
 }
 
 /** Full redesigned overview dashboard matching the screenshot reference. */
-export function OverviewScreen({ holdings, logoSrc, performance = [], syncRuns = [] }: {
+export function OverviewScreen({ holdings, logoSrc, performance = [], syncRuns = [], freshnessByScope }: {
   holdings: Holding[];
   logoSrc?: string;
   performance?: PerformancePoint[];
   syncRuns?: SyncRunSummary[];
+  freshnessByScope?: Partial<Record<PortfolioScope, ValuationFreshnessSummary[]>>;
 }) {
   const [scope, setScope] = useState<PortfolioScope>("overall");
   const view = byScope(holdings, scope);
@@ -299,6 +338,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], syncRuns =
     value: comp[group],
     color: groupColor[group],
   }));
+  const freshness = freshnessByScope?.[scope] ?? freshnessByScope?.overall ?? [];
 
   return (
     <div className="nsScreen">
@@ -316,6 +356,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], syncRuns =
         </header>
 
         <FreshnessStrip syncRuns={syncRuns} />
+        <ValuationChecks freshness={freshness} />
 
         <section className="nsHeroPanel">
           <div className="nsHeroSummary">

@@ -4,6 +4,7 @@ export type OwnerType = "PERSONAL" | "SMSF";
 export type Scope = "overall" | "personal" | "smsf";
 export type SyncTrigger = "manual" | "scheduled" | "system";
 export type SyncStatus = "success" | "partial" | "failed" | "skipped";
+export type ValuationFreshnessStatus = "fresh" | "stale" | "missing" | "fallback";
 
 export type SyncRun = {
   id: string;
@@ -19,6 +20,15 @@ export type SyncRun = {
   cashAud: number | null;
   message: string | null;
   error: string | null;
+};
+
+export type ValuationFreshness = {
+  source: string;
+  status: ValuationFreshnessStatus;
+  asOf: string | null;
+  ageDays: number | null;
+  staleAfterDays: number | null;
+  detail: string;
 };
 
 export type NewSyncRun = {
@@ -158,6 +168,7 @@ export type DashboardData = {
   performance: Array<{ date: string; overall?: number; personal?: number; smsf?: number }>;
   accounts: Array<{ name: string; detail: string; status: string; ownerType: OwnerType }>;
   syncRuns: SyncRun[];
+  freshness: ValuationFreshness[];
   provisionalValue: number;
   currentValue: number;
   lastUpdated: string | null;

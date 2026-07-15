@@ -309,6 +309,58 @@ body.northstar .nsFreshnessItem.is-partial {
   background:rgba(64,49,21,0.34);
 }
 
+body.northstar .nsValuationChecks {
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:12px;
+}
+
+body.northstar .nsValuationCheck {
+  min-width:0;
+  padding:13px 14px;
+  border:1px solid rgba(122,149,178,0.16);
+  border-radius:14px;
+  background:rgba(9,18,29,0.58);
+}
+
+body.northstar .nsValuationCheck > div {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+}
+
+body.northstar .nsValuationCheck span,
+body.northstar .nsValuationCheck em {
+  color:var(--muted);
+  font-size:11px;
+  font-style:normal;
+}
+
+body.northstar .nsValuationCheck strong {
+  color:#eef3f8;
+  font-size:11px;
+  text-transform:capitalize;
+}
+
+body.northstar .nsValuationCheck p {
+  margin:8px 0 7px;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.45;
+}
+
+body.northstar .nsValuationCheck.is-fresh {
+  border-color:rgba(113,223,162,0.20);
+}
+
+body.northstar .nsValuationCheck.is-stale,
+body.northstar .nsValuationCheck.is-missing,
+body.northstar .nsValuationCheck.is-fallback {
+  border-color:rgba(215,181,109,0.28);
+  background:rgba(55,42,20,0.30);
+}
+
 body.northstar .nsHeroPanel,
 body.northstar .nsMetricCard,
 body.northstar .nsPanel {
@@ -720,7 +772,8 @@ body.northstar .nsSectorList em {
   body.northstar .nsHeroPanel,
   body.northstar .nsMetricGrid,
   body.northstar .nsLowerGrid,
-  body.northstar .nsFreshnessStrip {
+  body.northstar .nsFreshnessStrip,
+  body.northstar .nsValuationChecks {
     grid-template-columns:1fr;
   }
 

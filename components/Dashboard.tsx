@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [performance, setPerformance] = useState<DashboardData["performance"]>([]);
   const [syncRuns, setSyncRuns] = useState<DashboardData["syncRuns"]>([]);
+  const [freshnessByScope, setFreshnessByScope] = useState<Partial<Record<DashboardData["scope"], DashboardData["freshness"]>>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -32,6 +33,7 @@ export default function Dashboard() {
           setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
           setPerformance(overall.performance ?? []);
           setSyncRuns(overall.syncRuns ?? []);
+          setFreshnessByScope({ overall: overall.freshness ?? [], personal: personal.freshness ?? [], smsf: smsf.freshness ?? [] });
         }
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load NorthStar");
@@ -62,5 +64,5 @@ export default function Dashboard() {
     );
   }
 
-  return <OverviewScreen holdings={holdings} performance={performance} syncRuns={syncRuns} />;
+  return <OverviewScreen holdings={holdings} performance={performance} syncRuns={syncRuns} freshnessByScope={freshnessByScope} />;
 }

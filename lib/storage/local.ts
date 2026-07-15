@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
 import { classifyAsset } from "./classify";
+import { buildValuationFreshness } from "./freshness";
 import type {
   CashAccount,
   DashboardData,
@@ -244,7 +245,8 @@ function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
     .filter(run => !ownerType || !run.ownerType || run.ownerType === ownerType)
     .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
     .slice(0, 8);
-  return { scope, storageMode: "local-file", totalValue, investedValue, cashValue, dailyMovement, totalReturn, totalReturnPercent: totalCost ? totalReturn / totalCost * 100 : 0, holdings, allocations, performance, accounts: accountRows, syncRuns, provisionalValue, currentValue, lastUpdated: updatedValues.at(-1) ?? null };
+  const freshness = buildValuationFreshness({ positions, cashAccounts, manualAssets, syncRuns });
+  return { scope, storageMode: "local-file", totalValue, investedValue, cashValue, dailyMovement, totalReturn, totalReturnPercent: totalCost ? totalReturn / totalCost * 100 : 0, holdings, allocations, performance, accounts: accountRows, syncRuns, freshness, provisionalValue, currentValue, lastUpdated: updatedValues.at(-1) ?? null };
 }
 
 export class LocalStorageAdapter implements StorageAdapter {

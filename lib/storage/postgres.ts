@@ -2,6 +2,7 @@ import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db/client";
 import type { IbkrFlexReport, OpeningPosition } from "@/lib/integrations/types";
 import { classifyAsset } from "./classify";
+import { buildValuationFreshness } from "./freshness";
 import type { CashAccount, DashboardData, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, Scope, StorageAdapter, StoredPosition, SyncRun } from "./types";
 
 const maskAccount = (account: string) => account.length <= 4 ? account : `${account.slice(0, 2)}••••${account.slice(-3)}`;
@@ -540,7 +541,8 @@ export class PostgresStorageAdapter implements StorageAdapter {
     }
     const updated=[...importRows.rows.map(row=>row.imported_at),...cashAccounts.map(account=>account.updatedAt),...manualAssets.map(asset=>asset.updatedAt)].sort();
     const syncRuns = await this.listSyncRuns(8, ownerType);
+    const freshness = buildValuationFreshness({ positions, cashAccounts, manualAssets, syncRuns });
 
-    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,accounts,syncRuns,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
+    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,accounts,syncRuns,freshness,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
   }
 }

@@ -76,7 +76,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "ASX/NYSE/TSX end-of-day prices", status: "planned", detail: "Persist daily security prices and source timestamps." },
       { title: "Metals pricing", status: "planned", detail: "Add gold, silver, palladium and rhodium price sources." },
       { title: "FX rates", status: "planned", detail: "Store daily AUD conversion rates for non-AUD positions." },
-      { title: "Price audit trail", status: "planned", detail: "Make stale or cost-basis valuations visible." },
+      { title: "Price audit trail", status: "shipped", detail: "Dashboard valuation checks flag stale data and cost-basis fallback positions." },
     ],
   },
   {
