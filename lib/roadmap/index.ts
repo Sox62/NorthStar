@@ -103,7 +103,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "SMSF report", status: "shipped", detail: "Scoped CSV export covers SMSF holdings, allocations, allocation drift, currency exposure and period returns." },
       { title: "Personal report", status: "shipped", detail: "Scoped CSV export covers personal holdings, allocations, allocation drift, currency exposure and period returns." },
       { title: "Tax report", status: "planned", detail: "CGT, dividend and income export." },
-      { title: "Estate summary", status: "planned", detail: "Consolidated but ownership-aware wealth summary." },
+      { title: "Estate summary", status: "shipped", detail: "Ownership-aware CSV export separates Personal and SMSF assets, accounts and NAV." },
       { title: "Wealth statement", status: "shipped", detail: "CSV export generates consolidated, account, allocation, drift, currency, return and holding rows." },
     ],
   },

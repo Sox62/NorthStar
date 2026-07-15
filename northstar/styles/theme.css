@@ -216,6 +216,12 @@ body.northstar .nsReportLink {
   text-decoration:none;
 }
 
+body.northstar .nsReportLinks {
+  display:flex;
+  gap:12px;
+  align-items:center;
+}
+
 body.northstar .nsReportLink:hover {
   text-decoration:underline;
 }
