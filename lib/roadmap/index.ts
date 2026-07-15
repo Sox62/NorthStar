@@ -104,7 +104,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "Personal report", status: "planned", detail: "Personal holdings and performance pack." },
       { title: "Tax report", status: "planned", detail: "CGT, dividend and income export." },
       { title: "Estate summary", status: "planned", detail: "Consolidated but ownership-aware wealth summary." },
-      { title: "Wealth statement", status: "planned", detail: "Snapshot-based PDF/CSV output." },
+      { title: "Wealth statement", status: "shipped", detail: "CSV export generates consolidated, account, allocation, currency, return and holding rows." },
     ],
   },
 ];

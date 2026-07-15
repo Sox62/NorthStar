@@ -209,6 +209,17 @@ body.northstar .nsHeaderControls p span {
   background:#71dfa2;
 }
 
+body.northstar .nsReportLink {
+  color:var(--gold);
+  font-size:12px;
+  font-weight:800;
+  text-decoration:none;
+}
+
+body.northstar .nsReportLink:hover {
+  text-decoration:underline;
+}
+
 body.northstar .nsScopeTabs,
 body.northstar .nsRangeTabs {
   display:inline-flex;
