@@ -40,6 +40,18 @@ type CurrencyExposureSummary = {
   cashValueAud: number;
   positionCount: number;
 };
+type AccountBreakdownSummary = {
+  scope: "personal" | "smsf";
+  label: string;
+  netAssetValue: number;
+  investedValue: number;
+  cashValue: number;
+  totalReturn: number;
+  totalReturnPercent: number;
+  positionCount: number;
+  shareOfOverall: number;
+  lastUpdated: string | null;
+};
 
 const scopeOptions: PortfolioScope[] = ["overall", "personal", "smsf"];
 const groupLabel: Record<CompositionGroup, string> = {
@@ -378,13 +390,47 @@ function CurrencyExposurePanel({ exposures }: { exposures: CurrencyExposureSumma
   );
 }
 
+function AccountBreakdownPanel({ accounts, scope }: { accounts: AccountBreakdownSummary[]; scope: PortfolioScope }) {
+  const visibleAccounts = scope === "overall" ? accounts : accounts.filter((account) => account.scope === scope);
+  if (!visibleAccounts.length) return null;
+  return (
+    <section className="nsPanel nsAccountPanel">
+      <div className="nsPanelTopline">
+        <div>
+          <p className="nsEyebrow">Account breakdown</p>
+          <h2>Legal books and cash</h2>
+        </div>
+      </div>
+      <div className="nsAccountItems">
+        {visibleAccounts.map((account) => (
+          <article key={account.scope} className="nsAccountItem">
+            <div>
+              <span>{account.label}</span>
+              <strong>{fmtAud(account.netAssetValue)}</strong>
+              <em>{fmtPct(account.shareOfOverall)} of total NAV</em>
+            </div>
+            <dl>
+              <div><dt>P/L</dt><dd className={account.totalReturn >= 0 ? "isPositive" : "isNegative"}>{fmtSignedAud(account.totalReturn)} · {account.totalReturnPercent >= 0 ? "+" : ""}{account.totalReturnPercent.toFixed(1)}%</dd></div>
+              <div><dt>Invested</dt><dd>{fmtAud(account.investedValue)}</dd></div>
+              <div><dt>Cash</dt><dd>{fmtAud(account.cashValue)}</dd></div>
+              <div><dt>Positions</dt><dd>{account.positionCount}</dd></div>
+              <div><dt>Updated</dt><dd>{fmtDate(account.lastUpdated)}</dd></div>
+            </dl>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /** Full redesigned overview dashboard matching the screenshot reference. */
-export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, currencyExposureByScope, syncRuns = [], freshnessByScope }: {
+export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, currencyExposureByScope, accountBreakdown = [], syncRuns = [], freshnessByScope }: {
   holdings: Holding[];
   logoSrc?: string;
   performance?: PerformancePoint[];
   periodReturnsByScope?: Partial<Record<PortfolioScope, PeriodReturnSummary[]>>;
   currencyExposureByScope?: Partial<Record<PortfolioScope, CurrencyExposureSummary[]>>;
+  accountBreakdown?: AccountBreakdownSummary[];
   syncRuns?: SyncRunSummary[];
   freshnessByScope?: Partial<Record<PortfolioScope, ValuationFreshnessSummary[]>>;
 }) {
@@ -452,6 +498,8 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
         </section>
 
         <PeriodReturnStrip returns={periodReturns} />
+
+        <AccountBreakdownPanel accounts={accountBreakdown} scope={scope} />
 
         <div className="nsLowerGrid">
           <HoldingsTable holdings={shareHoldings} total={t.marketValue} count={t.count} />

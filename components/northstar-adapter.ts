@@ -1,6 +1,19 @@
 import type { DashboardData, DashboardHolding, OwnerType, Scope } from "@/lib/storage";
 import type { Holding, Sector } from "@/northstar/types";
 
+export type AccountSummary = {
+  scope: Exclude<Scope, "overall">;
+  label: string;
+  netAssetValue: number;
+  investedValue: number;
+  cashValue: number;
+  totalReturn: number;
+  totalReturnPercent: number;
+  positionCount: number;
+  shareOfOverall: number;
+  lastUpdated: string | null;
+};
+
 const symbolSector: Record<string, Sector> = {
   PDN: "Uranium miners",
   BMN: "Uranium miners",
@@ -93,4 +106,20 @@ export function dashboardToNorthstarHoldings(data: DashboardData): Holding[] {
   const cash = cashHolding(data);
   if (cash) holdings.push(cash);
   return holdings;
+}
+
+export function dashboardToAccountSummary(data: DashboardData, overallValue: number): AccountSummary | null {
+  if (data.scope === "overall") return null;
+  return {
+    scope: data.scope,
+    label: data.scope === "smsf" ? "SMSF" : "Personal",
+    netAssetValue: data.totalValue,
+    investedValue: data.investedValue,
+    cashValue: data.cashValue,
+    totalReturn: data.totalReturn,
+    totalReturnPercent: data.totalReturnPercent,
+    positionCount: data.holdings.length,
+    shareOfOverall: overallValue ? data.totalValue / overallValue * 100 : 0,
+    lastUpdated: data.lastUpdated,
+  };
 }
