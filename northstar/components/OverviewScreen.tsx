@@ -32,6 +32,14 @@ type PeriodReturnSummary = {
   endDate: string | null;
   note: string;
 };
+type CurrencyExposureSummary = {
+  currency: string;
+  amountAud: number;
+  valuePercent: number;
+  positionValueAud: number;
+  cashValueAud: number;
+  positionCount: number;
+};
 
 const scopeOptions: PortfolioScope[] = ["overall", "personal", "smsf"];
 const groupLabel: Record<CompositionGroup, string> = {
@@ -343,12 +351,40 @@ function SectorDonut({ sectors, total }: { sectors: Array<{ sector: Sector; valu
   );
 }
 
+function CurrencyExposurePanel({ exposures }: { exposures: CurrencyExposureSummary[] }) {
+  if (!exposures.length) return null;
+  const max = Math.max(...exposures.map((item) => item.valuePercent), 1);
+  return (
+    <section className="nsPanel nsExposurePanel">
+      <div className="nsPanelTopline">
+        <div>
+          <p className="nsEyebrow">Currency exposure</p>
+          <h2>Market value by currency</h2>
+        </div>
+      </div>
+      <div className="nsExposureRows">
+        {exposures.map((item) => (
+          <div key={item.currency} className="nsExposureRow">
+            <div>
+              <strong>{item.currency}</strong>
+              <span>{item.positionCount} instruments{item.cashValueAud > 0 ? " + cash" : ""}</span>
+            </div>
+            <span className="nsExposureBar"><i style={{ width: `${Math.max(3, (item.valuePercent / max) * 100)}%` }} /></span>
+            <strong>{fmtAud(item.amountAud)} <em>{fmtPct(item.valuePercent)}</em></strong>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /** Full redesigned overview dashboard matching the screenshot reference. */
-export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, syncRuns = [], freshnessByScope }: {
+export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, currencyExposureByScope, syncRuns = [], freshnessByScope }: {
   holdings: Holding[];
   logoSrc?: string;
   performance?: PerformancePoint[];
   periodReturnsByScope?: Partial<Record<PortfolioScope, PeriodReturnSummary[]>>;
+  currencyExposureByScope?: Partial<Record<PortfolioScope, CurrencyExposureSummary[]>>;
   syncRuns?: SyncRunSummary[];
   freshnessByScope?: Partial<Record<PortfolioScope, ValuationFreshnessSummary[]>>;
 }) {
@@ -374,6 +410,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
   }));
   const freshness = freshnessByScope?.[scope] ?? freshnessByScope?.overall ?? [];
   const periodReturns = periodReturnsByScope?.[scope] ?? periodReturnsByScope?.overall ?? [];
+  const currencyExposure = currencyExposureByScope?.[scope] ?? currencyExposureByScope?.overall ?? [];
 
   return (
     <div className="nsScreen">
@@ -420,6 +457,8 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
           <HoldingsTable holdings={shareHoldings} total={t.marketValue} count={t.count} />
           <SectorDonut sectors={sectors} total={t.marketValue} />
         </div>
+
+        <CurrencyExposurePanel exposures={currencyExposure} />
       </main>
     </div>
   );

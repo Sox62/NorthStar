@@ -2,6 +2,7 @@ import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db/client";
 import type { IbkrFlexReport, OpeningPosition } from "@/lib/integrations/types";
 import { classifyAsset } from "./classify";
+import { buildCurrencyExposure } from "./exposure";
 import { buildValuationFreshness } from "./freshness";
 import { buildPeriodReturns, type NavPoint } from "./returns";
 import type { CashAccount, DashboardData, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, Scope, StorageAdapter, StoredPosition, SyncRun } from "./types";
@@ -517,6 +518,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
     for (const position of positions) allocationMap.set(position.assetClass,(allocationMap.get(position.assetClass)??0)+position.marketValueAud);
     if (cashValue) allocationMap.set("Cash",cashValue);
     const allocations=[...allocationMap.entries()].map(([name,amount])=>({name,amount,value:totalValue?amount/totalValue*100:0})).sort((a,b)=>b.amount-a.amount);
+    const currencyExposure = buildCurrencyExposure(positions, cashAccounts, totalValue);
 
     const snapshotRows = await getPool().query(`
       SELECT ps.captured_at::date::text AS day,p.legal_owner_type,
@@ -549,6 +551,6 @@ export class PostgresStorageAdapter implements StorageAdapter {
     const syncRuns = await this.listSyncRuns(8, ownerType);
     const freshness = buildValuationFreshness({ positions, cashAccounts, manualAssets, syncRuns });
 
-    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,periodReturns,accounts,syncRuns,freshness,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
+    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,periodReturns,currencyExposure,accounts,syncRuns,freshness,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
   }
 }

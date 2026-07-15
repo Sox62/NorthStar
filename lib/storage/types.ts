@@ -44,6 +44,15 @@ export type PeriodReturn = {
   note: string;
 };
 
+export type CurrencyExposure = {
+  currency: string;
+  amountAud: number;
+  valuePercent: number;
+  positionValueAud: number;
+  cashValueAud: number;
+  positionCount: number;
+};
+
 export type NewSyncRun = {
   source: string;
   ownerType?: OwnerType | null;
@@ -180,6 +189,7 @@ export type DashboardData = {
   allocations: Array<{ name: string; value: number; amount: number }>;
   performance: Array<{ date: string; overall?: number; personal?: number; smsf?: number }>;
   periodReturns: PeriodReturn[];
+  currencyExposure: CurrencyExposure[];
   accounts: Array<{ name: string; detail: string; status: string; ownerType: OwnerType }>;
   syncRuns: SyncRun[];
   freshness: ValuationFreshness[];

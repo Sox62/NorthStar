@@ -757,6 +757,68 @@ body.northstar .nsSectorList em {
   font-weight:500;
 }
 
+body.northstar .nsExposurePanel {
+  overflow:hidden;
+}
+
+body.northstar .nsExposureRows {
+  display:grid;
+  gap:16px;
+  margin-top:24px;
+}
+
+body.northstar .nsExposureRow {
+  display:grid;
+  grid-template-columns:minmax(120px, 0.42fr) minmax(220px, 1fr) minmax(150px, 0.5fr);
+  gap:18px;
+  align-items:center;
+  min-height:54px;
+}
+
+body.northstar .nsExposureRow strong {
+  color:#eaf1f8;
+  font-size:14px;
+  font-weight:700;
+}
+
+body.northstar .nsExposureRow > div strong {
+  display:block;
+  font-family:var(--ns-serif);
+  font-size:22px;
+  font-weight:500;
+}
+
+body.northstar .nsExposureRow span {
+  display:block;
+  margin-top:5px;
+  color:var(--muted);
+  font-size:12px;
+}
+
+body.northstar .nsExposureBar {
+  height:9px;
+  overflow:hidden;
+  border-radius:999px;
+  background:rgba(122,149,178,0.16);
+}
+
+body.northstar .nsExposureBar i {
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:linear-gradient(90deg, #d7b56d, #9fb4ca);
+}
+
+body.northstar .nsExposureRow > strong {
+  text-align:right;
+}
+
+body.northstar .nsExposureRow em {
+  color:var(--muted);
+  font-style:normal;
+  font-weight:500;
+}
+
 @media (max-width: 760px) {
   body.northstar .nsScreen {
     grid-template-columns:1fr;
@@ -844,5 +906,16 @@ body.northstar .nsSectorList em {
 
   body.northstar .nsSectorPanel {
     min-height:auto;
+  }
+
+  body.northstar .nsExposureRow {
+    grid-template-columns:1fr;
+    gap:8px;
+    padding:12px 0;
+    border-top:1px solid rgba(122,149,178,0.14);
+  }
+
+  body.northstar .nsExposureRow > strong {
+    text-align:left;
   }
 }

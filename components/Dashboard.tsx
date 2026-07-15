@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [performance, setPerformance] = useState<DashboardData["performance"]>([]);
   const [periodReturnsByScope, setPeriodReturnsByScope] = useState<Partial<Record<DashboardData["scope"], DashboardData["periodReturns"]>>>({});
+  const [currencyExposureByScope, setCurrencyExposureByScope] = useState<Partial<Record<DashboardData["scope"], DashboardData["currencyExposure"]>>>({});
   const [syncRuns, setSyncRuns] = useState<DashboardData["syncRuns"]>([]);
   const [freshnessByScope, setFreshnessByScope] = useState<Partial<Record<DashboardData["scope"], DashboardData["freshness"]>>>({});
   const [loading, setLoading] = useState(true);
@@ -34,6 +35,7 @@ export default function Dashboard() {
           setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
           setPerformance(overall.performance ?? []);
           setPeriodReturnsByScope({ overall: overall.periodReturns ?? [], personal: personal.periodReturns ?? [], smsf: smsf.periodReturns ?? [] });
+          setCurrencyExposureByScope({ overall: overall.currencyExposure ?? [], personal: personal.currencyExposure ?? [], smsf: smsf.currencyExposure ?? [] });
           setSyncRuns(overall.syncRuns ?? []);
           setFreshnessByScope({ overall: overall.freshness ?? [], personal: personal.freshness ?? [], smsf: smsf.freshness ?? [] });
         }
@@ -66,5 +68,5 @@ export default function Dashboard() {
     );
   }
 
-  return <OverviewScreen holdings={holdings} performance={performance} periodReturnsByScope={periodReturnsByScope} syncRuns={syncRuns} freshnessByScope={freshnessByScope} />;
+  return <OverviewScreen holdings={holdings} performance={performance} periodReturnsByScope={periodReturnsByScope} currencyExposureByScope={currencyExposureByScope} syncRuns={syncRuns} freshnessByScope={freshnessByScope} />;
 }
