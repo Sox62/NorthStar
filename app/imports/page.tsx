@@ -56,6 +56,7 @@ export default function Imports() {
           { href: "/", label: "← Dashboard" },
           { href: "/cash", label: "Cash accounts" },
           { href: "/assets", label: "Physical platinum" },
+          { href: "/roadmap", label: "Roadmap" },
         ]}
       />
 

@@ -123,6 +123,7 @@ export default function PhysicalAssetsPage() {
           { href: "/", label: "← Dashboard" },
           { href: "/imports", label: "Broker imports" },
           { href: "/cash", label: "Cash accounts" },
+          { href: "/roadmap", label: "Roadmap" },
         ]}
       />
 

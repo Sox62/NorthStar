@@ -55,6 +55,7 @@ export default function CashPage() {
           { href: "/", label: "← Dashboard" },
           { href: "/imports", label: "Broker imports" },
           { href: "/assets", label: "Physical platinum" },
+          { href: "/roadmap", label: "Roadmap" },
         ]}
       />
 
