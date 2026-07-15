@@ -484,7 +484,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
           <div className="nsHeaderControls">
             <ScopeTabs value={scope} onChange={setScope} />
             <p><span />Valuations · {fmtLongDate(selectedUpdatedAt)}</p>
-            <a className="nsReportLink" href="/api/reports/wealth-statement">Export CSV</a>
+            <a className="nsReportLink" href={`/api/reports/wealth-statement?scope=${scope}`}>Export CSV</a>
           </div>
         </header>
 

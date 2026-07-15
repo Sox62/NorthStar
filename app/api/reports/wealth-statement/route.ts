@@ -6,6 +6,7 @@ type CsvCell = string | number | null | undefined;
 type CsvRow = CsvCell[];
 
 const scopes: Scope[] = ["overall", "personal", "smsf"];
+const scopedReports: Scope[] = ["personal", "smsf"];
 
 function csvCell(value: CsvCell) {
   if (value == null) return "";
@@ -94,19 +95,31 @@ function addDashboardRows(rows: CsvRow[], data: DashboardData) {
   }
 }
 
-export async function GET() {
+function reportScopes(requested: string | null): Scope[] {
+  if (requested === "personal" || requested === "smsf") return [requested];
+  return scopes;
+}
+
+function filenameScope(selectedScopes: Scope[]) {
+  if (selectedScopes.length === 1 && scopedReports.includes(selectedScopes[0])) return selectedScopes[0];
+  return "overall";
+}
+
+export async function GET(request: Request) {
   try {
+    const requestedScope = new URL(request.url).searchParams.get("scope");
+    const selectedScopes = reportScopes(requestedScope);
     const storage = getStorage();
-    const dashboards = await Promise.all(scopes.map((scope) => storage.dashboard(scope)));
-    const [overall] = dashboards;
+    const dashboards = await Promise.all(selectedScopes.map((scope) => storage.dashboard(scope)));
+    const reportAnchor = dashboards[0];
     const rows: CsvRow[] = [
       ["section", "scope", "name", "symbol", "value_aud", "percent", "detail", "as_of"],
-      ["metadata", "overall", "NorthStar wealth statement", "", "", "", `Generated ${new Date().toISOString()}`, overall.lastUpdated],
+      ["metadata", filenameScope(selectedScopes), "NorthStar wealth statement", "", "", "", `Generated ${new Date().toISOString()}`, reportAnchor.lastUpdated],
     ];
     for (const dashboard of dashboards) addDashboardRows(rows, dashboard);
 
     const body = csv(rows);
-    const filename = `northstar-wealth-statement-${reportDate(overall)}.csv`;
+    const filename = `northstar-wealth-statement-${filenameScope(selectedScopes)}-${reportDate(reportAnchor)}.csv`;
     return new Response(body, {
       headers: {
         "content-type": "text/csv; charset=utf-8",
