@@ -117,6 +117,18 @@ function fmtDate(value: string | null) {
   }).format(date);
 }
 
+function fmtLongDate(value: string | null | undefined) {
+  if (!value) return "date unavailable";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "date unavailable";
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
 function sectorShortName(sector: Sector) {
   return sector.replace(" miners", "").replace(" bullion", "");
 }
@@ -424,7 +436,7 @@ function AccountBreakdownPanel({ accounts, scope }: { accounts: AccountBreakdown
 }
 
 /** Full redesigned overview dashboard matching the screenshot reference. */
-export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, currencyExposureByScope, accountBreakdown = [], syncRuns = [], freshnessByScope }: {
+export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, currencyExposureByScope, accountBreakdown = [], syncRuns = [], freshnessByScope, lastUpdatedByScope }: {
   holdings: Holding[];
   logoSrc?: string;
   performance?: PerformancePoint[];
@@ -433,6 +445,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
   accountBreakdown?: AccountBreakdownSummary[];
   syncRuns?: SyncRunSummary[];
   freshnessByScope?: Partial<Record<PortfolioScope, ValuationFreshnessSummary[]>>;
+  lastUpdatedByScope?: Partial<Record<PortfolioScope, string | null>>;
 }) {
   const [scope, setScope] = useState<PortfolioScope>("overall");
   const view = byScope(holdings, scope);
@@ -457,6 +470,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
   const freshness = freshnessByScope?.[scope] ?? freshnessByScope?.overall ?? [];
   const periodReturns = periodReturnsByScope?.[scope] ?? periodReturnsByScope?.overall ?? [];
   const currencyExposure = currencyExposureByScope?.[scope] ?? currencyExposureByScope?.overall ?? [];
+  const selectedUpdatedAt = lastUpdatedByScope?.[scope] ?? lastUpdatedByScope?.overall ?? null;
 
   return (
     <div className="nsScreen">
@@ -469,7 +483,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
           </div>
           <div className="nsHeaderControls">
             <ScopeTabs value={scope} onChange={setScope} />
-            <p><span />Close of day · ASX 14 Jul 2026</p>
+            <p><span />Valuations · {fmtLongDate(selectedUpdatedAt)}</p>
           </div>
         </header>
 

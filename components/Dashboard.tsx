@@ -21,6 +21,7 @@ export default function Dashboard() {
   const [accountBreakdown, setAccountBreakdown] = useState<AccountSummary[]>([]);
   const [syncRuns, setSyncRuns] = useState<DashboardData["syncRuns"]>([]);
   const [freshnessByScope, setFreshnessByScope] = useState<Partial<Record<DashboardData["scope"], DashboardData["freshness"]>>>({});
+  const [lastUpdatedByScope, setLastUpdatedByScope] = useState<Partial<Record<DashboardData["scope"], DashboardData["lastUpdated"]>>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -40,6 +41,7 @@ export default function Dashboard() {
           setAccountBreakdown([dashboardToAccountSummary(personal, overall.totalValue), dashboardToAccountSummary(smsf, overall.totalValue)].filter((item): item is AccountSummary => item !== null));
           setSyncRuns(overall.syncRuns ?? []);
           setFreshnessByScope({ overall: overall.freshness ?? [], personal: personal.freshness ?? [], smsf: smsf.freshness ?? [] });
+          setLastUpdatedByScope({ overall: overall.lastUpdated ?? null, personal: personal.lastUpdated ?? null, smsf: smsf.lastUpdated ?? null });
         }
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load NorthStar");
@@ -70,5 +72,5 @@ export default function Dashboard() {
     );
   }
 
-  return <OverviewScreen holdings={holdings} performance={performance} periodReturnsByScope={periodReturnsByScope} currencyExposureByScope={currencyExposureByScope} accountBreakdown={accountBreakdown} syncRuns={syncRuns} freshnessByScope={freshnessByScope} />;
+  return <OverviewScreen holdings={holdings} performance={performance} periodReturnsByScope={periodReturnsByScope} currencyExposureByScope={currencyExposureByScope} accountBreakdown={accountBreakdown} syncRuns={syncRuns} freshnessByScope={freshnessByScope} lastUpdatedByScope={lastUpdatedByScope} />;
 }
