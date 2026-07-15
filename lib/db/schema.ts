@@ -172,6 +172,12 @@ export const syncRuns = pgTable("sync_runs", {
   index("sync_runs_status_finished_idx").on(table.status, table.finishedAt),
 ]);
 
+export const allocationTargets = pgTable("allocation_targets", {
+  sector: text("sector").primaryKey(),
+  targetPercent: numeric("target_percent", { precision: 8, scale: 4 }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const portfolioSnapshots = pgTable("portfolio_snapshots", {
   id: uuid("id").defaultRandom().primaryKey(),
   portfolioId: uuid("portfolio_id").references(() => portfolios.id).notNull(),

@@ -16,7 +16,13 @@ export type AllocationDriftSummary = {
   color: string;
 };
 
-export const targetAllocation: Record<Sector, number> = {
+export type AllocationTarget = {
+  sector: Sector;
+  targetPercent: number;
+  updatedAt: string | null;
+};
+
+export const defaultTargetAllocation: Record<Sector, number> = {
   "Silver miners": 30,
   "Gold miners": 20,
   "Uranium miners": 20,
@@ -27,15 +33,34 @@ export const targetAllocation: Record<Sector, number> = {
   Cash: 2,
 };
 
+export function defaultAllocationTargets(): AllocationTarget[] {
+  return (Object.keys(defaultTargetAllocation) as Sector[]).map((sector) => ({
+    sector,
+    targetPercent: defaultTargetAllocation[sector],
+    updatedAt: null,
+  }));
+}
+
+export function normaliseAllocationTargets(targets: AllocationTarget[] = []): AllocationTarget[] {
+  const merged = new Map<Sector, AllocationTarget>(defaultAllocationTargets().map((target) => [target.sector, target]));
+  for (const target of targets) {
+    if (target.sector in defaultTargetAllocation && Number.isFinite(target.targetPercent)) {
+      merged.set(target.sector, { ...target, targetPercent: Math.max(0, target.targetPercent) });
+    }
+  }
+  return [...merged.values()];
+}
+
 function pct(value: number, total: number) {
   return total ? (value / total) * 100 : 0;
 }
 
-export function allocationDriftForSectors(sectors: SectorValue[], total: number): AllocationDriftSummary[] {
+export function allocationDriftForSectors(sectors: SectorValue[], total: number, targets?: AllocationTarget[]): AllocationDriftSummary[] {
   const current = new Map<Sector, number>(sectors.map((item) => [item.sector, item.value]));
-  return (Object.keys(targetAllocation) as Sector[]).map((sector) => {
+  const targetMap = new Map<Sector, number>(normaliseAllocationTargets(targets).map((target) => [target.sector, target.targetPercent]));
+  return (Object.keys(defaultTargetAllocation) as Sector[]).map((sector) => {
     const currentValue = current.get(sector) ?? 0;
-    const targetPercent = targetAllocation[sector];
+    const targetPercent = targetMap.get(sector) ?? defaultTargetAllocation[sector];
     const targetValue = total * targetPercent / 100;
     const currentPercent = pct(currentValue, total);
     return {

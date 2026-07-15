@@ -1,4 +1,7 @@
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
+import type { AllocationTarget } from "@/northstar/lib/allocation-drift";
+
+export type { AllocationTarget };
 
 export type OwnerType = "PERSONAL" | "SMSF";
 export type Scope = "overall" | "personal" | "smsf";
@@ -165,6 +168,7 @@ export type LocalStore = {
   platinumPrices: PlatinumPrice[];
   snapshots: Snapshot[];
   syncRuns: SyncRun[];
+  allocationTargets: AllocationTarget[];
   imports: Array<{
     id: string;
     source: string;
@@ -189,6 +193,7 @@ export type DashboardData = {
   allocations: Array<{ name: string; value: number; amount: number }>;
   performance: Array<{ date: string; overall?: number; personal?: number; smsf?: number }>;
   periodReturns: PeriodReturn[];
+  allocationTargets: AllocationTarget[];
   currencyExposure: CurrencyExposure[];
   accounts: Array<{ name: string; detail: string; status: string; ownerType: OwnerType }>;
   syncRuns: SyncRun[];
@@ -223,5 +228,7 @@ export interface StorageAdapter {
   recordPlatinumPrice(price: PlatinumPrice): Promise<PlatinumPrice>;
   recordSyncRun(input: NewSyncRun): Promise<SyncRun>;
   listSyncRuns(limit?: number, ownerType?: OwnerType): Promise<SyncRun[]>;
+  listAllocationTargets(): Promise<AllocationTarget[]>;
+  upsertAllocationTargets(targets: Array<Omit<AllocationTarget, "updatedAt">>): Promise<AllocationTarget[]>;
   dashboard(scope: Scope): Promise<DashboardData>;
 }

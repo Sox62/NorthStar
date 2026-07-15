@@ -594,6 +594,63 @@ button:disabled { opacity: .55; cursor: wait; }
 .rowValue { flex: 0 0 auto; text-align: right; }
 .rowActions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 9px; }
 .rowActions button { min-height: 31px; padding: 5px 8px; font-size: 11px; }
+.targetList {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+.targetRow,
+.targetPreview div,
+.targetTotal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 12px;
+  align-items: center;
+}
+.targetRow span,
+.targetPreview span {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.targetRow i,
+.targetPreview i {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 3px;
+}
+.targetRow input {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid rgba(106,130,153,.32);
+  border-radius: 10px;
+  background: rgba(4,12,20,.58);
+  color: var(--text-primary);
+  text-align: right;
+}
+.targetTotal {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(106,130,153,.18);
+}
+.targetTotal span,
+.targetPreview strong {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.targetPreview {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+.targetPreview div {
+  min-height: 36px;
+  border-bottom: 1px solid rgba(106,130,153,.14);
+}
 .onboardingRedesign {
   display: flex;
   justify-content: space-between;

@@ -80,7 +80,7 @@ function addDashboardRows(rows: CsvRow[], data: DashboardData) {
     ]);
   }
 
-  for (const item of allocationDriftForSectors(sectorValues(data), data.totalValue)) {
+  for (const item of allocationDriftForSectors(sectorValues(data), data.totalValue, data.allocationTargets)) {
     rows.push([
       "allocation_drift",
       data.scope,

@@ -1,11 +1,12 @@
 import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db/client";
 import type { IbkrFlexReport, OpeningPosition } from "@/lib/integrations/types";
+import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
 import { buildCurrencyExposure } from "./exposure";
 import { buildValuationFreshness } from "./freshness";
 import { buildPeriodReturns, type NavPoint } from "./returns";
-import type { CashAccount, DashboardData, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, Scope, StorageAdapter, StoredPosition, SyncRun } from "./types";
+import type { AllocationTarget, CashAccount, DashboardData, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, Scope, StorageAdapter, StoredPosition, SyncRun } from "./types";
 
 const maskAccount = (account: string) => account.length <= 4 ? account : `${account.slice(0, 2)}••••${account.slice(-3)}`;
 const numberValue = (value: unknown) => Number(value ?? 0);
@@ -464,6 +465,43 @@ export class PostgresStorageAdapter implements StorageAdapter {
     return result.rows.map(syncRunFromRow);
   }
 
+  async listAllocationTargets(): Promise<AllocationTarget[]> {
+    const result = await getPool().query(`
+      SELECT sector,target_percent,updated_at::text
+      FROM allocation_targets
+      ORDER BY sector
+    `).catch((error: unknown) => {
+      if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "42P01") return null;
+      throw error;
+    });
+    if (!result || !result.rows.length) return defaultAllocationTargets();
+    return normaliseAllocationTargets(result.rows.map(row => ({
+      sector: row.sector,
+      targetPercent: numberValue(row.target_percent),
+      updatedAt: new Date(row.updated_at).toISOString(),
+    })));
+  }
+
+  async upsertAllocationTargets(targets: Array<Omit<AllocationTarget, "updatedAt">>): Promise<AllocationTarget[]> {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      const now = new Date().toISOString();
+      for (const target of normaliseAllocationTargets(targets.map(item => ({ ...item, updatedAt: now })))) {
+        await client.query(`
+          INSERT INTO allocation_targets (sector,target_percent,updated_at)
+          VALUES ($1,$2,NOW())
+          ON CONFLICT (sector) DO UPDATE SET target_percent=EXCLUDED.target_percent,updated_at=NOW()
+        `, [target.sector, target.targetPercent]);
+      }
+      await client.query("COMMIT");
+      return this.listAllocationTargets();
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally { client.release(); }
+  }
+
   async dashboard(scope: Scope): Promise<DashboardData> {
     const ownerType = ownerForScope(scope);
     const values: unknown[] = [];
@@ -549,8 +587,9 @@ export class PostgresStorageAdapter implements StorageAdapter {
     }
     const updated=[...importRows.rows.map(row=>row.imported_at),...cashAccounts.map(account=>account.updatedAt),...manualAssets.map(asset=>asset.updatedAt)].sort();
     const syncRuns = await this.listSyncRuns(8, ownerType);
+    const allocationTargets = await this.listAllocationTargets();
     const freshness = buildValuationFreshness({ positions, cashAccounts, manualAssets, syncRuns });
 
-    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,periodReturns,currencyExposure,accounts,syncRuns,freshness,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
+    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,periodReturns,allocationTargets,currencyExposure,accounts,syncRuns,freshness,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
   }
 }

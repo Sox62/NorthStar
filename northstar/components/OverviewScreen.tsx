@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { NavRail } from "./NavRail";
-import { allocationDriftForSectors, type AllocationDriftSummary } from "../lib/allocation-drift";
+import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
 import { byComposition, byScope, bySector, fmtAud, totals } from "../lib/portfolio-metrics";
 import { COMPOSITION_OF, SECTOR_COLORS, type CompositionGroup, type Holding, type PortfolioScope, type Sector } from "../types";
 
@@ -561,12 +561,13 @@ function AccountBreakdownPanel({ accounts, scope }: { accounts: AccountBreakdown
 }
 
 /** Full redesigned overview dashboard matching the screenshot reference. */
-export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, currencyExposureByScope, accountBreakdown = [], syncRuns = [], freshnessByScope, lastUpdatedByScope }: {
+export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, currencyExposureByScope, allocationTargets = [], accountBreakdown = [], syncRuns = [], freshnessByScope, lastUpdatedByScope }: {
   holdings: Holding[];
   logoSrc?: string;
   performance?: PerformancePoint[];
   periodReturnsByScope?: Partial<Record<PortfolioScope, PeriodReturnSummary[]>>;
   currencyExposureByScope?: Partial<Record<PortfolioScope, CurrencyExposureSummary[]>>;
+  allocationTargets?: AllocationTarget[];
   accountBreakdown?: AccountBreakdownSummary[];
   syncRuns?: SyncRunSummary[];
   freshnessByScope?: Partial<Record<PortfolioScope, ValuationFreshnessSummary[]>>;
@@ -582,7 +583,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
     [view],
   );
   const commodityExposure = useMemo(() => commodityExposureFor(view), [view]);
-  const allocationDrift = useMemo(() => allocationDriftForSectors(sectors, t.marketValue), [sectors, t.marketValue]);
+  const allocationDrift = useMemo(() => allocationDriftForSectors(sectors, t.marketValue, allocationTargets), [sectors, t.marketValue, allocationTargets]);
   const largestSector = sectors[0];
   const bestPerformer = shareHoldings.reduce<Holding | undefined>(
     (best, holding) => (!best || holding.pnlPercent > best.pnlPercent ? holding : best),

@@ -89,7 +89,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "NAV history", status: "shipped", detail: "Overview chart is wired to portfolio snapshots for Overall, Personal and SMSF views." },
       { title: "Period returns", status: "shipped", detail: "Dashboard shows daily, MTD, YTD and since-inception NAV movement from snapshots." },
       { title: "XIRR", status: "planned", detail: "Money-weighted return by account and consolidated." },
-      { title: "Exposure analysis", status: "in_progress", detail: "Currency, commodity and allocation drift are live on the dashboard; configurable target weights remain." },
+      { title: "Exposure analysis", status: "shipped", detail: "Currency, commodity and allocation drift are live; allocation targets can be edited and are used in dashboard and CSV exports." },
       { title: "Tax position", status: "planned", detail: "CGT, dividend and realised/unrealised reporting." },
     ],
   },

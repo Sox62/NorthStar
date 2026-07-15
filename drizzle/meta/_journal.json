@@ -29,6 +29,13 @@
       "when": 1784116800000,
       "tag": "0003_sync_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784203200000,
+      "tag": "0004_allocation_targets",
+      "breakpoints": true
     }
   ]
 }

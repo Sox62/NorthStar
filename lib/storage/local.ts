@@ -2,12 +2,14 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
+import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
 import { buildCurrencyExposure } from "./exposure";
 import { buildValuationFreshness } from "./freshness";
 import { buildPeriodReturns, type NavPoint } from "./returns";
 import type {
   CashAccount,
+  AllocationTarget,
   DashboardData,
   ImportResult,
   LocalStore,
@@ -24,7 +26,7 @@ import type {
 } from "./types";
 
 const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".north-star", "data.json");
-const EMPTY: LocalStore = { version: 5, transactions: [], positions: [], cashAccounts: [], manualAssets: [], platinumPrices: [], snapshots: [], syncRuns: [], imports: [] };
+const EMPTY: LocalStore = { version: 5, transactions: [], positions: [], cashAccounts: [], manualAssets: [], platinumPrices: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), imports: [] };
 
 async function readStore(): Promise<LocalStore> {
   try {
@@ -34,6 +36,7 @@ async function readStore(): Promise<LocalStore> {
         ...(parsed as unknown as LocalStore),
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
         syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
+        allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
       };
     }
     if (parsed.version === 4) {
@@ -42,6 +45,7 @@ async function readStore(): Promise<LocalStore> {
         version: 5,
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
         syncRuns: [],
+        allocationTargets: defaultAllocationTargets(),
       };
     }
     if (parsed.version === 3) {
@@ -63,10 +67,10 @@ async function readStore(): Promise<LocalStore> {
           priceRetrievedAt: String(asset.updatedAt ?? new Date().toISOString()), updatedAt: String(asset.updatedAt ?? new Date().toISOString()),
         };
       });
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "syncRuns">), version: 5, manualAssets, platinumPrices: [], syncRuns: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "syncRuns" | "allocationTargets">), version: 5, manualAssets, platinumPrices: [], syncRuns: [], allocationTargets: defaultAllocationTargets() };
     }
     if (parsed.version === 2) {
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "syncRuns">), version: 5, manualAssets: [], platinumPrices: [], syncRuns: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "syncRuns" | "allocationTargets">), version: 5, manualAssets: [], platinumPrices: [], syncRuns: [], allocationTargets: defaultAllocationTargets() };
     }
     return structuredClone(EMPTY);
   } catch (error) {
@@ -220,6 +224,7 @@ function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
   if (cashValue) allocationAmounts.set("Cash", cashValue);
   const allocations = [...allocationAmounts.entries()].map(([name, amount]) => ({ name, amount, value: totalValue ? amount / totalValue * 100 : 0 })).sort((a, b) => b.amount - a.amount);
   const currencyExposure = buildCurrencyExposure(positions, cashAccounts, totalValue);
+  const allocationTargets = normaliseAllocationTargets(store.allocationTargets);
 
   const daily = new Map<string, { PERSONAL?: Snapshot; SMSF?: Snapshot }>();
   for (const snapshot of store.snapshots) {
@@ -256,7 +261,7 @@ function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
     .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
     .slice(0, 8);
   const freshness = buildValuationFreshness({ positions, cashAccounts, manualAssets, syncRuns });
-  return { scope, storageMode: "local-file", totalValue, investedValue, cashValue, dailyMovement, totalReturn, totalReturnPercent: totalCost ? totalReturn / totalCost * 100 : 0, holdings, allocations, performance, periodReturns, currencyExposure, accounts: accountRows, syncRuns, freshness, provisionalValue, currentValue, lastUpdated: updatedValues.at(-1) ?? null };
+  return { scope, storageMode: "local-file", totalValue, investedValue, cashValue, dailyMovement, totalReturn, totalReturnPercent: totalCost ? totalReturn / totalCost * 100 : 0, holdings, allocations, performance, periodReturns, allocationTargets, currencyExposure, accounts: accountRows, syncRuns, freshness, provisionalValue, currentValue, lastUpdated: updatedValues.at(-1) ?? null };
 }
 
 export class LocalStorageAdapter implements StorageAdapter {
@@ -408,6 +413,19 @@ export class LocalStorageAdapter implements StorageAdapter {
       .filter(run => !ownerType || !run.ownerType || run.ownerType === ownerType)
       .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
       .slice(0, limit);
+  }
+
+  async listAllocationTargets(): Promise<AllocationTarget[]> {
+    const store = await readStore();
+    return normaliseAllocationTargets(store.allocationTargets);
+  }
+
+  async upsertAllocationTargets(targets: Array<Omit<AllocationTarget, "updatedAt">>): Promise<AllocationTarget[]> {
+    const store = await readStore();
+    const now = new Date().toISOString();
+    store.allocationTargets = normaliseAllocationTargets(targets.map((target) => ({ ...target, updatedAt: now })));
+    await writeStore(store);
+    return store.allocationTargets;
   }
 
   async dashboard(scope: Scope) { return dashboardFromStore(await readStore(), scope); }
