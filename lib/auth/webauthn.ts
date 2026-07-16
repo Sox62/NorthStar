@@ -39,5 +39,15 @@ export async function verifyBootstrapPassword(username: string, password: string
   return usernameOk && passwordOk;
 }
 
+export async function verifyBootstrapPasswordOnly(password: string) {
+  const expectedPassword = process.env.NORTH_STAR_PASSWORD;
+  if (!expectedPassword) return false;
+  return secureEqual(password, expectedPassword);
+}
+
+export function configuredBootstrapUsername(fallback = "NorthStar") {
+  return process.env.NORTH_STAR_USERNAME || fallback;
+}
+
 export const usernameSchema = z.string().trim().min(1).max(128);
 export const passwordSchema = z.string().min(1).max(512);

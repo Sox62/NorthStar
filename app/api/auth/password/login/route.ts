@@ -2,12 +2,19 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { clearSessionCookie, createSessionToken, sessionCookie } from "@/lib/auth/session";
 import { getAuthStore } from "@/lib/auth/store";
-import { passwordSchema, requestOrigin, usernameSchema, verifyBootstrapPassword } from "@/lib/auth/webauthn";
+import {
+  configuredBootstrapUsername,
+  passwordSchema,
+  requestOrigin,
+  usernameSchema,
+  verifyBootstrapPassword,
+  verifyBootstrapPasswordOnly,
+} from "@/lib/auth/webauthn";
 
 export const runtime = "nodejs";
 
 const inputSchema = z.object({
-  username: usernameSchema,
+  username: usernameSchema.optional(),
   password: passwordSchema,
   next: z.string().optional(),
 });
@@ -38,18 +45,25 @@ async function parseInput(request: Request) {
       next: formString(form.get("next")),
     });
   }
-  return inputSchema.parse(await request.json());
+  return inputSchema.required({ username: true }).parse(await request.json());
 }
 
 export async function POST(request: Request) {
   const htmlRequest = wantsHtml(request);
   try {
     const input = await parseInput(request);
-    if (!await verifyBootstrapPassword(input.username, input.password)) {
+    const username = htmlRequest
+      ? configuredBootstrapUsername(input.username || "Stephen")
+      : input.username || "";
+    const verified = htmlRequest
+      ? await verifyBootstrapPasswordOnly(input.password)
+      : await verifyBootstrapPassword(username, input.password);
+
+    if (!verified) {
       if (htmlRequest) {
         const redirectUrl = publicUrl(request, "/login");
         redirectUrl.searchParams.set("error", "invalid");
-        redirectUrl.searchParams.set("username", input.username);
+        if (input.username) redirectUrl.searchParams.set("username", input.username);
         const nextPath = safeNext(input.next);
         if (nextPath !== "/") redirectUrl.searchParams.set("next", nextPath);
         const response = NextResponse.redirect(redirectUrl, { status: 303 });
@@ -61,7 +75,7 @@ export async function POST(request: Request) {
       return response;
     }
 
-    const user = await getAuthStore().getOrCreateUser(input.username, input.username);
+    const user = await getAuthStore().getOrCreateUser(username, username);
     if (htmlRequest) {
       const response = NextResponse.redirect(publicUrl(request, safeNext(input.next)), { status: 303 });
       response.headers.append("Set-Cookie", sessionCookie(await createSessionToken({ sub: user.id, username: user.username })));

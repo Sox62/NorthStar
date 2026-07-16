@@ -20,10 +20,10 @@ function escapeHtml(value: string) {
 }
 
 function pageHtml(input: { error?: string | null; nextPath: string; username?: string | null }) {
-  const username = escapeHtml(input.username || "Stephen");
+  const username = escapeHtml(input.username || "");
   const nextPath = escapeHtml(input.nextPath);
   const error = input.error === "invalid"
-    ? '<p class="loginMessage isError">Invalid NorthStar username or password.</p>'
+    ? '<p class="loginMessage isError">Invalid NorthStar password.</p>'
     : '<p class="loginMessage">Enter the current NorthStar password to continue. Passkey setup can wait until the dashboard is accessible.</p>';
 
   return `<!doctype html>
@@ -153,10 +153,7 @@ function pageHtml(input: { error?: string | null; nextPath: string; username?: s
     </div>
     <form method="post" action="/api/auth/password/login" autocomplete="on">
       <input type="hidden" name="next" value="${nextPath}">
-      <label>
-        <span>Username</span>
-        <input name="username" autocomplete="username" value="${username}" required>
-      </label>
+      <input type="hidden" name="username" value="${username}">
       <label>
         <span>Current NorthStar password</span>
         <input name="password" autocomplete="current-password" type="password" required autofocus>
