@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
 
@@ -7,7 +8,7 @@ function firstParam(value: string | string[] | null | undefined) {
 }
 
 function safeNext(value: string | null | undefined) {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : "/";
+  return value?.startsWith("/") && !value.startsWith("//") && value !== "/login" ? value : "/";
 }
 
 function escapeHtml(value: string) {
@@ -310,11 +311,17 @@ function pageHtml(input: { error?: string | null; nextPath: string; username?: s
 </html>`;
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const nextPath = safeNext(url.searchParams.get("next"));
   const error = url.searchParams.get("error");
   const username = firstParam(url.searchParams.get("username"));
+
+  const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value).catch(() => null);
+  if (session && error !== "invalid") {
+    return NextResponse.redirect(new URL(nextPath, request.url));
+  }
+
   return new NextResponse(pageHtml({ error, nextPath, username }), {
     headers: {
       "content-type": "text/html; charset=utf-8",
