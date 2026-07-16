@@ -6,21 +6,20 @@ export default function PwaRegistration() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 
-    const register = async () => {
+    const disableServiceWorker = async () => {
       try {
-        await navigator.serviceWorker.register("/sw.js", {
-          scope: "/",
-          updateViaCache: "none",
-        });
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.filter((key) => key.startsWith("northstar-")).map((key) => caches.delete(key)));
+        }
       } catch (error) {
-        console.error("NorthStar service worker registration failed", error);
+        console.warn("NorthStar service worker cleanup failed", error);
       }
     };
 
-    if (document.readyState === "complete") void register();
-    else window.addEventListener("load", register, { once: true });
-
-    return () => window.removeEventListener("load", register);
+    void disableServiceWorker();
   }, []);
 
   return null;
