@@ -44,7 +44,7 @@ export const roadmapPhases: RoadmapPhase[] = [
     objective: "Make accounts, positions, transactions, cash and physical assets the trusted source of truth.",
     status: "in_progress",
     items: [
-      { title: "Personal and SMSF accounts", status: "shipped", detail: "Storage, dashboard queries and the overview account breakdown preserve legal ownership." },
+      { title: "Personal and SMSF accounts", status: "shipped", detail: "Storage, dashboard queries, full holdings view and overview account breakdown preserve legal ownership." },
       { title: "IBKR current positions", status: "shipped", detail: "Flex Open Positions replace the broker snapshot." },
       { title: "Physical platinum", status: "shipped", detail: "Kilogram holdings are valued from ABC buyback prices." },
       { title: "Expanded asset taxonomy", status: "in_progress", detail: "Current classification covers major portfolio sectors; options/property/crypto remain future work." },

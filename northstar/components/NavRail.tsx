@@ -3,7 +3,7 @@ import React from "react";
 
 const items = [
   { key: "overview", label: "Overview", href: "/" },
-  { key: "holdings", label: "Holdings", href: "/#holdings" },
+  { key: "holdings", label: "Holdings", href: "/holdings" },
   { key: "sectors", label: "Sectors", href: "/sectors" },
   { key: "targets", label: "Targets", href: "/targets" },
   { key: "reports", label: "Reports", href: "/reports" },

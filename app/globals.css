@@ -680,6 +680,119 @@ button:disabled { opacity: .55; cursor: wait; }
   min-height: 36px;
   border-bottom: 1px solid rgba(106,130,153,.14);
 }
+.holdingsAccounts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.accountSnapshot .cardTitle {
+  font-size: 28px;
+}
+.holdingsBook {
+  margin-top: 18px;
+}
+.holdingsHeader {
+  align-items: flex-start;
+}
+.holdingsToolbar {
+  display: grid;
+  grid-template-columns: minmax(280px, auto) minmax(260px, 1fr);
+  gap: 14px;
+  align-items: end;
+  margin: 18px 0 16px;
+}
+.scopeSwitch {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px;
+  border: 1px solid rgba(106,130,153,.28);
+  border-radius: 14px;
+  background: rgba(4,12,20,.42);
+}
+.scopeSwitch button {
+  min-height: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+}
+.scopeSwitch button.isActive {
+  background: var(--accent);
+  color: #111820;
+}
+.holdingsSearch {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.holdingsSearch input {
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid rgba(106,130,153,.32);
+  border-radius: 12px;
+  background: rgba(4,12,20,.58);
+  color: var(--text-primary);
+}
+.holdingsTableWrap {
+  margin-top: 18px;
+  overflow-x: auto;
+}
+.holdingsTable {
+  width: 100%;
+  min-width: 940px;
+  border-collapse: collapse;
+}
+.holdingsTable th {
+  padding: 0 12px 12px;
+  border-bottom: 1px solid rgba(106,130,153,.22);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.holdingsTable td {
+  padding: 15px 12px;
+  border-bottom: 1px solid rgba(106,130,153,.14);
+  color: var(--text-secondary);
+  vertical-align: top;
+}
+.holdingsTable tbody tr:hover {
+  background: rgba(119,169,216,.045);
+}
+.holdingsTable td strong,
+.holdingsTable td span,
+.holdingsTable td small {
+  display: block;
+}
+.holdingsTable td strong {
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 500;
+}
+.holdingsTable td span {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.holdingsTable td small {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.holdingsTable .numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.holdingsTable .positive {
+  color: var(--status-positive);
+}
+.holdingsTable .negative {
+  color: var(--status-negative);
+}
 .loginShell {
   min-height: 100vh;
   display: grid;
@@ -979,6 +1092,8 @@ button:disabled { opacity: .55; cursor: wait; }
   .reportsHero { grid-template-columns: 1fr; }
   .priceCard, .syncCard { grid-template-columns: 1fr; }
   .roadmapHero { grid-template-columns: 1fr; }
+  .holdingsAccounts { grid-template-columns: 1fr; }
+  .holdingsToolbar { grid-template-columns: 1fr; align-items: stretch; }
   .holdingsHeader { display: none; }
   .holdingRow { grid-template-columns: minmax(0,1.4fr) minmax(90px,.7fr) minmax(90px,.7fr); }
   .holdingWeight { display: none; }
@@ -1016,6 +1131,8 @@ button:disabled { opacity: .55; cursor: wait; }
   .reportRow { grid-template-columns: 1fr; }
   .reportRow .button { width: 100%; justify-content: center; }
   .loginActions { grid-template-columns: 1fr; }
+  .scopeSwitch { width: 100%; }
+  .scopeSwitch button { flex: 1; padding: 8px 6px; }
   .rowValue { text-align: left; }
   .rowActions { justify-content: flex-start; }
   .nsCard { padding: 18px; }
