@@ -678,12 +678,32 @@ body.northstar .nsPanel {
   padding:27px 26px;
 }
 
-body.northstar .nsPositionsPanel a {
+body.northstar .nsPositionsToggle,
+body.northstar .nsPositionsCount {
   align-self:center;
+  min-height:34px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:7px 10px;
+  border:0;
+  background:transparent;
   color:var(--gold);
   font-size:13px;
   font-weight:700;
   text-decoration:none;
+}
+
+body.northstar .nsPositionsToggle {
+  cursor:pointer;
+}
+
+body.northstar .nsPositionsToggle:hover {
+  color:#f0d08a;
+}
+
+body.northstar .nsPositionsCount {
+  color:var(--muted);
 }
 
 body.northstar .nsHoldingsTable {
@@ -756,6 +776,12 @@ body.northstar .nsWeightBar i {
 
 body.northstar .nsHoldingRow > div:nth-child(3) {
   text-align:right;
+}
+
+body.northstar .nsHoldingEmpty {
+  padding:28px 0 4px;
+  color:var(--muted);
+  font-size:13px;
 }
 
 body.northstar .nsHoldingRow > div:nth-child(4) {

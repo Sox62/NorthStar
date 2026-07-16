@@ -341,25 +341,35 @@ function MetricCard({ label, value, note, tone }: { label: string; value: React.
   );
 }
 
-function HoldingsTable({ holdings, total, count }: { holdings: Holding[]; total: number; count: number }) {
+function HoldingsTable({ holdings, total, scope }: { holdings: Holding[]; total: number; scope: PortfolioScope }) {
+  const [showAllOverall, setShowAllOverall] = useState(false);
+  const isOverall = scope === "overall";
+  const visibleHoldings = isOverall && !showAllOverall ? holdings.slice(0, 6) : holdings;
+  const scopeLabel = scope === "smsf" ? "SMSF" : scope === "personal" ? "Personal" : "Overall";
   const max = holdings[0]?.marketValueAud || 1;
   return (
     <section id="holdings" className="nsPanel nsPositionsPanel">
       <div className="nsPanelTopline">
         <div>
-          <p className="nsEyebrow">Largest positions</p>
-          <h2>Allocation of shares</h2>
+          <p className="nsEyebrow">{isOverall ? "Largest positions" : `All ${scopeLabel} shares`}</p>
+          <h2>{isOverall ? "Allocation of shares" : `${scopeLabel} share allocation`}</h2>
         </div>
-        <a href="/#holdings">View all {count} -&gt;</a>
+        {isOverall && holdings.length > 6 ? (
+          <button className="nsPositionsToggle" type="button" onClick={() => setShowAllOverall((current) => !current)}>
+            {showAllOverall ? "Show top 6" : `Show all ${holdings.length} ->`}
+          </button>
+        ) : (
+          <span className="nsPositionsCount">All {holdings.length} shown</span>
+        )}
       </div>
-      <div className="nsHoldingsTable" role="table" aria-label="Largest share positions">
+      <div className="nsHoldingsTable" role="table" aria-label={`${scopeLabel} share positions`}>
         <div className="nsHoldingsHeader" role="row">
           <span>Holding</span>
           <span>Sector · Weight</span>
           <span>Value</span>
           <span>P/L</span>
         </div>
-        {holdings.slice(0, 6).map((holding) => (
+        {visibleHoldings.map((holding) => (
           <div className="nsHoldingRow" role="row" key={holding.id}>
             <div>
               <strong>{holding.symbol}</strong>
@@ -378,6 +388,7 @@ function HoldingsTable({ holdings, total, count }: { holdings: Holding[]; total:
             </div>
           </div>
         ))}
+        {!visibleHoldings.length ? <div className="nsHoldingEmpty">No share holdings in this view.</div> : null}
       </div>
     </section>
   );
@@ -653,7 +664,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
         <AccountBreakdownPanel accounts={accountBreakdown} scope={scope} />
 
         <div className="nsLowerGrid">
-          <HoldingsTable holdings={shareHoldings} total={t.marketValue} count={t.count} />
+          <HoldingsTable holdings={shareHoldings} total={t.marketValue} scope={scope} />
           <SectorDonut sectors={sectors} total={t.marketValue} />
         </div>
 
