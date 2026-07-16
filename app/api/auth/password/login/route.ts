@@ -33,7 +33,8 @@ function wantsHtml(request: Request) {
 }
 
 function formString(value: FormDataEntryValue | null) {
-  return typeof value === "string" ? value : undefined;
+  if (typeof value !== "string") return undefined;
+  return value.length ? value : undefined;
 }
 
 async function parseInput(request: Request) {
