@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db/client";
-import type { IbkrFlexReport, OpeningPosition } from "@/lib/integrations/types";
+import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
 import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
 import { buildCurrencyExposure } from "./exposure";
@@ -238,6 +238,52 @@ export class PostgresStorageAdapter implements StorageAdapter {
       await captureSnapshot(client, portfolioId);
       await client.query("COMMIT");
       return { source: "Directshares", ownerType, accountKey: maskAccount(accountKey), imported: positions.length, duplicates: 0, positions: positions.length, storageMode: "postgresql" };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally { client.release(); }
+  }
+
+  async importDirectsharesTransactions(transactions: ImportedTransaction[], ownerType: OwnerType): Promise<ImportResult> {
+    if (!transactions.length) throw new Error("No Directshares transactions were supplied.");
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      const portfolioId = await ensurePortfolio(client, ownerType);
+      const accountKey = transactions.find(transaction => transaction.externalAccountId)?.externalAccountId || "DIRECTSHARES";
+      const accountId = await ensureBrokerAccount(client, portfolioId, "Directshares", accountKey, "AUD");
+      let imported = 0;
+      let duplicates = 0;
+
+      for (const transaction of transactions) {
+        const instrumentId = await ensureInstrument(client, {
+          source: "Directshares",
+          externalKey: transaction.instrumentKey || `${transaction.symbol}:${transaction.exchange}`,
+          name: transaction.description || transaction.symbol,
+          ticker: transaction.symbol,
+          exchange: transaction.exchange,
+          currency: transaction.currency,
+          assetClass: classifyAsset(transaction.symbol, transaction.description || ""),
+          isin: transaction.isin,
+        });
+        const inserted = await client.query(`
+          INSERT INTO transactions (
+            portfolio_id, account_id, instrument_id, type, trade_date, settle_date, quantity, price, close_price,
+            cost, currency, fees, taxes, net_cash, fx_rate_to_base, realised_pnl, external_id, source, raw
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+          ON CONFLICT (account_id, source, external_id) DO NOTHING
+        `, [portfolioId, accountId, instrumentId, transaction.type, transaction.tradeDate, transaction.settleDate || null,
+          transaction.quantity ?? null, transaction.price ?? null, transaction.closePrice ?? null, transaction.cost ?? null,
+          transaction.currency, transaction.fees ?? 0, transaction.taxes ?? 0, transaction.netCash ?? null,
+          transaction.fxRateToBase ?? null, transaction.realisedPnl ?? null, transaction.externalId, transaction.source,
+          transaction.raw ? JSON.stringify(transaction.raw) : null]);
+        if (inserted.rowCount) imported += 1; else duplicates += 1;
+      }
+
+      await client.query(`INSERT INTO import_runs (portfolio_id, account_id, source, record_count) VALUES ($1,$2,'Directshares Contract Notes',$3)`, [portfolioId, accountId, transactions.length]);
+      const positionCount = await client.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM current_positions WHERE account_id=$1`, [accountId]);
+      await client.query("COMMIT");
+      return { source: "Directshares Contract Notes", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: numberValue(positionCount.rows[0]?.count), storageMode: "postgresql" };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

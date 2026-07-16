@@ -4,7 +4,7 @@ import { useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
 
-type ImportType = "ibkr" | "directshares";
+type ImportType = "ibkr" | "directshares" | "directsharesNotes";
 type OwnerType = "PERSONAL" | "SMSF";
 type Result = Record<string, unknown> & { error?: string; preview?: boolean; synced?: boolean };
 
@@ -12,23 +12,30 @@ const money = (value: unknown) =>
   new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(Number(value ?? 0));
 
 export default function Imports() {
-  const [files, setFiles] = useState<Partial<Record<ImportType, File>>>({});
-  const [owners, setOwners] = useState<Record<ImportType, OwnerType>>({ ibkr: "SMSF", directshares: "PERSONAL" });
+  const [files, setFiles] = useState<Partial<Record<ImportType, File[]>>>({});
+  const [owners, setOwners] = useState<Record<ImportType, OwnerType>>({ ibkr: "SMSF", directshares: "PERSONAL", directsharesNotes: "PERSONAL" });
   const [results, setResults] = useState<Partial<Record<ImportType, Result>>>({});
   const [busy, setBusy] = useState<ImportType | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<Result | undefined>();
 
   const send = async (type: ImportType, commit: boolean) => {
-    const file = files[type];
+    const selectedFiles = files[type] ?? [];
+    const file = selectedFiles[0];
     if (!file) return;
     setBusy(type);
     try {
-      const response = await fetch(`/api/import/${type}?commit=${commit ? 1 : 0}&owner=${owners[type]}`, {
-        method: "POST",
-        body: await file.text(),
-        headers: { "content-type": type === "ibkr" ? "application/xml" : "text/csv" },
-      });
+      const endpoint = type === "directsharesNotes" ? "directshares-notes" : type;
+      const init: RequestInit = { method: "POST" };
+      if (type === "directsharesNotes") {
+        const form = new FormData();
+        selectedFiles.forEach((item) => form.append("files", item));
+        init.body = form;
+      } else {
+        init.body = await file.text();
+        init.headers = { "content-type": type === "ibkr" ? "application/xml" : "text/csv" };
+      }
+      const response = await fetch(`/api/import/${endpoint}?commit=${commit ? 1 : 0}&owner=${owners[type]}`, init);
       const payload = await response.json();
       setResults((current) => ({ ...current, [type]: payload }));
     } finally {
@@ -91,8 +98,8 @@ export default function Imports() {
           result={results.ibkr}
           busy={busy === "ibkr"}
           onOwner={(owner) => setOwners((value) => ({ ...value, ibkr: owner }))}
-          onFile={(file) => {
-            setFiles((value) => ({ ...value, ibkr: file }));
+          onFiles={(selected) => {
+            setFiles((value) => ({ ...value, ibkr: selected }));
             setResults((value) => ({ ...value, ibkr: undefined }));
           }}
           onPreview={() => send("ibkr", false)}
@@ -107,12 +114,29 @@ export default function Imports() {
           result={results.directshares}
           busy={busy === "directshares"}
           onOwner={(owner) => setOwners((value) => ({ ...value, directshares: owner }))}
-          onFile={(file) => {
-            setFiles((value) => ({ ...value, directshares: file }));
+          onFiles={(selected) => {
+            setFiles((value) => ({ ...value, directshares: selected }));
             setResults((value) => ({ ...value, directshares: undefined }));
           }}
           onPreview={() => send("directshares", false)}
           onCommit={() => send("directshares", true)}
+        />
+        <Importer
+          type="directsharesNotes"
+          title="Directshares contract notes"
+          subtitle="Email confirmation PDFs"
+          accept=".pdf,.txt"
+          multiple
+          owner={owners.directsharesNotes}
+          result={results.directsharesNotes}
+          busy={busy === "directsharesNotes"}
+          onOwner={(owner) => setOwners((value) => ({ ...value, directsharesNotes: owner }))}
+          onFiles={(selected) => {
+            setFiles((value) => ({ ...value, directsharesNotes: selected }));
+            setResults((value) => ({ ...value, directsharesNotes: undefined }));
+          }}
+          onPreview={() => send("directsharesNotes", false)}
+          onCommit={() => send("directsharesNotes", true)}
         />
       </section>
 
@@ -123,16 +147,17 @@ export default function Imports() {
   );
 }
 
-function Importer({ title, subtitle, accept, owner, result, busy, onOwner, onFile, onPreview, onCommit }: {
+function Importer({ title, subtitle, accept, multiple = false, owner, result, busy, onOwner, onFiles, onPreview, onCommit }: {
   type: ImportType;
   title: string;
   subtitle: string;
   accept: string;
+  multiple?: boolean;
   owner: OwnerType;
   result?: Result;
   busy: boolean;
   onOwner: (owner: OwnerType) => void;
-  onFile: (file: File) => void;
+  onFiles: (files: File[]) => void;
   onPreview: () => void;
   onCommit: () => void;
 }) {
@@ -150,8 +175,8 @@ function Importer({ title, subtitle, accept, owner, result, busy, onOwner, onFil
         </select>
       </label>
       <label className="fileButton">
-        <input type="file" accept={accept} onChange={(event) => event.target.files?.[0] && onFile(event.target.files[0])} />
-        Choose file
+        <input type="file" accept={accept} multiple={multiple} onChange={(event) => event.target.files?.length && onFiles(Array.from(event.target.files))} />
+        {multiple ? "Choose files" : "Choose file"}
       </label>
       <div className="buttonRow">
         <button onClick={onPreview} disabled={busy}>Validate</button>
@@ -176,7 +201,7 @@ function ImportSummary({ result }: { result: Result }) {
       <SummaryGrid
         entries={entries.map(([key, value]) => [
           key.replace(/([A-Z])/g, " $1"),
-          /value|cost|pnl|cash/i.test(key) ? money(value) : String(value),
+          /value|cost|pnl|cash|fee|consideration/i.test(key) ? money(value) : String(value),
         ])}
       />
       {result.note != null && <p className="small">{String(result.note)}</p>}

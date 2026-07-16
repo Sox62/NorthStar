@@ -219,6 +219,7 @@ export type ImportResult = {
 export interface StorageAdapter {
   importIbkr(report: IbkrFlexReport, ownerType: OwnerType): Promise<ImportResult>;
   importDirectshares(positions: OpeningPosition[], ownerType: OwnerType): Promise<ImportResult>;
+  importDirectsharesTransactions(transactions: ImportedTransaction[], ownerType: OwnerType): Promise<ImportResult>;
   listCashAccounts(ownerType?: OwnerType): Promise<CashAccount[]>;
   upsertCashAccount(input: Omit<CashAccount, "id" | "updatedAt" | "balanceAud"> & { id?: string }): Promise<CashAccount>;
   listManualAssets(ownerType?: OwnerType): Promise<ManualAsset[]>;
