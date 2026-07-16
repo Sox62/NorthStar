@@ -30,6 +30,13 @@ const downloads = [
     detail: "Ownership-separated assets, accounts and net asset value.",
     rows: "Personal and SMSF",
   },
+  {
+    title: "Tax position",
+    owner: "Tax",
+    href: "/api/reports/tax-position",
+    detail: "Unrealised gain/loss position by legal owner from current cost basis.",
+    rows: "CGT position",
+  },
 ];
 
 export default function ReportsPage() {
@@ -68,6 +75,7 @@ export default function ReportsPage() {
             <span>Personal report</span>
             <span>SMSF report</span>
             <span>Estate summary</span>
+            <span>Tax position</span>
           </div>
         </Card>
       </section>
