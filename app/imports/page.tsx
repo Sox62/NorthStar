@@ -4,7 +4,7 @@ import { useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
 
-type ImportType = "ibkr" | "directshares" | "directsharesNotes";
+type ImportType = "ibkr" | "directshares" | "directsharesNotes" | "dividends";
 type OwnerType = "PERSONAL" | "SMSF";
 type Result = Record<string, unknown> & { error?: string; preview?: boolean; synced?: boolean };
 
@@ -13,13 +13,15 @@ const money = (value: unknown) =>
 
 export default function Imports() {
   const [files, setFiles] = useState<Partial<Record<ImportType, File[]>>>({});
-  const [owners, setOwners] = useState<Record<ImportType, OwnerType>>({ ibkr: "SMSF", directshares: "PERSONAL", directsharesNotes: "PERSONAL" });
+  const [owners, setOwners] = useState<Record<ImportType, OwnerType>>({ ibkr: "SMSF", directshares: "PERSONAL", directsharesNotes: "PERSONAL", dividends: "PERSONAL" });
   const [results, setResults] = useState<Partial<Record<ImportType, Result>>>({});
   const [busy, setBusy] = useState<ImportType | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<Result | undefined>();
   const [directsharesSyncing, setDirectsharesSyncing] = useState(false);
   const [directsharesSyncResult, setDirectsharesSyncResult] = useState<Result | undefined>();
+  const [dividendSyncing, setDividendSyncing] = useState(false);
+  const [dividendSyncResult, setDividendSyncResult] = useState<Result | undefined>();
 
   const send = async (type: ImportType, commit: boolean) => {
     const selectedFiles = files[type] ?? [];
@@ -35,7 +37,7 @@ export default function Imports() {
         init.body = form;
       } else {
         init.body = await file.text();
-        init.headers = { "content-type": type === "ibkr" ? "application/xml" : "text/csv" };
+        init.headers = { "content-type": type === "ibkr" ? "application/xml" : file.type || (type === "dividends" ? "text/plain" : "text/csv") };
       }
       const response = await fetch(`/api/import/${endpoint}?commit=${commit ? 1 : 0}&owner=${owners[type]}`, init);
       const payload = await response.json();
@@ -64,6 +66,17 @@ export default function Imports() {
       setDirectsharesSyncResult(await response.json());
     } finally {
       setDirectsharesSyncing(false);
+    }
+  };
+
+  const syncDividendEmail = async () => {
+    setDividendSyncing(true);
+    setDividendSyncResult(undefined);
+    try {
+      const response = await fetch(`/api/sync/dividends?owner=${owners.dividends}`, { method: "POST" });
+      setDividendSyncResult(await response.json());
+    } finally {
+      setDividendSyncing(false);
     }
   };
 
@@ -122,6 +135,27 @@ export default function Imports() {
         {directsharesSyncResult && <div style={{ gridColumn: "1 / -1" }}><ImportSummary result={directsharesSyncResult} /></div>}
       </Card>
 
+      <Card className="syncCard">
+        <div>
+          <p className="eyebrow">Automated income feed</p>
+          <h2 className="cardTitle">Directshares dividends</h2>
+          <p className="cardIntro">Reads dividend notification emails from the configured mailbox or label and imports cash income, foreign withholding tax and AUD proceeds.</p>
+          <label className="field compactOwner">
+            <span>Legal owner</span>
+            <select value={owners.dividends} onChange={(event) => setOwners((value) => ({ ...value, dividends: event.target.value as OwnerType }))}>
+              <option value="PERSONAL">Personal</option>
+              <option value="SMSF">SMSF</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <button className="primary" type="button" onClick={syncDividendEmail} disabled={dividendSyncing}>
+            {dividendSyncing ? "Syncing dividends…" : "Sync dividend email"}
+          </button>
+        </div>
+        {dividendSyncResult && <div style={{ gridColumn: "1 / -1" }}><ImportSummary result={dividendSyncResult} /></div>}
+      </Card>
+
       <section className="grid two equal sectionStack">
         <Importer
           type="ibkr"
@@ -171,6 +205,22 @@ export default function Imports() {
           }}
           onPreview={() => send("directsharesNotes", false)}
           onCommit={() => send("directsharesNotes", true)}
+        />
+        <Importer
+          type="dividends"
+          title="Dividend payments"
+          subtitle="CSV or email text"
+          accept=".csv,.txt"
+          owner={owners.dividends}
+          result={results.dividends}
+          busy={busy === "dividends"}
+          onOwner={(owner) => setOwners((value) => ({ ...value, dividends: owner }))}
+          onFiles={(selected) => {
+            setFiles((value) => ({ ...value, dividends: selected }));
+            setResults((value) => ({ ...value, dividends: undefined }));
+          }}
+          onPreview={() => send("dividends", false)}
+          onCommit={() => send("dividends", true)}
         />
       </section>
 

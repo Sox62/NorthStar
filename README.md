@@ -65,6 +65,18 @@ DIRECTSHARES_EMAIL_LOOKBACK_DAYS=45
 
 If your mail rule labels confirmations for NorthStar, set `DIRECTSHARES_EMAIL_MAILBOX` to that IMAP mailbox/label. The sync filters for `service@directshares.com.au` and trade-confirmation subjects, parses attached `.PDF` files and deduplicates by Directshares confirmation number.
 
+Directshares dividend notices can use the same mailbox credentials or their own label/app password:
+
+```text
+DIRECTSHARES_DIVIDEND_EMAIL_MAILBOX=INBOX
+DIRECTSHARES_DIVIDEND_EMAIL_OWNER=PERSONAL
+DIRECTSHARES_DIVIDEND_EMAIL_SUBJECT=Dividend
+DIRECTSHARES_DIVIDEND_EMAIL_LOOKBACK_DAYS=90
+DIRECTSHARES_DIVIDEND_EMAIL_MAX_MESSAGES=50
+```
+
+Set `DIRECTSHARES_DIVIDEND_EMAIL_HOST`, `DIRECTSHARES_DIVIDEND_EMAIL_USER` and `DIRECTSHARES_DIVIDEND_EMAIL_PASSWORD` only if the dividend rule lands in a different mailbox. Otherwise NorthStar reuses the `DIRECTSHARES_EMAIL_*` connection settings. A Sharesight feed can be added later as a reconciliation source, but broker confirmations and dividend notices remain the auditable first-source records.
+
 ## Passkey login
 
 NorthStar uses passkeys for normal sign-in. Open `/login`, enter the existing `NORTH_STAR_USERNAME` and `NORTH_STAR_PASSWORD` once, then create a passkey with Face ID, Touch ID, Windows Hello or a hardware security key.
@@ -101,7 +113,7 @@ Railway starts NorthStar with `npm run start:railway`, which schedules an automa
 /api/sync
 ```
 
-The default schedule is `20:30 UTC`, which is 06:30 Sydney during AEST and 07:30 during AEDT. It refreshes IBKR Flex, Directshares confirmation email, ABC Bullion platinum and portfolio snapshots.
+The default schedule is `20:30 UTC`, which is 06:30 Sydney during AEST and 07:30 during AEDT. It refreshes IBKR Flex, Directshares confirmation email, Directshares dividend email, ABC Bullion platinum and portfolio snapshots.
 
 Required Railway variables:
 
@@ -113,6 +125,7 @@ IBKR_FLEX_OWNER=SMSF
 DIRECTSHARES_EMAIL_HOST=imap.gmail.com
 DIRECTSHARES_EMAIL_USER=<mailbox user>
 DIRECTSHARES_EMAIL_PASSWORD=<mailbox app password>
+DIRECTSHARES_DIVIDEND_EMAIL_MAILBOX=INBOX
 DIRECTSHARES_EMAIL_MAILBOX=<mailbox or label containing confirmations>
 DIRECTSHARES_EMAIL_OWNER=PERSONAL
 ```

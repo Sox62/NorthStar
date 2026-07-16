@@ -1,4 +1,4 @@
-import { getStorage, type DashboardData, type Scope } from "@/lib/storage";
+import { getStorage, type DashboardData, type OwnerType, type Scope, type StoredTransaction } from "@/lib/storage";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
 
 export const runtime = "nodejs";
@@ -32,6 +32,10 @@ function reportDate(data: DashboardData) {
 
 function ownerLabel(data: DashboardData) {
   return data.scope === "smsf" ? "SMSF" : "Personal";
+}
+
+function ownerTypeForScope(scope: Scope): OwnerType {
+  return scope === "smsf" ? "SMSF" : "PERSONAL";
 }
 
 function reportScopes(requested: string | null): Scope[] {
@@ -98,18 +102,60 @@ function addTaxRows(rows: CsvRow[], data: DashboardData) {
   }
 }
 
+function addDividendRows(rows: CsvRow[], data: DashboardData, transactions: StoredTransaction[]) {
+  const dividends = transactions.filter((transaction) => transaction.type === "DIVIDEND");
+  const totalNetCash = dividends.reduce((sum, transaction) => sum + (transaction.netCash ?? 0), 0);
+  const totalTaxWithheld = dividends.reduce((sum, transaction) => sum + (transaction.taxes ?? 0), 0);
+
+  if (!dividends.length) return;
+
+  rows.push([
+    "dividend_summary",
+    ownerLabel(data),
+    "Dividend income",
+    "",
+    "",
+    "",
+    money(totalNetCash),
+    "",
+    "",
+    `Payments ${dividends.length}; tax withheld ${money(totalTaxWithheld)}`,
+    data.lastUpdated,
+  ]);
+
+  for (const dividend of dividends) {
+    rows.push([
+      "dividend_income",
+      ownerLabel(data),
+      dividend.description || `${dividend.symbol} dividend`,
+      dividend.symbol,
+      dividend.broker,
+      "",
+      money(dividend.netCash ?? 0),
+      "",
+      "",
+      `Currency ${dividend.currency}; tax withheld ${money(dividend.taxes ?? 0)}; fees ${money(dividend.fees ?? 0)}; source ${dividend.source}`,
+      dividend.tradeDate,
+    ]);
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const requestedScope = new URL(request.url).searchParams.get("scope");
     const selectedScopes = reportScopes(requestedScope);
     const storage = getStorage();
     const dashboards = await Promise.all(selectedScopes.map((scope) => storage.dashboard(scope)));
+    const transactionsByScope = await Promise.all(selectedScopes.map((scope) => storage.listTransactions(ownerTypeForScope(scope))));
     const reportAnchor = dashboards[0];
     const rows: CsvRow[] = [
       ["section", "owner", "name", "symbol", "broker", "cost_aud", "market_value_aud", "unrealised_gain_aud", "unrealised_gain_percent", "detail", "as_of"],
-      ["metadata", filenameScope(selectedScopes), "NorthStar tax position", "", "", "", "", "", "", `Generated ${new Date().toISOString()}; unrealised position only`, reportAnchor.lastUpdated],
+      ["metadata", filenameScope(selectedScopes), "NorthStar tax position", "", "", "", "", "", "", `Generated ${new Date().toISOString()}; unrealised positions and imported dividend income`, reportAnchor.lastUpdated],
     ];
-    for (const dashboard of dashboards) addTaxRows(rows, dashboard);
+    dashboards.forEach((dashboard, index) => {
+      addTaxRows(rows, dashboard);
+      addDividendRows(rows, dashboard, transactionsByScope[index] ?? []);
+    });
 
     const body = csv(rows);
     const filename = `northstar-tax-position-${filenameScope(selectedScopes)}-${reportDate(reportAnchor)}.csv`;

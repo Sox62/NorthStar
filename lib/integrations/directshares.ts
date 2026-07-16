@@ -65,9 +65,19 @@ function lineAfter(lines: string[], index: number) {
   return index >= 0 && index + 1 < lines.length ? lines[index + 1] : undefined;
 }
 
-function directsharesSide(text: string): TransactionType {
-  if (/SELL CONFIRMATION/i.test(text)) return "SELL";
-  if (/BUY CONFIRMATION/i.test(text)) return "BUY";
+function firstDateAfter(lines: string[], index: number) {
+  return lines.slice(Math.max(0, index + 1)).flatMap((line) => line.match(/\b\d{2}\/\d{2}\/\d{4}\b/g) ?? [])[0];
+}
+
+function directsharesSide(text: string, lines: string[]): TransactionType {
+  const heading = lines.find((line) => /^(BUY|SELL) CONFIRMATION(?: DETAILS)?$/i.test(line));
+  const headingSide = heading?.match(/^(BUY|SELL)\b/i)?.[1]?.toUpperCase();
+  if (headingSide === "BUY" || headingSide === "SELL") return headingSide;
+
+  const buyIndex = text.search(/BUY CONFIRMATION/i);
+  const sellIndex = text.search(/SELL CONFIRMATION/i);
+  if (buyIndex >= 0 && (sellIndex < 0 || buyIndex < sellIndex)) return "BUY";
+  if (sellIndex >= 0) return "SELL";
   throw new Error("Directshares confirmation side was not found.");
 }
 
@@ -83,9 +93,36 @@ function signedCost(side: TransactionType, consideration: number) {
   return side === "SELL" ? -Math.abs(consideration) : Math.abs(consideration);
 }
 
+function parseInstrumentCode(code: string) {
+  const instrument = splitCode(code);
+  return { ...instrument, code };
+}
+
+function findInstrumentCode(lines: string[]) {
+  const withMarket = lines.findIndex((line) => /^[A-Z][A-Z0-9]{0,5}:[A-Z]{2}$/.test(line));
+  if (withMarket >= 0) return { index: withMarket, instrument: parseInstrumentCode(lines[withMarket]) };
+  const excluded = new Set(["AUD", "ASX", "BUY", "SELL", "REPRINT"]);
+  const index = lines.findIndex((line) => /^[A-Z][A-Z0-9]{1,5}$/.test(line) && !excluded.has(line));
+  return index >= 0 ? { index, instrument: parseInstrumentCode(lines[index]) } : null;
+}
+
+function quantityAndConsideration(lines: string[], symbolIndex: number) {
+  const combined = firstMatch(lines, /^\d+(?:,\d{3})*(?:\.\d+)?\s+\$[\d,]+\.\d{2}$/);
+  const combinedMatch = combined?.match(/^(\d+(?:,\d{3})*(?:\.\d+)?)\s+(\$[\d,]+\.\d{2})$/);
+  if (combinedMatch) return { quantity: numberValue(combinedMatch[1]), consideration: moneyValue(combinedMatch[2]), line: combined };
+
+  for (let index = Math.max(0, symbolIndex + 1); index < lines.length - 1; index += 1) {
+    if (/^\d+(?:,\d{3})*(?:\.\d+)?$/.test(lines[index]) && /^\$[\d,]+\.\d{2}$/.test(lines[index + 1])) {
+      return { quantity: numberValue(lines[index]), consideration: moneyValue(lines[index + 1]), line: lines[index + 1] };
+    }
+  }
+
+  throw new Error("Directshares quantity and consideration were not found.");
+}
+
 export function parseDirectsharesConfirmationText(text: string): ImportedTransaction {
   const lines = normaliseLines(text);
-  const side = directsharesSide(text);
+  const side = directsharesSide(text, lines);
   const dates = lines.flatMap((line) => line.match(/\b\d{2}\/\d{2}\/\d{4}\b/g) ?? []);
   if (dates.length < 2) throw new Error("Directshares confirmation dates were not found.");
 
@@ -94,18 +131,17 @@ export function parseDirectsharesConfirmationText(text: string): ImportedTransac
   const confirmation = accountAndConfirmation[1];
   if (!confirmation) throw new Error("Directshares confirmation number was not found.");
 
-  const symbolIndex = lines.findIndex((line) => /^[A-Z][A-Z0-9]{1,5}$/.test(line) && !["AUD", "ASX"].includes(line));
-  const symbol = symbolIndex >= 0 ? lines[symbolIndex] : "";
-  if (!symbol) throw new Error("Directshares security code was not found.");
+  const instrumentMatch = findInstrumentCode(lines);
+  if (!instrumentMatch) throw new Error("Directshares security code was not found.");
+  const { index: symbolIndex, instrument } = instrumentMatch;
+  const { symbol, exchange } = instrument;
 
-  const quantityLine = firstMatch(lines, /^\d+(?:,\d{3})*(?:\.\d+)?\s+\$[\d,]+\.\d{2}$/);
-  const quantityMatch = quantityLine?.match(/^(\d+(?:,\d{3})*(?:\.\d+)?)\s+(\$[\d,]+\.\d{2})$/);
-  if (!quantityMatch) throw new Error("Directshares quantity and consideration were not found.");
-
-  const quantity = numberValue(quantityMatch[1]);
-  const consideration = moneyValue(quantityMatch[2]);
+  const { quantity, consideration, line: quantityLine } = quantityAndConsideration(lines, symbolIndex);
   const priceLine = firstMatch(lines, /^\d+\.\d{2,6}$/);
   const price = priceLine ? Number(priceLine) : quantity ? consideration / quantity : 0;
+  const avPrice = text.match(/Av Price:\s*(\d+(?:\.\d+)?)\s*([A-Z]{3})\.\s*Rate:\s*(\d+(?:\.\d+)?)/i);
+  const tradeCurrency = avPrice?.[2] || instrument.currency;
+  const settlementCurrency = text.match(/(?:Net Proceeds|Total Amount Payable):\s*\(([A-Z]{3})\)/i)?.[1] || "AUD";
 
   const netLabel = side === "SELL" ? /Net Proceeds/i : /Net (?:Amount )?Payable|Amount Due|Net Debit/i;
   let netAmount = 0;
@@ -121,34 +157,42 @@ export function parseDirectsharesConfirmationText(text: string): ImportedTransac
   const fees = cents(Math.abs(consideration - netAmount));
   const fallbackName = symbol;
   const description = lineAfter(lines, lines.findIndex((line) => line === quantityLine)) || lines[symbolIndex - 1] || fallbackName;
+  const confirmationIndex = lines.findIndex((line) => line === confirmation);
+  const avPriceIndex = lines.findIndex((line) => /Av Price:/i.test(line));
+  const tradeDate = firstDateAfter(lines, avPriceIndex) || dates[0];
+  const settleDate = firstDateAfter(lines, confirmationIndex) || dates[1] || tradeDate;
 
   return {
     externalId: `Directshares:${confirmation}`,
     externalAccountId: account,
-    tradeDate: isoDate(dates[0]),
-    settleDate: isoDate(dates[1]),
+    tradeDate: isoDate(tradeDate),
+    settleDate: isoDate(settleDate),
     symbol,
-    exchange: "ASX",
+    exchange,
     description,
-    instrumentKey: `Directshares:${symbol}:ASX`,
+    instrumentKey: `Directshares:${symbol}:${exchange}`,
     type: side,
     quantity: signedQuantity(side, quantity),
     price,
     cost: signedCost(side, consideration),
-    currency: "AUD",
+    currency: settlementCurrency,
     fees,
     taxes: 0,
     netCash: signedNetCash(side, netAmount),
-    fxRateToBase: 1,
+    fxRateToBase: settlementCurrency === "AUD" ? 1 : undefined,
     source: "Directshares Contract Note",
     raw: {
       account,
       confirmation,
       side,
+      code: instrument.code,
       quantity,
       consideration,
       netAmount,
       fees,
+      tradeCurrency,
+      tradePrice: avPrice ? Number(avPrice[1]) : undefined,
+      tradeFxRate: avPrice ? Number(avPrice[3]) : undefined,
     },
   };
 }

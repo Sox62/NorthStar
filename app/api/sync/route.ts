@@ -1,6 +1,7 @@
 import { fetchAbcPlatinumPrice } from "@/lib/integrations/abc-bullion";
 import { fetchIbkrFlexReport } from "@/lib/integrations/ibkr";
 import { getStorage, type OwnerType } from "@/lib/storage";
+import { syncDirectsharesDividends } from "@/lib/sync/directshares-dividends";
 import { syncDirectsharesEmail } from "@/lib/sync/directshares-email";
 
 export const runtime = "nodejs";
@@ -66,6 +67,17 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown Directshares email sync error";
     errors.push(`Directshares Email: ${message}`);
+  }
+
+  try {
+    const result = await syncDirectsharesDividends(storage, "scheduled");
+    output.directsharesDividends = result;
+    if (result.status === "failed" || result.status === "partial") {
+      errors.push(`Directshares Dividends: ${result.errors.join("; ") || result.message}`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown Directshares dividend sync error";
+    errors.push(`Directshares Dividends: ${message}`);
   }
 
   const platinumStartedAt = new Date().toISOString();

@@ -1,6 +1,7 @@
 import { fetchAbcPlatinumPrice } from "../lib/integrations/abc-bullion";
 import { fetchIbkrFlexReport } from "../lib/integrations/ibkr";
 import { getStorage, type OwnerType } from "../lib/storage";
+import { syncDirectsharesDividends } from "../lib/sync/directshares-dividends";
 import { syncDirectsharesEmail } from "../lib/sync/directshares-email";
 
 async function main() {
@@ -26,6 +27,13 @@ async function main() {
     console.log(`[sync] Directshares email: ${result.status} · ${result.imported} imported, ${result.duplicates} duplicates`);
   } catch (error) {
     console.error("[sync] Directshares email:", error);
+  }
+
+  try {
+    const result = await syncDirectsharesDividends(storage, "scheduled");
+    console.log(`[sync] Directshares dividends: ${result.status} · ${result.imported} imported, ${result.duplicates} duplicates`);
+  } catch (error) {
+    console.error("[sync] Directshares dividends:", error);
   }
 
   try {

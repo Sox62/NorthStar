@@ -60,8 +60,9 @@ export const roadmapPhases: RoadmapPhase[] = [
     items: [
       { title: "IBKR manual sync", status: "shipped", detail: "Broker Imports can trigger Flex sync on demand." },
       { title: "IBKR scheduled sync", status: "shipped", detail: "Morning sync runs from the Railway web process." },
-      { title: "Sharesight API", status: "planned", detail: "Add once API credentials and target data contracts are confirmed." },
+      { title: "Sharesight feed", status: "planned", detail: "Use as a reconciliation/import source once API or export access and target data contracts are confirmed." },
       { title: "Directshares contract notes", status: "shipped", detail: "Manual PDF upload and scheduled mailbox sync parse broker confirmations with duplicate detection." },
+      { title: "Directshares dividend notices", status: "shipped", detail: "Manual import and scheduled mailbox sync parse dividend emails, AUD proceeds and withholding tax." },
       { title: "Sync run monitor", status: "shipped", detail: "Dashboard shows latest IBKR and ABC Bullion status plus recent sync and pricing activity." },
     ],
   },
@@ -90,7 +91,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "Period returns", status: "shipped", detail: "Dashboard shows daily, MTD, YTD and since-inception NAV movement from snapshots." },
       { title: "XIRR", status: "planned", detail: "Money-weighted return by account and consolidated." },
       { title: "Exposure analysis", status: "shipped", detail: "Currency, commodity and allocation drift are live; allocation targets can be edited and are used in dashboard and CSV exports." },
-      { title: "Tax position", status: "planned", detail: "CGT, dividend and realised/unrealised reporting." },
+      { title: "Tax position", status: "in_progress", detail: "Unrealised positions and imported dividend-income rows are exported; realised CGT remains." },
     ],
   },
   {
@@ -102,7 +103,7 @@ export const roadmapPhases: RoadmapPhase[] = [
     items: [
       { title: "SMSF report", status: "shipped", detail: "Scoped CSV export covers SMSF holdings, allocations, allocation drift, currency exposure and period returns." },
       { title: "Personal report", status: "shipped", detail: "Scoped CSV export covers personal holdings, allocations, allocation drift, currency exposure and period returns." },
-      { title: "Tax report", status: "in_progress", detail: "Unrealised tax-position CSV is live; realised CGT, dividend and income exports remain." },
+      { title: "Tax report", status: "in_progress", detail: "Unrealised positions and dividend income are exported; realised CGT remains." },
       { title: "Estate summary", status: "shipped", detail: "Ownership-aware CSV export separates Personal and SMSF assets, accounts and NAV." },
       { title: "Wealth statement", status: "shipped", detail: "Reports hub links consolidated, account, allocation, drift, currency, return and holding CSV rows." },
     ],

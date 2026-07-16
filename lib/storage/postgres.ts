@@ -6,10 +6,11 @@ import { classifyAsset } from "./classify";
 import { buildCurrencyExposure } from "./exposure";
 import { buildValuationFreshness } from "./freshness";
 import { buildPeriodReturns, type NavPoint } from "./returns";
-import type { AllocationTarget, CashAccount, DashboardData, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, Scope, StorageAdapter, StoredPosition, SyncRun } from "./types";
+import type { AllocationTarget, CashAccount, DashboardData, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, Scope, StorageAdapter, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 const maskAccount = (account: string) => account.length <= 4 ? account : `${account.slice(0, 2)}••••${account.slice(-3)}`;
 const numberValue = (value: unknown) => Number(value ?? 0);
+const optionalNumber = (value: unknown) => value == null ? undefined : Number(value);
 const ownerForScope = (scope: Scope): OwnerType | undefined => scope === "personal" ? "PERSONAL" : scope === "smsf" ? "SMSF" : undefined;
 
 async function ensurePortfolio(client: PoolClient, ownerType: OwnerType) {
@@ -95,7 +96,7 @@ async function rebuildIbkrPositions(client: PoolClient, portfolioId: string, acc
       (ARRAY_AGG(COALESCE(t.close_price,t.price) ORDER BY t.trade_date DESC, t.created_at DESC))[1]::text AS last_price,
       MAX(t.trade_date)::text AS as_of_date
     FROM transactions t JOIN instruments i ON i.id=t.instrument_id
-    WHERE t.account_id=$1 AND t.type <> 'FX'
+    WHERE t.account_id=$1 AND t.type IN ('BUY','SELL')
     GROUP BY i.id
   `, [accountId]);
 
@@ -244,7 +245,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
     } finally { client.release(); }
   }
 
-  async importDirectsharesTransactions(transactions: ImportedTransaction[], ownerType: OwnerType): Promise<ImportResult> {
+  async importDirectsharesTransactions(transactions: ImportedTransaction[], ownerType: OwnerType, importSource = "Directshares Contract Notes"): Promise<ImportResult> {
     if (!transactions.length) throw new Error("No Directshares transactions were supplied.");
     const client = await getPool().connect();
     try {
@@ -280,14 +281,61 @@ export class PostgresStorageAdapter implements StorageAdapter {
         if (inserted.rowCount) imported += 1; else duplicates += 1;
       }
 
-      await client.query(`INSERT INTO import_runs (portfolio_id, account_id, source, record_count) VALUES ($1,$2,'Directshares Contract Notes',$3)`, [portfolioId, accountId, transactions.length]);
+      await client.query(`INSERT INTO import_runs (portfolio_id, account_id, source, record_count) VALUES ($1,$2,$3,$4)`, [portfolioId, accountId, importSource, transactions.length]);
       const positionCount = await client.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM current_positions WHERE account_id=$1`, [accountId]);
       await client.query("COMMIT");
-      return { source: "Directshares Contract Notes", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: numberValue(positionCount.rows[0]?.count), storageMode: "postgresql" };
+      return { source: importSource, ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: numberValue(positionCount.rows[0]?.count), storageMode: "postgresql" };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
     } finally { client.release(); }
+  }
+
+  async listTransactions(ownerType?: OwnerType): Promise<StoredTransaction[]> {
+    const values: unknown[] = [];
+    const ownerFilter = ownerType ? "WHERE p.legal_owner_type=$1" : "";
+    if (ownerType) values.push(ownerType);
+    const result = await getPool().query(`
+      SELECT t.id, p.legal_owner_type, ba.broker, ba.external_account_id, t.external_id,
+        t.trade_date::text, t.settle_date::text, i.ticker, i.exchange, i.name, i.external_key,
+        t.type, t.quantity::text, t.price::text, t.close_price::text, t.cost::text, t.currency,
+        t.fees::text, t.taxes::text, t.net_cash::text, t.fx_rate_to_base::text, t.realised_pnl::text,
+        t.source, i.isin, i.conid
+      FROM transactions t
+      JOIN portfolios p ON p.id=t.portfolio_id
+      JOIN broker_accounts ba ON ba.id=t.account_id
+      JOIN instruments i ON i.id=t.instrument_id
+      ${ownerFilter}
+      ORDER BY t.trade_date, t.created_at
+    `, values);
+    return result.rows.map(row => ({
+      id: row.id,
+      ownerType: row.legal_owner_type,
+      broker: row.broker,
+      accountKey: row.external_account_id,
+      externalId: row.external_id,
+      externalAccountId: row.external_account_id,
+      tradeDate: row.trade_date,
+      settleDate: row.settle_date ?? undefined,
+      symbol: row.ticker,
+      exchange: row.exchange,
+      description: row.name,
+      instrumentKey: row.external_key,
+      isin: row.isin ?? undefined,
+      conid: row.conid ?? undefined,
+      type: row.type,
+      quantity: optionalNumber(row.quantity),
+      price: optionalNumber(row.price),
+      closePrice: optionalNumber(row.close_price),
+      cost: optionalNumber(row.cost),
+      currency: row.currency,
+      fees: optionalNumber(row.fees),
+      taxes: optionalNumber(row.taxes),
+      netCash: optionalNumber(row.net_cash),
+      fxRateToBase: optionalNumber(row.fx_rate_to_base),
+      realisedPnl: optionalNumber(row.realised_pnl),
+      source: row.source,
+    }));
   }
 
   async listCashAccounts(ownerType?: OwnerType): Promise<CashAccount[]> {

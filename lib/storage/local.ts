@@ -91,7 +91,7 @@ const ownerForScope = (scope: Scope): OwnerType | undefined => scope === "person
 
 function recalculateIbkrPositions(store: LocalStore, ownerType: OwnerType, accountKey: string) {
   const relevant = store.transactions.filter(transaction =>
-    transaction.ownerType === ownerType && transaction.broker === "IBKR" && transaction.accountKey === accountKey && transaction.type !== "FX"
+    transaction.ownerType === ownerType && transaction.broker === "IBKR" && transaction.accountKey === accountKey && (transaction.type === "BUY" || transaction.type === "SELL")
   );
 
   const grouped = new Map<string, StoredTransaction[]>();
@@ -318,11 +318,12 @@ export class LocalStorageAdapter implements StorageAdapter {
     return { source: "Directshares", ownerType, accountKey: maskAccount(accountKey), imported: positions.length, duplicates: 0, positions: positions.length, storageMode: "local-file" };
   }
 
-  async importDirectsharesTransactions(transactions: ImportedTransaction[], ownerType: OwnerType): Promise<ImportResult> {
+  async importDirectsharesTransactions(transactions: ImportedTransaction[], ownerType: OwnerType, importSource = "Directshares Contract Notes"): Promise<ImportResult> {
     if (!transactions.length) throw new Error("No Directshares transactions were supplied.");
     const store = await readStore();
     const accountKey = transactions.find(transaction => transaction.externalAccountId)?.externalAccountId || "DIRECTSHARES";
     const existing = new Set(store.transactions.map(transaction => `${transaction.ownerType}:${transaction.broker}:${transaction.accountKey}:${transaction.externalId}`));
+    const transactionSources = new Set(transactions.map(transaction => transaction.source));
     let imported = 0;
     let duplicates = 0;
 
@@ -335,14 +336,19 @@ export class LocalStorageAdapter implements StorageAdapter {
       imported += 1;
     }
 
-    const importRecord = store.imports.find(record => record.source === "Directshares Contract Notes" && record.ownerType === ownerType && record.accountKey === accountKey);
-    const recordCount = store.transactions.filter(transaction => transaction.ownerType === ownerType && transaction.broker === "Directshares" && transaction.accountKey === accountKey && transaction.source === "Directshares Contract Note").length;
+    const importRecord = store.imports.find(record => record.source === importSource && record.ownerType === ownerType && record.accountKey === accountKey);
+    const recordCount = store.transactions.filter(transaction => transaction.ownerType === ownerType && transaction.broker === "Directshares" && transaction.accountKey === accountKey && transactionSources.has(transaction.source)).length;
     if (importRecord) { importRecord.importedAt = new Date().toISOString(); importRecord.recordCount = recordCount; }
-    else store.imports.push({ id: randomUUID(), source: "Directshares Contract Notes", ownerType, importedAt: new Date().toISOString(), recordCount, accountKey });
+    else store.imports.push({ id: randomUUID(), source: importSource, ownerType, importedAt: new Date().toISOString(), recordCount, accountKey });
 
     await writeStore(store);
     const positionCount = store.positions.filter(position => position.ownerType === ownerType && position.broker === "Directshares" && position.accountKey === accountKey).length;
-    return { source: "Directshares Contract Notes", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, storageMode: "local-file" };
+    return { source: importSource, ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, storageMode: "local-file" };
+  }
+
+  async listTransactions(ownerType?: OwnerType) {
+    const store = await readStore();
+    return store.transactions.filter(transaction => !ownerType || transaction.ownerType === ownerType).sort((a, b) => a.tradeDate.localeCompare(b.tradeDate));
   }
 
   async listCashAccounts(ownerType?: OwnerType) {

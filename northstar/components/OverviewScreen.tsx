@@ -275,7 +275,7 @@ function HistoryChart({ now, scope, performance }: { now: number; scope: Portfol
 }
 
 function FreshnessStrip({ syncRuns }: { syncRuns: SyncRunSummary[] }) {
-  const sources = ["IBKR", "Directshares Email", "ABC Bullion"];
+  const sources = ["IBKR", "Directshares Email", "Directshares Dividends", "ABC Bullion"];
   const latest = sources.map((source) => syncRuns.find((run) => run.source === source));
   return (
     <section className="nsFreshnessStrip" aria-label="Data freshness">
