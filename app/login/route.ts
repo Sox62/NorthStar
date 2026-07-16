@@ -121,6 +121,31 @@ function pageHtml(input: { error?: string | null; nextPath: string; username?: s
       font: inherit;
       font-weight: 800;
     }
+    button.secondaryButton {
+      width: 100%;
+      margin-top: 14px;
+      border-color: rgba(215, 181, 109, .36);
+      background: rgba(215, 181, 109, .08);
+      color: var(--text);
+    }
+    button:disabled { cursor: wait; opacity: .72; }
+    .separator {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 22px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .separator::before, .separator::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: rgba(124, 148, 173, .22);
+    }
     .loginMessage {
       min-height: 18px;
       margin: 18px 0 0;
@@ -134,6 +159,11 @@ function pageHtml(input: { error?: string | null; nextPath: string; username?: s
       border-color: rgba(255, 154, 154, .36);
       background: rgba(110, 32, 32, .24);
       color: var(--danger);
+    }
+    .passkeyStatus {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 12px;
     }
   </style>
 </head>
@@ -160,8 +190,122 @@ function pageHtml(input: { error?: string | null; nextPath: string; username?: s
       </label>
       <button type="submit">Use password</button>
     </form>
+    <section class="passkeyPanel" id="passkeyPanel" data-next="${nextPath}" hidden>
+      <div class="separator"><span>or</span></div>
+      <button class="secondaryButton" id="passkeyButton" type="button">Use passkey</button>
+      <p class="passkeyStatus" id="passkeyStatus">Checking passkey status...</p>
+    </section>
     ${error}
   </main>
+  <script>
+    (function () {
+      var panel = document.getElementById("passkeyPanel");
+      var button = document.getElementById("passkeyButton");
+      var status = document.getElementById("passkeyStatus");
+      if (!panel || !button || !status) return;
+      if (!window.PublicKeyCredential || !navigator.credentials) return;
+
+      function base64UrlToBuffer(value) {
+        var base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+        var padding = "=".repeat((4 - base64.length % 4) % 4);
+        var binary = atob(base64 + padding);
+        var bytes = new Uint8Array(binary.length);
+        for (var index = 0; index < binary.length; index += 1) {
+          bytes[index] = binary.charCodeAt(index);
+        }
+        return bytes.buffer;
+      }
+
+      function bufferToBase64Url(buffer) {
+        var bytes = new Uint8Array(buffer);
+        var binary = "";
+        for (var index = 0; index < bytes.length; index += 1) {
+          binary += String.fromCharCode(bytes[index]);
+        }
+        return btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+      }
+
+      function requestOptionsFromJson(options) {
+        return Object.assign({}, options, {
+          challenge: base64UrlToBuffer(options.challenge),
+          allowCredentials: (options.allowCredentials || []).map(function (credential) {
+            return Object.assign({}, credential, { id: base64UrlToBuffer(credential.id) });
+          }),
+        });
+      }
+
+      function credentialToJson(credential) {
+        return {
+          id: credential.id,
+          rawId: bufferToBase64Url(credential.rawId),
+          type: credential.type,
+          authenticatorAttachment: credential.authenticatorAttachment || undefined,
+          clientExtensionResults: credential.getClientExtensionResults ? credential.getClientExtensionResults() : {},
+          response: {
+            authenticatorData: bufferToBase64Url(credential.response.authenticatorData),
+            clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON),
+            signature: bufferToBase64Url(credential.response.signature),
+            userHandle: credential.response.userHandle ? bufferToBase64Url(credential.response.userHandle) : undefined,
+          },
+        };
+      }
+
+      async function fetchJson(url, init) {
+        var controller = new AbortController();
+        var timeout = window.setTimeout(function () { controller.abort(); }, 20000);
+        try {
+          var response = await fetch(url, Object.assign({ cache: "no-store", signal: controller.signal }, init || {}));
+          var payload = await response.json().catch(function () { return {}; });
+          if (!response.ok) throw new Error(payload.error || "Request failed.");
+          return payload;
+        } finally {
+          window.clearTimeout(timeout);
+        }
+      }
+
+      async function showIfReady() {
+        try {
+          var payload = await fetchJson("/api/auth/passkeys/status");
+          if (!payload.registered) return;
+          panel.hidden = false;
+          status.textContent = "Face ID, Touch ID, Windows Hello or a security key is ready.";
+        } catch {
+          panel.hidden = true;
+        }
+      }
+
+      button.addEventListener("click", async function () {
+        button.disabled = true;
+        status.textContent = "Opening passkey prompt...";
+        try {
+          var payload = await fetchJson("/api/auth/login/options", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: "{}",
+          });
+          var credential = await Promise.race([
+            navigator.credentials.get({ publicKey: requestOptionsFromJson(payload.options) }),
+            new Promise(function (_, reject) {
+              window.setTimeout(function () { reject(new Error("Passkey prompt timed out.")); }, 75000);
+            }),
+          ]);
+          if (!credential) throw new Error("Passkey sign-in was cancelled.");
+          await fetchJson("/api/auth/login/verify", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ response: credentialToJson(credential) }),
+          });
+          window.location.assign(panel.getAttribute("data-next") || "/");
+        } catch (error) {
+          status.textContent = error instanceof Error ? error.message : "Passkey sign-in failed.";
+        } finally {
+          button.disabled = false;
+        }
+      });
+
+      void showIfReady();
+    })();
+  </script>
 </body>
 </html>`;
 }
