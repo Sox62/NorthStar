@@ -1,6 +1,7 @@
 import { fetchAbcPlatinumPrice } from "@/lib/integrations/abc-bullion";
 import { fetchIbkrFlexReport } from "@/lib/integrations/ibkr";
 import { getStorage, type OwnerType } from "@/lib/storage";
+import { syncDirectsharesEmail } from "@/lib/sync/directshares-email";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -54,6 +55,17 @@ export async function POST(request: Request) {
       startedAt: new Date().toISOString(),
       message: "IBKR_FLEX_TOKEN or IBKR_FLEX_QUERY_ID is not configured.",
     }).catch(() => {});
+  }
+
+  try {
+    const result = await syncDirectsharesEmail(storage, "scheduled");
+    output.directsharesEmail = result;
+    if (result.status === "failed" || result.status === "partial") {
+      errors.push(`Directshares Email: ${result.errors.join("; ") || result.message}`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown Directshares email sync error";
+    errors.push(`Directshares Email: ${message}`);
   }
 
   const platinumStartedAt = new Date().toISOString();

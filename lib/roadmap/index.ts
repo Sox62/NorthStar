@@ -61,7 +61,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "IBKR manual sync", status: "shipped", detail: "Broker Imports can trigger Flex sync on demand." },
       { title: "IBKR scheduled sync", status: "shipped", detail: "Morning sync runs from the Railway web process." },
       { title: "Sharesight API", status: "planned", detail: "Add once API credentials and target data contracts are confirmed." },
-      { title: "Directshares path", status: "planned", detail: "Prefer API, then Sharesight, then contract-note parsing." },
+      { title: "Directshares contract notes", status: "shipped", detail: "Manual PDF upload and scheduled mailbox sync parse broker confirmations with duplicate detection." },
       { title: "Sync run monitor", status: "shipped", detail: "Dashboard shows latest IBKR and ABC Bullion status plus recent sync and pricing activity." },
     ],
   },

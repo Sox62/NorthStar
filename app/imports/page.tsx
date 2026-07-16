@@ -18,6 +18,8 @@ export default function Imports() {
   const [busy, setBusy] = useState<ImportType | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<Result | undefined>();
+  const [directsharesSyncing, setDirectsharesSyncing] = useState(false);
+  const [directsharesSyncResult, setDirectsharesSyncResult] = useState<Result | undefined>();
 
   const send = async (type: ImportType, commit: boolean) => {
     const selectedFiles = files[type] ?? [];
@@ -54,6 +56,17 @@ export default function Imports() {
     }
   };
 
+  const syncDirectsharesEmail = async () => {
+    setDirectsharesSyncing(true);
+    setDirectsharesSyncResult(undefined);
+    try {
+      const response = await fetch(`/api/sync/directshares?owner=${owners.directsharesNotes}`, { method: "POST" });
+      setDirectsharesSyncResult(await response.json());
+    } finally {
+      setDirectsharesSyncing(false);
+    }
+  };
+
   return (
     <main className="shell">
       <PageHeader
@@ -86,6 +99,27 @@ export default function Imports() {
           </button>
         </div>
         {syncResult && <div style={{ gridColumn: "1 / -1" }}><ImportSummary result={syncResult} /></div>}
+      </Card>
+
+      <Card className="syncCard">
+        <div>
+          <p className="eyebrow">Automated email feed</p>
+          <h2 className="cardTitle">Directshares confirmations</h2>
+          <p className="cardIntro">Reads broker confirmation emails from the configured mailbox or label, parses attached PDFs and imports new contract notes only once.</p>
+          <label className="field compactOwner">
+            <span>Legal owner</span>
+            <select value={owners.directsharesNotes} onChange={(event) => setOwners((value) => ({ ...value, directsharesNotes: event.target.value as OwnerType }))}>
+              <option value="PERSONAL">Personal</option>
+              <option value="SMSF">SMSF</option>
+            </select>
+          </label>
+        </div>
+        <div>
+          <button className="primary" type="button" onClick={syncDirectsharesEmail} disabled={directsharesSyncing}>
+            {directsharesSyncing ? "Syncing Directshares…" : "Sync Directshares email"}
+          </button>
+        </div>
+        {directsharesSyncResult && <div style={{ gridColumn: "1 / -1" }}><ImportSummary result={directsharesSyncResult} /></div>}
       </Card>
 
       <section className="grid two equal sectionStack">
@@ -192,7 +226,8 @@ function ImportSummary({ result }: { result: Result }) {
   if (result.error) return <Notice tone="error" title="Import failed">{result.error}</Notice>;
 
   const entries = Object.entries(result).filter(
-    ([key]) => !["preview", "note", "source", "owner", "ownerType", "storageMode", "synced", "generatedAt"].includes(key),
+    ([key, value]) => !["preview", "note", "source", "owner", "ownerType", "storageMode", "synced", "generatedAt"].includes(key)
+      && !(key === "errors" && Array.isArray(value) && value.length === 0),
   );
 
   return (
@@ -201,7 +236,7 @@ function ImportSummary({ result }: { result: Result }) {
       <SummaryGrid
         entries={entries.map(([key, value]) => [
           key.replace(/([A-Z])/g, " $1"),
-          /value|cost|pnl|cash|fee|consideration/i.test(key) ? money(value) : String(value),
+          /value|cost|pnl|cash|fee|consideration/i.test(key) ? money(value) : Array.isArray(value) ? value.join("; ") : String(value),
         ])}
       />
       {result.note != null && <p className="small">{String(result.note)}</p>}

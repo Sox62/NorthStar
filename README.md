@@ -19,6 +19,7 @@ A private portfolio system that preserves the legal separation between **Persona
 - Activates the **IBKR Flex Web Service** using `IBKR_FLEX_TOKEN` and `IBKR_FLEX_QUERY_ID` stored privately in Railway.
 - Adds a **Sync IBKR now** button that downloads the saved Flex Query and updates trades, Open Positions and IBKR cash.
 - Continues to deduplicate trades using IBKR transaction IDs.
+- Adds **Directshares contract-note imports** from PDF upload or an IMAP mailbox/label fed by broker confirmation emails.
 - Records physical platinum in **kilograms**, defaulting to Personal ownership.
 - Retrieves the current **ABC Bullion 1 kg platinum tablet buyback price** for realisable valuation.
 - Displays ABC’s retail price and current retail-to-buyback spread separately from the investor’s actual return.
@@ -48,6 +49,21 @@ IBKR_FLEX_OWNER=SMSF
 ```
 
 Do not commit or share the token.
+
+Directshares email automation:
+
+```text
+DIRECTSHARES_EMAIL_HOST=imap.gmail.com
+DIRECTSHARES_EMAIL_PORT=993
+DIRECTSHARES_EMAIL_SECURE=true
+DIRECTSHARES_EMAIL_USER=<mailbox user>
+DIRECTSHARES_EMAIL_PASSWORD=<mailbox app password>
+DIRECTSHARES_EMAIL_MAILBOX=INBOX
+DIRECTSHARES_EMAIL_OWNER=PERSONAL
+DIRECTSHARES_EMAIL_LOOKBACK_DAYS=45
+```
+
+If your mail rule labels confirmations for NorthStar, set `DIRECTSHARES_EMAIL_MAILBOX` to that IMAP mailbox/label. The sync filters for `service@directshares.com.au` and trade-confirmation subjects, parses attached `.PDF` files and deduplicates by Directshares confirmation number.
 
 ## Passkey login
 
@@ -85,7 +101,7 @@ Railway starts NorthStar with `npm run start:railway`, which schedules an automa
 /api/sync
 ```
 
-The default schedule is `20:30 UTC`, which is 06:30 Sydney during AEST and 07:30 during AEDT. It refreshes IBKR Flex, ABC Bullion platinum and portfolio snapshots.
+The default schedule is `20:30 UTC`, which is 06:30 Sydney during AEST and 07:30 during AEDT. It refreshes IBKR Flex, Directshares confirmation email, ABC Bullion platinum and portfolio snapshots.
 
 Required Railway variables:
 
@@ -94,6 +110,11 @@ SYNC_SECRET=<different long random value>
 IBKR_FLEX_TOKEN=<private Flex Web Service token>
 IBKR_FLEX_QUERY_ID=<IBKR NS query ID>
 IBKR_FLEX_OWNER=SMSF
+DIRECTSHARES_EMAIL_HOST=imap.gmail.com
+DIRECTSHARES_EMAIL_USER=<mailbox user>
+DIRECTSHARES_EMAIL_PASSWORD=<mailbox app password>
+DIRECTSHARES_EMAIL_MAILBOX=<mailbox or label containing confirmations>
+DIRECTSHARES_EMAIL_OWNER=PERSONAL
 ```
 
 Optional overrides:

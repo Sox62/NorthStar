@@ -1,6 +1,7 @@
 import { fetchAbcPlatinumPrice } from "../lib/integrations/abc-bullion";
 import { fetchIbkrFlexReport } from "../lib/integrations/ibkr";
 import { getStorage, type OwnerType } from "../lib/storage";
+import { syncDirectsharesEmail } from "../lib/sync/directshares-email";
 
 async function main() {
   const today = new Date().toISOString().slice(0, 10);
@@ -18,6 +19,13 @@ async function main() {
     }
   } else {
     console.log("[sync] IBKR skipped: token or query ID missing");
+  }
+
+  try {
+    const result = await syncDirectsharesEmail(storage, "scheduled");
+    console.log(`[sync] Directshares email: ${result.status} · ${result.imported} imported, ${result.duplicates} duplicates`);
+  } catch (error) {
+    console.error("[sync] Directshares email:", error);
   }
 
   try {
