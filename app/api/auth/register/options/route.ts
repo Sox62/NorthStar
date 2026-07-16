@@ -35,6 +35,7 @@ export async function POST(request: Request) {
         residentKey: "preferred",
         userVerification: "required",
       },
+      timeout: 60_000,
     });
     await store.saveChallenge("registration", options.challenge, user.username);
     return NextResponse.json({ options });

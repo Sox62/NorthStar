@@ -24,6 +24,7 @@ export async function POST(request: Request) {
       rpID: requestRpId(request),
       allowCredentials: passkeys.map((passkey) => ({ id: passkey.id, transports: passkey.transports })),
       userVerification: "required",
+      timeout: 60_000,
     });
     await store.saveChallenge("authentication", options.challenge, input.username ?? null);
     return NextResponse.json({ options });

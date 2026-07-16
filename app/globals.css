@@ -736,6 +736,15 @@ button:disabled { opacity: .55; cursor: wait; }
   font-size: 24px;
   font-weight: 500;
 }
+.loginActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.loginActions button {
+  width: 100%;
+  min-height: 46px;
+}
 .loginMessage {
   min-height: 18px;
   margin: 18px 0 0;
@@ -977,6 +986,7 @@ button:disabled { opacity: .55; cursor: wait; }
   .assetRow, .cashRow { flex-direction: column; }
   .reportRow { grid-template-columns: 1fr; }
   .reportRow .button { width: 100%; justify-content: center; }
+  .loginActions { grid-template-columns: 1fr; }
   .rowValue { text-align: left; }
   .rowActions { justify-content: flex-start; }
   .nsCard { padding: 18px; }

@@ -3,15 +3,44 @@
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
+const API_TIMEOUT_MS = 20_000;
+const PASSKEY_TIMEOUT_MS = 75_000;
+
 async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(String(payload.error ?? "Request failed"));
-  return payload as T;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(String(payload.error ?? "Request failed"));
+    return payload as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("NorthStar did not respond. Check the connection and try again.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
+  let timeout: number | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeout = window.setTimeout(() => reject(new Error(message)), PASSKEY_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeout) window.clearTimeout(timeout);
+  }
 }
 
 function safeNext() {
@@ -26,7 +55,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("Checking passkey support...");
   const [passkeysRegistered, setPasskeysRegistered] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState<"login" | "register" | null>(null);
+  const [busy, setBusy] = useState<"login" | "register" | "password" | null>(null);
   const nextPath = useMemo(safeNext, []);
   const passwordInput = useRef<HTMLInputElement>(null);
 
@@ -74,7 +103,10 @@ export default function LoginPage() {
       const { options } = await postJson<{ options: Parameters<typeof startAuthentication>[0]["optionsJSON"] }>("/api/auth/login/options", {
         username: username.trim() || undefined,
       });
-      const response = await startAuthentication({ optionsJSON: options });
+      const response = await withTimeout(
+        startAuthentication({ optionsJSON: options }),
+        "Passkey prompt timed out. Use the password option below, then try passkey setup again.",
+      );
       await postJson("/api/auth/login/verify", { response });
       setMessage("Signed in.");
       finish();
@@ -82,6 +114,29 @@ export default function LoginPage() {
       const text = error instanceof Error ? error.message : "Passkey sign-in failed.";
       setMessage(text.includes("No passkeys") ? "No passkey exists yet. Enter the current NorthStar password below, then create one." : text);
       if (text.includes("No passkeys")) passwordInput.current?.focus();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const passwordLogin = async () => {
+    if (!username.trim() || !password) {
+      setMessage("Enter your username and current NorthStar password.");
+      passwordInput.current?.focus();
+      return;
+    }
+
+    setBusy("password");
+    setMessage("Signing in with password...");
+    try {
+      await postJson("/api/auth/password/login", {
+        username: username.trim(),
+        password,
+      });
+      setMessage("Signed in.");
+      finish();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Password sign-in failed.");
     } finally {
       setBusy(null);
     }
@@ -97,7 +152,10 @@ export default function LoginPage() {
         displayName: displayName.trim() || username.trim(),
         password,
       });
-      const response = await startRegistration({ optionsJSON: options });
+      const response = await withTimeout(
+        startRegistration({ optionsJSON: options }),
+        "Passkey setup timed out. Use password sign-in for now, then try setup again.",
+      );
       await postJson("/api/auth/register/verify", { username: username.trim(), response });
       setPasskeysRegistered(true);
       setMessage("Passkey saved.");
@@ -166,9 +224,14 @@ export default function LoginPage() {
               required
             />
           </label>
-          <button type="submit" disabled={busy !== null || !username.trim() || !password}>
-            {busy === "register" ? "Saving passkey..." : "Create passkey"}
-          </button>
+          <div className="loginActions">
+            <button className="primary" type="button" onClick={passwordLogin} disabled={busy !== null || !username.trim() || !password}>
+              {busy === "password" ? "Signing in..." : "Use password"}
+            </button>
+            <button type="submit" disabled={busy !== null || !username.trim() || !password}>
+              {busy === "register" ? "Saving passkey..." : "Create passkey"}
+            </button>
+          </div>
         </form>
 
         <p className="loginMessage">{message}</p>
