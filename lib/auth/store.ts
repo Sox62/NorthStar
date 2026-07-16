@@ -149,6 +149,25 @@ export class AuthStore {
     return username ? store.passkeys.filter((item) => item.username === username) : store.passkeys;
   }
 
+  async deletePasskeys(username?: string): Promise<number> {
+    if (this.isPostgres) {
+      const result = await getPool().query<{ id: string }>(`
+        DELETE FROM auth_passkeys ap
+        USING auth_users au
+        WHERE ap.user_id=au.id AND ($1::text IS NULL OR au.username=$1)
+        RETURNING ap.id
+      `, [username ?? null]);
+      return result.rowCount ?? 0;
+    }
+    const store = await readLocalStore();
+    const before = store.passkeys.length;
+    store.passkeys = username
+      ? store.passkeys.filter((item) => item.username !== username)
+      : [];
+    await writeLocalStore(store);
+    return before - store.passkeys.length;
+  }
+
   async getPasskey(id: string): Promise<AuthPasskey | null> {
     const passkeys = await this.listPasskeys();
     return passkeys.find((item) => item.id === id) ?? null;
