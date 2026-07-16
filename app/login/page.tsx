@@ -1,7 +1,7 @@
 "use client";
 
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   const response = await fetch(url, {
@@ -25,11 +25,36 @@ export default function LoginPage() {
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("Checking passkey support...");
+  const [passkeysRegistered, setPasskeysRegistered] = useState<boolean | null>(null);
   const [busy, setBusy] = useState<"login" | "register" | null>(null);
   const nextPath = useMemo(safeNext, []);
+  const passwordInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setMessage(window.PublicKeyCredential ? "Passkey-ready browser detected." : "This browser does not support passkeys.");
+    if (!window.PublicKeyCredential) {
+      setMessage("This browser does not support passkeys.");
+      return;
+    }
+
+    let cancelled = false;
+    async function loadPasskeyStatus() {
+      try {
+        const response = await fetch("/api/auth/passkeys/status", { cache: "no-store" });
+        const result = await response.json();
+        if (cancelled) return;
+        setPasskeysRegistered(Boolean(result.registered));
+        setMessage(result.registered
+          ? "Passkey-ready browser detected."
+          : "No passkey is registered yet. Enter the current NorthStar password below, then create one.");
+      } catch {
+        if (!cancelled) setMessage("Passkey-ready browser detected.");
+      }
+    }
+
+    void loadPasskeyStatus();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const finish = () => {
@@ -38,6 +63,11 @@ export default function LoginPage() {
 
   const login = async (event: FormEvent) => {
     event.preventDefault();
+    if (passkeysRegistered === false) {
+      setMessage("Create your first passkey before using Sign in.");
+      passwordInput.current?.focus();
+      return;
+    }
     setBusy("login");
     setMessage("Opening passkey prompt...");
     try {
@@ -49,7 +79,9 @@ export default function LoginPage() {
       setMessage("Signed in.");
       finish();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Passkey sign-in failed.");
+      const text = error instanceof Error ? error.message : "Passkey sign-in failed.";
+      setMessage(text.includes("No passkeys") ? "No passkey exists yet. Enter the current NorthStar password below, then create one." : text);
+      if (text.includes("No passkeys")) passwordInput.current?.focus();
     } finally {
       setBusy(null);
     }
@@ -67,6 +99,7 @@ export default function LoginPage() {
       });
       const response = await startRegistration({ optionsJSON: options });
       await postJson("/api/auth/register/verify", { username: username.trim(), response });
+      setPasskeysRegistered(true);
       setMessage("Passkey saved.");
       finish();
     } catch (error) {
@@ -103,8 +136,8 @@ export default function LoginPage() {
               placeholder="Stephen"
             />
           </label>
-          <button className="primary" type="submit" disabled={busy !== null}>
-            {busy === "login" ? "Opening passkey..." : "Sign in"}
+          <button className="primary" type="submit" disabled={busy !== null || passkeysRegistered === false}>
+            {busy === "login" ? "Opening passkey..." : passkeysRegistered === false ? "Create passkey first" : "Sign in"}
           </button>
         </form>
 
@@ -125,6 +158,7 @@ export default function LoginPage() {
           <label>
             <span>Current NorthStar password</span>
             <input
+              ref={passwordInput}
               autoComplete="current-password"
               type="password"
               value={password}
