@@ -1,15 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-
-function challenge(message = "Authentication required") {
-  return new NextResponse(message, {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="NorthStar", charset="UTF-8"',
-      "Cache-Control": "no-store",
-    },
-  });
-}
+import { SESSION_COOKIE, verifySessionToken } from "./lib/auth/session";
 
 async function digest(value: string) {
   const bytes = new TextEncoder().encode(value);
@@ -29,6 +20,11 @@ async function secureEqual(left: string, right: string) {
 export async function proxy(request: NextRequest) {
   const expectedUsername = process.env.NORTH_STAR_USERNAME;
   const expectedPassword = process.env.NORTH_STAR_PASSWORD;
+  const pathname = request.nextUrl.pathname;
+
+  if (pathname === "/login" || pathname.startsWith("/api/auth/")) {
+    return NextResponse.next();
+  }
 
   if (!expectedUsername || !expectedPassword) {
     if (process.env.NODE_ENV === "production") {
@@ -40,31 +36,44 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (request.nextUrl.pathname === "/api/sync") {
+  if (pathname === "/api/sync") {
     const syncSecret = process.env.SYNC_SECRET;
     const supplied = request.headers.get("x-sync-key");
     if (syncSecret && supplied && await secureEqual(supplied, syncSecret)) return NextResponse.next();
   }
 
+  const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value).catch(() => null);
+  if (session) return NextResponse.next();
+
   const authorization = request.headers.get("authorization");
-  if (!authorization?.startsWith("Basic ")) return challenge();
+  if (authorization?.startsWith("Basic ")) {
+    try {
+      const decoded = atob(authorization.slice(6));
+      const separator = decoded.indexOf(":");
+      if (separator >= 0) {
+        const username = decoded.slice(0, separator);
+        const password = decoded.slice(separator + 1);
+        const [usernameMatches, passwordMatches] = await Promise.all([
+          secureEqual(username, expectedUsername),
+          secureEqual(password, expectedPassword),
+        ]);
 
-  try {
-    const decoded = atob(authorization.slice(6));
-    const separator = decoded.indexOf(":");
-    if (separator < 0) return challenge();
-
-    const username = decoded.slice(0, separator);
-    const password = decoded.slice(separator + 1);
-    const [usernameMatches, passwordMatches] = await Promise.all([
-      secureEqual(username, expectedUsername),
-      secureEqual(password, expectedPassword),
-    ]);
-
-    return usernameMatches && passwordMatches ? NextResponse.next() : challenge("Invalid credentials");
-  } catch {
-    return challenge("Invalid credentials");
+        if (usernameMatches && passwordMatches) return NextResponse.next();
+      }
+    } catch {
+      // Fall through to the passkey login redirect/JSON 401 below.
+    }
   }
+
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401, headers: { "Cache-Control": "no-store" } });
+  }
+
+  const loginUrl = request.nextUrl.clone();
+  loginUrl.pathname = "/login";
+  loginUrl.search = "";
+  if (pathname !== "/") loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {

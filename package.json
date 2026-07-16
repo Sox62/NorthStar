@@ -12,6 +12,8 @@
     "start:railway": "node scripts/start-railway.mjs"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.2",
     "csv-parse": "^6.2.1",
     "drizzle-orm": "^0.44.5",
     "fast-xml-parser": "^5.10.0",

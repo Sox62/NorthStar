@@ -178,6 +178,44 @@ export const allocationTargets = pgTable("allocation_targets", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const authUsers = pgTable("auth_users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  username: text("username").notNull(),
+  webauthnUserId: text("webauthn_user_id").notNull(),
+  displayName: text("display_name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  uniqueIndex("auth_users_username_uq").on(table.username),
+  uniqueIndex("auth_users_webauthn_user_id_uq").on(table.webauthnUserId),
+]);
+
+export const authPasskeys = pgTable("auth_passkeys", {
+  id: text("id").primaryKey(),
+  userId: uuid("user_id").references(() => authUsers.id, { onDelete: "cascade" }).notNull(),
+  publicKey: text("public_key").notNull(),
+  counter: integer("counter").notNull().default(0),
+  deviceType: text("device_type"),
+  backedUp: boolean("backed_up").notNull().default(false),
+  transports: jsonb("transports").$type<string[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+}, table => [
+  index("auth_passkeys_user_idx").on(table.userId),
+]);
+
+export const authChallenges = pgTable("auth_challenges", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  username: text("username"),
+  kind: text("kind").notNull(),
+  challenge: text("challenge").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  uniqueIndex("auth_challenges_challenge_uq").on(table.challenge),
+  index("auth_challenges_lookup_idx").on(table.kind, table.username, table.expiresAt),
+]);
+
 export const portfolioSnapshots = pgTable("portfolio_snapshots", {
   id: uuid("id").defaultRandom().primaryKey(),
   portfolioId: uuid("portfolio_id").references(() => portfolios.id).notNull(),

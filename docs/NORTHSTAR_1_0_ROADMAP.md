@@ -19,8 +19,8 @@ Deliverables:
 
 - Keep Railway production as the stable environment.
 - Keep GitHub `main` as source of truth with small, reviewable commits.
-- Preserve Basic Auth until passkeys are implemented.
-- Add passkey/WebAuthn authentication after the portfolio core is stable.
+- Passkey/WebAuthn authentication with Face ID, Touch ID, Windows Hello or security keys.
+- Preserve Basic Auth as a temporary rollout and recovery fallback until passkeys are proven in production.
 - Add operational status surfaces for sync, valuation freshness and roadmap progress.
 - Add backup/runbook documentation for PostgreSQL and deployment recovery.
 

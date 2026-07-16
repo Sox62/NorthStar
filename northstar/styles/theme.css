@@ -222,7 +222,21 @@ body.northstar .nsReportLinks {
   align-items:center;
 }
 
-body.northstar .nsReportLink:hover {
+body.northstar .nsReportButton {
+  min-height:auto;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:var(--gold);
+  cursor:pointer;
+  font:inherit;
+  font-size:12px;
+  font-weight:800;
+}
+
+body.northstar .nsReportLink:hover,
+body.northstar .nsReportButton:hover {
   text-decoration:underline;
 }
 

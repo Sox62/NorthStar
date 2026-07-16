@@ -33,7 +33,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "Screenshot dashboard", status: "shipped", detail: "Overview shell and seeded assessment data are running." },
       { title: "GitHub and Railway release path", status: "shipped", detail: "Main branch deploys to the existing Railway service." },
       { title: "Daily auto-sync", status: "shipped", detail: "Railway start process schedules the protected sync endpoint each morning." },
-      { title: "Passkeys", status: "planned", detail: "Replace Basic Auth with WebAuthn after core accounting contracts settle." },
+      { title: "Passkeys", status: "in_progress", detail: "Passkey login and session cookies are implemented; Basic Auth remains as rollout and recovery fallback." },
       { title: "Backups and recovery runbook", status: "shipped", detail: "PostgreSQL backup, restore drill, production recovery and rollback steps are documented." },
     ],
   },

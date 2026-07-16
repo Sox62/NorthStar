@@ -599,6 +599,10 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
   const periodReturns = periodReturnsByScope?.[scope] ?? periodReturnsByScope?.overall ?? [];
   const currencyExposure = currencyExposureByScope?.[scope] ?? currencyExposureByScope?.overall ?? [];
   const selectedUpdatedAt = lastUpdatedByScope?.[scope] ?? lastUpdatedByScope?.overall ?? null;
+  const signOut = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.assign("/login");
+  };
 
   return (
     <div className="nsScreen">
@@ -615,6 +619,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
             <div className="nsReportLinks">
               <a className="nsReportLink" href={`/api/reports/wealth-statement?scope=${scope}`}>Wealth CSV</a>
               <a className="nsReportLink" href="/api/reports/estate-summary">Estate CSV</a>
+              <button className="nsReportButton" type="button" onClick={() => void signOut()}>Sign out</button>
             </div>
           </div>
         </header>

@@ -34,6 +34,7 @@ Required:
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 NORTH_STAR_USERNAME=stephen
 NORTH_STAR_PASSWORD=<unique password of at least 16 characters>
+NORTH_STAR_SESSION_SECRET=<different long random value for signed login cookies>
 SYNC_SECRET=<different long random value>
 HOSTNAME=0.0.0.0
 ```
@@ -47,6 +48,12 @@ IBKR_FLEX_OWNER=SMSF
 ```
 
 Do not commit or share the token.
+
+## Passkey login
+
+NorthStar uses passkeys for normal sign-in. Open `/login`, enter the existing `NORTH_STAR_USERNAME` and `NORTH_STAR_PASSWORD` once, then create a passkey with Face ID, Touch ID, Windows Hello or a hardware security key.
+
+Basic Auth remains available as a rollout and recovery fallback while passkeys are being proven in production.
 
 ## IBKR query contents
 
