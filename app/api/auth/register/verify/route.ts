@@ -2,14 +2,14 @@ import { verifyRegistrationResponse, type RegistrationResponseJSON } from "@simp
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { bytesToBase64Url } from "@/lib/auth/base64url";
-import { clearSessionCookie, createSessionToken, sessionCookie } from "@/lib/auth/session";
+import { createSessionToken, sessionCookie } from "@/lib/auth/session";
 import { getAuthStore } from "@/lib/auth/store";
-import { requestOrigin, requestRpId, usernameSchema } from "@/lib/auth/webauthn";
+import { configuredBootstrapUsername, requestOrigin, requestRpId, usernameSchema } from "@/lib/auth/webauthn";
 
 export const runtime = "nodejs";
 
 const inputSchema = z.object({
-  username: usernameSchema,
+  username: usernameSchema.optional(),
   response: z.unknown(),
 });
 
@@ -17,7 +17,8 @@ export async function POST(request: Request) {
   try {
     const input = inputSchema.parse(await request.json());
     const store = getAuthStore();
-    const user = await store.getUser(input.username);
+    const username = input.username || configuredBootstrapUsername("Stephen");
+    const user = await store.getUser(username);
     if (!user) return NextResponse.json({ error: "Passkey user was not found." }, { status: 404 });
 
     const challenge = await store.latestChallenge("registration", user.username);
@@ -50,8 +51,6 @@ export async function POST(request: Request) {
     response.headers.append("Set-Cookie", sessionCookie(await createSessionToken({ sub: user.id, username: user.username })));
     return response;
   } catch (error) {
-    const response = NextResponse.json({ error: error instanceof Error ? error.message : "Unable to verify passkey setup." }, { status: 400 });
-    response.headers.append("Set-Cookie", clearSessionCookie());
-    return response;
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to verify passkey setup." }, { status: 400 });
   }
 }

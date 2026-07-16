@@ -498,6 +498,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .syncCard { border-color: rgba(119,169,216,.30); }
 .priceCard { border-color: rgba(215,181,109,.34); }
 .importCard { min-height: 390px; }
+.securityCard {
+  min-height: 330px;
+}
+.securityCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.securityForm {
+  margin-top: 22px;
+}
+.securityForm .primary {
+  margin-top: 18px;
+}
 .field {
   display: flex;
   flex-direction: column;

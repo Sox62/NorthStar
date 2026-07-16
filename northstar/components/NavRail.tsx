@@ -7,6 +7,7 @@ const items = [
   { key: "sectors", label: "Sectors", href: "/sectors" },
   { key: "targets", label: "Targets", href: "/targets" },
   { key: "reports", label: "Reports", href: "/reports" },
+  { key: "security", label: "Security", href: "/security" },
   { key: "bullion", label: "Bullion", href: "/assets" },
   { key: "cash", label: "Cash", href: "/cash" },
 ];
@@ -17,6 +18,7 @@ const icons: Record<string, React.ReactNode> = {
   sectors: <path d="M12 3v18M7 8h8a3 3 0 010 6H7m0-6l-2-2m2 2l-2 2" />,
   targets: <><path d="M4 19h16" /><path d="M7 16V9" /><path d="M12 16V5" /><path d="M17 16v-4" /></>,
   reports: <><path d="M6 3h9l3 3v15H6z" /><path d="M15 3v4h4" /><path d="M9 12h6M9 16h6" /></>,
+  security: <><path d="M7 11V8a5 5 0 0110 0v3" /><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M12 15v2" /></>,
   bullion: <path d="M12 3l2.5 5 5.5.8-4 3.9 1 5.5L12 21l-4.9-2.8 1-5.5-4-3.9L10.5 8z" />,
   cash: <><rect x="3" y="6" width="18" height="12" rx="2" /><path d="M3 10h18" /></>,
 };
