@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { clearSessionCookie, createSessionToken, sessionCookie } from "@/lib/auth/session";
 import { getAuthStore } from "@/lib/auth/store";
-import { passwordSchema, usernameSchema, verifyBootstrapPassword } from "@/lib/auth/webauthn";
+import { passwordSchema, requestOrigin, usernameSchema, verifyBootstrapPassword } from "@/lib/auth/webauthn";
 
 export const runtime = "nodejs";
 
@@ -14,6 +14,10 @@ const inputSchema = z.object({
 
 function safeNext(value: string | null | undefined) {
   return value?.startsWith("/") && !value.startsWith("//") ? value : "/";
+}
+
+function publicUrl(request: Request, path: string) {
+  return new URL(path, requestOrigin(request));
 }
 
 function wantsHtml(request: Request) {
@@ -43,7 +47,7 @@ export async function POST(request: Request) {
     const input = await parseInput(request);
     if (!await verifyBootstrapPassword(input.username, input.password)) {
       if (htmlRequest) {
-        const redirectUrl = new URL("/login", request.url);
+        const redirectUrl = publicUrl(request, "/login");
         redirectUrl.searchParams.set("error", "invalid");
         redirectUrl.searchParams.set("username", input.username);
         const nextPath = safeNext(input.next);
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
 
     const user = await getAuthStore().getOrCreateUser(input.username, input.username);
     if (htmlRequest) {
-      const response = NextResponse.redirect(new URL(safeNext(input.next), request.url), { status: 303 });
+      const response = NextResponse.redirect(publicUrl(request, safeNext(input.next)), { status: 303 });
       response.headers.append("Set-Cookie", sessionCookie(await createSessionToken({ sub: user.id, username: user.username })));
       return response;
     }
@@ -68,7 +72,7 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     if (htmlRequest) {
-      const redirectUrl = new URL("/login", request.url);
+      const redirectUrl = publicUrl(request, "/login");
       redirectUrl.searchParams.set("error", "invalid");
       const response = NextResponse.redirect(redirectUrl, { status: 303 });
       response.headers.append("Set-Cookie", clearSessionCookie());
