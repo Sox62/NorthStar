@@ -143,7 +143,7 @@ export default function HoldingsPage() {
         description="Review the full live position book by legal owner, valuation basis, weight and unrealised return."
         links={[
           { href: "/", label: "Dashboard" },
-          { href: "/imports", label: "Broker imports" },
+          { href: "/sync", label: "Sync" },
           { href: "/reports", label: "Reports" },
           { href: "/roadmap", label: "Roadmap" },
         ]}

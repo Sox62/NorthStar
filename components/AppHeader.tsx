@@ -28,7 +28,7 @@ export default function AppHeader({ scope, onScopeChange }: { scope: Scope; onSc
 
         <nav className="primaryNav" aria-label="NorthStar tools">
           <Link href="/" className="isActive">Overview</Link>
-          <Link href="/imports">Imports</Link>
+          <Link href="/sync">Sync</Link>
           <Link href="/cash">Cash</Link>
           <Link href="/assets">Platinum</Link>
           <PwaInstallButton />

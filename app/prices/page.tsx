@@ -165,7 +165,7 @@ export default function PricesPage() {
         description="Daily market closes and FX rates used to value current holdings independently of broker snapshots."
         links={[
           { href: "/", label: "← Dashboard" },
-          { href: "/imports", label: "Broker imports" },
+          { href: "/sync", label: "Sync" },
           { href: "/assets", label: "Bullion" },
           { href: "/roadmap", label: "Roadmap" },
         ]}

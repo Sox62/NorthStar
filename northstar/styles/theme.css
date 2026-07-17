@@ -214,11 +214,24 @@ body.northstar .nsHeaderControls p {
   font-size:12px;
 }
 
-body.northstar .nsHeaderControls p span {
+body.northstar .nsStatusPip {
+  display:inline-block;
+  flex:0 0 auto;
   width:8px;
   height:8px;
   border-radius:50%;
   background:#71dfa2;
+  box-shadow:0 0 0 3px rgba(113,223,162,0.12);
+}
+
+body.northstar .nsStatusPip.is-warning {
+  background:var(--gold);
+  box-shadow:0 0 0 3px rgba(215,181,109,0.13);
+}
+
+body.northstar .nsStatusPip.is-bad {
+  background:var(--neg);
+  box-shadow:0 0 0 3px rgba(255,112,112,0.13);
 }
 
 body.northstar .nsReportLink {
@@ -727,6 +740,7 @@ body.northstar .nsPositionsToggle:hover {
 
 body.northstar .nsPositionsCount {
   color:var(--muted);
+  gap:8px;
 }
 
 body.northstar .nsHoldingsTable {

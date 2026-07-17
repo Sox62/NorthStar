@@ -121,7 +121,7 @@ export default function PhysicalAssetsPage() {
         description="Record platinum in kilograms. Current value uses ABC Bullion’s 1 kg tablet buyback price—the amount closest to what the position could realise today."
         links={[
           { href: "/", label: "← Dashboard" },
-          { href: "/imports", label: "Broker imports" },
+          { href: "/sync", label: "Sync" },
           { href: "/cash", label: "Cash accounts" },
           { href: "/roadmap", label: "Roadmap" },
         ]}

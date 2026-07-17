@@ -19,7 +19,7 @@ export default function RoadmapPage() {
         description="Implementation plan for turning the current private portfolio dashboard into a production-grade portfolio operating system."
         links={[
           { href: "/", label: "← Dashboard" },
-          { href: "/imports", label: "Broker imports" },
+          { href: "/sync", label: "Sync" },
           { href: "/sectors", label: "Sectors" },
         ]}
       />

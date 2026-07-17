@@ -53,7 +53,7 @@ export default function CashPage() {
         description="Add Macquarie and other external cash positions without mixing Personal and SMSF ownership. IBKR cash continues to come from the automated Flex sync."
         links={[
           { href: "/", label: "← Dashboard" },
-          { href: "/imports", label: "Broker imports" },
+          { href: "/sync", label: "Sync" },
           { href: "/assets", label: "Physical platinum" },
           { href: "/roadmap", label: "Roadmap" },
         ]}

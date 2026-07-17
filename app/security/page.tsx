@@ -9,7 +9,7 @@ export default function SecurityPage() {
         description="Manage access methods for the private NorthStar portfolio app."
         links={[
           { href: "/", label: "← Dashboard" },
-          { href: "/imports", label: "Broker imports" },
+          { href: "/sync", label: "Sync" },
           { href: "/reports", label: "Reports" },
           { href: "/roadmap", label: "Roadmap" },
         ]}

@@ -10,7 +10,7 @@ const navItems = [
   { href: "/prices", label: "Pricing", detail: "Market closes" },
   { href: "/sectors", label: "Sectors", detail: "Exposure breakdown" },
   { href: "/targets", label: "Targets", detail: "Allocation drift" },
-  { href: "/imports", label: "Imports", detail: "Broker sync" },
+  { href: "/sync", label: "Sync", detail: "Feeds and status" },
   { href: "/cash", label: "Cash", detail: "Bank balances" },
   { href: "/assets", label: "Bullion", detail: "Physical metals" },
   { href: "/reports", label: "Reports", detail: "Exports" },

@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { NavRail } from "./NavRail";
 import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
+import { dataHealth, type HealthTone } from "../lib/data-health";
 import { byComposition, byScope, bySector, fmtAud, totals } from "../lib/portfolio-metrics";
 import { COMPOSITION_OF, SECTOR_COLORS, type CompositionGroup, type Holding, type PortfolioScope, type Sector } from "../types";
 
@@ -136,18 +137,6 @@ function valueForScope(point: PerformancePoint, scope: PortfolioScope) {
   if (scope === "personal") return point.personal;
   if (scope === "smsf") return point.smsf;
   return point.overall ?? ((point.personal ?? 0) + (point.smsf ?? 0) || undefined);
-}
-
-function fmtRunTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "unknown time";
-  return new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Sydney",
-    day: "numeric",
-    month: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
 }
 
 function fmtDate(value: string | null) {
@@ -301,44 +290,6 @@ function HistoryChart({ now, scope, performance }: { now: number; scope: Portfol
   );
 }
 
-function FreshnessStrip({ syncRuns }: { syncRuns: SyncRunSummary[] }) {
-  const sources = ["IBKR", "Directshares Email", "Directshares Dividends", "ABC Bullion"];
-  const latest = sources.map((source) => syncRuns.find((run) => run.source === source));
-  return (
-    <section className="nsFreshnessStrip" aria-label="Data freshness">
-      {latest.map((run, index) => {
-        const source = sources[index];
-        const status = run?.status ?? "skipped";
-        return (
-          <div key={source} className={`nsFreshnessItem is-${status}`}>
-            <span>{source}</span>
-            <strong>{run ? `${status === "success" ? "Synced" : status} · ${fmtRunTime(run.finishedAt)}` : "No run recorded"}</strong>
-            <em>{run?.error ?? run?.message ?? "Waiting for first sync run."}</em>
-          </div>
-        );
-      })}
-    </section>
-  );
-}
-
-function ValuationChecks({ freshness }: { freshness: ValuationFreshnessSummary[] }) {
-  if (!freshness.length) return null;
-  return (
-    <section className="nsValuationChecks" aria-label="Valuation freshness checks">
-      {freshness.map((check) => (
-        <article key={check.source} className={`nsValuationCheck is-${check.status}`}>
-          <div>
-            <span>{check.source}</span>
-            <strong>{check.status === "fresh" ? "Current" : check.status === "fallback" ? "Cost basis" : check.status}</strong>
-          </div>
-          <p>{check.detail}</p>
-          <em>{check.ageDays == null ? fmtDate(check.asOf) : `${fmtDate(check.asOf)} · ${check.ageDays.toFixed(1)}d old`}</em>
-        </article>
-      ))}
-    </section>
-  );
-}
-
 function PeriodReturnStrip({ returns, xirr }: { returns: PeriodReturnSummary[]; xirr?: XirrSummary }) {
   if (!returns.length && !xirr) return null;
   return (
@@ -375,7 +326,7 @@ function MetricCard({ label, value, note, tone }: { label: string; value: React.
   );
 }
 
-function HoldingsTable({ holdings, total, scope }: { holdings: Holding[]; total: number; scope: PortfolioScope }) {
+function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holding[]; total: number; scope: PortfolioScope; healthTone: HealthTone }) {
   const [showAllOverall, setShowAllOverall] = useState(false);
   const isOverall = scope === "overall";
   const visibleHoldings = isOverall && !showAllOverall ? holdings.slice(0, 6) : holdings;
@@ -393,7 +344,7 @@ function HoldingsTable({ holdings, total, scope }: { holdings: Holding[]; total:
             {showAllOverall ? "Show top 6" : `Show all ${holdings.length} ->`}
           </button>
         ) : (
-          <span className="nsPositionsCount">All {holdings.length} shown</span>
+          <span className="nsPositionsCount"><span className={`nsStatusPip is-${healthTone}`} />All {holdings.length} shown</span>
         )}
       </div>
       <div className="nsHoldingsTable" role="table" aria-label={`${scopeLabel} share positions`}>
@@ -549,40 +500,6 @@ function CommodityExposurePanel({ exposures, total }: { exposures: CommodityExpo
   );
 }
 
-function RecentActivityPanel({ syncRuns }: { syncRuns: SyncRunSummary[] }) {
-  return (
-    <section className="nsPanel nsActivityPanel">
-      <div className="nsPanelTopline">
-        <div>
-          <p className="nsEyebrow">Recent activity</p>
-          <h2>Sync and pricing runs</h2>
-        </div>
-      </div>
-      <div className="nsActivityRows">
-        {syncRuns.length ? syncRuns.slice(0, 5).map((run, index) => (
-          <article key={`${run.source}-${run.finishedAt}-${index}`} className={`nsActivityRow is-${run.status}`}>
-            <div>
-              <strong>{run.source}</strong>
-              <span>{run.trigger} · {fmtRunTime(run.finishedAt)}</span>
-            </div>
-            <em>{run.status}</em>
-            <p>{run.error ?? run.message ?? "Completed without a message."}</p>
-          </article>
-        )) : (
-          <article className="nsActivityRow is-skipped">
-            <div>
-              <strong>No sync runs recorded</strong>
-              <span>Waiting for the next broker or pricing sync.</span>
-            </div>
-            <em>pending</em>
-            <p>Recent activity will appear here after scheduled or manual syncs run.</p>
-          </article>
-        )}
-      </div>
-    </section>
-  );
-}
-
 function AccountBreakdownPanel({ accounts, scope, xirrByScope }: { accounts: AccountBreakdownSummary[]; scope: PortfolioScope; xirrByScope?: Partial<Record<PortfolioScope, XirrSummary>> }) {
   const visibleAccounts = scope === "overall" ? accounts : accounts.filter((account) => account.scope === scope);
   if (!visibleAccounts.length) return null;
@@ -662,6 +579,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
   const xirr = xirrByScope?.[scope] ?? xirrByScope?.overall;
   const currencyExposure = currencyExposureByScope?.[scope] ?? currencyExposureByScope?.overall ?? [];
   const selectedUpdatedAt = lastUpdatedByScope?.[scope] ?? lastUpdatedByScope?.overall ?? null;
+  const health = dataHealth(syncRuns, freshness);
   const signOut = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.assign("/login");
@@ -678,7 +596,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
           </div>
           <div className="nsHeaderControls">
             <ScopeTabs value={scope} onChange={setScope} />
-            <p><span />Valuations · {fmtLongDate(selectedUpdatedAt)}</p>
+            <p><span className={`nsStatusPip is-${health.tone}`} />{health.label} · Valuations · {fmtLongDate(selectedUpdatedAt)}</p>
             <div className="nsReportLinks">
               <a className="nsReportLink" href={`/api/reports/wealth-statement?scope=${scope}`}>Wealth CSV</a>
               <a className="nsReportLink" href="/api/reports/estate-summary">Estate CSV</a>
@@ -714,7 +632,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
         <AccountBreakdownPanel accounts={accountBreakdown} scope={scope} xirrByScope={xirrByScope} />
 
         <div className="nsLowerGrid">
-          <HoldingsTable holdings={shareHoldings} total={t.marketValue} scope={scope} />
+          <HoldingsTable holdings={shareHoldings} total={t.marketValue} scope={scope} healthTone={health.tone} />
           <SectorDonut sectors={sectors} total={t.marketValue} />
         </div>
 
@@ -722,12 +640,6 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
           <CommodityExposurePanel exposures={commodityExposure} total={t.marketValue} />
           <CurrencyExposurePanel exposures={currencyExposure} />
           <AllocationDriftPanel drift={allocationDrift} />
-          <RecentActivityPanel syncRuns={syncRuns} />
-        </div>
-
-        <div className="nsOperationsStatus">
-          <FreshnessStrip syncRuns={syncRuns} />
-          <ValuationChecks freshness={freshness} />
         </div>
       </main>
     </div>

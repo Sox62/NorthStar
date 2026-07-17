@@ -610,6 +610,51 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .syncCard { border-color: rgba(119,169,216,.30); }
 .priceCard { border-color: rgba(215,181,109,.34); }
+.syncStatusStack {
+  display: grid;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.syncStatusGrid {
+  display: grid;
+  gap: 18px;
+}
+.syncStatusCard {
+  min-width: 0;
+}
+.syncStatusActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.syncHealthLine {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(106,130,153,.16);
+  border-radius: 13px;
+  background: rgba(4,12,20,.38);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.syncHealthLine strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.syncHealthLine span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.syncStatusCard .nsFreshnessStrip,
+.syncStatusCard .nsValuationChecks {
+  margin-top: 14px;
+}
 .importCard { min-height: 390px; }
 .priceEngineGrid {
   display: grid;
@@ -1342,6 +1387,9 @@ button:disabled { opacity: .55; cursor: wait; }
   .reportsHero { grid-template-columns: 1fr; }
   .priceEngineGrid { grid-template-columns: 1fr; }
   .priceCard, .syncCard { grid-template-columns: 1fr; }
+  .syncStatusActions { justify-content: flex-start; }
+  .syncStatusCard .nsActivityRow { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 14px; padding: 12px 0; }
+  .syncStatusCard .nsActivityRow p { grid-column: 1 / -1; }
   .roadmapHero { grid-template-columns: 1fr; }
   .holdingsAccounts { grid-template-columns: 1fr; }
   .holdingsToolbar { grid-template-columns: 1fr; align-items: stretch; }
@@ -1388,6 +1436,8 @@ button:disabled { opacity: .55; cursor: wait; }
   .reportRow { grid-template-columns: 1fr; }
   .reportRow .button { width: 100%; justify-content: center; }
   .loginActions { grid-template-columns: 1fr; }
+  .syncHealthLine { align-items: flex-start; }
+  .syncHealthLine span:last-child { white-space: normal; }
   .scopeSwitch { width: 100%; }
   .scopeSwitch button { flex: 1; padding: 8px 6px; }
   .stockChartPanel .panelHeader {

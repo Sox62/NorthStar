@@ -1,27 +1,59 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
+import { dataHealth } from "@/northstar/lib/data-health";
+import type { DashboardData } from "@/lib/storage";
 import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
 
 type ImportType = "ibkr" | "directshares" | "directsharesNotes" | "dividends";
 type OwnerType = "PERSONAL" | "SMSF";
 type Result = Record<string, unknown> & { error?: string; preview?: boolean; synced?: boolean };
+type SyncRun = DashboardData["syncRuns"][number];
+type FreshnessCheck = DashboardData["freshness"][number];
+
+const syncSources = ["IBKR", "Directshares Email", "Directshares Dividends", "ABC Bullion"];
 
 const money = (value: unknown) =>
   new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(Number(value ?? 0));
 
-export default function Imports() {
+async function loadDashboard(): Promise<DashboardData> {
+  const response = await fetch("/api/dashboard?scope=overall", { cache: "no-store" });
+  const payload = await response.json();
+  if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load sync status");
+  return payload as DashboardData;
+}
+
+export default function SyncPage() {
   const [files, setFiles] = useState<Partial<Record<ImportType, File[]>>>({});
   const [owners, setOwners] = useState<Record<ImportType, OwnerType>>({ ibkr: "SMSF", directshares: "PERSONAL", directsharesNotes: "PERSONAL", dividends: "PERSONAL" });
   const [results, setResults] = useState<Partial<Record<ImportType, Result>>>({});
   const [busy, setBusy] = useState<ImportType | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<Result | undefined>();
   const [directsharesSyncing, setDirectsharesSyncing] = useState(false);
   const [directsharesSyncResult, setDirectsharesSyncResult] = useState<Result | undefined>();
   const [dividendSyncing, setDividendSyncing] = useState(false);
   const [dividendSyncResult, setDividendSyncResult] = useState<Result | undefined>();
+
+  const refreshDashboard = async () => {
+    setDashboardError("");
+    setDashboardLoading(true);
+    try {
+      setDashboard(await loadDashboard());
+    } catch (reason) {
+      setDashboardError(reason instanceof Error ? reason.message : "Unable to load sync status");
+    } finally {
+      setDashboardLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshDashboard();
+  }, []);
 
   const send = async (type: ImportType, commit: boolean) => {
     const selectedFiles = files[type] ?? [];
@@ -42,6 +74,7 @@ export default function Imports() {
       const response = await fetch(`/api/import/${endpoint}?commit=${commit ? 1 : 0}&owner=${owners[type]}`, init);
       const payload = await response.json();
       setResults((current) => ({ ...current, [type]: payload }));
+      if (commit) void refreshDashboard();
     } finally {
       setBusy(null);
     }
@@ -53,6 +86,7 @@ export default function Imports() {
     try {
       const response = await fetch(`/api/sync/ibkr?owner=${owners.ibkr}`, { method: "POST" });
       setSyncResult(await response.json());
+      void refreshDashboard();
     } finally {
       setSyncing(false);
     }
@@ -64,6 +98,7 @@ export default function Imports() {
     try {
       const response = await fetch(`/api/sync/directshares?owner=${owners.directsharesNotes}`, { method: "POST" });
       setDirectsharesSyncResult(await response.json());
+      void refreshDashboard();
     } finally {
       setDirectsharesSyncing(false);
     }
@@ -75,6 +110,7 @@ export default function Imports() {
     try {
       const response = await fetch(`/api/sync/dividends?owner=${owners.dividends}`, { method: "POST" });
       setDividendSyncResult(await response.json());
+      void refreshDashboard();
     } finally {
       setDividendSyncing(false);
     }
@@ -83,15 +119,22 @@ export default function Imports() {
   return (
     <main className="shell">
       <PageHeader
-        title="Broker imports"
-        description="Sync IBKR directly from its Flex Web Service or upload broker files manually. Every import is assigned to one legal owner."
+        title="Sync"
+        description="Monitor data freshness, run broker feeds and upload fallback files. Every import is assigned to one legal owner."
         links={[
           { href: "/", label: "← Dashboard" },
+          { href: "/holdings", label: "Holdings" },
           { href: "/cash", label: "Cash accounts" },
           { href: "/prices", label: "Pricing" },
-          { href: "/assets", label: "Physical platinum" },
           { href: "/roadmap", label: "Roadmap" },
         ]}
+      />
+
+      <SyncStatusOverview
+        dashboard={dashboard}
+        loading={dashboardLoading}
+        error={dashboardError}
+        onRefresh={() => void refreshDashboard()}
       />
 
       <Card className="syncCard">
@@ -230,6 +273,162 @@ export default function Imports() {
       </Notice>
     </main>
   );
+}
+
+function SyncStatusOverview({ dashboard, loading, error, onRefresh }: {
+  dashboard: DashboardData | null;
+  loading: boolean;
+  error: string;
+  onRefresh: () => void;
+}) {
+  const health = dataHealth(dashboard?.syncRuns ?? [], dashboard?.freshness ?? []);
+  const latestBySource = new Map<string, SyncRun>();
+  for (const run of dashboard?.syncRuns ?? []) {
+    if (!latestBySource.has(run.source)) latestBySource.set(run.source, run);
+  }
+
+  return (
+    <section className="syncStatusStack">
+      <Card className="syncStatusCard">
+        <div className="panelHeader">
+          <div>
+            <p className="eyebrow">Data status</p>
+            <h2 className="cardTitle">Sync and valuation health</h2>
+            <p className="cardIntro">Broker feeds, pricing sources and valuation checks for the portfolio.</p>
+          </div>
+          <div className="syncStatusActions">
+            <StatusBadge tone={health.tone === "good" ? "good" : "warning"}>{health.label}</StatusBadge>
+            <button type="button" onClick={onRefresh} disabled={loading}>Refresh status</button>
+          </div>
+        </div>
+
+        {loading ? (
+          <p className="empty">Loading source status...</p>
+        ) : error ? (
+          <Notice tone="error" title="Unable to load sync status">{error}</Notice>
+        ) : (
+          <>
+            <div className="syncHealthLine">
+              <span className={`nsStatusPip is-${health.tone}`} />
+              <strong>{health.label}</strong>
+              <span>{dashboard?.storageMode ?? "No storage"} · {dashboard?.holdings.length ?? 0} positions · NAV {money(dashboard?.totalValue)}</span>
+            </div>
+            <section className="nsFreshnessStrip" aria-label="Data source status">
+              {syncSources.map((source) => {
+                const run = latestBySource.get(source);
+                const status = run?.status ?? "skipped";
+                return (
+                  <div key={source} className={`nsFreshnessItem is-${status}`}>
+                    <span>{source}</span>
+                    <strong>{run ? `${statusLabel(status)} · ${fmtRunTime(run.finishedAt)}` : "No run recorded"}</strong>
+                    <em>{run?.error ?? run?.message ?? "Waiting for first sync run."}</em>
+                  </div>
+                );
+              })}
+            </section>
+          </>
+        )}
+      </Card>
+
+      {!loading && !error && dashboard ? (
+        <section className="syncStatusGrid">
+          <Card className="syncStatusCard">
+            <div className="panelHeader">
+              <div>
+                <p className="eyebrow">Valuation freshness</p>
+                <h2 className="cardTitle">Pricing inputs</h2>
+              </div>
+            </div>
+            <ValuationChecks freshness={dashboard.freshness} />
+          </Card>
+
+          <Card className="syncStatusCard">
+            <div className="panelHeader">
+              <div>
+                <p className="eyebrow">Recent activity</p>
+                <h2 className="cardTitle">Sync and pricing runs</h2>
+              </div>
+            </div>
+            <RecentActivityPanel syncRuns={dashboard.syncRuns} />
+          </Card>
+        </section>
+      ) : null}
+    </section>
+  );
+}
+
+function ValuationChecks({ freshness }: { freshness: FreshnessCheck[] }) {
+  if (!freshness.length) return <p className="empty">No valuation freshness checks are available yet.</p>;
+  return (
+    <section className="nsValuationChecks" aria-label="Valuation freshness checks">
+      {freshness.map((check) => (
+        <article key={check.source} className={`nsValuationCheck is-${check.status}`}>
+          <div>
+            <span>{check.source}</span>
+            <strong>{check.status === "fresh" ? "Current" : check.status === "fallback" ? "Cost basis" : check.status}</strong>
+          </div>
+          <p>{check.detail}</p>
+          <em>{check.ageDays == null ? fmtDate(check.asOf) : `${fmtDate(check.asOf)} · ${check.ageDays.toFixed(1)}d old`}</em>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function RecentActivityPanel({ syncRuns }: { syncRuns: SyncRun[] }) {
+  return (
+    <div className="nsActivityRows">
+      {syncRuns.length ? syncRuns.slice(0, 6).map((run, index) => (
+        <article key={`${run.source}-${run.finishedAt}-${index}`} className={`nsActivityRow is-${run.status}`}>
+          <div>
+            <strong>{run.source}</strong>
+            <span>{run.trigger} · {fmtRunTime(run.finishedAt)}</span>
+          </div>
+          <em>{run.status}</em>
+          <p>{run.error ?? run.message ?? "Completed without a message."}</p>
+        </article>
+      )) : (
+        <article className="nsActivityRow is-skipped">
+          <div>
+            <strong>No sync runs recorded</strong>
+            <span>Waiting for the next broker or pricing sync.</span>
+          </div>
+          <em>pending</em>
+          <p>Recent activity will appear here after scheduled or manual syncs run.</p>
+        </article>
+      )}
+    </div>
+  );
+}
+
+function statusLabel(status: string) {
+  if (status === "success") return "Synced";
+  if (status === "failed") return "Failed";
+  if (status === "partial") return "Partial";
+  return "Skipped";
+}
+
+function fmtRunTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "unknown time";
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function fmtDate(value: string | null) {
+  if (!value) return "No date";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "No date";
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    day: "numeric",
+    month: "short",
+  }).format(date);
 }
 
 function Importer({ title, subtitle, accept, multiple = false, owner, result, busy, onOwner, onFiles, onPreview, onCommit }: {
