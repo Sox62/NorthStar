@@ -59,6 +59,7 @@ export default function PricesPage() {
   const [result, setResult] = useState<PriceResultPayload | null>(null);
   const [busy, setBusy] = useState(false);
   const [csvBusy, setCsvBusy] = useState(false);
+  const [refreshBusy, setRefreshBusy] = useState(false);
   const [selectedKey, setSelectedKey] = useState("");
   const [form, setForm] = useState({ symbol: "", exchange: "", close: "", currency: "AUD", priceDate: today(), source: "Manual close", fxRateToAud: "" });
   const [csv, setCsv] = useState("");
@@ -140,6 +141,23 @@ export default function PricesPage() {
     }
   };
 
+  const refreshQuotes = async () => {
+    setRefreshBusy(true);
+    setResult(null);
+    try {
+      const response = await fetch("/api/prices/refresh", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: "auto" }),
+      });
+      const payloadResult = await response.json();
+      setResult(payloadResult);
+      if (response.ok) await load();
+    } finally {
+      setRefreshBusy(false);
+    }
+  };
+
   return (
     <main className="shell">
       <PageHeader
@@ -204,9 +222,14 @@ export default function PricesPage() {
           <div className="buttonRow">
             <button className="primary" type="button" onClick={saveCsv} disabled={csvBusy || !csv.trim()}>{csvBusy ? "Importing…" : "Import CSV"}</button>
           </div>
-          {result && <PriceResult result={result} />}
         </Card>
       </section>
+
+      {result && (
+        <Card className="sectionStack">
+          <PriceResult result={result} />
+        </Card>
+      )}
 
       <section className="priceEngineGrid sectionStack">
         <Card>
@@ -215,7 +238,12 @@ export default function PricesPage() {
               <p className="eyebrow">Current holdings</p>
               <h2 className="cardTitle">Priceable instruments</h2>
             </div>
-            <span className="panelCount">{loading ? "Loading" : `${book.instruments.length} instruments`}</span>
+            <div className="pricePanelActions">
+              <span className="panelCount">{loading ? "Loading" : `${book.instruments.length} instruments`}</span>
+              <button className="primary" type="button" onClick={refreshQuotes} disabled={refreshBusy || !book.instruments.length}>
+                {refreshBusy ? "Refreshing..." : "Refresh delayed quotes"}
+              </button>
+            </div>
           </div>
           <PriceInstrumentTable instruments={book.instruments} />
         </Card>

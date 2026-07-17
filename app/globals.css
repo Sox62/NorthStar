@@ -620,6 +620,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   gap: 0 12px;
 }
 .priceInstrumentSnapshot { margin-top: 18px; }
+.pricePanelActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pricePanelActions .primary {
+  min-height: 34px;
+  padding: 7px 11px;
+  font-size: 12px;
+}
 .priceCsvInput {
   width: 100%;
   min-height: 242px;
