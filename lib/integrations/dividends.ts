@@ -24,6 +24,21 @@ const aliases = {
 
 const normaliseKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const cleanText = (value: string) => value.replace(/\r/g, "\n").replace(/\*\*/g, "");
+const directsharesDividendLabels = [
+  "Account Number",
+  "Account Name",
+  "Dividend On",
+  "Pay Date",
+  "Ex Date",
+  "Holdings as at Ex Date",
+  "Gross Dividend Rate",
+  "Gross Amount",
+  "Fees",
+  "Tax Withheld",
+  "Net amount \\(Local\\)",
+  "Exchange Rate @",
+  "Net Amount \\(AUD\\)",
+];
 
 function read(row: Record<string, string>, keys: readonly string[]) {
   const normalised = new Map(Object.entries(row).map(([key, value]) => [normaliseKey(key), value]));
@@ -72,8 +87,13 @@ function splitCode(code: string) {
 }
 
 function matchValue(text: string, label: string) {
-  const pattern = new RegExp(`${label}\\s*:?\\s*([^\\n]+)`, "i");
-  return cleanText(text).match(pattern)?.[1]?.trim() || "";
+  const source = cleanText(text).replace(/\s+/g, " ").trim();
+  const nextLabels = directsharesDividendLabels
+    .filter((item) => item !== label)
+    .sort((left, right) => right.length - left.length)
+    .join("|");
+  const pattern = new RegExp(`${label}\\s*:?\\s*(.*?)(?=\\s+(?:${nextLabels})\\s*:?|$)`, "i");
+  return source.match(pattern)?.[1]?.trim() || "";
 }
 
 function matchCurrencyAmount(text: string, label: string, roundToCents = true) {
@@ -95,7 +115,8 @@ function audFromLocal(amount: number, exchangeRate: number) {
 export function parseDirectsharesDividendText(text: string, subject = ""): ImportedTransaction {
   const source = cleanText(`${subject}\n${text}`);
   const account = matchValue(source, "Account Number") || source.match(/\bA\/C:\s*(\d{4,})/i)?.[1] || "DIVIDENDS";
-  const code = (matchValue(source, "Dividend On") || source.match(/\b([A-Z][A-Z0-9]{0,5}:[A-Z]{2})\s+Dividend/i)?.[1] || "").toUpperCase();
+  const codeValue = matchValue(source, "Dividend On");
+  const code = (codeValue.match(/\b[A-Z][A-Z0-9]{0,5}(?::[A-Z]{2})?\b/i)?.[0] || source.match(/\b([A-Z][A-Z0-9]{0,5}:[A-Z]{2})\s+Dividend/i)?.[1] || "").toUpperCase();
   if (!code) throw new Error("Dividend security code was not found.");
   const instrument = splitCode(code);
   const payDate = isoDate(matchValue(source, "Pay Date"));
