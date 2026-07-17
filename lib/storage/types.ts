@@ -47,6 +47,16 @@ export type PeriodReturn = {
   note: string;
 };
 
+export type XirrSummary = {
+  valuePercent: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  cashFlowCount: number;
+  fallbackPositionCount: number;
+  terminalValue: number;
+  note: string;
+};
+
 export type CurrencyExposure = {
   currency: string;
   amountAud: number;
@@ -260,6 +270,7 @@ export type DashboardData = {
   allocations: Array<{ name: string; value: number; amount: number }>;
   performance: Array<{ date: string; overall?: number; personal?: number; smsf?: number }>;
   periodReturns: PeriodReturn[];
+  xirr: XirrSummary;
   allocationTargets: AllocationTarget[];
   currencyExposure: CurrencyExposure[];
   accounts: Array<{ name: string; detail: string; status: string; ownerType: OwnerType }>;

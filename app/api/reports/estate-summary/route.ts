@@ -57,6 +57,17 @@ function addOwnerRows(rows: CsvRow[], data: DashboardData, overallValue: number)
     ]);
   }
 
+  rows.push([
+    "return_metric",
+    ownerLabel(data),
+    "Cash-flow XIRR",
+    "",
+    money(data.xirr.terminalValue),
+    data.xirr.valuePercent == null ? "" : percent(data.xirr.valuePercent),
+    `${data.xirr.cashFlowCount} flows; ${data.xirr.note}`,
+    data.xirr.endDate,
+  ]);
+
   for (const holding of data.holdings) {
     rows.push([
       "estate_asset",

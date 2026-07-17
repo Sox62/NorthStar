@@ -7,6 +7,7 @@ import { classifyAsset } from "./classify";
 import { buildCurrencyExposure } from "./exposure";
 import { buildValuationFreshness } from "./freshness";
 import { buildPeriodReturns, type NavPoint } from "./returns";
+import { buildXirrSummary } from "./xirr";
 import type {
   CashAccount,
   AllocationTarget,
@@ -328,12 +329,19 @@ function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
   }
 
   const updatedValues = [...imports.map(record => record.importedAt), ...cashAccounts.map(account => account.updatedAt), ...manualAssets.map(asset => asset.updatedAt)].sort();
+  const xirr = buildXirrSummary({
+    scope,
+    positions,
+    cashAccounts,
+    transactions,
+    asOfDate: updatedValues.at(-1) ?? null,
+  });
   const syncRuns = [...store.syncRuns]
     .filter(run => !ownerType || !run.ownerType || run.ownerType === ownerType)
     .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
     .slice(0, 8);
   const freshness = buildValuationFreshness({ positions, cashAccounts, manualAssets, syncRuns });
-  return { scope, storageMode: "local-file", totalValue, investedValue, cashValue, dailyMovement, totalReturn, totalReturnPercent: totalCost ? totalReturn / totalCost * 100 : 0, holdings, allocations, performance, periodReturns, allocationTargets, currencyExposure, accounts: accountRows, syncRuns, freshness, provisionalValue, currentValue, lastUpdated: updatedValues.at(-1) ?? null };
+  return { scope, storageMode: "local-file", totalValue, investedValue, cashValue, dailyMovement, totalReturn, totalReturnPercent: totalCost ? totalReturn / totalCost * 100 : 0, holdings, allocations, performance, periodReturns, xirr, allocationTargets, currencyExposure, accounts: accountRows, syncRuns, freshness, provisionalValue, currentValue, lastUpdated: updatedValues.at(-1) ?? null };
 }
 
 export class LocalStorageAdapter implements StorageAdapter {

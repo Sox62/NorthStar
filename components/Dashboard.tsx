@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [performance, setPerformance] = useState<DashboardData["performance"]>([]);
   const [periodReturnsByScope, setPeriodReturnsByScope] = useState<Partial<Record<DashboardData["scope"], DashboardData["periodReturns"]>>>({});
+  const [xirrByScope, setXirrByScope] = useState<Partial<Record<DashboardData["scope"], DashboardData["xirr"]>>>({});
   const [currencyExposureByScope, setCurrencyExposureByScope] = useState<Partial<Record<DashboardData["scope"], DashboardData["currencyExposure"]>>>({});
   const [allocationTargets, setAllocationTargets] = useState<DashboardData["allocationTargets"]>([]);
   const [accountBreakdown, setAccountBreakdown] = useState<AccountSummary[]>([]);
@@ -38,6 +39,7 @@ export default function Dashboard() {
           setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
           setPerformance(overall.performance ?? []);
           setPeriodReturnsByScope({ overall: overall.periodReturns ?? [], personal: personal.periodReturns ?? [], smsf: smsf.periodReturns ?? [] });
+          setXirrByScope({ overall: overall.xirr, personal: personal.xirr, smsf: smsf.xirr });
           setCurrencyExposureByScope({ overall: overall.currencyExposure ?? [], personal: personal.currencyExposure ?? [], smsf: smsf.currencyExposure ?? [] });
           setAllocationTargets(overall.allocationTargets ?? []);
           setAccountBreakdown([dashboardToAccountSummary(personal, overall.totalValue), dashboardToAccountSummary(smsf, overall.totalValue)].filter((item): item is AccountSummary => item !== null));
@@ -74,5 +76,5 @@ export default function Dashboard() {
     );
   }
 
-  return <OverviewScreen holdings={holdings} performance={performance} periodReturnsByScope={periodReturnsByScope} currencyExposureByScope={currencyExposureByScope} allocationTargets={allocationTargets} accountBreakdown={accountBreakdown} syncRuns={syncRuns} freshnessByScope={freshnessByScope} lastUpdatedByScope={lastUpdatedByScope} />;
+  return <OverviewScreen holdings={holdings} performance={performance} periodReturnsByScope={periodReturnsByScope} xirrByScope={xirrByScope} currencyExposureByScope={currencyExposureByScope} allocationTargets={allocationTargets} accountBreakdown={accountBreakdown} syncRuns={syncRuns} freshnessByScope={freshnessByScope} lastUpdatedByScope={lastUpdatedByScope} />;
 }

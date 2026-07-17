@@ -6,6 +6,7 @@ import { classifyAsset } from "./classify";
 import { buildCurrencyExposure } from "./exposure";
 import { buildValuationFreshness } from "./freshness";
 import { buildPeriodReturns, type NavPoint } from "./returns";
+import { buildXirrSummary } from "./xirr";
 import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, Scope, StorageAdapter, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 const maskAccount = (account: string) => account.length <= 4 ? account : `${account.slice(0, 2)}••••${account.slice(-3)}`;
@@ -891,7 +892,15 @@ export class PostgresStorageAdapter implements StorageAdapter {
     const syncRuns = await this.listSyncRuns(8, ownerType);
     const allocationTargets = await this.listAllocationTargets();
     const freshness = buildValuationFreshness({ positions, cashAccounts, manualAssets, syncRuns });
+    const transactions = await this.listTransactions(ownerType);
+    const xirr = buildXirrSummary({
+      scope,
+      positions,
+      cashAccounts,
+      transactions,
+      asOfDate: updated.at(-1) ?? null,
+    });
 
-    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,periodReturns,allocationTargets,currencyExposure,accounts,syncRuns,freshness,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
+    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,periodReturns,xirr,allocationTargets,currencyExposure,accounts,syncRuns,freshness,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
   }
 }

@@ -33,6 +33,15 @@ type PeriodReturnSummary = {
   endDate: string | null;
   note: string;
 };
+type XirrSummary = {
+  valuePercent: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  cashFlowCount: number;
+  fallbackPositionCount: number;
+  terminalValue: number;
+  note: string;
+};
 type CurrencyExposureSummary = {
   currency: string;
   amountAud: number;
@@ -330,10 +339,10 @@ function ValuationChecks({ freshness }: { freshness: ValuationFreshnessSummary[]
   );
 }
 
-function PeriodReturnStrip({ returns }: { returns: PeriodReturnSummary[] }) {
-  if (!returns.length) return null;
+function PeriodReturnStrip({ returns, xirr }: { returns: PeriodReturnSummary[]; xirr?: XirrSummary }) {
+  if (!returns.length && !xirr) return null;
   return (
-    <section className="nsReturnStrip" aria-label="Period NAV movement">
+    <section className="nsReturnStrip" aria-label="Return analytics">
       {returns.map((item) => {
         const hasValue = item.valueAud != null && item.valuePercent != null;
         const positive = (item.valueAud ?? 0) >= 0;
@@ -345,6 +354,13 @@ function PeriodReturnStrip({ returns }: { returns: PeriodReturnSummary[] }) {
           </article>
         );
       })}
+      {xirr ? (
+        <article className="nsReturnItem">
+          <span>Cash-flow XIRR</span>
+          <strong className={xirr.valuePercent == null ? undefined : xirr.valuePercent >= 0 ? "isPositive" : "isNegative"}>{fmtSignedPct(xirr.valuePercent)}</strong>
+          <em>{xirr.valuePercent == null ? xirr.note : `${xirr.cashFlowCount} flows · ${xirr.note}`}</em>
+        </article>
+      ) : null}
     </section>
   );
 }
@@ -571,7 +587,7 @@ function RecentActivityPanel({ syncRuns }: { syncRuns: SyncRunSummary[] }) {
   );
 }
 
-function AccountBreakdownPanel({ accounts, scope }: { accounts: AccountBreakdownSummary[]; scope: PortfolioScope }) {
+function AccountBreakdownPanel({ accounts, scope, xirrByScope }: { accounts: AccountBreakdownSummary[]; scope: PortfolioScope; xirrByScope?: Partial<Record<PortfolioScope, XirrSummary>> }) {
   const visibleAccounts = scope === "overall" ? accounts : accounts.filter((account) => account.scope === scope);
   if (!visibleAccounts.length) return null;
   return (
@@ -583,33 +599,38 @@ function AccountBreakdownPanel({ accounts, scope }: { accounts: AccountBreakdown
         </div>
       </div>
       <div className="nsAccountItems">
-        {visibleAccounts.map((account) => (
-          <article key={account.scope} className="nsAccountItem">
-            <div>
-              <span>{account.label}</span>
-              <strong>{fmtAud(account.netAssetValue)}</strong>
+        {visibleAccounts.map((account) => {
+          const accountXirr = xirrByScope?.[account.scope]?.valuePercent ?? null;
+          return (
+            <article key={account.scope} className="nsAccountItem">
+              <div>
+                <span>{account.label}</span>
+                <strong>{fmtAud(account.netAssetValue)}</strong>
               <em>{fmtPct(account.shareOfOverall)} of total NAV</em>
             </div>
             <dl>
+              <div><dt>XIRR</dt><dd className={accountXirr == null ? undefined : accountXirr >= 0 ? "isPositive" : "isNegative"}>{fmtSignedPct(accountXirr)}</dd></div>
               <div><dt>P/L</dt><dd className={account.totalReturn >= 0 ? "isPositive" : "isNegative"}>{fmtSignedAud(account.totalReturn)} · {account.totalReturnPercent >= 0 ? "+" : ""}{account.totalReturnPercent.toFixed(1)}%</dd></div>
               <div><dt>Invested</dt><dd>{fmtAud(account.investedValue)}</dd></div>
               <div><dt>Cash</dt><dd>{fmtAud(account.cashValue)}</dd></div>
-              <div><dt>Positions</dt><dd>{account.positionCount}</dd></div>
-              <div><dt>Updated</dt><dd>{fmtDate(account.lastUpdated)}</dd></div>
-            </dl>
-          </article>
-        ))}
+                <div><dt>Positions</dt><dd>{account.positionCount}</dd></div>
+                <div><dt>Updated</dt><dd>{fmtDate(account.lastUpdated)}</dd></div>
+              </dl>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
 }
 
 /** Full redesigned overview dashboard matching the screenshot reference. */
-export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, currencyExposureByScope, allocationTargets = [], accountBreakdown = [], syncRuns = [], freshnessByScope, lastUpdatedByScope }: {
+export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, xirrByScope, currencyExposureByScope, allocationTargets = [], accountBreakdown = [], syncRuns = [], freshnessByScope, lastUpdatedByScope }: {
   holdings: Holding[];
   logoSrc?: string;
   performance?: PerformancePoint[];
   periodReturnsByScope?: Partial<Record<PortfolioScope, PeriodReturnSummary[]>>;
+  xirrByScope?: Partial<Record<PortfolioScope, XirrSummary>>;
   currencyExposureByScope?: Partial<Record<PortfolioScope, CurrencyExposureSummary[]>>;
   allocationTargets?: AllocationTarget[];
   accountBreakdown?: AccountBreakdownSummary[];
@@ -642,6 +663,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
   }));
   const freshness = freshnessByScope?.[scope] ?? freshnessByScope?.overall ?? [];
   const periodReturns = periodReturnsByScope?.[scope] ?? periodReturnsByScope?.overall ?? [];
+  const xirr = xirrByScope?.[scope] ?? xirrByScope?.overall;
   const currencyExposure = currencyExposureByScope?.[scope] ?? currencyExposureByScope?.overall ?? [];
   const selectedUpdatedAt = lastUpdatedByScope?.[scope] ?? lastUpdatedByScope?.overall ?? null;
   const signOut = async () => {
@@ -691,9 +713,9 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
           <MetricCard label="Best performer" value={bestPerformer?.name.replace(" Metals", "") ?? "No performer"} note={bestPerformer ? `${bestPerformer.pnlPercent >= 0 ? "+" : ""}${bestPerformer.pnlPercent.toFixed(1)}% · ${bestPerformer.symbol}` : "No holdings yet"} />
         </section>
 
-        <PeriodReturnStrip returns={periodReturns} />
+        <PeriodReturnStrip returns={periodReturns} xirr={xirr} />
 
-        <AccountBreakdownPanel accounts={accountBreakdown} scope={scope} />
+        <AccountBreakdownPanel accounts={accountBreakdown} scope={scope} xirrByScope={xirrByScope} />
 
         <div className="nsLowerGrid">
           <HoldingsTable holdings={shareHoldings} total={t.marketValue} scope={scope} />

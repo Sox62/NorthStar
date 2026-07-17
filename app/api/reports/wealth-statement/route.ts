@@ -67,6 +67,17 @@ function addDashboardRows(rows: CsvRow[], data: DashboardData) {
     ]);
   }
 
+  rows.push([
+    "xirr",
+    data.scope,
+    "Cash-flow XIRR",
+    "",
+    money(data.xirr.terminalValue),
+    data.xirr.valuePercent == null ? "" : percent(data.xirr.valuePercent),
+    `${data.xirr.cashFlowCount} flows; ${data.xirr.note}`,
+    data.xirr.endDate,
+  ]);
+
   for (const item of data.allocations) {
     rows.push([
       "allocation",
