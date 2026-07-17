@@ -43,6 +43,13 @@
       "when": 1784289600000,
       "tag": "0005_passkey_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784376000000,
+      "tag": "0006_price_engine",
+      "breakpoints": true
     }
   ]
 }

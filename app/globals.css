@@ -607,6 +607,79 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .syncCard { border-color: rgba(119,169,216,.30); }
 .priceCard { border-color: rgba(215,181,109,.34); }
 .importCard { min-height: 390px; }
+.priceEngineGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(360px, .92fr);
+  gap: 18px;
+}
+.priceEngineCard { min-width: 0; }
+.priceEngineForm { margin-top: 16px; }
+.priceEngineFields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 12px;
+}
+.priceInstrumentSnapshot { margin-top: 18px; }
+.priceCsvInput {
+  width: 100%;
+  min-height: 242px;
+  margin-top: 18px;
+  padding: 13px;
+  border: 1px solid rgba(106,130,153,.32);
+  border-radius: 13px;
+  background: rgba(4,12,20,.58);
+  color: var(--text-primary);
+  resize: vertical;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+.priceCsvInput:focus {
+  border-color: rgba(215,181,109,.50);
+  outline: none;
+}
+.priceTableWrap {
+  margin-top: 16px;
+  overflow-x: auto;
+}
+.priceTable {
+  width: 100%;
+  min-width: 660px;
+  border-collapse: collapse;
+}
+.priceTable th {
+  padding: 0 12px 11px;
+  border-bottom: 1px solid rgba(106,130,153,.22);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.priceTable td {
+  padding: 13px 12px;
+  border-bottom: 1px solid rgba(106,130,153,.14);
+  color: var(--text-secondary);
+  font-size: 13px;
+  vertical-align: top;
+}
+.priceTable td strong {
+  display: block;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 500;
+}
+.priceTable td span {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.priceTable .numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .securityCard {
   min-height: 330px;
 }
@@ -1199,6 +1272,7 @@ button:disabled { opacity: .55; cursor: wait; }
   .heroKpis { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .two, .two.equal { grid-template-columns: 1fr; }
   .reportsHero { grid-template-columns: 1fr; }
+  .priceEngineGrid { grid-template-columns: 1fr; }
   .priceCard, .syncCard { grid-template-columns: 1fr; }
   .roadmapHero { grid-template-columns: 1fr; }
   .holdingsAccounts { grid-template-columns: 1fr; }
@@ -1234,6 +1308,7 @@ button:disabled { opacity: .55; cursor: wait; }
   .nsSplitLegend, .nsSummaryGrid { grid-template-columns: 1fr; }
   .nsBreakdownRow { grid-template-columns: 92px 1fr; }
   .nsBreakdownRow strong { grid-column: 2; }
+  .priceEngineFields { grid-template-columns: 1fr; }
   .holdingRow { grid-template-columns: 1fr auto; gap: 10px; }
   .holdingOwner { grid-column: 1; }
   .holdingAmount { grid-column: 2; grid-row: 1; }

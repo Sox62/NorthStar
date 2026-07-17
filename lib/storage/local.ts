@@ -16,9 +16,15 @@ import type {
   ManualAsset,
   NewSyncRun,
   OwnerType,
+  DailyPriceInput,
+  FxRateInput,
+  PriceBook,
+  PriceImportResult,
   PlatinumPrice,
   Scope,
   Snapshot,
+  StoredDailyPrice,
+  StoredFxRate,
   StorageAdapter,
   SyncRun,
   StoredPosition,
@@ -26,15 +32,28 @@ import type {
 } from "./types";
 
 const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".north-star", "data.json");
-const EMPTY: LocalStore = { version: 5, transactions: [], positions: [], cashAccounts: [], manualAssets: [], platinumPrices: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), imports: [] };
+const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), imports: [] };
 
 async function readStore(): Promise<LocalStore> {
   try {
     const parsed = JSON.parse(await readFile(DATA_FILE, "utf8")) as Record<string, unknown>;
-    if (parsed.version === 5) {
+    if (parsed.version === 6) {
       return {
         ...(parsed as unknown as LocalStore),
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
+        dailyPrices: (parsed.dailyPrices as StoredDailyPrice[] | undefined) ?? [],
+        fxRates: (parsed.fxRates as StoredFxRate[] | undefined) ?? [],
+        syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
+        allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
+      };
+    }
+    if (parsed.version === 5) {
+      return {
+        ...(parsed as unknown as Omit<LocalStore, "version" | "dailyPrices" | "fxRates">),
+        version: 6,
+        platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
+        dailyPrices: [],
+        fxRates: [],
         syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
         allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
       };
@@ -42,8 +61,10 @@ async function readStore(): Promise<LocalStore> {
     if (parsed.version === 4) {
       return {
         ...(parsed as unknown as Omit<LocalStore, "version" | "syncRuns">),
-        version: 5,
+        version: 6,
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
+        dailyPrices: [],
+        fxRates: [],
         syncRuns: [],
         allocationTargets: defaultAllocationTargets(),
       };
@@ -67,10 +88,10 @@ async function readStore(): Promise<LocalStore> {
           priceRetrievedAt: String(asset.updatedAt ?? new Date().toISOString()), updatedAt: String(asset.updatedAt ?? new Date().toISOString()),
         };
       });
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "syncRuns" | "allocationTargets">), version: 5, manualAssets, platinumPrices: [], syncRuns: [], allocationTargets: defaultAllocationTargets() };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets, platinumPrices: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets() };
     }
     if (parsed.version === 2) {
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "syncRuns" | "allocationTargets">), version: 5, manualAssets: [], platinumPrices: [], syncRuns: [], allocationTargets: defaultAllocationTargets() };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets() };
     }
     return structuredClone(EMPTY);
   } catch (error) {
@@ -192,6 +213,57 @@ function buildSyncRun(input: NewSyncRun): SyncRun {
     cashAud: input.cashAud ?? null,
     message: input.message ?? null,
     error: input.error ?? null,
+  };
+}
+
+function normaliseCurrency(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function normaliseSymbol(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function latestFxRate(store: LocalStore, currency: string, date: string) {
+  if (normaliseCurrency(currency) === "AUD") return 1;
+  const rates = store.fxRates
+    .filter((rate) => normaliseCurrency(rate.currency) === normaliseCurrency(currency) && rate.rateDate <= date)
+    .sort((a, b) => b.rateDate.localeCompare(a.rateDate) || b.retrievedAt.localeCompare(a.retrievedAt));
+  return rates[0]?.rateToAud ?? null;
+}
+
+function priceBookFromStore(store: LocalStore, limit = 80): PriceBook {
+  const instrumentMap = new Map<string, PriceBook["instruments"][number]>();
+  for (const position of store.positions) {
+    const key = `${normaliseSymbol(position.symbol)}:${position.exchange.trim().toUpperCase()}`;
+    const current = instrumentMap.get(key);
+    if (current) {
+      current.positionCount += 1;
+      current.quantity += position.quantity;
+      current.marketValueAud += position.marketValueAud;
+      if (!current.asOfDate || current.asOfDate < position.asOfDate) {
+        current.asOfDate = position.asOfDate;
+        current.lastPrice = position.lastPrice;
+      }
+    } else {
+      instrumentMap.set(key, {
+        symbol: position.symbol,
+        exchange: position.exchange,
+        name: position.name,
+        currency: position.currency,
+        assetClass: position.assetClass,
+        positionCount: 1,
+        quantity: position.quantity,
+        marketValueAud: position.marketValueAud,
+        lastPrice: position.lastPrice,
+        asOfDate: position.asOfDate,
+      });
+    }
+  }
+  return {
+    instruments: [...instrumentMap.values()].sort((a, b) => b.marketValueAud - a.marketValueAud),
+    prices: [...store.dailyPrices].sort((a, b) => b.priceDate.localeCompare(a.priceDate) || b.retrievedAt.localeCompare(a.retrievedAt)).slice(0, limit),
+    fxRates: [...store.fxRates].sort((a, b) => b.rateDate.localeCompare(a.rateDate) || b.retrievedAt.localeCompare(a.retrievedAt)).slice(0, limit),
   };
 }
 
@@ -399,6 +471,124 @@ export class LocalStorageAdapter implements StorageAdapter {
     store.manualAssets = store.manualAssets.filter(asset => !(asset.id === id && asset.ownerType === ownerType));
     captureSnapshot(store, ownerType);
     await writeStore(store);
+  }
+
+  async listPriceBook(limit = 80): Promise<PriceBook> {
+    return priceBookFromStore(await readStore(), limit);
+  }
+
+  async recordDailyPrices(prices: DailyPriceInput[], fxRates: FxRateInput[] = []): Promise<PriceImportResult> {
+    const store = await readStore();
+    const result: PriceImportResult = {
+      imported: 0,
+      matchedInstruments: 0,
+      updatedPositions: 0,
+      updatedCashAccounts: 0,
+      fxRates: 0,
+      skipped: 0,
+      errors: [],
+      storageMode: "local-file",
+    };
+    const now = new Date().toISOString();
+    const owners = new Set<OwnerType>();
+
+    const rateInputs = [
+      ...fxRates,
+      ...prices.filter((price) => price.fxRateToAud).map((price) => ({
+        currency: price.currency,
+        rateToAud: price.fxRateToAud!,
+        rateDate: price.priceDate,
+        source: price.source || "Manual",
+      })),
+    ];
+    for (const input of rateInputs) {
+      const currency = normaliseCurrency(input.currency);
+      if (currency === "AUD") continue;
+      const rate: StoredFxRate = {
+        id: randomUUID(),
+        currency,
+        rateToAud: input.rateToAud,
+        rateDate: input.rateDate,
+        source: input.source.trim() || "Manual",
+        retrievedAt: now,
+      };
+      const existing = store.fxRates.find((item) => item.currency === rate.currency && item.rateDate === rate.rateDate && item.source === rate.source);
+      if (existing) Object.assign(existing, rate, { id: existing.id }); else store.fxRates.push(rate);
+      result.fxRates += 1;
+      for (const account of store.cashAccounts.filter((account) => normaliseCurrency(account.currency) === currency)) {
+        account.fxRateToAud = rate.rateToAud;
+        account.balanceAud = account.balance * rate.rateToAud;
+        account.asOfDate = rate.rateDate;
+        account.updatedAt = now;
+        owners.add(account.ownerType);
+        result.updatedCashAccounts += 1;
+      }
+    }
+
+    for (const input of prices) {
+      const symbol = normaliseSymbol(input.symbol);
+      const exchange = input.exchange?.trim().toUpperCase() ?? "";
+      const currency = normaliseCurrency(input.currency);
+      const matching = store.positions.filter((position) =>
+        normaliseSymbol(position.symbol) === symbol && (!exchange || position.exchange.trim().toUpperCase() === exchange)
+      );
+      if (!matching.length) {
+        result.skipped += 1;
+        result.errors.push(`${symbol}${exchange ? `:${exchange}` : ""} has no current position to price.`);
+        continue;
+      }
+      const validMatches = matching.filter((position) => normaliseCurrency(position.currency) === currency);
+      if (!validMatches.length) {
+        result.skipped += matching.length;
+        result.errors.push(`${symbol}${exchange ? `:${exchange}` : ""} expects ${matching.map((position) => position.currency).join("/")}, not ${currency}.`);
+        continue;
+      }
+      result.matchedInstruments += 1;
+      const rateToAud = currency === "AUD" ? 1 : input.fxRateToAud ?? latestFxRate(store, currency, input.priceDate);
+      const priceRecord: StoredDailyPrice = {
+        id: randomUUID(),
+        instrumentId: null,
+        symbol,
+        exchange: exchange || validMatches[0].exchange,
+        name: validMatches[0].name,
+        currency,
+        close: input.close,
+        priceDate: input.priceDate,
+        source: input.source.trim() || "Manual",
+        retrievedAt: now,
+      };
+      const existing = store.dailyPrices.find((item) =>
+        normaliseSymbol(item.symbol) === symbol
+        && item.exchange.trim().toUpperCase() === priceRecord.exchange.trim().toUpperCase()
+        && item.priceDate === priceRecord.priceDate
+        && item.source === priceRecord.source
+      );
+      if (existing) Object.assign(existing, priceRecord, { id: existing.id }); else store.dailyPrices.push(priceRecord);
+      result.imported += 1;
+      if (!rateToAud) {
+        result.skipped += validMatches.length;
+        result.errors.push(`${symbol}${exchange ? `:${exchange}` : ""} was stored but not applied because ${currency}/AUD FX is missing.`);
+        continue;
+      }
+      for (const position of validMatches) {
+        const marketValueAud = position.quantity * input.close * rateToAud;
+        position.dayGainAud = marketValueAud - position.marketValueAud;
+        position.lastPrice = input.close;
+        position.marketValueAud = marketValueAud;
+        position.pnlAud = marketValueAud - position.costAud;
+        position.pnlPercent = position.costAud ? position.pnlAud / position.costAud * 100 : 0;
+        position.valuationBasis = "market";
+        position.asOfDate = input.priceDate;
+        owners.add(position.ownerType);
+        result.updatedPositions += 1;
+      }
+    }
+
+    store.dailyPrices = store.dailyPrices.slice(-2000);
+    store.fxRates = store.fxRates.slice(-1000);
+    for (const owner of owners) captureSnapshot(store, owner);
+    await writeStore(store);
+    return result;
   }
 
   async getLatestPlatinumPrice(): Promise<PlatinumPrice | null> {

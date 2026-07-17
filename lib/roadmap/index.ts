@@ -74,9 +74,9 @@ export const roadmapPhases: RoadmapPhase[] = [
     status: "in_progress",
     items: [
       { title: "ABC platinum buyback", status: "shipped", detail: "Physical platinum values update from ABC Bullion." },
-      { title: "ASX/NYSE/TSX end-of-day prices", status: "planned", detail: "Persist daily security prices and source timestamps." },
+      { title: "ASX/NYSE/TSX end-of-day prices", status: "in_progress", detail: "Manual and CSV market closes now persist to the price ledger and update valuations; automated vendor feeds remain." },
       { title: "Metals pricing", status: "planned", detail: "Add gold, silver, palladium and rhodium price sources." },
-      { title: "FX rates", status: "planned", detail: "Store daily AUD conversion rates for non-AUD positions." },
+      { title: "FX rates", status: "in_progress", detail: "Daily AUD conversion rates can be stored and applied to non-AUD positions and cash; automated FX feed remains." },
       { title: "Price audit trail", status: "shipped", detail: "Dashboard valuation checks flag stale data and cost-basis fallback positions." },
     ],
   },

@@ -234,3 +234,15 @@ export const dailyPrices = pgTable("daily_prices", {
   source: text("source").notNull(),
   retrievedAt: timestamp("retrieved_at", { withTimezone: true }).defaultNow().notNull(),
 }, table => [uniqueIndex("price_instrument_date_uq").on(table.instrumentId, table.priceDate)]);
+
+export const fxRates = pgTable("fx_rates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  currency: text("currency").notNull(),
+  rateToAud: numeric("rate_to_aud", { precision: 28, scale: 10 }).notNull(),
+  rateDate: date("rate_date").notNull(),
+  source: text("source").notNull(),
+  retrievedAt: timestamp("retrieved_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  uniqueIndex("fx_rate_currency_date_source_uq").on(table.currency, table.rateDate, table.source),
+  index("fx_rate_currency_date_idx").on(table.currency, table.rateDate),
+]);

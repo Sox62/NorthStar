@@ -114,6 +114,71 @@ export type CashAccount = {
   updatedAt: string;
 };
 
+export type PriceableInstrument = {
+  symbol: string;
+  exchange: string;
+  name: string;
+  currency: string;
+  assetClass: string;
+  positionCount: number;
+  quantity: number;
+  marketValueAud: number;
+  lastPrice: number | null;
+  asOfDate: string | null;
+};
+
+export type DailyPriceInput = {
+  symbol: string;
+  exchange?: string;
+  close: number;
+  currency: string;
+  priceDate: string;
+  source: string;
+  fxRateToAud?: number;
+};
+
+export type StoredDailyPrice = {
+  id: string;
+  instrumentId: string | null;
+  symbol: string;
+  exchange: string;
+  name: string;
+  currency: string;
+  close: number;
+  priceDate: string;
+  source: string;
+  retrievedAt: string;
+};
+
+export type FxRateInput = {
+  currency: string;
+  rateToAud: number;
+  rateDate: string;
+  source: string;
+};
+
+export type StoredFxRate = FxRateInput & {
+  id: string;
+  retrievedAt: string;
+};
+
+export type PriceBook = {
+  instruments: PriceableInstrument[];
+  prices: StoredDailyPrice[];
+  fxRates: StoredFxRate[];
+};
+
+export type PriceImportResult = {
+  imported: number;
+  matchedInstruments: number;
+  updatedPositions: number;
+  updatedCashAccounts: number;
+  fxRates: number;
+  skipped: number;
+  errors: string[];
+  storageMode: "local-file" | "postgresql";
+};
+
 export type PlatinumPrice = {
   provider: "ABC Bullion";
   productKey: "abc-platinum-1kg-minted-tablet";
@@ -160,12 +225,14 @@ export type Snapshot = {
 };
 
 export type LocalStore = {
-  version: 5;
+  version: 6;
   transactions: StoredTransaction[];
   positions: StoredPosition[];
   cashAccounts: CashAccount[];
   manualAssets: ManualAsset[];
   platinumPrices: PlatinumPrice[];
+  dailyPrices: StoredDailyPrice[];
+  fxRates: StoredFxRate[];
   snapshots: Snapshot[];
   syncRuns: SyncRun[];
   allocationTargets: AllocationTarget[];
@@ -226,6 +293,8 @@ export interface StorageAdapter {
   listManualAssets(ownerType?: OwnerType): Promise<ManualAsset[]>;
   upsertManualAsset(input: Omit<ManualAsset, "id" | "updatedAt" | "marketValueAud" | "pnlAud" | "pnlPercent" | "costAudPerKg" | "dealerSpreadAudPerKg" | "dealerSpreadPercent"> & { id?: string }): Promise<ManualAsset>;
   deleteManualAsset(id: string, ownerType: OwnerType): Promise<void>;
+  listPriceBook(limit?: number): Promise<PriceBook>;
+  recordDailyPrices(prices: DailyPriceInput[], fxRates?: FxRateInput[]): Promise<PriceImportResult>;
   getLatestPlatinumPrice(): Promise<PlatinumPrice | null>;
   recordPlatinumPrice(price: PlatinumPrice): Promise<PlatinumPrice>;
   recordSyncRun(input: NewSyncRun): Promise<SyncRun>;

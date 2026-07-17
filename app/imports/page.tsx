@@ -88,6 +88,7 @@ export default function Imports() {
         links={[
           { href: "/", label: "← Dashboard" },
           { href: "/cash", label: "Cash accounts" },
+          { href: "/prices", label: "Pricing" },
           { href: "/assets", label: "Physical platinum" },
           { href: "/roadmap", label: "Roadmap" },
         ]}
