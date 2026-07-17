@@ -737,8 +737,8 @@ body.northstar .nsHoldingsTable {
 body.northstar .nsHoldingsHeader,
 body.northstar .nsHoldingRow {
   display:grid;
-  grid-template-columns:minmax(160px, 1.2fr) minmax(130px, 0.78fr) minmax(105px, 0.58fr) minmax(95px, 0.58fr) minmax(90px, 0.52fr) minmax(90px, 0.52fr);
-  gap:18px;
+  grid-template-columns:minmax(165px, 1.22fr) minmax(130px, 0.82fr) minmax(108px, 0.64fr) minmax(98px, 0.58fr) minmax(95px, 0.56fr);
+  gap:16px;
   align-items:center;
   min-width:0;
 }
@@ -775,6 +775,15 @@ body.northstar .nsHoldingRow span {
   display:block;
   margin-top:5px;
   font-size:12px;
+  overflow-wrap:anywhere;
+}
+
+body.northstar .nsHoldingRow small {
+  display:block;
+  margin-top:7px;
+  font-size:11px;
+  font-weight:700;
+  line-height:1.25;
   overflow-wrap:anywhere;
 }
 
@@ -822,13 +831,11 @@ body.northstar .nsHoldingEmpty {
 }
 
 body.northstar .nsHoldingRow > div:nth-child(4),
-body.northstar .nsHoldingRow > div:nth-child(5),
-body.northstar .nsHoldingRow > div:nth-child(6) {
+body.northstar .nsHoldingRow > div:nth-child(5) {
   text-align:right;
 }
 
-body.northstar .nsHoldingRow > div:nth-child(5),
-body.northstar .nsHoldingRow > div:nth-child(6) {
+body.northstar .nsHoldingRow > div:nth-child(5) {
   font-size:15px;
   font-weight:700;
 }
@@ -1165,8 +1172,7 @@ body.northstar .nsActivityRow.is-failed em {
   }
 
   body.northstar .nsHoldingRow > div:nth-child(4),
-  body.northstar .nsHoldingRow > div:nth-child(5),
-  body.northstar .nsHoldingRow > div:nth-child(6) {
+  body.northstar .nsHoldingRow > div:nth-child(5) {
     text-align:left;
   }
 }
@@ -1261,8 +1267,7 @@ body.northstar .nsActivityRow.is-failed em {
 
   body.northstar .nsHoldingRow > div:nth-child(3),
   body.northstar .nsHoldingRow > div:nth-child(4),
-  body.northstar .nsHoldingRow > div:nth-child(5),
-  body.northstar .nsHoldingRow > div:nth-child(6) {
+  body.northstar .nsHoldingRow > div:nth-child(5) {
     text-align:left;
   }
 

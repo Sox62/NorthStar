@@ -403,7 +403,6 @@ function HoldingsTable({ holdings, total, scope }: { holdings: Holding[]; total:
           <span>Latest price</span>
           <span>Value</span>
           <span>Day P/L</span>
-          <span>Position P/L</span>
         </div>
         {visibleHoldings.map((holding) => {
           const dailyGain = holding.dayGainAud ?? 0;
@@ -413,6 +412,7 @@ function HoldingsTable({ holdings, total, scope }: { holdings: Holding[]; total:
               <div>
                 <strong>{holding.symbol}</strong>
                 <span>{holding.name}</span>
+                <small className={holding.pnlAud >= 0 ? "isPositive" : "isNegative"}>{fmtSignedAud(holding.pnlAud)} · {fmtSignedPct(holding.pnlPercent)} position P/L</small>
               </div>
               <div>
                 <em style={{ background: `${SECTOR_COLORS[holding.sector]}30`, color: SECTOR_COLORS[holding.sector] }}>{sectorShortName(holding.sector)}</em>
@@ -429,10 +429,6 @@ function HoldingsTable({ holdings, total, scope }: { holdings: Holding[]; total:
               <div className={dailyGain >= 0 ? "isPositive" : "isNegative"}>
                 <strong>{fmtSignedAud(dailyGain)}</strong>
                 <span>{dailyPercent == null ? "n/a" : fmtSignedPct(dailyPercent)}</span>
-              </div>
-              <div className={holding.pnlAud >= 0 ? "isPositive" : "isNegative"}>
-                <strong>{fmtSignedAud(holding.pnlAud)}</strong>
-                <span>{fmtSignedPct(holding.pnlPercent)}</span>
               </div>
             </div>
           );
