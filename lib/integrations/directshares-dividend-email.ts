@@ -1,4 +1,4 @@
-import { ImapFlow, type SearchObject } from "imapflow";
+import { ImapFlow, type FetchMessageObject, type SearchObject } from "imapflow";
 import { simpleParser } from "mailparser";
 import { parseDirectsharesDividendText } from "./dividends";
 import type { ImportedTransaction } from "./types";
@@ -79,6 +79,40 @@ function searchCriteria(config: DirectsharesDividendEmailConfig): SearchObject {
   return { since, from: config.from, subject: config.subject };
 }
 
+function messageFrom(message: FetchMessageObject) {
+  return message.envelope?.from?.map((address) => address.address || "").join(" ").toLowerCase() || "";
+}
+
+function messageDate(message: FetchMessageObject) {
+  const value = message.internalDate || message.envelope?.date;
+  return value ? new Date(value) : null;
+}
+
+function matchesLocalFilters(message: FetchMessageObject, config: DirectsharesDividendEmailConfig, since: Date) {
+  const subject = message.envelope?.subject || "";
+  const from = messageFrom(message);
+  const date = messageDate(message);
+  return subject.toLowerCase().includes(config.subject.toLowerCase())
+    && (!config.from || from.includes(config.from.toLowerCase()))
+    && (!date || date >= since);
+}
+
+async function matchingUids(client: ImapFlow, config: DirectsharesDividendEmailConfig) {
+  try {
+    const uids = await client.search(searchCriteria(config), { uid: true });
+    return Array.isArray(uids) ? uids.slice(-config.maxMessages) : [];
+  } catch {
+    // Some Gmail label/mailbox combinations reject IMAP SEARCH. Fetch a bounded recent slice and filter locally.
+  }
+
+  const since = new Date(Date.now() - config.days * 24 * 60 * 60 * 1000);
+  const matches: number[] = [];
+  for await (const message of client.fetch("1:*", { uid: true, envelope: true, internalDate: true })) {
+    if (matchesLocalFilters(message, config, since)) matches.push(message.uid);
+  }
+  return matches.slice(-config.maxMessages);
+}
+
 function stripHtml(value: string) {
   return value.replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|tr)>/gi, "\n").replace(/<[^>]+>/g, " ");
 }
@@ -107,8 +141,7 @@ export async function fetchDirectsharesDividendEmailTransactions(config = direct
   try {
     const lock = await client.getMailboxLock(config.mailbox);
     try {
-      const uids = await client.search(searchCriteria(config), { uid: true });
-      const uidList = Array.isArray(uids) ? uids.slice(-config.maxMessages) : [];
+      const uidList = await matchingUids(client, config);
       if (!uidList.length) return result;
 
       for await (const message of client.fetch(uidList, { uid: true, envelope: true, source: true }, { uid: true })) {
