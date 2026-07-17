@@ -157,6 +157,115 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .primaryNav .isActive { color: var(--accent); }
 .installLink { font: inherit; }
 
+.mobileMenu { display: none; }
+.mobileMenuButton,
+.mobileMenuClose {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(215,181,109,.36);
+  border-radius: 12px;
+  background: rgba(215,181,109,.12);
+  color: var(--accent);
+  font-weight: 800;
+}
+.mobileMenuButton { padding: 0 13px; }
+.mobileMenuButton svg,
+.mobileMenuClose svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.mobileMenuOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  border: 0;
+  background: rgba(2,8,14,.62);
+}
+.mobileMenuDrawer {
+  position: fixed;
+  z-index: 80;
+  top: 0;
+  right: 0;
+  width: min(88vw, 360px);
+  height: 100dvh;
+  transform: translateX(104%);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(122,149,178,.22);
+  background: linear-gradient(180deg, rgba(10,20,32,.98), rgba(6,13,22,.99));
+  box-shadow: -28px 0 80px rgba(0,0,0,.44);
+  transition: transform .18s ease;
+}
+.mobileMenuDrawer.isOpen { transform: translateX(0); }
+.mobileMenuHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+  border-bottom: 1px solid rgba(122,149,178,.16);
+}
+.mobileMenuBrand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--text-primary);
+}
+.mobileMenuBrand strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.05;
+}
+.mobileMenuBrand span:not(.miniStar) {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.mobileMenuClose {
+  width: 40px;
+  padding: 0;
+}
+.mobileMenuNav {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  overflow: auto;
+}
+.mobileMenuNav a {
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 13px;
+  border: 1px solid rgba(122,149,178,.16);
+  border-radius: 12px;
+  background: rgba(12,24,38,.68);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.mobileMenuNav a.isActive {
+  border-color: rgba(215,181,109,.42);
+  background: rgba(215,181,109,.14);
+  color: var(--accent);
+}
+.mobileMenuNav a span { font-weight: 800; }
+.mobileMenuNav a em {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+  text-align: right;
+}
+
 /* Scope tabs */
 .nsTabBar {
   display: inline-flex;
@@ -1106,10 +1215,15 @@ button:disabled { opacity: .55; cursor: wait; }
   .shell { padding: 12px; }
   .appMasthead, .pageMasthead, .portfolioHero, .nsCard { border-radius: 18px; }
   .mastheadTopline, .mastheadContext { padding: 16px; }
+  .pageMastheadBar {
+    flex-direction: row;
+    align-items: center;
+    padding: 14px 16px;
+  }
+  .mobileMenu { display: block; }
+  .pageNav, .primaryNav { display: none; }
   .brandTitleRow h1 { font-size: 29px; }
   .starMark { width: 46px; height: 46px; border-radius: 15px; }
-  .primaryNav { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); }
-  .primaryNav a, .primaryNav button { padding: 7px 5px; font-size: 11px; }
   .heroValueBlock { padding: 22px; }
   .heroValue { font-size: 49px; }
   .heroSubline { flex-direction: column; gap: 5px; }

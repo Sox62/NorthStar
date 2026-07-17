@@ -42,6 +42,10 @@ body.northstar .nsScreenMain {
   padding:34px 40px 56px;
 }
 
+body.northstar .nsMobileBar {
+  display:none;
+}
+
 body.northstar .nsLoadingState {
   min-height:100vh;
   display:grid;
@@ -1097,23 +1101,24 @@ body.northstar .nsActivityRow.is-failed em {
     grid-template-columns:1fr;
   }
 
-  body.northstar .nsScreen > aside {
-    position:relative !important;
-    top:auto !important;
-    height:auto !important;
-    border-right:0 !important;
-    border-bottom:1px solid var(--line) !important;
+  body.northstar .nsScreen > aside { display:none; }
+
+  body.northstar .nsMobileBar {
+    position:sticky;
+    top:0;
+    z-index:50;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    padding:12px 14px;
+    border-bottom:1px solid rgba(122,149,178,0.16);
+    background:rgba(7,14,22,0.94);
+    backdrop-filter:blur(16px);
   }
 
   body.northstar .nsScreenMain {
     padding:18px 16px 34px;
-  }
-
-  body.northstar .nsRail {
-    position:relative;
-    height:auto;
-    gap:26px;
-    padding:28px 18px;
   }
 
   body.northstar .nsOverviewHeader,

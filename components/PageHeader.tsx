@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import MobileMenu from "@/components/MobileMenu";
 
 export type HeaderLink = { href: string; label: ReactNode };
 
@@ -14,6 +15,7 @@ export default function PageHeader({ title, description, links }: { title: strin
         <nav className="pageNav" aria-label="Page navigation">
           {links.map((link) => <Link key={link.href} href={link.href}>{link.label}</Link>)}
         </nav>
+        <MobileMenu />
       </div>
       <div className="pageHero">
         <div>

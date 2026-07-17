@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import MobileMenu from "@/components/MobileMenu";
 
 const items = [
   { key: "overview", label: "Overview", href: "/" },
@@ -33,32 +34,44 @@ export interface NavRailProps {
 
 export function NavRail({ active = "overview", logoSrc, owner = "Stephen", onNavigate }: NavRailProps) {
   return (
-    <aside className="nsRail">
-      <div className="nsRailBrand">
-        {logoSrc
-          ? <img src={logoSrc} alt="NorthStar" className="nsRailLogo" />
-          : <div className="nsRailMark"><span>✦</span><small>NS</small></div>}
-        <div>
-          <div className="nsRailTitle">NorthStar</div>
-          <div className="nsRailMotto">In Via Recta Celeriter</div>
+    <>
+      <div className="nsMobileBar">
+        <div className="mobileMenuBrand">
+          <span className="miniStar" aria-hidden="true">✦</span>
+          <div>
+            <strong>NorthStar</strong>
+            <span>Private portfolio operations</span>
+          </div>
         </div>
+        <MobileMenu />
       </div>
-      <nav className="nsRailNav">
-        {items.map((it) => {
-          const on = it.key === active;
-          return (
-            <a key={it.key} href={it.href} onClick={(e) => { if (onNavigate) { e.preventDefault(); onNavigate(it.key); } }}
-              className={on ? "isActive" : undefined}>
-              <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8}>{icons[it.key]}</svg>
-              {it.label}
-            </a>
-          );
-        })}
-      </nav>
-      <div className="nsRailFooter">
-        <div><b>{owner}</b> · Trustee</div>
-        <div>Inception late May 2025.</div>
-      </div>
-    </aside>
+      <aside className="nsRail">
+        <div className="nsRailBrand">
+          {logoSrc
+            ? <img src={logoSrc} alt="NorthStar" className="nsRailLogo" />
+            : <div className="nsRailMark"><span>✦</span><small>NS</small></div>}
+          <div>
+            <div className="nsRailTitle">NorthStar</div>
+            <div className="nsRailMotto">In Via Recta Celeriter</div>
+          </div>
+        </div>
+        <nav className="nsRailNav">
+          {items.map((it) => {
+            const on = it.key === active;
+            return (
+              <a key={it.key} href={it.href} onClick={(e) => { if (onNavigate) { e.preventDefault(); onNavigate(it.key); } }}
+                className={on ? "isActive" : undefined}>
+                <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8}>{icons[it.key]}</svg>
+                {it.label}
+              </a>
+            );
+          })}
+        </nav>
+        <div className="nsRailFooter">
+          <div><b>{owner}</b> · Trustee</div>
+          <div>Inception late May 2025.</div>
+        </div>
+      </aside>
+    </>
   );
 }
