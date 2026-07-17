@@ -125,6 +125,39 @@ async function matchingUids(client: ImapFlow, config: DirectsharesEmailConfig) {
   return matches.slice(-config.maxMessages);
 }
 
+function mailboxCandidates(config: DirectsharesEmailConfig) {
+  return [...new Set([config.mailbox, "INBOX"].filter(Boolean))];
+}
+
+function imapErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) return "Unknown IMAP error";
+  const details = error as Error & { response?: string; serverResponse?: string; code?: string; responseStatus?: string };
+  return [details.message, details.response, details.serverResponse, details.code, details.responseStatus].filter(Boolean).join(" · ");
+}
+
+async function withMailbox<T>(
+  client: ImapFlow,
+  config: DirectsharesEmailConfig,
+  result: DirectsharesEmailFetchResult,
+  handler: () => Promise<T>,
+) {
+  const failures: string[] = [];
+  for (const mailbox of mailboxCandidates(config)) {
+    try {
+      const lock = await client.getMailboxLock(mailbox, { readOnly: true });
+      result.mailbox = mailbox;
+      try {
+        return await handler();
+      } finally {
+        lock.release();
+      }
+    } catch (error) {
+      failures.push(`${mailbox}: ${imapErrorMessage(error)}`);
+    }
+  }
+  throw new Error(`Unable to open Directshares mailbox. Tried ${failures.join("; ")}`);
+}
+
 export async function fetchDirectsharesEmailTransactions(config = directsharesEmailConfigFromEnv()): Promise<DirectsharesEmailFetchResult> {
   const client = new ImapFlow({
     host: config.host,
@@ -148,8 +181,7 @@ export async function fetchDirectsharesEmailTransactions(config = directsharesEm
 
   await client.connect();
   try {
-    const lock = await client.getMailboxLock(config.mailbox);
-    try {
+    await withMailbox(client, config, result, async () => {
       const uidList = await matchingUids(client, config);
       if (!uidList.length) return result;
 
@@ -183,9 +215,8 @@ export async function fetchDirectsharesEmailTransactions(config = directsharesEm
           result.errors.push(`message ${message.uid}: ${error instanceof Error ? error.message : "Unable to parse email message."}`);
         }
       }
-    } finally {
-      lock.release();
-    }
+      return result;
+    });
   } finally {
     await client.logout().catch(() => undefined);
   }

@@ -113,6 +113,39 @@ async function matchingUids(client: ImapFlow, config: DirectsharesDividendEmailC
   return matches.slice(-config.maxMessages);
 }
 
+function mailboxCandidates(config: DirectsharesDividendEmailConfig) {
+  return [...new Set([config.mailbox, "INBOX"].filter(Boolean))];
+}
+
+function imapErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) return "Unknown IMAP error";
+  const details = error as Error & { response?: string; serverResponse?: string; code?: string; responseStatus?: string };
+  return [details.message, details.response, details.serverResponse, details.code, details.responseStatus].filter(Boolean).join(" · ");
+}
+
+async function withMailbox<T>(
+  client: ImapFlow,
+  config: DirectsharesDividendEmailConfig,
+  result: DirectsharesDividendEmailFetchResult,
+  handler: () => Promise<T>,
+) {
+  const failures: string[] = [];
+  for (const mailbox of mailboxCandidates(config)) {
+    try {
+      const lock = await client.getMailboxLock(mailbox, { readOnly: true });
+      result.mailbox = mailbox;
+      try {
+        return await handler();
+      } finally {
+        lock.release();
+      }
+    } catch (error) {
+      failures.push(`${mailbox}: ${imapErrorMessage(error)}`);
+    }
+  }
+  throw new Error(`Unable to open Directshares dividend mailbox. Tried ${failures.join("; ")}`);
+}
+
 function stripHtml(value: string) {
   return value.replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|tr)>/gi, "\n").replace(/<[^>]+>/g, " ");
 }
@@ -139,8 +172,7 @@ export async function fetchDirectsharesDividendEmailTransactions(config = direct
 
   await client.connect();
   try {
-    const lock = await client.getMailboxLock(config.mailbox);
-    try {
+    await withMailbox(client, config, result, async () => {
       const uidList = await matchingUids(client, config);
       if (!uidList.length) return result;
 
@@ -162,9 +194,8 @@ export async function fetchDirectsharesDividendEmailTransactions(config = direct
           result.errors.push(`message ${message.uid}: ${error instanceof Error ? error.message : "Unable to parse Directshares dividend email."}`);
         }
       }
-    } finally {
-      lock.release();
-    }
+      return result;
+    });
   } finally {
     await client.logout().catch(() => undefined);
   }
