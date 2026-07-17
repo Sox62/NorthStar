@@ -95,15 +95,29 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown price error";
-    errors.push(`ABC Bullion: ${message}`);
-    await storage.recordSyncRun({
-      source: "ABC Bullion",
-      ownerType: null,
-      trigger: "scheduled",
-      status: "failed",
-      startedAt: platinumStartedAt,
-      error: message,
-    }).catch(() => {});
+    const fallback = await storage.getLatestPlatinumPrice().catch(() => null);
+    if (fallback) {
+      output.platinum = fallback;
+      await storage.recordSyncRun({
+        source: "ABC Bullion",
+        ownerType: null,
+        trigger: "scheduled",
+        status: "skipped",
+        startedAt: platinumStartedAt,
+        recordCount: 0,
+        message: `Live ABC Bullion refresh failed (${message}); using saved platinum buyback ${fallback.buybackAudPerKg.toLocaleString("en-AU", { style: "currency", currency: "AUD" })} per kg from ${fallback.priceDate}.`,
+      }).catch(() => {});
+    } else {
+      errors.push(`ABC Bullion: ${message}`);
+      await storage.recordSyncRun({
+        source: "ABC Bullion",
+        ownerType: null,
+        trigger: "scheduled",
+        status: "failed",
+        startedAt: platinumStartedAt,
+        error: message,
+      }).catch(() => {});
+    }
   }
 
   return Response.json({ ok: errors.length === 0, ...output, errors }, { status: errors.length ? 207 : 200 });

@@ -41,7 +41,22 @@ async function main() {
     await storage.recordPlatinumPrice(price);
     console.log(`[sync] ABC Bullion platinum buyback: AUD ${price.buybackAudPerKg.toFixed(2)} per kg`);
   } catch (error) {
-    console.error("[sync] ABC Bullion:", error);
+    const fallback = await storage.getLatestPlatinumPrice().catch(() => null);
+    if (fallback) {
+      const message = error instanceof Error ? error.message : "Unknown price error";
+      await storage.recordSyncRun({
+        source: "ABC Bullion",
+        ownerType: null,
+        trigger: "scheduled",
+        status: "skipped",
+        startedAt: new Date().toISOString(),
+        recordCount: 0,
+        message: `Live ABC Bullion refresh failed (${message}); using saved platinum buyback AUD ${fallback.buybackAudPerKg.toFixed(2)} per kg from ${fallback.priceDate}.`,
+      }).catch(() => {});
+      console.log(`[sync] ABC Bullion skipped: using saved platinum buyback AUD ${fallback.buybackAudPerKg.toFixed(2)} per kg from ${fallback.priceDate}`);
+    } else {
+      console.error("[sync] ABC Bullion:", error);
+    }
   }
 }
 

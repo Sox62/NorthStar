@@ -25,18 +25,24 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ price });
   } catch (error) {
-    const fallback = await getStorage().getLatestPlatinumPrice().catch(() => null);
-    await getStorage().recordSyncRun({
+    const storage = getStorage();
+    const fallback = await storage.getLatestPlatinumPrice().catch(() => null);
+    const message = error instanceof Error ? error.message : "Unable to refresh ABC Bullion platinum price";
+    await storage.recordSyncRun({
       source: "ABC Bullion",
       ownerType: null,
       trigger: refresh ? "manual" : "system",
-      status: "failed",
+      status: fallback ? "skipped" : "failed",
       startedAt,
-      error: error instanceof Error ? error.message : "Unable to refresh ABC Bullion platinum price",
+      recordCount: fallback ? 0 : null,
+      message: fallback
+        ? `Live ABC Bullion refresh failed (${message}); using saved platinum buyback ${fallback.buybackAudPerKg.toLocaleString("en-AU", { style: "currency", currency: "AUD" })} per kg from ${fallback.priceDate}.`
+        : null,
+      error: fallback ? null : message,
     }).catch(() => {});
     return NextResponse.json({
       price: fallback,
-      error: error instanceof Error ? error.message : "Unable to refresh ABC Bullion platinum price",
+      error: message,
       usingSavedPrice: Boolean(fallback),
     }, { status: fallback ? 200 : 502 });
   }
