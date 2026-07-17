@@ -635,9 +635,6 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
           </div>
         </header>
 
-        <FreshnessStrip syncRuns={syncRuns} />
-        <ValuationChecks freshness={freshness} />
-
         <section className="nsHeroPanel">
           <div className="nsHeroSummary">
             <p className="nsEyebrow">{scope === "overall" ? "Total net asset value" : scope === "smsf" ? "SMSF net asset value" : "Personal net asset value"}</p>
@@ -673,6 +670,11 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
           <CurrencyExposurePanel exposures={currencyExposure} />
           <AllocationDriftPanel drift={allocationDrift} />
           <RecentActivityPanel syncRuns={syncRuns} />
+        </div>
+
+        <div className="nsOperationsStatus">
+          <FreshnessStrip syncRuns={syncRuns} />
+          <ValuationChecks freshness={freshness} />
         </div>
       </main>
     </div>

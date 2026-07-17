@@ -297,6 +297,11 @@ body.northstar .nsFreshnessStrip {
   gap:14px;
 }
 
+body.northstar .nsOperationsStatus {
+  display:grid;
+  gap:14px;
+}
+
 body.northstar .nsFreshnessItem {
   min-width:0;
   padding:14px 16px;
