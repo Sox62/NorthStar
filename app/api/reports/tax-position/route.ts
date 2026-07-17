@@ -7,6 +7,24 @@ type CsvCell = string | number | null | undefined;
 type CsvRow = CsvCell[];
 
 const scopes: Scope[] = ["personal", "smsf"];
+const header = [
+  "section",
+  "owner",
+  "name",
+  "symbol",
+  "broker",
+  "cost_aud",
+  "market_value_aud",
+  "unrealised_gain_aud",
+  "unrealised_gain_percent",
+  "income_aud",
+  "tax_withheld_aud",
+  "fees_aud",
+  "currency",
+  "payment_date",
+  "detail",
+  "as_of",
+];
 
 function csvCell(value: CsvCell) {
   if (value == null) return "";
@@ -80,6 +98,11 @@ function addTaxRows(rows: CsvRow[], data: DashboardData) {
     money(totalMarketValue),
     money(unrealisedGain),
     totalCost ? percent(unrealisedGain / totalCost * 100) : "",
+    "",
+    "",
+    "",
+    "",
+    "",
     `Gross gains ${money(grossGains)}; gross losses ${money(grossLosses)}; cash ${money(data.cashValue)} excluded from CGT lots`,
     data.lastUpdated,
   ]);
@@ -96,6 +119,11 @@ function addTaxRows(rows: CsvRow[], data: DashboardData) {
       money(holding.marketValueAud),
       money(gain),
       percent(unrealisedPercent(holding.costAud, holding.marketValueAud)),
+      "",
+      "",
+      "",
+      holding.currency,
+      "",
       `${sectorForInstrument(holding)}; ${holding.quantity.toLocaleString("en-AU", { maximumFractionDigits: 6 })} units; ${holding.currency}; ${holding.valuationBasis}; ${holding.source}`,
       holding.asOfDate,
     ]);
@@ -116,10 +144,15 @@ function addDividendRows(rows: CsvRow[], data: DashboardData, transactions: Stor
     "",
     "",
     "",
+    "",
+    "",
+    "",
     money(totalNetCash),
+    money(totalTaxWithheld),
     "",
+    "AUD",
     "",
-    `Payments ${dividends.length}; tax withheld ${money(totalTaxWithheld)}`,
+    `Payments ${dividends.length}`,
     data.lastUpdated,
   ]);
 
@@ -131,9 +164,14 @@ function addDividendRows(rows: CsvRow[], data: DashboardData, transactions: Stor
       dividend.symbol,
       dividend.broker,
       "",
+      "",
+      "",
+      "",
       money(dividend.netCash ?? 0),
-      "",
-      "",
+      money(dividend.taxes ?? 0),
+      money(dividend.fees ?? 0),
+      dividend.currency,
+      dividend.tradeDate,
       `Currency ${dividend.currency}; tax withheld ${money(dividend.taxes ?? 0)}; fees ${money(dividend.fees ?? 0)}; source ${dividend.source}`,
       dividend.tradeDate,
     ]);
@@ -149,8 +187,8 @@ export async function GET(request: Request) {
     const transactionsByScope = await Promise.all(selectedScopes.map((scope) => storage.listTransactions(ownerTypeForScope(scope))));
     const reportAnchor = dashboards[0];
     const rows: CsvRow[] = [
-      ["section", "owner", "name", "symbol", "broker", "cost_aud", "market_value_aud", "unrealised_gain_aud", "unrealised_gain_percent", "detail", "as_of"],
-      ["metadata", filenameScope(selectedScopes), "NorthStar tax position", "", "", "", "", "", "", `Generated ${new Date().toISOString()}; unrealised positions and imported dividend income`, reportAnchor.lastUpdated],
+      header,
+      ["metadata", filenameScope(selectedScopes), "NorthStar tax position", "", "", "", "", "", "", "", "", "", "", "", `Generated ${new Date().toISOString()}; unrealised positions and imported dividend income`, reportAnchor.lastUpdated],
     ];
     dashboards.forEach((dashboard, index) => {
       addTaxRows(rows, dashboard);
