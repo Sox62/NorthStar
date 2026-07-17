@@ -32,6 +32,7 @@ export interface Holding {
   units: number;
   costAud: number;
   marketValueAud: number;
+  dayGainAud?: number;
   pnlAud: number;
   pnlPercent: number;
   valuationBasis: "market" | "cost_basis";

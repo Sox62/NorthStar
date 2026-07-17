@@ -933,7 +933,7 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 .holdingsTable {
   width: 100%;
-  min-width: 1060px;
+  min-width: 1180px;
   border-collapse: collapse;
 }
 .holdingsTable th {

@@ -557,6 +557,13 @@ export class LocalStorageAdapter implements StorageAdapter {
         source: input.source.trim() || "Manual",
         retrievedAt: now,
       };
+      const previousPrice = store.dailyPrices
+        .filter((item) =>
+          normaliseSymbol(item.symbol) === symbol
+          && item.exchange.trim().toUpperCase() === priceRecord.exchange.trim().toUpperCase()
+          && item.priceDate < input.priceDate
+        )
+        .sort((a, b) => b.priceDate.localeCompare(a.priceDate) || b.retrievedAt.localeCompare(a.retrievedAt))[0];
       const existing = store.dailyPrices.find((item) =>
         normaliseSymbol(item.symbol) === symbol
         && item.exchange.trim().toUpperCase() === priceRecord.exchange.trim().toUpperCase()
@@ -572,7 +579,9 @@ export class LocalStorageAdapter implements StorageAdapter {
       }
       for (const position of validMatches) {
         const marketValueAud = position.quantity * input.close * rateToAud;
-        position.dayGainAud = marketValueAud - position.marketValueAud;
+        position.dayGainAud = previousPrice
+          ? position.quantity * (input.close - previousPrice.close) * rateToAud
+          : marketValueAud - position.marketValueAud;
         position.lastPrice = input.close;
         position.marketValueAud = marketValueAud;
         position.pnlAud = marketValueAud - position.costAud;

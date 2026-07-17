@@ -17,6 +17,8 @@ const scopes: Array<{ key: Scope; label: string }> = [
 const money = (value: number) =>
   new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value);
 
+const signedMoney = (value: number) => `${value >= 0 ? "+" : ""}${money(value)}`;
+
 const number = (value: number) =>
   new Intl.NumberFormat("en-AU", { maximumFractionDigits: 4 }).format(value);
 
@@ -30,6 +32,11 @@ const price = (value: number | null, currency: string) =>
 
 const percent = (value: number) =>
   `${value >= 0 ? "+" : ""}${value.toLocaleString("en-AU", { maximumFractionDigits: 1 })}%`;
+
+function dailyPercent(holding: DashboardHolding) {
+  const previousValue = holding.marketValueAud - holding.dayGainAud;
+  return previousValue ? holding.dayGainAud / previousValue * 100 : null;
+}
 
 const dateLabel = (value: string | null) => value ? new Date(value).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" }) : "Not recorded";
 
@@ -123,6 +130,7 @@ export default function HoldingsPage() {
                 <SummaryGrid
                   entries={[
                     ["P/L", money(account.totalReturn)],
+                    ["Day P/L", signedMoney(account.dailyMovement)],
                     ["Return", percent(account.totalReturnPercent)],
                     ["Cash", money(account.cashValue)],
                     ["Updated", dateLabel(account.lastUpdated)],
@@ -158,6 +166,7 @@ export default function HoldingsPage() {
             <SummaryGrid
               entries={[
                 ["NAV", money(selected.totalValue)],
+                ["Day P/L", signedMoney(selected.dailyMovement)],
                 ["Invested", money(selected.investedValue)],
                 ["Cash", money(selected.cashValue)],
                 ["Cost fallback", fallbackCount],
@@ -175,7 +184,8 @@ export default function HoldingsPage() {
                     <th className="numeric">Latest price</th>
                     <th className="numeric">Value</th>
                     <th className="numeric">Weight</th>
-                    <th className="numeric">P/L</th>
+                    <th className="numeric">Day P/L</th>
+                    <th className="numeric">Position P/L</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -195,8 +205,12 @@ export default function HoldingsPage() {
                       </td>
                       <td className="numeric">{money(holding.marketValueAud)}</td>
                       <td className="numeric">{holding.weight.toLocaleString("en-AU", { maximumFractionDigits: 1 })}%</td>
+                      <td className={`numeric ${pnlTone(holding.dayGainAud)}`}>
+                        {signedMoney(holding.dayGainAud)}
+                        <span>{dailyPercent(holding) == null ? "n/a" : percent(dailyPercent(holding)!)}</span>
+                      </td>
                       <td className={`numeric ${pnlTone(holding.pnlAud)}`}>
-                        {money(holding.pnlAud)}
+                        {signedMoney(holding.pnlAud)}
                         <span>{percent(holding.pnlPercent)}</span>
                       </td>
                     </tr>

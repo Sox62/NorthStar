@@ -109,6 +109,12 @@ function fmtLatestPrice(holding: Holding) {
   return `${currency} ${value}`;
 }
 
+function dayGainPercent(holding: Holding) {
+  const gain = holding.dayGainAud ?? 0;
+  const previousValue = holding.marketValueAud - gain;
+  return previousValue ? (gain / previousValue) * 100 : null;
+}
+
 function fmtShortAud(value: number) {
   if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
   if (Math.abs(value) >= 1_000) return `$${Math.round(value / 1_000)}k`;
@@ -378,31 +384,41 @@ function HoldingsTable({ holdings, total, scope }: { holdings: Holding[]; total:
           <span>Sector · Weight</span>
           <span>Latest price</span>
           <span>Value</span>
-          <span>P/L</span>
+          <span>Day P/L</span>
+          <span>Position P/L</span>
         </div>
-        {visibleHoldings.map((holding) => (
-          <div className="nsHoldingRow" role="row" key={holding.id}>
-            <div>
-              <strong>{holding.symbol}</strong>
-              <span>{holding.name}</span>
+        {visibleHoldings.map((holding) => {
+          const dailyGain = holding.dayGainAud ?? 0;
+          const dailyPercent = dayGainPercent(holding);
+          return (
+            <div className="nsHoldingRow" role="row" key={holding.id}>
+              <div>
+                <strong>{holding.symbol}</strong>
+                <span>{holding.name}</span>
+              </div>
+              <div>
+                <em style={{ background: `${SECTOR_COLORS[holding.sector]}30`, color: SECTOR_COLORS[holding.sector] }}>{sectorShortName(holding.sector)}</em>
+                <span className="nsWeightBar"><i style={{ width: `${pct(holding.marketValueAud, max)}%`, background: SECTOR_COLORS[holding.sector] }} /></span>
+              </div>
+              <div>
+                <strong>{fmtLatestPrice(holding)}</strong>
+                <span>{holding.priceAsOfDate ?? holding.exchange ?? "Latest stored close"}</span>
+              </div>
+              <div>
+                <strong>{fmtAud(holding.marketValueAud)}</strong>
+                <span>{fmtPct(pct(holding.marketValueAud, total))} of NAV</span>
+              </div>
+              <div className={dailyGain >= 0 ? "isPositive" : "isNegative"}>
+                <strong>{fmtSignedAud(dailyGain)}</strong>
+                <span>{dailyPercent == null ? "n/a" : fmtSignedPct(dailyPercent)}</span>
+              </div>
+              <div className={holding.pnlAud >= 0 ? "isPositive" : "isNegative"}>
+                <strong>{fmtSignedAud(holding.pnlAud)}</strong>
+                <span>{fmtSignedPct(holding.pnlPercent)}</span>
+              </div>
             </div>
-            <div>
-              <em style={{ background: `${SECTOR_COLORS[holding.sector]}30`, color: SECTOR_COLORS[holding.sector] }}>{sectorShortName(holding.sector)}</em>
-              <span className="nsWeightBar"><i style={{ width: `${pct(holding.marketValueAud, max)}%`, background: SECTOR_COLORS[holding.sector] }} /></span>
-            </div>
-            <div>
-              <strong>{fmtLatestPrice(holding)}</strong>
-              <span>{holding.priceAsOfDate ?? holding.exchange ?? "Latest stored close"}</span>
-            </div>
-            <div>
-              <strong>{fmtAud(holding.marketValueAud)}</strong>
-              <span>{fmtPct(pct(holding.marketValueAud, total))} of NAV</span>
-            </div>
-            <div className={holding.pnlAud >= 0 ? "isPositive" : "isNegative"}>
-              {holding.pnlPercent >= 0 ? "+" : ""}{holding.pnlPercent.toFixed(1)}%
-            </div>
-          </div>
-        ))}
+          );
+        })}
         {!visibleHoldings.length ? <div className="nsHoldingEmpty">No share holdings in this view.</div> : null}
       </div>
     </section>
@@ -602,6 +618,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
   const [scope, setScope] = useState<PortfolioScope>("overall");
   const view = byScope(holdings, scope);
   const t = totals(view);
+  const dailyPnl = view.reduce((sum, holding) => sum + (holding.dayGainAud ?? 0), 0);
   const comp = byComposition(view);
   const sectors = bySector(view);
   const shareHoldings = useMemo(
@@ -655,6 +672,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
             <p className="nsEyebrow">{scope === "overall" ? "Total net asset value" : scope === "smsf" ? "SMSF net asset value" : "Personal net asset value"}</p>
             <div className="nsHeroValue">{fmtAud(t.marketValue)}</div>
             <div className="nsHeroStats">
+              <div><span>Daily P/L</span><strong className={dailyPnl >= 0 ? "isPositive" : "isNegative"}>{fmtSignedAud(dailyPnl)}</strong></div>
               <div><span>Profit / loss</span><strong className={t.pnl >= 0 ? "isPositive" : "isNegative"}>{fmtSignedAud(t.pnl)}</strong></div>
               <div><span>Return on cost</span><strong className={t.pnl >= 0 ? "isPositive" : "isNegative"}>{t.pnlPercent >= 0 ? "+" : ""}{t.pnlPercent.toFixed(1)}%</strong></div>
             </div>
