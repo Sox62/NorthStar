@@ -99,6 +99,16 @@ function fmtSignedPct(value: number | null) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
+function fmtLatestPrice(holding: Holding) {
+  if (holding.lastPrice == null) return "No price";
+  const currency = holding.priceCurrency ?? "AUD";
+  const value = holding.lastPrice.toLocaleString("en-AU", {
+    minimumFractionDigits: holding.lastPrice >= 100 ? 2 : 3,
+    maximumFractionDigits: holding.lastPrice >= 100 ? 2 : 4,
+  });
+  return `${currency} ${value}`;
+}
+
 function fmtShortAud(value: number) {
   if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
   if (Math.abs(value) >= 1_000) return `$${Math.round(value / 1_000)}k`;
@@ -366,6 +376,7 @@ function HoldingsTable({ holdings, total, scope }: { holdings: Holding[]; total:
         <div className="nsHoldingsHeader" role="row">
           <span>Holding</span>
           <span>Sector · Weight</span>
+          <span>Latest price</span>
           <span>Value</span>
           <span>P/L</span>
         </div>
@@ -378,6 +389,10 @@ function HoldingsTable({ holdings, total, scope }: { holdings: Holding[]; total:
             <div>
               <em style={{ background: `${SECTOR_COLORS[holding.sector]}30`, color: SECTOR_COLORS[holding.sector] }}>{sectorShortName(holding.sector)}</em>
               <span className="nsWeightBar"><i style={{ width: `${pct(holding.marketValueAud, max)}%`, background: SECTOR_COLORS[holding.sector] }} /></span>
+            </div>
+            <div>
+              <strong>{fmtLatestPrice(holding)}</strong>
+              <span>{holding.priceAsOfDate ?? holding.exchange ?? "Latest stored close"}</span>
             </div>
             <div>
               <strong>{fmtAud(holding.marketValueAud)}</strong>

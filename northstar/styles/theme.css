@@ -722,7 +722,7 @@ body.northstar .nsHoldingsTable {
 body.northstar .nsHoldingsHeader,
 body.northstar .nsHoldingRow {
   display:grid;
-  grid-template-columns:minmax(190px, 1.35fr) minmax(170px, 1fr) minmax(100px, 0.72fr) minmax(70px, 0.5fr);
+  grid-template-columns:minmax(170px, 1.25fr) minmax(150px, 0.9fr) minmax(110px, 0.62fr) minmax(100px, 0.68fr) minmax(70px, 0.42fr);
   gap:18px;
   align-items:center;
 }
@@ -787,14 +787,24 @@ body.northstar .nsHoldingRow > div:nth-child(3) {
   text-align:right;
 }
 
+body.northstar .nsHoldingRow > div:nth-child(3) strong {
+  font-family:var(--ns-sans);
+  font-size:14px;
+  font-weight:800;
+}
+
 body.northstar .nsHoldingEmpty {
   padding:28px 0 4px;
   color:var(--muted);
   font-size:13px;
 }
 
-body.northstar .nsHoldingRow > div:nth-child(4) {
+body.northstar .nsHoldingRow > div:nth-child(4),
+body.northstar .nsHoldingRow > div:nth-child(5) {
   text-align:right;
+}
+
+body.northstar .nsHoldingRow > div:nth-child(5) {
   font-size:15px;
   font-weight:700;
 }
@@ -1190,7 +1200,8 @@ body.northstar .nsActivityRow.is-failed em {
   }
 
   body.northstar .nsHoldingRow > div:nth-child(3),
-  body.northstar .nsHoldingRow > div:nth-child(4) {
+  body.northstar .nsHoldingRow > div:nth-child(4),
+  body.northstar .nsHoldingRow > div:nth-child(5) {
     text-align:left;
   }
 

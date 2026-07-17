@@ -35,6 +35,10 @@ export interface Holding {
   pnlAud: number;
   pnlPercent: number;
   valuationBasis: "market" | "cost_basis";
+  lastPrice?: number | null;
+  priceCurrency?: string;
+  priceAsOfDate?: string | null;
+  exchange?: string;
 }
 
 /** Sector colour palette — keep tags, donut and value bars consistent. */

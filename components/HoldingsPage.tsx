@@ -20,6 +20,14 @@ const money = (value: number) =>
 const number = (value: number) =>
   new Intl.NumberFormat("en-AU", { maximumFractionDigits: 4 }).format(value);
 
+const price = (value: number | null, currency: string) =>
+  value == null
+    ? "No price"
+    : `${currency} ${value.toLocaleString("en-AU", {
+      minimumFractionDigits: value >= 100 ? 2 : 3,
+      maximumFractionDigits: value >= 100 ? 2 : 4,
+    })}`;
+
 const percent = (value: number) =>
   `${value >= 0 ? "+" : ""}${value.toLocaleString("en-AU", { maximumFractionDigits: 1 })}%`;
 
@@ -164,6 +172,7 @@ export default function HoldingsPage() {
                     <th>Owner</th>
                     <th>Sector</th>
                     <th className="numeric">Units</th>
+                    <th className="numeric">Latest price</th>
                     <th className="numeric">Value</th>
                     <th className="numeric">Weight</th>
                     <th className="numeric">P/L</th>
@@ -180,6 +189,10 @@ export default function HoldingsPage() {
                       <td>{holding.ownerType === "SMSF" ? "SMSF" : "Personal"}</td>
                       <td>{sectorForInstrument(holding)}</td>
                       <td className="numeric">{number(holding.quantity)}</td>
+                      <td className="numeric">
+                        {price(holding.lastPrice, holding.currency)}
+                        <span>{holding.asOfDate}</span>
+                      </td>
                       <td className="numeric">{money(holding.marketValueAud)}</td>
                       <td className="numeric">{holding.weight.toLocaleString("en-AU", { maximumFractionDigits: 1 })}%</td>
                       <td className={`numeric ${pnlTone(holding.pnlAud)}`}>
