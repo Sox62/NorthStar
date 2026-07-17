@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import type { DashboardData, DashboardHolding, Scope } from "@/lib/storage";
 import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
@@ -56,10 +56,44 @@ function pnlTone(value: number) {
   return value >= 0 ? "positive" : "negative";
 }
 
+const tradingViewOverrides: Record<string, string> = {
+  "CDE:US": "NYSE:CDE",
+  "XOM:US": "NYSE:XOM",
+  "EC:US": "NYSE:EC",
+  "HL:US": "NYSE:HL",
+  "AG:US": "NYSE:AG",
+  "NEM:US": "NYSE:NEM",
+  "PAAS:US": "NASDAQ:PAAS",
+  "GDX:US": "AMEX:GDX",
+  "SIL:US": "AMEX:SIL",
+  "SILJ:US": "AMEX:SILJ",
+  "URNM:US": "AMEX:URNM",
+  "URA:US": "AMEX:URA",
+  "UUUU:US": "AMEX:UUUU",
+};
+
+function tradingViewSymbol(holding: DashboardHolding) {
+  const symbol = holding.symbol.toUpperCase();
+  const exchange = holding.exchange.toUpperCase();
+  const key = `${symbol}:${exchange}`;
+  if (tradingViewOverrides[key]) return tradingViewOverrides[key];
+  if (exchange.includes("ASX")) return `ASX:${symbol}`;
+  if (exchange.includes("TSXV") || exchange.includes("VENTURE")) return `TSXV:${symbol}`;
+  if (exchange.includes("TSX") || exchange.includes("CA")) return `TSX:${symbol}`;
+  if (exchange.includes("LSE") || exchange.includes("GB")) return `LSE:${symbol}`;
+  if (exchange === "US") return symbol;
+  return `${exchange || "ASX"}:${symbol}`;
+}
+
+function tradingViewUrl(holding: DashboardHolding) {
+  return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tradingViewSymbol(holding))}`;
+}
+
 export default function HoldingsPage() {
   const [dashboards, setDashboards] = useState<DashboardMap>({});
   const [scope, setScope] = useState<Scope>("overall");
   const [query, setQuery] = useState("");
+  const [chartHolding, setChartHolding] = useState<DashboardHolding | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -97,6 +131,10 @@ export default function HoldingsPage() {
 
   const fallbackCount = rows.filter((holding) => holding.valuationBasis === "cost_basis").length;
   const scopeLabel = scopes.find((item) => item.key === scope)?.label ?? "Overall";
+
+  useEffect(() => {
+    if (chartHolding && !rows.some((holding) => holding.id === chartHolding.id)) setChartHolding(null);
+  }, [rows, chartHolding]);
 
   return (
     <main className="shell">
@@ -173,6 +211,8 @@ export default function HoldingsPage() {
               ]}
             />
 
+            {chartHolding ? <TradingViewPanel holding={chartHolding} /> : null}
+
             <div className="holdingsTableWrap">
               <table className="holdingsTable">
                 <thead>
@@ -186,11 +226,23 @@ export default function HoldingsPage() {
                     <th className="numeric">Weight</th>
                     <th className="numeric">Day P/L</th>
                     <th className="numeric">Position P/L</th>
+                    <th>Chart</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((holding) => (
-                    <tr key={holding.id}>
+                    <tr
+                      key={holding.id}
+                      className={chartHolding?.id === holding.id ? "isSelected" : undefined}
+                      tabIndex={0}
+                      onClick={() => setChartHolding(holding)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setChartHolding(holding);
+                        }
+                      }}
+                    >
                       <td>
                         <strong>{holding.symbol}</strong>
                         <span>{holding.name}</span>
@@ -213,6 +265,12 @@ export default function HoldingsPage() {
                         {signedMoney(holding.pnlAud)}
                         <span>{percent(holding.pnlPercent)}</span>
                       </td>
+                      <td>
+                        <div className="chartActions">
+                          <button type="button" onClick={(event) => { event.stopPropagation(); setChartHolding(holding); }}>View</button>
+                          <a href={tradingViewUrl(holding)} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>TV</a>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -223,5 +281,58 @@ export default function HoldingsPage() {
         </>
       ) : null}
     </main>
+  );
+}
+
+function TradingViewPanel({ holding }: { holding: DashboardHolding }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const tvSymbol = tradingViewSymbol(holding);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    container.innerHTML = "";
+
+    const widget = document.createElement("div");
+    widget.className = "tradingview-widget-container__widget";
+    container.appendChild(widget);
+
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      autosize: true,
+      symbol: tvSymbol,
+      interval: "D",
+      timezone: "Australia/Sydney",
+      theme: "dark",
+      style: "1",
+      locale: "en",
+      withdateranges: true,
+      hide_side_toolbar: false,
+      allow_symbol_change: true,
+      save_image: false,
+      calendar: false,
+      support_host: "https://www.tradingview.com",
+    });
+    container.appendChild(script);
+
+    return () => {
+      container.innerHTML = "";
+    };
+  }, [tvSymbol]);
+
+  return (
+    <section className="stockChartPanel">
+      <div className="panelHeader">
+        <div>
+          <p className="eyebrow">TradingView chart</p>
+          <h2 className="cardTitle">{holding.symbol} · {holding.name}</h2>
+          <p className="cardIntro">{tvSymbol} · {holding.exchange} · {holding.currency}</p>
+        </div>
+        <a className="button" href={tradingViewUrl(holding)} target="_blank" rel="noreferrer">Open in TradingView</a>
+      </div>
+      <div ref={containerRef} className="tradingview-widget-container stockChartWidget" />
+    </section>
   );
 }

@@ -933,7 +933,7 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 .holdingsTable {
   width: 100%;
-  min-width: 1180px;
+  min-width: 1260px;
   border-collapse: collapse;
 }
 .holdingsTable th {
@@ -954,6 +954,51 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 .holdingsTable tbody tr:hover {
   background: rgba(119,169,216,.045);
+}
+.holdingsTable tbody tr {
+  cursor: pointer;
+}
+.holdingsTable tbody tr.isSelected {
+  background: rgba(215,181,109,.075);
+}
+.stockChartPanel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(106,130,153,.18);
+}
+.stockChartWidget {
+  height: min(68vh, 560px);
+  min-height: 420px;
+  margin-top: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(106,130,153,.20);
+  border-radius: 14px;
+  background: rgba(4,12,20,.50);
+}
+.chartActions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.chartActions button,
+.chartActions a {
+  min-height: 31px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 9px;
+  border: 1px solid rgba(106,130,153,.34);
+  border-radius: 9px;
+  background: rgba(15,29,42,.92);
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-decoration: none;
+}
+.chartActions button:hover,
+.chartActions a:hover {
+  border-color: rgba(215,181,109,.45);
+  color: var(--text-primary);
+  text-decoration: none;
 }
 .holdingsTable td strong,
 .holdingsTable td span,

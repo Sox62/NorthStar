@@ -17,6 +17,8 @@ const symbolSector: Record<string, Sector> = {
   DYL: "Uranium miners",
   NXG: "Uranium miners",
   NUKZ: "Uranium miners",
+  LAM: "Uranium explorers",
+  VELO: "Technology",
   CDE: "Silver miners",
   SILJ: "Silver miners",
   SIL: "Silver miners",
@@ -51,6 +53,8 @@ export function sectorForInstrument(position: SectorInput): Sector {
   if (/SILVER BULLION|SILVER PHYSICAL|ETPMAG|BULLION/.test(text)) return "Silver bullion";
   if (/SILVER|SILJ|SIL|SVM|COEUR|HECLA/.test(text)) return "Silver miners";
   if (/GOLD|VAULT|WESTERN COPPER/.test(text)) return "Gold miners";
+  if (/VELO|VELOCITY|TECH|SOFTWARE|DIGITAL|SEMICONDUCTOR/.test(text)) return "Technology";
+  if (/LARAMIDE|U3O8|U308|EXPLOR/.test(text)) return "Uranium explorers";
   if (/URANIUM|NUCLEAR|PALADIN|BANNERMAN|URA|URNM|UUUU|CCJ|DML|DYL|NXG|NUKZ/.test(text)) return "Uranium miners";
   if (/OIL|ENERGY|EXXON|ECOPETROL|PETROL/.test(text)) return "Oil";
   if (/CASH/.test(text)) return "Cash";

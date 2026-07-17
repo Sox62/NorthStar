@@ -26,6 +26,8 @@ export const defaultTargetAllocation: Record<Sector, number> = {
   "Silver miners": 30,
   "Gold miners": 20,
   "Uranium miners": 20,
+  "Uranium explorers": 0,
+  Technology: 0,
   "Platinum bullion": 20,
   "Rhodium metal": 4,
   "Silver bullion": 2,
