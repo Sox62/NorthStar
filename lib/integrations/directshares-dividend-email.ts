@@ -106,8 +106,13 @@ async function matchingUids(client: ImapFlow, config: DirectsharesDividendEmailC
   }
 
   const since = new Date(Date.now() - config.days * 24 * 60 * 60 * 1000);
+  const exists = client.mailbox && client.mailbox.exists ? Number(client.mailbox.exists) : 0;
+  if (!exists) return [];
+
+  const scanSize = Math.max(config.maxMessages * 20, 200);
+  const start = Math.max(1, exists - scanSize + 1);
   const matches: number[] = [];
-  for await (const message of client.fetch("1:*", { uid: true, envelope: true, internalDate: true })) {
+  for await (const message of client.fetch(`${start}:*`, { uid: true, envelope: true, internalDate: true })) {
     if (matchesLocalFilters(message, config, since)) matches.push(message.uid);
   }
   return matches.slice(-config.maxMessages);
@@ -170,7 +175,12 @@ export async function fetchDirectsharesDividendEmailTransactions(config = direct
     transactions: [],
   };
 
-  await client.connect();
+  try {
+    await client.connect();
+  } catch (error) {
+    throw new Error(`Unable to connect to Directshares dividend IMAP server ${config.host}: ${imapErrorMessage(error)}`);
+  }
+
   try {
     await withMailbox(client, config, result, async () => {
       const uidList = await matchingUids(client, config);
