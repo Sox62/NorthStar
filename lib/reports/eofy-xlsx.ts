@@ -319,6 +319,12 @@ function historicalCostRow(row: EofyHistoricalCostRow): Row {
     money(row.capitalAdjustmentsAud),
     money(row.closingBalanceAud),
     money(row.closingMarketValueAud),
+    num(row.closingPrice),
+    row.closingPriceCurrency ?? "",
+    row.closingPriceDate ?? "",
+    num(row.closingFxRateToAud),
+    row.closingValuationStatus,
+    row.closingValuationSource ?? "",
     num(row.closingQuantity),
   ];
 }
@@ -328,11 +334,11 @@ function historicalCostSheet(report: EofyReport): XlsxSheet {
   const sum = (pick: (row: EofyHistoricalCostRow) => number) => rows.reduce((total, row) => total + pick(row), 0);
   return {
     name: "Historical Cost",
-    columns: [14, 14, 34, 16, 16, 18, 16, 16, 16, 18, 16, 18, 16],
+    columns: [14, 14, 34, 16, 16, 18, 16, 16, 16, 18, 16, 18, 14, 12, 14, 14, 18, 28, 16],
     rows: [
       ...reportIntro(report, "Historical Cost Report"),
-      subtitle("Including brokerage. Market values are blank unless an exact 30 June valuation is stored."),
-      header(["Market", "Code", "Name", "Allocation Method", "Opening Balance", "Opening Market Value", "Opening Quantity", "Purchases", "Cost Of Sales", "Capital Adjustments", "Closing Balance", "Closing Market Value", "Closing Quantity"]),
+      subtitle("Including brokerage. Closing market value uses stored close prices at or before 30 June where available."),
+      header(["Market", "Code", "Name", "Allocation Method", "Opening Balance", "Opening Market Value", "Opening Quantity", "Purchases", "Cost Of Sales", "Capital Adjustments", "Closing Balance", "Closing Market Value", "Closing Price", "Currency", "Price Date", "FX To AUD", "Valuation Status", "Valuation Source", "Closing Quantity"]),
       ...rows.map(historicalCostRow),
       [
         xlsxCell("Total", "section"),
@@ -346,6 +352,12 @@ function historicalCostSheet(report: EofyReport): XlsxSheet {
         money(sum((row) => row.costOfSalesAud)),
         money(sum((row) => row.capitalAdjustmentsAud)),
         money(sum((row) => row.closingBalanceAud)),
+        money(rows.reduce((total, row) => total + (row.closingMarketValueAud ?? 0), 0)),
+        "",
+        "",
+        "",
+        "",
+        "",
         "",
         num(sum((row) => row.closingQuantity)),
       ],
@@ -365,16 +377,18 @@ function unrealisedLotRow(lot: OpenTaxLot, finalColumn: "Gain" | "Loss"): Row {
     money(lot.costAud),
     money(lot.marketValueAud),
     money(finalColumn === "Loss" ? lot.unrealisedGainAud : lot.unrealisedGainAud),
+    lot.asOfDate,
+    lot.note,
   ];
 }
 
 function unrealisedSection(titleText: string, lots: OpenTaxLot[], finalColumn: "Gain" | "Loss"): Row[] {
   return [
     section(titleText),
-    header(["Name", "Code", "Sale Allocation Method", "Purchase Date", "Quantity", "Cost Base", "Market Value", finalColumn]),
+    header(["Name", "Code", "Sale Allocation Method", "Purchase Date", "Quantity", "Cost Base", "Market Value", finalColumn, "As Of", "Note"]),
     ...lots.map((lot) => unrealisedLotRow(lot, finalColumn)),
-    totalRow("Total", [null, null, null, null, null, null, lots.reduce((sum, lot) => sum + lot.unrealisedGainAud, 0)]),
-    subtitle("Please note that quantity may be adjusted where incomplete transaction history requires position fallback data."),
+    totalRow("Total", [null, null, null, null, null, null, lots.reduce((sum, lot) => sum + lot.unrealisedGainAud, 0), null, null]),
+    subtitle("Please note that quantity may be adjusted where incomplete transaction history requires position fallback data. EOFY market values are used where stored price and FX data are available."),
     blank,
   ];
 }
@@ -382,7 +396,7 @@ function unrealisedSection(titleText: string, lots: OpenTaxLot[], finalColumn: "
 function unrealisedCgtSheet(report: EofyReport): XlsxSheet {
   return {
     name: "Unrealised CGT",
-    columns: [34, 14, 18, 14, 14, 16, 16, 16],
+    columns: [34, 14, 18, 14, 14, 16, 16, 16, 14, 52],
     rows: [
       ...reportIntro(report, `Unrealised CGT for ${report.financialYear.endDate}`),
       ...unrealisedSection("Short Term Capital Gains (unrealised)", report.unrealisedCgt.shortTerm, "Gain"),

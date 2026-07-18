@@ -350,7 +350,7 @@ export default function EofyReportPage() {
           <section className="printReportSection printBreakBefore">
             <div className="printSectionHeader">
               <h2>Historical Cost Movement</h2>
-              <span>Opening, purchases, cost of sales and closing cost base</span>
+              <span>Opening, purchases, cost of sales and stored EOFY valuation</span>
             </div>
             <table className="printReportTable">
               <thead>
@@ -377,7 +377,10 @@ export default function EofyReportPage() {
                     <td className="numeric">{money(row.costOfSalesAud)}</td>
                     <td className="numeric">{number(row.closingQuantity)}</td>
                     <td className="numeric">{money(row.closingBalanceAud)}</td>
-                    <td className="numeric">{row.closingMarketValueAud == null ? "Not stored" : money(row.closingMarketValueAud)}</td>
+                    <td className="numeric">
+                      {row.closingMarketValueAud == null ? "Not stored" : money(row.closingMarketValueAud)}
+                      <span>{row.closingPriceDate ? `${row.closingPriceDate} · ${row.closingValuationStatus}` : row.closingValuationStatus}</span>
+                    </td>
                   </tr>
                 ))}
                 {!data.historicalCost.length ? <tr><td colSpan={9} className="emptyCell">No cost movement rows could be built from stored transactions.</td></tr> : null}
@@ -388,7 +391,7 @@ export default function EofyReportPage() {
           <section className="printReportSection printBreakBefore">
             <div className="printSectionHeader">
               <h2>Unrealised CGT Reference</h2>
-              <span>Current open lots grouped like Sharesight</span>
+              <span>Open lots repriced to EOFY where stored prices are available</span>
             </div>
             <div className="printMiniGrid">
               <div><span>Short term unrealised gains</span><strong>{money(data.unrealisedCgt.summary.shortTermGainsAud)}</strong><em>{data.unrealisedCgt.shortTerm.length} lots</em></div>
@@ -405,6 +408,7 @@ export default function EofyReportPage() {
                   <th className="numeric">Cost base</th>
                   <th className="numeric">Market value</th>
                   <th className="numeric">Gain / loss</th>
+                  <th>As of</th>
                 </tr>
               </thead>
               <tbody>
@@ -421,6 +425,7 @@ export default function EofyReportPage() {
                     <td className="numeric">{money(row.costAud)}</td>
                     <td className="numeric">{money(row.marketValueAud)}</td>
                     <td className={`numeric ${tone(row.unrealisedGainAud)}`}>{signedMoney(row.unrealisedGainAud)}</td>
+                    <td>{dateLabel(row.asOfDate)}<span>{row.note}</span></td>
                   </tr>
                 ))}
               </tbody>

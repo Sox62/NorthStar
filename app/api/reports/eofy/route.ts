@@ -19,11 +19,12 @@ export async function GET(request: Request) {
     const year = financialYearFromRequest(url.searchParams.get("year"));
     const format = url.searchParams.get("format");
     const storage = getStorage();
-    const [dashboard, transactions] = await Promise.all([
+    const [dashboard, transactions, priceBook] = await Promise.all([
       storage.dashboard(scope),
       storage.listTransactions("PERSONAL"),
+      storage.listPriceBook(2000),
     ]);
-    const report = buildEofyReport(scope, dashboard, transactions, year);
+    const report = buildEofyReport(scope, dashboard, transactions, year, new Date(), priceBook);
 
     if (format === "xlsx") {
       const body = eofyReportXlsx(report);

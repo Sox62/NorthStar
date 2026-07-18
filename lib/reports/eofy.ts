@@ -1,5 +1,5 @@
 import { buildTaxLots, type OpenTaxLot, type RealisedTaxLot } from "@/lib/tax-lots";
-import type { DashboardData, DashboardHolding, OwnerType, StoredTransaction } from "@/lib/storage";
+import type { DashboardData, DashboardHolding, OwnerType, PriceBook, StoredDailyPrice, StoredFxRate, StoredTransaction } from "@/lib/storage";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
 
 export type EofyScope = "personal";
@@ -165,6 +165,8 @@ export type EofyUnrealisedCgtReport = {
   };
 };
 
+export type EofyValuationStatus = "exact" | "prior_close" | "missing_price" | "missing_fx" | "zero_quantity";
+
 export type EofyHistoricalCostRow = {
   market: string;
   code: string;
@@ -178,6 +180,12 @@ export type EofyHistoricalCostRow = {
   capitalAdjustmentsAud: number;
   closingBalanceAud: number;
   closingMarketValueAud: number | null;
+  closingPrice: number | null;
+  closingPriceCurrency: string | null;
+  closingPriceDate: string | null;
+  closingFxRateToAud: number | null;
+  closingValuationStatus: EofyValuationStatus;
+  closingValuationSource: string | null;
   closingQuantity: number;
 };
 
@@ -580,6 +588,186 @@ function capitalGainsReport(scope: EofyScope, realisedLots: RealisedTaxLot[]): E
   };
 }
 
+function upper(value: string | null | undefined) {
+  return (value ?? "").trim().toUpperCase();
+}
+
+function exchangeMatchRank(priceExchange: string, rowMarket: string) {
+  const price = upper(priceExchange);
+  const market = upper(rowMarket);
+  if (price === market) return 0;
+
+  const canadian = new Set(["CA", "CANADA", "TSX", "TSXV", "TSE", "CVE"]);
+  if (canadian.has(price) && canadian.has(market)) return 1;
+
+  const australian = new Set(["AU", "ASX", "CHIXAU"]);
+  if (australian.has(price) && australian.has(market)) return 1;
+
+  const us = new Set(["US", "USA", "NYSE", "NASDAQ", "AMEX", "ARCA"]);
+  if (us.has(price) && us.has(market)) return 1;
+
+  return null;
+}
+
+function canonicalMarket(value: string) {
+  const market = upper(value);
+  if (["CA", "CANADA", "TSX", "TSXV", "TSE", "CVE"].includes(market)) return "CA";
+  if (["AU", "ASX", "CHIXAU"].includes(market)) return "ASX";
+  if (["US", "USA", "NYSE", "NASDAQ", "AMEX", "ARCA"].includes(market)) return "US";
+  return market;
+}
+
+function latestEofyPrice(priceBook: PriceBook | undefined, row: Pick<EofyHistoricalCostRow, "code" | "market">, endDate: string): StoredDailyPrice | null {
+  if (!priceBook) return null;
+  return priceBook.prices
+    .map((price) => ({ price, rank: upper(price.symbol) === upper(row.code) ? exchangeMatchRank(price.exchange, row.market) : null }))
+    .filter((candidate): candidate is { price: StoredDailyPrice; rank: number } => candidate.rank != null && candidate.price.priceDate <= endDate)
+    .sort((a, b) => a.rank - b.rank || b.price.priceDate.localeCompare(a.price.priceDate) || b.price.retrievedAt.localeCompare(a.price.retrievedAt))[0]?.price ?? null;
+}
+
+function latestEofyFx(priceBook: PriceBook | undefined, currency: string, endDate: string): StoredFxRate | null {
+  if (upper(currency) === "AUD") {
+    return {
+      id: "AUD",
+      currency: "AUD",
+      rateToAud: 1,
+      rateDate: endDate,
+      source: "AUD",
+      retrievedAt: `${endDate}T00:00:00.000Z`,
+    };
+  }
+  if (!priceBook) return null;
+  return priceBook.fxRates
+    .filter((rate) => upper(rate.currency) === upper(currency) && rate.rateDate <= endDate)
+    .sort((a, b) => b.rateDate.localeCompare(a.rateDate) || b.retrievedAt.localeCompare(a.retrievedAt))[0] ?? null;
+}
+
+function historicalValuation(row: Pick<EofyHistoricalCostRow, "code" | "market" | "closingQuantity">, priceBook: PriceBook | undefined, endDate: string): Pick<EofyHistoricalCostRow, "closingMarketValueAud" | "closingPrice" | "closingPriceCurrency" | "closingPriceDate" | "closingFxRateToAud" | "closingValuationStatus" | "closingValuationSource"> {
+  if (Math.abs(row.closingQuantity) <= 0.000001) {
+    return {
+      closingMarketValueAud: 0,
+      closingPrice: null,
+      closingPriceCurrency: null,
+      closingPriceDate: null,
+      closingFxRateToAud: null,
+      closingValuationStatus: "zero_quantity",
+      closingValuationSource: "No open quantity at EOFY.",
+    };
+  }
+
+  const price = latestEofyPrice(priceBook, row, endDate);
+  if (!price) {
+    return {
+      closingMarketValueAud: null,
+      closingPrice: null,
+      closingPriceCurrency: null,
+      closingPriceDate: null,
+      closingFxRateToAud: null,
+      closingValuationStatus: "missing_price",
+      closingValuationSource: null,
+    };
+  }
+
+  const fx = latestEofyFx(priceBook, price.currency, endDate);
+  if (!fx) {
+    return {
+      closingMarketValueAud: null,
+      closingPrice: price.close,
+      closingPriceCurrency: price.currency,
+      closingPriceDate: price.priceDate,
+      closingFxRateToAud: null,
+      closingValuationStatus: "missing_fx",
+      closingValuationSource: price.source,
+    };
+  }
+
+  const status: EofyValuationStatus = price.priceDate === endDate ? "exact" : "prior_close";
+  return {
+    closingMarketValueAud: row.closingQuantity * price.close * fx.rateToAud,
+    closingPrice: price.close,
+    closingPriceCurrency: price.currency,
+    closingPriceDate: price.priceDate,
+    closingFxRateToAud: fx.rateToAud,
+    closingValuationStatus: status,
+    closingValuationSource: fx.currency === "AUD" ? price.source : `${price.source}; FX ${fx.source} ${fx.rateDate}`,
+  };
+}
+
+function historicalKey(input: Pick<EofyHistoricalCostRow, "code" | "market"> | Pick<OpenTaxLot, "symbol" | "exchange">) {
+  const code = "code" in input ? input.code : input.symbol;
+  const market = "market" in input ? input.market : input.exchange;
+  return `${upper(code)}:${canonicalMarket(market)}`;
+}
+
+function valuationRank(status: EofyValuationStatus) {
+  const ranks: Record<EofyValuationStatus, number> = {
+    exact: 0,
+    prior_close: 1,
+    zero_quantity: 1,
+    missing_fx: 2,
+    missing_price: 3,
+  };
+  return ranks[status];
+}
+
+function lotValuationMap(rows: EofyHistoricalCostRow[], lots: OpenTaxLot[]) {
+  const lotQuantities = new Map<string, number>();
+  for (const lot of lots) lotQuantities.set(historicalKey(lot), (lotQuantities.get(historicalKey(lot)) ?? 0) + lot.quantity);
+
+  const valuations = new Map<string, { quantity: number; lotQuantity: number; marketValueAud: number | null; status: EofyValuationStatus; date: string | null }>();
+  for (const row of rows) {
+    const key = historicalKey(row);
+    const existing = valuations.get(key);
+    const marketValueAud = !existing
+      ? row.closingMarketValueAud
+      : existing.marketValueAud == null || row.closingMarketValueAud == null ? null : existing.marketValueAud + row.closingMarketValueAud;
+    const status = !existing || valuationRank(row.closingValuationStatus) > valuationRank(existing.status)
+      ? row.closingValuationStatus
+      : existing.status;
+    valuations.set(key, {
+      quantity: (existing?.quantity ?? 0) + row.closingQuantity,
+      lotQuantity: lotQuantities.get(key) ?? 0,
+      marketValueAud,
+      status,
+      date: existing?.date ?? row.closingPriceDate,
+    });
+  }
+  return valuations;
+}
+
+function taxableOpenGain(gainAud: number, lot: OpenTaxLot) {
+  if (gainAud <= 0) return gainAud;
+  return lot.discountEligible ? gainAud * (1 - lot.discountRate) : gainAud;
+}
+
+function eofyPricedOpenLots(openLots: OpenTaxLot[], rows: EofyHistoricalCostRow[], endDate: string) {
+  const valuations = lotValuationMap(rows, openLots);
+  return openLots.map((lot) => {
+    const valuation = valuations.get(historicalKey(lot));
+    if (!valuation || valuation.marketValueAud == null || valuation.lotQuantity <= 0) {
+      return {
+        ...lot,
+        note: `${lot.note} EOFY market value is missing; using latest current valuation reference.`,
+      };
+    }
+
+    const marketValueAud = valuation.marketValueAud * (lot.quantity / valuation.lotQuantity);
+    const gainAud = marketValueAud - lot.costAud;
+    const quantityMismatch = Math.abs(valuation.quantity - valuation.lotQuantity) > 0.000001
+      ? ` EOFY quantity ${valuation.quantity.toFixed(6)} differs from tax-lot quantity ${valuation.lotQuantity.toFixed(6)}.`
+      : "";
+    return {
+      ...lot,
+      asOfDate: endDate,
+      marketValueAud,
+      unrealisedGainAud: gainAud,
+      unrealisedGainPercent: lot.costAud ? (gainAud / lot.costAud) * 100 : 0,
+      taxableGainIfSoldAud: taxableOpenGain(gainAud, lot),
+      note: `${lot.note} EOFY valuation ${valuation.status}${valuation.date ? ` from ${valuation.date}` : ""}.${quantityMismatch}`,
+    };
+  });
+}
+
 function unrealisedCgtReport(openLots: OpenTaxLot[]): EofyUnrealisedCgtReport {
   const shortTerm = openLots.filter((lot) => lot.unrealisedGainAud > 0 && !lot.discountEligible);
   const longTerm = openLots.filter((lot) => lot.unrealisedGainAud > 0 && lot.discountEligible);
@@ -686,9 +874,8 @@ function applyHistoricalTransaction(row: HistoricalAccumulator, transaction: Sto
   return costOfSalesAud;
 }
 
-function historicalCostRows(transactions: StoredTransaction[], holdings: EofyHoldingReference[], startDate: string, endDate: string): EofyHistoricalCostRow[] {
+function historicalCostRows(transactions: StoredTransaction[], startDate: string, endDate: string, priceBook?: PriceBook): EofyHistoricalCostRow[] {
   const rows = new Map<string, HistoricalAccumulator>();
-  const currentHoldingsBySymbol = new Map(holdings.map((holding) => [holding.symbol, holding]));
   const sorted = [...transactions]
     .filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL")
     .filter((transaction) => transaction.tradeDate <= endDate)
@@ -718,8 +905,7 @@ function historicalCostRows(transactions: StoredTransaction[], holdings: EofyHol
   return [...rows.values()]
     .map((row) => {
       const closing = lotTotals(row.lots);
-      const current = currentHoldingsBySymbol.get(row.code);
-      return {
+      const baseRow = {
         market: row.market,
         code: row.code,
         name: row.name,
@@ -731,8 +917,11 @@ function historicalCostRows(transactions: StoredTransaction[], holdings: EofyHol
         costOfSalesAud: row.costOfSalesAud,
         capitalAdjustmentsAud: row.capitalAdjustmentsAud,
         closingBalanceAud: closing.costAud,
-        closingMarketValueAud: current?.asOfDate === endDate ? current.marketValueAud : null,
         closingQuantity: closing.quantity,
+      };
+      return {
+        ...baseRow,
+        ...historicalValuation(baseRow, priceBook, endDate),
       };
     })
     .filter((row) => row.openingBalanceAud || row.purchasesAud || row.costOfSalesAud || row.closingBalanceAud || row.openingQuantity || row.closingQuantity)
@@ -750,22 +939,28 @@ function dataQualityNotes(report: {
     "Prepared from imported NorthStar broker transactions and dividend notifications. Accountant should verify against broker statements.",
     "Current holdings are included as a reconciliation reference using the latest available valuation, not a reconstructed 30 June historical valuation.",
   ];
+  const missingPrices = report.historicalCost.filter((row) => row.closingValuationStatus === "missing_price").length;
+  const missingFx = report.historicalCost.filter((row) => row.closingValuationStatus === "missing_fx").length;
+  const priorCloses = report.historicalCost.filter((row) => row.closingValuationStatus === "prior_close").length;
 
   if (!report.incomePayments.length) notes.push("No dividend or distribution income is stored for this financial year and owner scope.");
   if (!report.realisedLots.length) notes.push("No realised sale lots are stored for this financial year and owner scope.");
   if (report.realisedLots.some((lot) => lot.acquisitionDate == null)) notes.push("Some sale lots are missing acquisition history and use broker realised P/L or an incomplete cost-base estimate.");
   if (report.currentHoldings.some((holding) => holding.source === "position_fallback")) notes.push("Some open holding cost bases use current position fallback data because complete transaction history is not yet available.");
-  if (report.historicalCost.some((row) => row.closingMarketValueAud == null)) notes.push("Historical cost movement includes cost and quantity movements; 30 June market value is blank unless a valuation for the exact EOFY date is stored.");
+  if (priorCloses) notes.push(`${priorCloses} historical-cost row${priorCloses === 1 ? "" : "s"} use the latest stored close before 30 June because an exact 30 June price was not stored.`);
+  if (missingPrices || missingFx) notes.push(`${missingPrices + missingFx} historical-cost row${missingPrices + missingFx === 1 ? "" : "s"} need price or FX backfill before the 30 June market-value column is complete.`);
   if (!report.valuationAsOf) notes.push("No valuation date is recorded for the current open-position reference.");
 
   return notes;
 }
 
-export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, transactions: StoredTransaction[], year: number, generatedAt = new Date()): EofyReport {
+export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, transactions: StoredTransaction[], year: number, generatedAt = new Date(), priceBook?: PriceBook): EofyReport {
   const fy = financialYear(year);
+  const transactionsThroughEofy = transactions.filter((transaction) => transaction.tradeDate <= fy.endDate);
   const income = incomeRows(transactions, fy.startDate, fy.endDate);
   const taxableIncome = taxableIncomeRows(transactions, fy.startDate, fy.endDate);
-  const allTaxLots = buildTaxLots(dashboard, transactions, generatedAt);
+  const taxLotDashboard = { ...dashboard, lastUpdated: fy.endDate };
+  const allTaxLots = buildTaxLots(taxLotDashboard, transactionsThroughEofy, generatedAt);
   const realisedLots = allTaxLots.realisedLots.filter((lot) => dateInRange(lot.saleDate, fy.startDate, fy.endDate));
   const tradeMovements = tradeRows(transactions, fy.startDate, fy.endDate);
   const currentHoldings = dashboard.holdings
@@ -774,8 +969,9 @@ export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, tran
     .sort((a, b) => b.marketValueAud - a.marketValueAud);
   const realised = realisedSummary(realisedLots);
   const capitalGains = capitalGainsReport(scope, realisedLots);
-  const unrealisedCgt = unrealisedCgtReport(allTaxLots.openLots);
-  const historicalCost = historicalCostRows(transactions, currentHoldings, fy.startDate, fy.endDate);
+  const historicalCost = historicalCostRows(transactionsThroughEofy, fy.startDate, fy.endDate, priceBook);
+  const eofyOpenLots = eofyPricedOpenLots(allTaxLots.openLots, historicalCost, fy.endDate);
+  const unrealisedCgt = unrealisedCgtReport(eofyOpenLots);
   const buyTrades = tradeMovements.filter((trade) => trade.type === "BUY");
   const sellTrades = tradeMovements.filter((trade) => trade.type === "SELL");
   const draftReport = {
@@ -1007,7 +1203,7 @@ function addSharesightCompatibilityRows(rows: CsvRow[], report: EofyReport) {
       row.closingMarketValueAud == null ? "" : money(row.closingMarketValueAud),
       "",
       "",
-      `Method ${row.allocationMethod}; opening balance ${money(row.openingBalanceAud)}; opening quantity ${number(row.openingQuantity)}; purchases ${money(row.purchasesAud)}; cost of sales ${money(row.costOfSalesAud)}; capital adjustments ${money(row.capitalAdjustmentsAud)}; closing quantity ${number(row.closingQuantity)}`,
+      `Method ${row.allocationMethod}; opening balance ${money(row.openingBalanceAud)}; opening quantity ${number(row.openingQuantity)}; purchases ${money(row.purchasesAud)}; cost of sales ${money(row.costOfSalesAud)}; capital adjustments ${money(row.capitalAdjustmentsAud)}; closing quantity ${number(row.closingQuantity)}; valuation ${row.closingValuationStatus}; price ${number(row.closingPrice)} ${row.closingPriceCurrency ?? ""} on ${row.closingPriceDate ?? ""}; FX ${number(row.closingFxRateToAud)}; source ${row.closingValuationSource ?? ""}`,
       report.financialYear.endDate,
     ]);
   }
@@ -1039,7 +1235,7 @@ function addSharesightCompatibilityRows(rows: CsvRow[], report: EofyReport) {
         money(lot.marketValueAud),
         money(lot.unrealisedGainAud),
         money(lot.taxableGainIfSoldAud),
-        `${lot.source}; held ${lot.heldDays ?? "unknown"} days; ${lot.discountEligible ? "discount eligible" : "not discount eligible"}`,
+        `${lot.source}; held ${lot.heldDays ?? "unknown"} days; ${lot.discountEligible ? "discount eligible" : "not discount eligible"}; ${lot.note}`,
         lot.asOfDate,
       ]);
     }
