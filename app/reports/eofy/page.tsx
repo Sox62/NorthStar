@@ -103,8 +103,9 @@ export default function EofyReportPage() {
           </select>
         </label>
         <div className="printReportActions">
+          <a className="button primary" href={`/api/reports/eofy?scope=personal&year=${year}&format=xlsx`}>Download XLSX</a>
           <a className="button" href={`/api/reports/eofy?scope=personal&year=${year}&format=csv`}>Download CSV</a>
-          <button className="primary" type="button" onClick={() => window.print()}>Print / Save PDF</button>
+          <button type="button" onClick={() => window.print()}>Print / Save PDF</button>
         </div>
       </nav>
 

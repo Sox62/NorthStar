@@ -4,6 +4,7 @@ import {
   eofyReportCsv,
   financialYearFromRequest,
 } from "@/lib/reports/eofy";
+import { eofyReportXlsx } from "@/lib/reports/eofy-xlsx";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,17 @@ export async function GET(request: Request) {
       storage.listTransactions("PERSONAL"),
     ]);
     const report = buildEofyReport(scope, dashboard, transactions, year);
+
+    if (format === "xlsx") {
+      const body = eofyReportXlsx(report);
+      return new Response(body, {
+        headers: {
+          "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "content-disposition": `attachment; filename="northstar-personal-eofy-accountant-pack-fy${year}.xlsx"`,
+          "cache-control": "no-store",
+        },
+      });
+    }
 
     if (format === "csv") {
       const body = eofyReportCsv(report);

@@ -185,12 +185,15 @@ export type EofyTradeMovement = {
   id: string;
   type: "BUY" | "SELL";
   symbol: string;
+  exchange: string;
   name: string;
   broker: string;
   tradeDate: string;
   settleDate: string | null;
   quantity: number;
+  price: number | null;
   currency: string;
+  fxRateToAud: number | null;
   grossAud: number;
   feesAud: number;
   taxesAud: number;
@@ -469,12 +472,15 @@ function tradeRows(transactions: StoredTransaction[], startDate: string, endDate
       id: transaction.id,
       type: transaction.type as "BUY" | "SELL",
       symbol: transaction.symbol,
+      exchange: transaction.exchange,
       name: transaction.description || transaction.symbol,
       broker: transaction.broker,
       tradeDate: transaction.tradeDate,
       settleDate: transaction.settleDate ?? null,
       quantity: Math.abs(transaction.quantity ?? 0),
+      price: transaction.price ?? null,
       currency: transaction.currency,
+      fxRateToAud: transaction.fxRateToBase ?? null,
       grossAud: transactionGrossAud(transaction),
       feesAud: transactionAud(transaction.fees, transaction),
       taxesAud: transactionAud(transaction.taxes, transaction),

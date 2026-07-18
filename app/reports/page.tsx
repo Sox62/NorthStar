@@ -1,7 +1,19 @@
 import PageHeader from "@/components/PageHeader";
 import { Card, SummaryGrid } from "@/northstar/components";
 
-const downloads = [
+type ReportDownload = {
+  title: string;
+  owner: string;
+  href: string;
+  detail: string;
+  rows: string;
+  reportHref?: string;
+  downloadLabel?: string;
+  secondaryHref?: string;
+  secondaryLabel?: string;
+};
+
+const downloads: ReportDownload[] = [
   {
     title: "Consolidated wealth statement",
     owner: "Overall",
@@ -29,8 +41,11 @@ const downloads = [
   {
     title: "Personal EOFY accountant pack",
     owner: "Personal",
-    href: "/api/reports/eofy?scope=personal&format=csv",
+    href: "/api/reports/eofy?scope=personal&format=xlsx",
     reportHref: "/reports/eofy?scope=personal",
+    downloadLabel: "Download XLSX",
+    secondaryHref: "/api/reports/eofy?scope=personal&format=csv",
+    secondaryLabel: "CSV",
     detail: "Personal financial-year income, franking, withholding, realised/unrealised CGT, trade movements and historical cost schedules.",
     rows: "Personal tax only",
   },
@@ -118,8 +133,9 @@ export default function ReportsPage() {
               </div>
               <div className="reportActions">
                 {download.reportHref ? <a className="button" href={download.reportHref}>Open report</a> : null}
+                {download.secondaryHref ? <a className="button" href={download.secondaryHref}>{download.secondaryLabel ?? "Download"}</a> : null}
                 <a className="button primary" href={download.href}>
-                  Download CSV
+                  {download.downloadLabel ?? "Download CSV"}
                 </a>
               </div>
             </article>
