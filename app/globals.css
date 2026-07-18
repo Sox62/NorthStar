@@ -1088,6 +1088,116 @@ button:disabled { opacity: .55; cursor: wait; }
 .holdingsTable .negative {
   color: var(--status-negative);
 }
+.taxHeroCard {
+  margin-bottom: 18px;
+}
+.taxToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}
+.taxSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.taxTableCard {
+  min-width: 0;
+  margin-top: 18px;
+}
+.taxTableWrap {
+  margin-top: 18px;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.taxTable {
+  width: 100%;
+  min-width: 1280px;
+  border-collapse: collapse;
+}
+.taxTable th {
+  padding: 0 12px 12px;
+  border-bottom: 1px solid rgba(106,130,153,.22);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.taxTable td {
+  padding: 14px 12px;
+  border-bottom: 1px solid rgba(106,130,153,.14);
+  color: var(--text-secondary);
+  vertical-align: top;
+}
+.taxTable tbody tr:hover {
+  background: rgba(119,169,216,.04);
+}
+.taxTable td strong,
+.taxTable td span,
+.taxTable td small {
+  display: block;
+}
+.taxTable td strong {
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.12;
+}
+.taxTable td span {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.taxTable td small {
+  max-width: 320px;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.taxTable .numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.taxTable .positive {
+  color: var(--status-positive);
+}
+.taxTable .negative {
+  color: var(--status-negative);
+}
+.taxDiscount {
+  display: inline-flex !important;
+  width: fit-content;
+  min-height: 26px;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 8px;
+  border: 1px solid rgba(106,130,153,.24);
+  border-radius: 999px;
+  background: rgba(106,130,153,.08);
+  color: var(--text-muted) !important;
+  font-size: 11px !important;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.taxDiscount.isEligible {
+  border-color: rgba(141,198,160,.30);
+  background: rgba(18,50,32,.72);
+  color: var(--status-good-fg) !important;
+}
+.emptyCell {
+  padding: 28px 12px !important;
+  color: var(--text-muted) !important;
+  text-align: center;
+}
 .loginShell {
   min-height: 100vh;
   display: grid;
@@ -1393,6 +1503,11 @@ button:disabled { opacity: .55; cursor: wait; }
   .roadmapHero { grid-template-columns: 1fr; }
   .holdingsAccounts { grid-template-columns: 1fr; }
   .holdingsToolbar { grid-template-columns: 1fr; align-items: stretch; }
+  .taxSummaryGrid { grid-template-columns: 1fr; }
+  .taxToolbar { align-items: stretch; flex-direction: column; }
+  .taxToolbar .scopeSwitch,
+  .taxToolbar .button { width: 100%; }
+  .taxToolbar .button { justify-content: center; }
   .holdingsHeader { display: none; }
   .holdingRow { grid-template-columns: minmax(0,1.4fr) minmax(90px,.7fr) minmax(90px,.7fr); }
   .holdingWeight { display: none; }

@@ -47,6 +47,7 @@ export default function ReportsPage() {
         description="Download repeatable CSV outputs for consolidated, Personal, SMSF and estate review."
         links={[
           { href: "/", label: "Dashboard" },
+          { href: "/tax", label: "Tax lots" },
           { href: "/targets", label: "Targets" },
           { href: "/roadmap", label: "Roadmap" },
         ]}
@@ -76,6 +77,7 @@ export default function ReportsPage() {
             <span>SMSF report</span>
             <span>Estate summary</span>
             <span>Tax position</span>
+            <span>Tax-lot workbench</span>
           </div>
         </Card>
       </section>

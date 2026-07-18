@@ -144,6 +144,7 @@ export default function HoldingsPage() {
         links={[
           { href: "/", label: "Dashboard" },
           { href: "/sync", label: "Sync" },
+          { href: "/tax", label: "Tax lots" },
           { href: "/reports", label: "Reports" },
           { href: "/roadmap", label: "Roadmap" },
         ]}

@@ -14,6 +14,7 @@ const navItems = [
   { href: "/cash", label: "Cash", detail: "Bank balances" },
   { href: "/assets", label: "Bullion", detail: "Physical metals" },
   { href: "/reports", label: "Reports", detail: "Exports" },
+  { href: "/tax", label: "Tax", detail: "CGT lots" },
   { href: "/security", label: "Security", detail: "Access methods" },
 ];
 
