@@ -1021,6 +1021,91 @@ button:disabled { opacity: .55; cursor: wait; }
 .stockChartPanel .panelHeader {
   flex-wrap: wrap;
 }
+.nativeStockChart {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid rgba(106,130,153,.20);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(15,29,42,.72), rgba(7,17,27,.66));
+}
+.nativeChartHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 10px;
+}
+.nativeChartHeader h3 {
+  margin: 2px 0 3px;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.nativeChartHeader span,
+.nativeChartChange span,
+.nativeChartEmpty span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.nativeChartChange {
+  min-width: 126px;
+  padding-top: 5px;
+  text-align: right;
+}
+.nativeChartChange strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 16px;
+}
+.nativeChartChange.positive strong {
+  color: var(--positive);
+}
+.nativeChartChange.negative strong {
+  color: var(--negative);
+}
+.nativeChartSvg {
+  display: block;
+  width: 100%;
+  height: 240px;
+  overflow: visible;
+}
+.nativeChartGrid {
+  stroke: rgba(106,130,153,.18);
+  stroke-width: 1;
+}
+.nativeChartLabel,
+.nativeChartDate {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+.nativeChartFill {
+  fill: rgba(215,181,109,.13);
+}
+.nativeChartLine {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+.nativeChartDot {
+  fill: var(--accent);
+  stroke: rgba(15,29,42,.96);
+  stroke-width: 2;
+}
+.nativeChartEmpty {
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  border: 1px dashed rgba(106,130,153,.28);
+  border-radius: 10px;
+  padding: 18px;
+  color: var(--text-secondary);
+}
 .stockChartWidget {
   width: 100%;
   height: min(68vh, 560px);
@@ -1881,6 +1966,17 @@ button:disabled { opacity: .55; cursor: wait; }
   .stockChartPanel .button {
     width: 100%;
     justify-content: center;
+  }
+  .nativeChartHeader {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .nativeChartChange {
+    min-width: 0;
+    text-align: left;
+  }
+  .nativeChartSvg {
+    height: 210px;
   }
   .stockChartWidget {
     min-height: 340px;
