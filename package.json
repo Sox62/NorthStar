@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build && node scripts/prepare-standalone.mjs",
+    "test": "node --import tsx --test lib/storage/xirr.test.ts lib/integrations/directshares.test.ts lib/integrations/dividends.test.ts lib/tax-lots.test.ts lib/reports/eofy.test.ts",
     "start": "node .next/standalone/server.js",
     "worker": "tsx workers/daily-sync.ts",
     "db:generate": "drizzle-kit generate",
