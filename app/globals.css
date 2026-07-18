@@ -1416,6 +1416,22 @@ button:disabled { opacity: .55; cursor: wait; }
   gap: 9px;
   flex-wrap: wrap;
 }
+.reportScopePill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(215,181,105,.42);
+  border-radius: 999px;
+  background: rgba(215,181,105,.14);
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
 .yearSelect {
   display: grid;
   gap: 5px;

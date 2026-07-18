@@ -31,16 +31,8 @@ const downloads = [
     owner: "Personal",
     href: "/api/reports/eofy?scope=personal&format=csv",
     reportHref: "/reports/eofy?scope=personal",
-    detail: "Financial-year income, franking, withholding, realised CGT lots, trade movements and current holding reference.",
-    rows: "Latest EOFY",
-  },
-  {
-    title: "SMSF EOFY accountant pack",
-    owner: "SMSF",
-    href: "/api/reports/eofy?scope=smsf&format=csv",
-    reportHref: "/reports/eofy?scope=smsf",
-    detail: "SMSF financial-year income, tax credits, realised CGT lots, trade movements and current holding reference.",
-    rows: "Latest EOFY",
+    detail: "Personal financial-year income, franking, withholding, realised/unrealised CGT, trade movements and historical cost schedules.",
+    rows: "Personal tax only",
   },
   {
     title: "Estate summary",
@@ -64,7 +56,7 @@ export default function ReportsPage() {
     <main className="shell">
       <PageHeader
         title="Reports"
-        description="Download CSV outputs or open print-ready report pages for consolidated, Personal, SMSF, EOFY accountant and tax review."
+        description="Download CSV outputs or open print-ready report pages. The EOFY accountant tax pack is Personal only; SMSF remains separate."
         links={[
           { href: "/", label: "Dashboard" },
           { href: "/tax", label: "Tax lots" },
@@ -76,7 +68,7 @@ export default function ReportsPage() {
       <section className="reportsHero">
         <Card className="reportsSummaryCard">
           <p className="eyebrow">Report set</p>
-          <h2 className="cardTitle">CSV, PDF-ready and accountant reports</h2>
+          <h2 className="cardTitle">CSV, PDF-ready and personal tax reports</h2>
           <p className="cardIntro">Generated directly from stored NorthStar portfolio data. Open report pages can be printed or saved as PDFs from the browser.</p>
           <SummaryGrid
             entries={[
@@ -95,7 +87,7 @@ export default function ReportsPage() {
             <span>Wealth statement</span>
             <span>Personal report</span>
             <span>SMSF report</span>
-            <span>EOFY accountant packs</span>
+            <span>Personal EOFY accountant pack</span>
             <span>Print / Save PDF views</span>
             <span>Estate summary</span>
             <span>Tax position</span>

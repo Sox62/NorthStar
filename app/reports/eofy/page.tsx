@@ -1,13 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { EofyReport, EofyScope } from "@/lib/reports/eofy";
+import type { EofyReport } from "@/lib/reports/eofy";
 import { Card, Notice } from "@/northstar/components";
-
-const scopes: Array<{ key: EofyScope; label: string }> = [
-  { key: "personal", label: "Personal" },
-  { key: "smsf", label: "SMSF" },
-];
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value);
@@ -26,12 +21,6 @@ function defaultFinancialYearEnding() {
   return today.getMonth() >= 6 ? year : year - 1;
 }
 
-function scopeFromLocation(): EofyScope {
-  if (typeof window === "undefined") return "personal";
-  const requested = new URL(window.location.href).searchParams.get("scope");
-  return requested === "smsf" ? "smsf" : "personal";
-}
-
 function yearFromLocation() {
   if (typeof window === "undefined") return defaultFinancialYearEnding();
   const requested = Number(new URL(window.location.href).searchParams.get("year"));
@@ -44,15 +33,15 @@ function yearOptions(selectedYear: number) {
   return [...years].sort((a, b) => b - a);
 }
 
-function setUrl(scope: EofyScope, year: number) {
+function setUrl(year: number) {
   const url = new URL(window.location.href);
-  url.searchParams.set("scope", scope);
+  url.searchParams.set("scope", "personal");
   url.searchParams.set("year", String(year));
   window.history.replaceState(null, "", url);
 }
 
-async function loadReport(scope: EofyScope, year: number): Promise<EofyReport> {
-  const response = await fetch(`/api/reports/eofy?scope=${scope}&year=${year}`, { cache: "no-store" });
+async function loadReport(year: number): Promise<EofyReport> {
+  const response = await fetch(`/api/reports/eofy?scope=personal&year=${year}`, { cache: "no-store" });
   const payload = await response.json();
   if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load EOFY report");
   return payload as EofyReport;
@@ -62,8 +51,11 @@ function tone(value: number) {
   return value >= 0 ? "positive" : "negative";
 }
 
+function total<T>(rows: T[], pick: (row: T) => number) {
+  return rows.reduce((sum, row) => sum + pick(row), 0);
+}
+
 export default function EofyReportPage() {
-  const [scope, setScope] = useState<EofyScope>("personal");
   const [year, setYear] = useState(defaultFinancialYearEnding());
   const [data, setData] = useState<EofyReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,7 +63,6 @@ export default function EofyReportPage() {
   const years = useMemo(() => yearOptions(year), [year]);
 
   useEffect(() => {
-    setScope(scopeFromLocation());
     setYear(yearFromLocation());
   }, []);
 
@@ -81,7 +72,7 @@ export default function EofyReportPage() {
       setLoading(true);
       setError("");
       try {
-        const report = await loadReport(scope, year);
+        const report = await loadReport(year);
         if (!cancelled) setData(report);
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load EOFY report");
@@ -93,29 +84,18 @@ export default function EofyReportPage() {
     return () => {
       cancelled = true;
     };
-  }, [scope, year]);
-
-  const chooseScope = (next: EofyScope) => {
-    setScope(next);
-    setUrl(next, year);
-  };
+  }, [year]);
 
   const chooseYear = (next: number) => {
     setYear(next);
-    setUrl(scope, next);
+    setUrl(next);
   };
 
   return (
     <main className="printReportShell">
       <nav className="printReportToolbar screenOnly" aria-label="Report actions">
         <a className="miniBrand" href="/reports"><span className="miniStar" aria-hidden="true">✦</span><span>Reports</span></a>
-        <div className="scopeSwitch" role="tablist" aria-label="Report scope">
-          {scopes.map((item) => (
-            <button key={item.key} type="button" className={scope === item.key ? "isActive" : ""} onClick={() => chooseScope(item.key)}>
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <span className="reportScopePill">Personal only</span>
         <label className="yearSelect">
           <span>Financial year</span>
           <select value={year} onChange={(event) => chooseYear(Number(event.target.value))}>
@@ -123,7 +103,7 @@ export default function EofyReportPage() {
           </select>
         </label>
         <div className="printReportActions">
-          <a className="button" href={`/api/reports/eofy?scope=${scope}&year=${year}&format=csv`}>Download CSV</a>
+          <a className="button" href={`/api/reports/eofy?scope=personal&year=${year}&format=csv`}>Download CSV</a>
           <button className="primary" type="button" onClick={() => window.print()}>Print / Save PDF</button>
         </div>
       </nav>
@@ -153,6 +133,69 @@ export default function EofyReportPage() {
             <div><span>Buy trades</span><strong>{data.summary.buyTrades}</strong><em>{money(data.summary.buysAud)} cost</em></div>
             <div><span>Sell trades</span><strong>{data.summary.sellTrades}</strong><em>{money(data.summary.sellsAud)} proceeds</em></div>
             <div><span>Current holdings ref.</span><strong>{data.summary.currentHoldings}</strong><em>{money(data.summary.currentMarketValueAud)} value</em></div>
+          </section>
+
+          <section className="printReportSection">
+            <div className="printSectionHeader">
+              <h2>Australian CGT Summary</h2>
+              <span>Sharesight-style 18H / 18A flow</span>
+            </div>
+            <div className="printMiniGrid">
+              <div><span>Short term gains</span><strong>{money(data.capitalGains.summary.shortTermGainsAud)}</strong></div>
+              <div><span>Long term gains</span><strong>{money(data.capitalGains.summary.longTermGainsAud)}</strong></div>
+              <div><span>Capital losses</span><strong className="negative">{money(data.capitalGains.summary.lossesAud)}</strong></div>
+              <div><span>Total current year gains 18H</span><strong>{money(data.capitalGains.summary.totalCurrentYearCapitalGainsAud)}</strong></div>
+              <div><span>Post-loss long term gains</span><strong>{money(data.capitalGains.summary.longTermGainsAfterLossesAud)}</strong></div>
+              <div><span>CGT concession</span><strong className="negative">-{money(data.capitalGains.summary.cgtConcessionAud)}</strong><em>{Math.round(data.capitalGains.summary.discountRate * 100)}% discount</em></div>
+              <div><span>Total net capital gain 18A</span><strong className={tone(data.capitalGains.summary.netCapitalGainAud)}>{money(data.capitalGains.summary.netCapitalGainAud)}</strong></div>
+              <div><span>Sale allocation</span><strong>FIFO</strong><em>Minimise CGT override not yet modelled</em></div>
+            </div>
+          </section>
+
+          <section className="printReportSection">
+            <div className="printSectionHeader">
+              <h2>Taxable Income Classification</h2>
+              <span>Australian non-trust, trust and foreign income</span>
+            </div>
+            <div className="printMiniGrid">
+              <div><span>AU non-trust</span><strong>{money(total(data.taxableIncome.australianNonTrust, (row) => row.totalIncomeAud))}</strong><em>{data.taxableIncome.australianNonTrust.length} row{data.taxableIncome.australianNonTrust.length === 1 ? "" : "s"}</em></div>
+              <div><span>AU trust / ETF-like</span><strong>{money(total(data.taxableIncome.australianTrust, (row) => row.totalIncomeAud))}</strong><em>{data.taxableIncome.australianTrust.length} row{data.taxableIncome.australianTrust.length === 1 ? "" : "s"}</em></div>
+              <div><span>Foreign income</span><strong>{money(total(data.taxableIncome.foreign, (row) => row.grossAmountAud))}</strong><em>{money(total(data.taxableIncome.foreign, (row) => row.foreignTaxWithheldAud))} tax withheld</em></div>
+            </div>
+          </section>
+
+          <section className="printReportSection">
+            <div className="printSectionHeader">
+              <h2>Capital Gains By Holding</h2>
+              <span>All holdings schedule</span>
+            </div>
+            <table className="printReportTable">
+              <thead>
+                <tr>
+                  <th>Holding</th>
+                  <th>Market</th>
+                  <th className="numeric">Sold qty</th>
+                  <th className="numeric">Short term</th>
+                  <th className="numeric">Long term</th>
+                  <th className="numeric">Losses</th>
+                  <th className="numeric">Total gains</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.capitalGains.byHolding.map((row) => (
+                  <tr key={`${row.market}-${row.code}`}>
+                    <td><strong>{row.code}</strong><span>{row.name}</span></td>
+                    <td>{row.market}</td>
+                    <td className="numeric">{number(row.soldQuantity)}</td>
+                    <td className="numeric">{money(row.shortTermGainsAud)}</td>
+                    <td className="numeric">{money(row.longTermGainsAud)}</td>
+                    <td className={`numeric ${tone(row.lossesAud)}`}>{money(row.lossesAud)}</td>
+                    <td className="numeric">{money(row.totalGainAud)}</td>
+                  </tr>
+                ))}
+                {!data.capitalGains.byHolding.length ? <tr><td colSpan={7} className="emptyCell">No realised capital gains/losses stored for this owner and financial year.</td></tr> : null}
+              </tbody>
+            </table>
           </section>
 
           <section className="printReportSection">
@@ -299,6 +342,86 @@ export default function EofyReportPage() {
                   </tr>
                 ))}
                 {!data.tradeMovements.length ? <tr><td colSpan={8} className="emptyCell">No buy/sell trade movements stored for this owner and financial year.</td></tr> : null}
+              </tbody>
+            </table>
+          </section>
+
+          <section className="printReportSection printBreakBefore">
+            <div className="printSectionHeader">
+              <h2>Historical Cost Movement</h2>
+              <span>Opening, purchases, cost of sales and closing cost base</span>
+            </div>
+            <table className="printReportTable">
+              <thead>
+                <tr>
+                  <th>Holding</th>
+                  <th>Market</th>
+                  <th className="numeric">Opening qty</th>
+                  <th className="numeric">Opening cost</th>
+                  <th className="numeric">Purchases</th>
+                  <th className="numeric">Cost of sales</th>
+                  <th className="numeric">Closing qty</th>
+                  <th className="numeric">Closing cost</th>
+                  <th className="numeric">Closing value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.historicalCost.map((row) => (
+                  <tr key={`${row.market}-${row.code}`}>
+                    <td><strong>{row.code}</strong><span>{row.name}</span></td>
+                    <td>{row.market}</td>
+                    <td className="numeric">{number(row.openingQuantity)}</td>
+                    <td className="numeric">{money(row.openingBalanceAud)}</td>
+                    <td className="numeric">{money(row.purchasesAud)}</td>
+                    <td className="numeric">{money(row.costOfSalesAud)}</td>
+                    <td className="numeric">{number(row.closingQuantity)}</td>
+                    <td className="numeric">{money(row.closingBalanceAud)}</td>
+                    <td className="numeric">{row.closingMarketValueAud == null ? "Not stored" : money(row.closingMarketValueAud)}</td>
+                  </tr>
+                ))}
+                {!data.historicalCost.length ? <tr><td colSpan={9} className="emptyCell">No cost movement rows could be built from stored transactions.</td></tr> : null}
+              </tbody>
+            </table>
+          </section>
+
+          <section className="printReportSection printBreakBefore">
+            <div className="printSectionHeader">
+              <h2>Unrealised CGT Reference</h2>
+              <span>Current open lots grouped like Sharesight</span>
+            </div>
+            <div className="printMiniGrid">
+              <div><span>Short term unrealised gains</span><strong>{money(data.unrealisedCgt.summary.shortTermGainsAud)}</strong><em>{data.unrealisedCgt.shortTerm.length} lots</em></div>
+              <div><span>Long term unrealised gains</span><strong>{money(data.unrealisedCgt.summary.longTermGainsAud)}</strong><em>{data.unrealisedCgt.longTerm.length} lots</em></div>
+              <div><span>Unrealised losses</span><strong className="negative">{money(data.unrealisedCgt.summary.lossesAud)}</strong><em>{data.unrealisedCgt.losses.length} lots</em></div>
+            </div>
+            <table className="printReportTable">
+              <thead>
+                <tr>
+                  <th>Bucket</th>
+                  <th>Holding</th>
+                  <th>Purchase date</th>
+                  <th className="numeric">Quantity</th>
+                  <th className="numeric">Cost base</th>
+                  <th className="numeric">Market value</th>
+                  <th className="numeric">Gain / loss</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ...data.unrealisedCgt.shortTerm.map((row) => ({ bucket: "Short term", row })),
+                  ...data.unrealisedCgt.longTerm.map((row) => ({ bucket: "Long term", row })),
+                  ...data.unrealisedCgt.losses.map((row) => ({ bucket: "Loss", row })),
+                ].map(({ bucket, row }) => (
+                  <tr key={`${bucket}-${row.id}`}>
+                    <td>{bucket}</td>
+                    <td><strong>{row.symbol}</strong><span>{row.name}</span></td>
+                    <td>{dateLabel(row.acquisitionDate)}</td>
+                    <td className="numeric">{number(row.quantity)}</td>
+                    <td className="numeric">{money(row.costAud)}</td>
+                    <td className="numeric">{money(row.marketValueAud)}</td>
+                    <td className={`numeric ${tone(row.unrealisedGainAud)}`}>{signedMoney(row.unrealisedGainAud)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </section>
