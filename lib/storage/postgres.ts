@@ -5,6 +5,7 @@ import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northsta
 import { classifyAsset } from "./classify";
 import { buildCurrencyExposure } from "./exposure";
 import { buildValuationFreshness } from "./freshness";
+import { buildIncomeSummary } from "./income";
 import { buildPeriodReturns, type NavPoint } from "./returns";
 import { buildXirrSummary } from "./xirr";
 import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, Scope, StorageAdapter, StoredPosition, StoredTransaction, SyncRun } from "./types";
@@ -315,7 +316,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
         t.trade_date::text, t.settle_date::text, i.ticker, i.exchange, i.name, i.external_key,
         t.type, t.quantity::text, t.price::text, t.close_price::text, t.cost::text, t.currency,
         t.fees::text, t.taxes::text, t.net_cash::text, t.fx_rate_to_base::text, t.realised_pnl::text,
-        t.source, i.isin, i.conid
+        t.source, t.raw, i.isin, i.conid
       FROM transactions t
       JOIN portfolios p ON p.id=t.portfolio_id
       JOIN broker_accounts ba ON ba.id=t.account_id
@@ -350,6 +351,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       fxRateToBase: optionalNumber(row.fx_rate_to_base),
       realisedPnl: optionalNumber(row.realised_pnl),
       source: row.source,
+      raw: row.raw ?? undefined,
     }));
   }
 
@@ -865,11 +867,11 @@ export class PostgresStorageAdapter implements StorageAdapter {
       SELECT ps.captured_at::date::text AS day,p.legal_owner_type,
         (ARRAY_AGG((ps.market_value+ps.cash_value) ORDER BY ps.captured_at DESC))[1]::text AS value
       FROM portfolio_snapshots ps JOIN portfolios p ON p.id=ps.portfolio_id
-      WHERE 1=1 ${ownerFilter} GROUP BY ps.captured_at::date,p.legal_owner_type ORDER BY day DESC LIMIT 180
+      WHERE 1=1 ${ownerFilter} GROUP BY ps.captured_at::date,p.legal_owner_type ORDER BY day DESC LIMIT 2000
     `, values);
     const dayMap=new Map<string,{personal?:number;smsf?:number}>();
     for(const row of snapshotRows.rows){const entry=dayMap.get(row.day)??{};if(row.legal_owner_type==="PERSONAL")entry.personal=numberValue(row.value);else entry.smsf=numberValue(row.value);dayMap.set(row.day,entry)}
-    const performance=[...dayMap.entries()].sort(([a],[b])=>a.localeCompare(b)).slice(-90).map(([day,item])=>({date:new Intl.DateTimeFormat("en-AU",{day:"numeric",month:"short"}).format(new Date(`${day}T12:00:00Z`)),personal:item.personal,smsf:item.smsf,overall:item.personal!==undefined||item.smsf!==undefined?(item.personal??0)+(item.smsf??0):undefined}));
+    const performance=[...dayMap.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([day,item])=>({date:day,personal:item.personal,smsf:item.smsf,overall:item.personal!==undefined||item.smsf!==undefined?(item.personal??0)+(item.smsf??0):undefined}));
     const navSeries: NavPoint[] = [...dayMap.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([date,item]) => {
       const value = ownerType === "PERSONAL" ? item.personal : ownerType === "SMSF" ? item.smsf : (item.personal ?? 0) + (item.smsf ?? 0);
       return { date, value: value ?? 0 };
@@ -900,7 +902,8 @@ export class PostgresStorageAdapter implements StorageAdapter {
       transactions,
       asOfDate: updated.at(-1) ?? null,
     });
+    const income = buildIncomeSummary(transactions, totalValue);
 
-    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,periodReturns,xirr,allocationTargets,currencyExposure,accounts,syncRuns,freshness,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
+    return {scope,storageMode:"postgresql",totalValue,investedValue,cashValue,dailyMovement,totalReturn,totalReturnPercent:totalCost?totalReturn/totalCost*100:0,holdings,allocations,performance,periodReturns,xirr,income,allocationTargets,currencyExposure,accounts,syncRuns,freshness,provisionalValue,currentValue,lastUpdated:updated.at(-1)??null};
   }
 }

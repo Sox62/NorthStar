@@ -63,6 +63,25 @@ type AccountBreakdownSummary = {
   shareOfOverall: number;
   lastUpdated: string | null;
 };
+type IncomeSummary = {
+  periodStart: string;
+  periodEnd: string;
+  dividendCount: number;
+  netCashAud: number;
+  taxWithheldAud: number;
+  frankingCreditsAud: number;
+  grossIncomeAud: number;
+  grossedUpYieldPercent: number | null;
+  symbols: Array<{
+    symbol: string;
+    payments: number;
+    netCashAud: number;
+    taxWithheldAud: number;
+    frankingCreditsAud: number;
+    grossIncomeAud: number;
+  }>;
+  note: string;
+};
 type CommodityExposureSummary = {
   name: string;
   value: number;
@@ -99,7 +118,7 @@ function pct(value: number, total: number) {
 }
 
 function fmtPct(value: number) {
-  return `${value.toFixed(value >= 10 ? 1 : 1)}%`;
+  return `${value.toFixed(value >= 10 ? 0 : 1)}%`;
 }
 
 function fmtSignedAud(value: number) {
@@ -154,6 +173,17 @@ function fmtLongDate(value: string | null | undefined) {
   if (!value) return "date unavailable";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "date unavailable";
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function fmtChartLabel(value: string) {
+  const date = new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Sydney",
     day: "numeric",
@@ -236,28 +266,49 @@ function SplitBar({ segments, total }: {
 }
 
 function HistoryChart({ now, scope, performance }: { now: number; scope: PortfolioScope; performance: PerformancePoint[] }) {
+  const [range, setRange] = useState<"all" | "6m" | "3m">("all");
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const width = 528;
   const baseline = 160;
-  const series = performance
-    .map((point) => ({ label: point.date, value: valueForScope(point, scope) }))
-    .filter((point): point is { label: string; value: number } => typeof point.value === "number" && Number.isFinite(point.value) && point.value > 0)
-    .slice(-90);
+  const fullSeries = useMemo(
+    () => performance
+      .map((point) => ({ label: point.date, value: valueForScope(point, scope) }))
+      .filter((point): point is { label: string; value: number } => typeof point.value === "number" && Number.isFinite(point.value) && point.value > 0),
+    [performance, scope],
+  );
+  const series = useMemo(() => {
+    if (range === "all" || fullSeries.length < 2) return fullSeries;
+    const days = range === "6m" ? 183 : 92;
+    const dated = fullSeries.map((point) => ({ ...point, time: new Date(`${point.label}T12:00:00Z`).getTime() }));
+    const latest = dated.findLast((point) => Number.isFinite(point.time));
+    if (!latest) return fullSeries.slice(range === "6m" ? -183 : -92);
+    const cutoff = latest.time - days * 24 * 60 * 60 * 1000;
+    const filtered = dated.filter((point) => Number.isFinite(point.time) && point.time >= cutoff);
+    return filtered.length >= 2 ? filtered : fullSeries.slice(range === "6m" ? -183 : -92);
+  }, [fullSeries, range]);
   const values = series.length ? series.map((point) => point.value) : [now];
   const peak = Math.max(now, ...values);
   const floor = Math.min(...values, now);
-  const range = Math.max(1, peak - floor);
+  const valueRange = Math.max(1, peak - floor);
   const points = (series.length >= 2 ? series : [{ label: "Now", value: now }, { label: "Now", value: now }]).map((point, index, all) => {
     const x = all.length === 1 ? width : (index / Math.max(1, all.length - 1)) * width;
-    const y = 132 - ((point.value - floor) / range) * 112;
+    const y = 132 - ((point.value - floor) / valueRange) * 112;
     return { ...point, x, y };
   });
   const line = points.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" ");
   const fill = `0,${baseline} ${line} ${width},${baseline}`;
   const last = points.at(-1);
+  const active = hoverIndex == null ? null : points[hoverIndex];
+  const gridValues = [peak, floor + valueRange / 2, floor];
   const monthLabels = points.filter((_, index) => {
     if (points.length <= 6) return true;
     return index % Math.max(1, Math.floor(points.length / 6)) === 0 || index === points.length - 1;
   }).slice(-7);
+  const onPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    setHoverIndex(Math.round(ratio * Math.max(0, points.length - 1)));
+  };
 
   return (
     <div className="nsHistoryPanel">
@@ -267,24 +318,73 @@ function HistoryChart({ now, scope, performance }: { now: number; scope: Portfol
           <h2>Peak {fmtShortAud(peak)} · now {fmtShortAud(now)}</h2>
         </div>
         <div className="nsRangeTabs" aria-label="Chart range">
-          <button className="isActive" type="button">All</button>
-          <button type="button">6M</button>
-          <button type="button">3M</button>
+          {[
+            ["all", "All"],
+            ["6m", "6M"],
+            ["3m", "3M"],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              className={range === key ? "isActive" : ""}
+              type="button"
+              aria-pressed={range === key}
+              onClick={() => {
+                setRange(key as "all" | "6m" | "3m");
+                setHoverIndex(null);
+              }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
-      <svg className="nsHistoryChart" viewBox="0 0 528 172" role="img" aria-label="Portfolio history chart">
-        <defs>
-          <linearGradient id="nsHistoryFill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#d7b56d" stopOpacity="0.42" />
-            <stop offset="100%" stopColor="#d7b56d" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <polygon points={fill} fill="url(#nsHistoryFill)" />
-        <polyline points={line} fill="none" stroke="#d7b56d" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-        {last && <circle cx={last.x} cy={last.y} r="4" fill="#d7b56d" />}
-      </svg>
+      <div className="nsHistoryChartWrap">
+        <svg
+          className="nsHistoryChart"
+          viewBox="0 0 528 172"
+          role="img"
+          aria-label="Portfolio history chart"
+          onPointerMove={onPointerMove}
+          onPointerLeave={() => setHoverIndex(null)}
+        >
+          <defs>
+            <linearGradient id="nsHistoryFill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#d7b56d" stopOpacity="0.42" />
+              <stop offset="100%" stopColor="#d7b56d" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {gridValues.map((value, index) => {
+            const y = 132 - ((value - floor) / valueRange) * 112;
+            return (
+              <g key={`${value}-${index}`}>
+                <line className="nsChartGridLine" x1="0" x2={width} y1={y} y2={y} />
+                <text className="nsChartAxisLabel" x={width - 4} y={Math.max(10, y - 5)} textAnchor="end">{fmtShortAud(value)}</text>
+              </g>
+            );
+          })}
+          <polygon points={fill} fill="url(#nsHistoryFill)" />
+          <polyline points={line} fill="none" stroke="#d7b56d" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+          {active && (
+            <>
+              <line className="nsChartCrosshair" x1={active.x} x2={active.x} y1="16" y2={baseline} />
+              <circle className="nsChartActiveDot" cx={active.x} cy={active.y} r="5" />
+            </>
+          )}
+          {!active && last && <circle cx={last.x} cy={last.y} r="4" fill="#d7b56d" />}
+          <rect x="0" y="0" width={width} height="172" fill="transparent" />
+        </svg>
+        {active ? (
+          <div
+            className={`nsChartTooltip ${active.x > width * 0.66 ? "isLeft" : ""}`}
+            style={{ left: `${(active.x / width) * 100}%`, top: `${Math.max(8, Math.min(72, (active.y / 172) * 100))}%` }}
+          >
+            <span>{fmtChartLabel(active.label)}</span>
+            <strong>{fmtAud(active.value)}</strong>
+          </div>
+        ) : null}
+      </div>
       <div className="nsChartMonths" aria-hidden="true">
-        {monthLabels.length ? monthLabels.map((point, index) => <span key={`${point.label}-${index}`}>{point.label}</span>) : <span>Now</span>}
+        {monthLabels.length ? monthLabels.map((point, index) => <span key={`${point.label}-${index}`}>{fmtChartLabel(point.label).replace(/ 20\d{2}$/, "")}</span>) : <span>Now</span>}
       </div>
     </div>
   );
@@ -500,6 +600,53 @@ function CommodityExposurePanel({ exposures, total }: { exposures: CommodityExpo
   );
 }
 
+function IncomeFrankingPanel({ income }: { income?: IncomeSummary }) {
+  if (!income) return null;
+  return (
+    <section className="nsPanel nsIncomePanel">
+      <div className="nsPanelTopline">
+        <div>
+          <p className="nsEyebrow">Income / franking</p>
+          <h2>Trailing 12-month income</h2>
+        </div>
+      </div>
+      <div className="nsIncomeSummary">
+        <div>
+          <span>Net income</span>
+          <strong>{fmtAud(income.netCashAud)}</strong>
+        </div>
+        <div>
+          <span>Franking credits</span>
+          <strong>{fmtAud(income.frankingCreditsAud)}</strong>
+        </div>
+        <div>
+          <span>Gross-up yield</span>
+          <strong>{income.grossedUpYieldPercent == null ? "n/a" : fmtPct(income.grossedUpYieldPercent)}</strong>
+        </div>
+        <div>
+          <span>Tax withheld</span>
+          <strong>{fmtAud(income.taxWithheldAud)}</strong>
+        </div>
+      </div>
+      <div className="nsIncomeRows">
+        {income.symbols.length ? income.symbols.map((item) => (
+          <article key={item.symbol} className="nsIncomeRow">
+            <div>
+              <strong>{item.symbol}</strong>
+              <span>{item.payments} payment{item.payments === 1 ? "" : "s"}</span>
+            </div>
+            <span>{fmtAud(item.netCashAud)} net</span>
+            <em>{item.frankingCreditsAud ? `${fmtAud(item.frankingCreditsAud)} franking` : `${fmtAud(item.taxWithheldAud)} withheld`}</em>
+          </article>
+        )) : (
+          <p className="nsIncomeEmpty">{income.note}</p>
+        )}
+      </div>
+      <p className="nsIncomeNote">{fmtChartLabel(income.periodStart)} to {fmtChartLabel(income.periodEnd)} · {income.dividendCount} payment{income.dividendCount === 1 ? "" : "s"}</p>
+    </section>
+  );
+}
+
 function AccountBreakdownPanel({ accounts, scope, xirrByScope }: { accounts: AccountBreakdownSummary[]; scope: PortfolioScope; xirrByScope?: Partial<Record<PortfolioScope, XirrSummary>> }) {
   const visibleAccounts = scope === "overall" ? accounts : accounts.filter((account) => account.scope === scope);
   if (!visibleAccounts.length) return null;
@@ -538,12 +685,13 @@ function AccountBreakdownPanel({ accounts, scope, xirrByScope }: { accounts: Acc
 }
 
 /** Full redesigned overview dashboard matching the screenshot reference. */
-export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, xirrByScope, currencyExposureByScope, allocationTargets = [], accountBreakdown = [], syncRuns = [], freshnessByScope, lastUpdatedByScope }: {
+export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, xirrByScope, incomeByScope, currencyExposureByScope, allocationTargets = [], accountBreakdown = [], syncRuns = [], freshnessByScope, lastUpdatedByScope }: {
   holdings: Holding[];
   logoSrc?: string;
   performance?: PerformancePoint[];
   periodReturnsByScope?: Partial<Record<PortfolioScope, PeriodReturnSummary[]>>;
   xirrByScope?: Partial<Record<PortfolioScope, XirrSummary>>;
+  incomeByScope?: Partial<Record<PortfolioScope, IncomeSummary>>;
   currencyExposureByScope?: Partial<Record<PortfolioScope, CurrencyExposureSummary[]>>;
   allocationTargets?: AllocationTarget[];
   accountBreakdown?: AccountBreakdownSummary[];
@@ -577,6 +725,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
   const freshness = freshnessByScope?.[scope] ?? freshnessByScope?.overall ?? [];
   const periodReturns = periodReturnsByScope?.[scope] ?? periodReturnsByScope?.overall ?? [];
   const xirr = xirrByScope?.[scope] ?? xirrByScope?.overall;
+  const income = incomeByScope?.[scope] ?? incomeByScope?.overall;
   const currencyExposure = currencyExposureByScope?.[scope] ?? currencyExposureByScope?.overall ?? [];
   const selectedUpdatedAt = lastUpdatedByScope?.[scope] ?? lastUpdatedByScope?.overall ?? null;
   const health = dataHealth(syncRuns, freshness);
@@ -639,6 +788,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
         <div className="nsAnalyticsGrid">
           <CommodityExposurePanel exposures={commodityExposure} total={t.marketValue} />
           <CurrencyExposurePanel exposures={currencyExposure} />
+          <IncomeFrankingPanel income={income} />
           <AllocationDriftPanel drift={allocationDrift} />
         </div>
       </main>

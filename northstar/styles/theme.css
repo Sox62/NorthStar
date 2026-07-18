@@ -567,11 +567,79 @@ body.northstar .nsHistoryPanel h2 {
   overflow-wrap:anywhere;
 }
 
+body.northstar .nsHistoryChartWrap {
+  position:relative;
+  margin-top:28px;
+}
+
 body.northstar .nsHistoryChart {
   width:100%;
   height:175px;
-  margin-top:28px;
   display:block;
+  touch-action:none;
+  cursor:crosshair;
+}
+
+body.northstar .nsChartGridLine {
+  stroke:rgba(122,149,178,0.13);
+  stroke-width:1;
+}
+
+body.northstar .nsChartAxisLabel {
+  fill:var(--muted-dim);
+  font-size:10px;
+  font-weight:700;
+  pointer-events:none;
+}
+
+body.northstar .nsChartCrosshair {
+  stroke:rgba(234,241,248,0.36);
+  stroke-width:1;
+  stroke-dasharray:4 5;
+  pointer-events:none;
+}
+
+body.northstar .nsChartActiveDot {
+  fill:var(--gold);
+  stroke:#101b28;
+  stroke-width:3;
+  pointer-events:none;
+}
+
+body.northstar .nsChartTooltip {
+  position:absolute;
+  z-index:2;
+  min-width:128px;
+  transform:translate(12px, -54%);
+  padding:9px 10px;
+  border:1px solid rgba(215,181,109,0.32);
+  border-radius:10px;
+  background:rgba(5,13,22,0.94);
+  box-shadow:0 16px 40px rgba(0,0,0,0.32);
+  pointer-events:none;
+}
+
+body.northstar .nsChartTooltip.isLeft {
+  transform:translate(calc(-100% - 12px), -54%);
+}
+
+body.northstar .nsChartTooltip span,
+body.northstar .nsChartTooltip strong {
+  display:block;
+}
+
+body.northstar .nsChartTooltip span {
+  color:var(--muted);
+  font-size:11px;
+}
+
+body.northstar .nsChartTooltip strong {
+  margin-top:4px;
+  color:#eef3f8;
+  font-family:var(--ns-serif);
+  font-size:19px;
+  font-weight:500;
+  white-space:nowrap;
 }
 
 body.northstar .nsChartMonths {
@@ -1008,6 +1076,81 @@ body.northstar .nsExposureRow em {
   font-weight:500;
 }
 
+body.northstar .nsIncomeSummary {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:12px;
+  margin-top:22px;
+}
+
+body.northstar .nsIncomeSummary div {
+  min-width:0;
+  padding:14px;
+  border:1px solid rgba(122,149,178,0.15);
+  border-radius:14px;
+  background:rgba(7,17,28,0.48);
+}
+
+body.northstar .nsIncomeSummary span,
+body.northstar .nsIncomeRow span,
+body.northstar .nsIncomeRow em,
+body.northstar .nsIncomeNote,
+body.northstar .nsIncomeEmpty {
+  color:var(--muted);
+  font-size:12px;
+  font-style:normal;
+}
+
+body.northstar .nsIncomeSummary span {
+  display:block;
+}
+
+body.northstar .nsIncomeSummary strong {
+  display:block;
+  margin-top:8px;
+  color:#eef3f8;
+  font-family:var(--ns-serif);
+  font-size:23px;
+  font-weight:500;
+  line-height:1.05;
+}
+
+body.northstar .nsIncomeRows {
+  display:grid;
+  gap:0;
+  margin-top:18px;
+}
+
+body.northstar .nsIncomeRow {
+  display:grid;
+  grid-template-columns:minmax(90px, 0.5fr) minmax(105px, 0.5fr) minmax(115px, 0.55fr);
+  gap:14px;
+  align-items:center;
+  min-height:45px;
+  border-top:1px solid rgba(122,149,178,0.13);
+}
+
+body.northstar .nsIncomeRow strong {
+  display:block;
+  color:#eaf1f8;
+  font-size:14px;
+  font-weight:800;
+}
+
+body.northstar .nsIncomeRow > span,
+body.northstar .nsIncomeRow em {
+  text-align:right;
+}
+
+body.northstar .nsIncomeEmpty {
+  margin:0;
+  padding:18px 0 0;
+}
+
+body.northstar .nsIncomeNote {
+  margin:14px 0 0;
+}
+
 body.northstar .nsDriftRows {
   display:grid;
   gap:0;
@@ -1262,6 +1405,21 @@ body.northstar .nsActivityRow.is-failed em {
 
   body.northstar .nsMetricGrid {
     gap:14px;
+  }
+
+  body.northstar .nsIncomeSummary,
+  body.northstar .nsIncomeRow {
+    grid-template-columns:1fr;
+  }
+
+  body.northstar .nsIncomeRow {
+    gap:5px;
+    padding:12px 0;
+  }
+
+  body.northstar .nsIncomeRow > span,
+  body.northstar .nsIncomeRow em {
+    text-align:left;
   }
 
   body.northstar .nsAccountItem {

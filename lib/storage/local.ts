@@ -6,6 +6,7 @@ import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northsta
 import { classifyAsset } from "./classify";
 import { buildCurrencyExposure } from "./exposure";
 import { buildValuationFreshness } from "./freshness";
+import { buildIncomeSummary } from "./income";
 import { buildPeriodReturns, type NavPoint } from "./returns";
 import { buildXirrSummary } from "./xirr";
 import type {
@@ -308,10 +309,10 @@ function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
     if (!existing || existing.capturedAt < snapshot.capturedAt) entry[snapshot.ownerType] = snapshot;
     daily.set(day, entry);
   }
-  const performance = [...daily.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-90).map(([date, item]) => {
+  const performance = [...daily.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, item]) => {
     const personal = item.PERSONAL ? item.PERSONAL.marketValue + item.PERSONAL.cashValue : undefined;
     const smsf = item.SMSF ? item.SMSF.marketValue + item.SMSF.cashValue : undefined;
-    return { date: new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short" }).format(new Date(`${date}T12:00:00Z`)), overall: personal !== undefined || smsf !== undefined ? (personal ?? 0) + (smsf ?? 0) : undefined, personal, smsf };
+    return { date, overall: personal !== undefined || smsf !== undefined ? (personal ?? 0) + (smsf ?? 0) : undefined, personal, smsf };
   });
   const navSeries: NavPoint[] = [...daily.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, item]) => {
     const personal = item.PERSONAL ? item.PERSONAL.marketValue + item.PERSONAL.cashValue : undefined;
@@ -320,6 +321,7 @@ function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
     return { date, value: value ?? 0 };
   });
   const periodReturns = buildPeriodReturns(navSeries);
+  const income = buildIncomeSummary(transactions, totalValue);
 
   const accountRows = imports.map(record => ({ name: `${record.source} ${record.ownerType === "SMSF" ? "SMSF" : "Personal"}`, detail: maskAccount(record.accountKey), status: `${record.recordCount} records`, ownerType: record.ownerType }));
   for (const account of cashAccounts) accountRows.push({ name: `${account.institution} · ${account.name}`, detail: `${account.currency} ${account.balance.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`, status: "Cash current", ownerType: account.ownerType });
@@ -341,7 +343,7 @@ function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
     .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
     .slice(0, 8);
   const freshness = buildValuationFreshness({ positions, cashAccounts, manualAssets, syncRuns });
-  return { scope, storageMode: "local-file", totalValue, investedValue, cashValue, dailyMovement, totalReturn, totalReturnPercent: totalCost ? totalReturn / totalCost * 100 : 0, holdings, allocations, performance, periodReturns, xirr, allocationTargets, currencyExposure, accounts: accountRows, syncRuns, freshness, provisionalValue, currentValue, lastUpdated: updatedValues.at(-1) ?? null };
+  return { scope, storageMode: "local-file", totalValue, investedValue, cashValue, dailyMovement, totalReturn, totalReturnPercent: totalCost ? totalReturn / totalCost * 100 : 0, holdings, allocations, performance, periodReturns, xirr, income, allocationTargets, currencyExposure, accounts: accountRows, syncRuns, freshness, provisionalValue, currentValue, lastUpdated: updatedValues.at(-1) ?? null };
 }
 
 export class LocalStorageAdapter implements StorageAdapter {
@@ -411,8 +413,7 @@ export class LocalStorageAdapter implements StorageAdapter {
       const key = `${ownerType}:Directshares:${accountKey}:${transaction.externalId}`;
       if (existing.has(key)) { duplicates += 1; continue; }
       existing.add(key);
-      const { raw: _raw, ...persisted } = transaction;
-      store.transactions.push({ ...persisted, id: randomUUID(), ownerType, broker: "Directshares", accountKey });
+      store.transactions.push({ ...transaction, id: randomUUID(), ownerType, broker: "Directshares", accountKey });
       imported += 1;
     }
 

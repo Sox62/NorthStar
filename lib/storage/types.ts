@@ -66,6 +66,26 @@ export type CurrencyExposure = {
   positionCount: number;
 };
 
+export type IncomeSummary = {
+  periodStart: string;
+  periodEnd: string;
+  dividendCount: number;
+  netCashAud: number;
+  taxWithheldAud: number;
+  frankingCreditsAud: number;
+  grossIncomeAud: number;
+  grossedUpYieldPercent: number | null;
+  symbols: Array<{
+    symbol: string;
+    payments: number;
+    netCashAud: number;
+    taxWithheldAud: number;
+    frankingCreditsAud: number;
+    grossIncomeAud: number;
+  }>;
+  note: string;
+};
+
 export type NewSyncRun = {
   source: string;
   ownerType?: OwnerType | null;
@@ -104,7 +124,7 @@ export type StoredPosition = {
   source: string;
 };
 
-export type StoredTransaction = Omit<ImportedTransaction, "raw"> & {
+export type StoredTransaction = ImportedTransaction & {
   id: string;
   ownerType: OwnerType;
   broker: string;
@@ -271,6 +291,7 @@ export type DashboardData = {
   performance: Array<{ date: string; overall?: number; personal?: number; smsf?: number }>;
   periodReturns: PeriodReturn[];
   xirr: XirrSummary;
+  income: IncomeSummary;
   allocationTargets: AllocationTarget[];
   currencyExposure: CurrencyExposure[];
   accounts: Array<{ name: string; detail: string; status: string; ownerType: OwnerType }>;
