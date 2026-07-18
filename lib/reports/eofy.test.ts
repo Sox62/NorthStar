@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildEofyReport } from "./eofy";
+import { buildEofyReport, eofyReportCsv } from "./eofy";
 import type { DashboardData, DashboardHolding, PriceBook, StoredTransaction } from "@/lib/storage";
 
 function transaction(input: Partial<StoredTransaction> & Pick<StoredTransaction, "id" | "externalId" | "tradeDate" | "symbol" | "exchange" | "type" | "quantity" | "cost" | "netCash">): StoredTransaction {
@@ -117,4 +117,104 @@ test("buildEofyReport values historical cost rows from EOFY price book", () => {
   assert.equal(svm.closingMarketValueAud, null);
   assert.equal(svm.closingPrice, 10);
   assert.ok(report.dataQuality.some((note) => note.includes("price or FX backfill")));
+});
+
+test("buildEofyReport calculates realised CGT after loss offset and discount", () => {
+  const report = buildEofyReport("personal", dashboard([]), [
+    transaction({
+      id: "buy-long",
+      externalId: "buy-long",
+      tradeDate: "2024-01-01",
+      symbol: "CMM",
+      exchange: "ASX",
+      description: "Capricorn Metals",
+      instrumentKey: "Directshares:CMM:ASX",
+      type: "BUY",
+      quantity: 100,
+      cost: 1000,
+      netCash: -1000,
+    }),
+    transaction({
+      id: "sell-long",
+      externalId: "sell-long",
+      tradeDate: "2026-01-10",
+      symbol: "CMM",
+      exchange: "ASX",
+      description: "Capricorn Metals",
+      instrumentKey: "Directshares:CMM:ASX",
+      type: "SELL",
+      quantity: -40,
+      cost: -1000,
+      netCash: 1000,
+    }),
+    transaction({
+      id: "buy-short",
+      externalId: "buy-short",
+      tradeDate: "2026-02-01",
+      symbol: "NST",
+      exchange: "ASX",
+      description: "Northern Star",
+      instrumentKey: "Directshares:NST:ASX",
+      type: "BUY",
+      quantity: 100,
+      cost: 1000,
+      netCash: -1000,
+    }),
+    transaction({
+      id: "sell-short",
+      externalId: "sell-short",
+      tradeDate: "2026-06-01",
+      symbol: "NST",
+      exchange: "ASX",
+      description: "Northern Star",
+      instrumentKey: "Directshares:NST:ASX",
+      type: "SELL",
+      quantity: -50,
+      cost: -700,
+      netCash: 700,
+    }),
+    transaction({
+      id: "buy-loss",
+      externalId: "buy-loss",
+      tradeDate: "2026-03-01",
+      symbol: "LOS",
+      exchange: "ASX",
+      description: "Loss Example",
+      instrumentKey: "Directshares:LOS:ASX",
+      type: "BUY",
+      quantity: 100,
+      cost: 1000,
+      netCash: -1000,
+    }),
+    transaction({
+      id: "sell-loss",
+      externalId: "sell-loss",
+      tradeDate: "2026-06-15",
+      symbol: "LOS",
+      exchange: "ASX",
+      description: "Loss Example",
+      instrumentKey: "Directshares:LOS:ASX",
+      type: "SELL",
+      quantity: -100,
+      cost: -600,
+      netCash: 600,
+    }),
+  ], 2026, new Date("2026-07-18T00:00:00.000Z"));
+
+  assert.equal(report.capitalGains.summary.shortTermGainsAud, 200);
+  assert.equal(report.capitalGains.summary.longTermGainsAud, 600);
+  assert.equal(report.capitalGains.summary.lossesAud, -400);
+  assert.equal(report.capitalGains.summary.shortTermGainsAfterLossesAud, 0);
+  assert.equal(report.capitalGains.summary.longTermGainsAfterLossesAud, 400);
+  assert.equal(report.capitalGains.summary.cgtConcessionAud, 200);
+  assert.equal(report.capitalGains.summary.netCapitalGainAud, 200);
+  assert.equal(report.summary.taxableRealisedAud, 200);
+  assert.equal(report.capitalGains.shortTerm.length, 1);
+  assert.equal(report.capitalGains.longTerm.length, 1);
+  assert.equal(report.capitalGains.losses.length, 1);
+
+  const csv = eofyReportCsv(report);
+  assert.match(csv, /sharesight_cgt_summary,Personal,FY2026,Total net capital gain \(18A\)/);
+  assert.match(csv, /realised_cgt_lot,Personal,FY2026,Capricorn Metals,CMM,Directshares,2026-01-10/);
+  assert.match(csv, /discount 50%/);
 });

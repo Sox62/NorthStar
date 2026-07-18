@@ -64,6 +64,25 @@ function realisedLotRow(lot: RealisedTaxLot, amountLabel: "Gain" | "Loss"): Row 
   ];
 }
 
+function realisedDetailRow(lot: RealisedTaxLot): Row {
+  return [
+    lot.name,
+    lot.exchange,
+    lot.symbol,
+    lot.note.includes("Minimise") ? "Minimise CGT" : "FIFO",
+    lot.acquisitionDate ?? "",
+    lot.saleDate,
+    num(lot.heldDays),
+    lot.discountEligible ? "Yes" : "No",
+    num(lot.quantity),
+    money(lot.costAud),
+    money(lot.proceedsAud),
+    money(lot.realisedGainAud),
+    money(lot.taxableGainAud),
+    lot.note,
+  ];
+}
+
 function realisedTable(titleText: string, lots: RealisedTaxLot[], finalColumn: "Gain" | "Loss"): Row[] {
   const total = lots.reduce((sum, lot) => sum + lot.realisedGainAud, 0);
   return [
@@ -128,6 +147,38 @@ function cgtSummarySheet(report: EofyReport): XlsxSheet {
       ...realisedTable("Short term gains", report.capitalGains.shortTerm, "Gain"),
       ...realisedTable("Long term gains", report.capitalGains.longTerm, "Gain"),
       ...realisedTable("Losses", report.capitalGains.losses, "Loss"),
+    ],
+  };
+}
+
+function realisedCgtLotsSheet(report: EofyReport): XlsxSheet {
+  const lots = [...report.realisedLots].sort((a, b) => a.saleDate.localeCompare(b.saleDate) || a.symbol.localeCompare(b.symbol));
+  return {
+    name: "Realised CGT Lots",
+    columns: [34, 14, 14, 18, 14, 14, 16, 16, 14, 16, 16, 16, 16, 52],
+    rows: [
+      ...reportIntro(report, "Realised Capital Gains Tax Lots"),
+      subtitle("Personal portfolio only. Amounts are AUD and use FIFO unless a row note states otherwise."),
+      header(["Name", "Market", "Code", "Sale Allocation Method", "Purchase Date", "Sale Date", "Holding Period Days", "Discount Eligible", "Sold Quantity", "Cost Base", "Sales Value", "Capital Gain/Loss", "Taxable Gain", "Note"]),
+      ...lots.map(realisedDetailRow),
+      [
+        xlsxCell("Total", "section"),
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        num(lots.reduce((sum, lot) => sum + lot.quantity, 0)),
+        money(lots.reduce((sum, lot) => sum + lot.costAud, 0)),
+        money(lots.reduce((sum, lot) => sum + lot.proceedsAud, 0)),
+        money(lots.reduce((sum, lot) => sum + lot.realisedGainAud, 0)),
+        money(report.capitalGains.summary.netCapitalGainAud),
+        "",
+      ],
+      blank,
+      subtitle("The Taxable Gain total reflects current-year capital losses and the CGT discount after loss offset, matching the CGT Summary sheet."),
     ],
   };
 }
@@ -409,6 +460,7 @@ function unrealisedCgtSheet(report: EofyReport): XlsxSheet {
 export function eofyReportXlsx(report: EofyReport) {
   return createXlsx([
     cgtSummarySheet(report),
+    realisedCgtLotsSheet(report),
     taxableIncomeSheet(report),
     allTradesSheet(report),
     historicalCostSheet(report),

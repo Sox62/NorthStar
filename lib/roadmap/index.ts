@@ -91,7 +91,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "Period returns", status: "shipped", detail: "Dashboard shows daily, MTD, YTD and since-inception NAV movement from snapshots." },
       { title: "XIRR", status: "shipped", detail: "Cash-flow XIRR is live by account and consolidated, using imported transactions plus cost-basis fallback positions where history is incomplete." },
       { title: "Exposure analysis", status: "shipped", detail: "Currency, commodity and allocation drift are live; allocation targets can be edited and are used in dashboard and CSV exports." },
-      { title: "Tax position", status: "in_progress", detail: "Unrealised positions and imported dividend-income rows are exported; realised CGT remains." },
+      { title: "Tax position", status: "shipped", detail: "FIFO realised CGT, unrealised CGT, dividend income, franking credits and withholding tax are exported for the Personal tax pack." },
     ],
   },
   {
@@ -103,7 +103,7 @@ export const roadmapPhases: RoadmapPhase[] = [
     items: [
       { title: "SMSF report", status: "shipped", detail: "Scoped CSV export covers SMSF holdings, allocations, allocation drift, currency exposure and period returns." },
       { title: "Personal report", status: "shipped", detail: "Scoped CSV export covers personal holdings, allocations, allocation drift, currency exposure and period returns." },
-      { title: "Tax report", status: "in_progress", detail: "Unrealised positions and dividend income are exported; realised CGT remains." },
+      { title: "Tax report", status: "shipped", detail: "Personal EOFY pack exports CGT summary, realised lots, unrealised lots, taxable income, historical cost and trade movements." },
       { title: "Estate summary", status: "shipped", detail: "Ownership-aware CSV export separates Personal and SMSF assets, accounts and NAV." },
       { title: "Wealth statement", status: "shipped", detail: "Reports hub links consolidated, account, allocation, drift, currency, return and holding CSV rows." },
     ],
