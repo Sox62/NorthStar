@@ -27,6 +27,22 @@ const downloads = [
     rows: "SMSF scope",
   },
   {
+    title: "Personal EOFY accountant pack",
+    owner: "Personal",
+    href: "/api/reports/eofy?scope=personal&format=csv",
+    reportHref: "/reports/eofy?scope=personal",
+    detail: "Financial-year income, franking, withholding, realised CGT lots, trade movements and current holding reference.",
+    rows: "Latest EOFY",
+  },
+  {
+    title: "SMSF EOFY accountant pack",
+    owner: "SMSF",
+    href: "/api/reports/eofy?scope=smsf&format=csv",
+    reportHref: "/reports/eofy?scope=smsf",
+    detail: "SMSF financial-year income, tax credits, realised CGT lots, trade movements and current holding reference.",
+    rows: "Latest EOFY",
+  },
+  {
     title: "Estate summary",
     owner: "Ownership",
     href: "/api/reports/estate-summary",
@@ -48,7 +64,7 @@ export default function ReportsPage() {
     <main className="shell">
       <PageHeader
         title="Reports"
-        description="Download CSV outputs or open print-ready report pages for consolidated, Personal, SMSF and tax review."
+        description="Download CSV outputs or open print-ready report pages for consolidated, Personal, SMSF, EOFY accountant and tax review."
         links={[
           { href: "/", label: "Dashboard" },
           { href: "/tax", label: "Tax lots" },
@@ -60,7 +76,7 @@ export default function ReportsPage() {
       <section className="reportsHero">
         <Card className="reportsSummaryCard">
           <p className="eyebrow">Report set</p>
-          <h2 className="cardTitle">CSV and PDF-ready reports</h2>
+          <h2 className="cardTitle">CSV, PDF-ready and accountant reports</h2>
           <p className="cardIntro">Generated directly from stored NorthStar portfolio data. Open report pages can be printed or saved as PDFs from the browser.</p>
           <SummaryGrid
             entries={[
@@ -79,6 +95,7 @@ export default function ReportsPage() {
             <span>Wealth statement</span>
             <span>Personal report</span>
             <span>SMSF report</span>
+            <span>EOFY accountant packs</span>
             <span>Print / Save PDF views</span>
             <span>Estate summary</span>
             <span>Tax position</span>
