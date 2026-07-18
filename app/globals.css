@@ -1381,6 +1381,259 @@ button:disabled { opacity: .55; cursor: wait; }
   align-items: center;
   justify-content: center;
 }
+.reportActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.printReportShell {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  padding: 24px;
+}
+.printReportToolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid rgba(106,130,153,.24);
+  border-radius: 18px;
+  background: rgba(8,18,28,.92);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 18px 60px rgba(0,0,0,.24);
+}
+.printReportActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.printReportPage {
+  min-height: 297mm;
+  padding: 20mm;
+  border-radius: 10px;
+  background: #f8f9f8;
+  color: #17202b;
+  box-shadow: 0 30px 90px rgba(0,0,0,.34);
+}
+.printReportHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 18px;
+  border-bottom: 2px solid #1d2a38;
+}
+.printReportHeader p {
+  margin: 0 0 8px;
+  color: #9b7431;
+  font-family: var(--font-serif-motto);
+  font-size: 13px;
+  font-style: italic;
+}
+.printReportHeader h1 {
+  margin: 0;
+  color: #13202d;
+  font-family: var(--font-display);
+  font-size: 42px;
+  font-weight: 500;
+  line-height: 1;
+}
+.printReportHeader span {
+  display: block;
+  margin-top: 10px;
+  color: #5f6d7a;
+  font-size: 12px;
+}
+.printReportHeader > strong {
+  flex: 0 0 auto;
+  color: #13202d;
+  font-family: var(--font-display);
+  font-size: 38px;
+  font-weight: 500;
+  line-height: 1;
+  text-align: right;
+}
+.printKpiGrid,
+.printMiniGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+.printKpiGrid div,
+.printMiniGrid div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #d8dee4;
+  border-radius: 8px;
+  background: #fff;
+}
+.printKpiGrid span,
+.printMiniGrid span,
+.printMiniGrid em,
+.printReportTable td span,
+.printAccountList span,
+.printAccountList em,
+.printBarRow em,
+.printSectionHeader span {
+  color: #5f6d7a;
+  font-size: 11px;
+  font-style: normal;
+}
+.printKpiGrid span,
+.printMiniGrid span,
+.printMiniGrid em {
+  display: block;
+}
+.printKpiGrid strong,
+.printMiniGrid strong {
+  display: block;
+  margin-top: 6px;
+  color: #17202b;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1.05;
+}
+.printMiniGrid em {
+  margin-top: 5px;
+  line-height: 1.35;
+}
+.printReportPage .positive {
+  color: #167a42 !important;
+}
+.printReportPage .negative {
+  color: #a33b3b !important;
+}
+.printReportSection {
+  margin-top: 24px;
+}
+.printSectionHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid #d8dee4;
+}
+.printSectionHeader h2 {
+  margin: 0;
+  color: #13202d;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 500;
+}
+.printAllocationGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.printAllocationGrid h3 {
+  margin: 0 0 10px;
+  color: #273443;
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.printBarRow {
+  display: grid;
+  grid-template-columns: minmax(90px, .38fr) minmax(160px, 1fr) minmax(130px, .5fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 30px;
+  border-bottom: 1px solid #e4e8ed;
+}
+.printBarRow span,
+.printBarRow strong {
+  color: #273443;
+  font-size: 12px;
+}
+.printBarRow i {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e4e8ed;
+}
+.printBarRow b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #c6a24f;
+}
+.printBarRow strong {
+  text-align: right;
+  white-space: nowrap;
+}
+.printReportTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+.printReportTable th {
+  padding: 0 7px 8px;
+  border-bottom: 1px solid #cbd3dc;
+  color: #5f6d7a;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.printReportTable td {
+  padding: 8px 7px;
+  border-bottom: 1px solid #e3e7eb;
+  color: #273443;
+  font-size: 11px;
+  vertical-align: top;
+}
+.printReportTable .numeric {
+  text-align: right;
+  white-space: nowrap;
+}
+.printReportTable td strong,
+.printReportTable td span {
+  display: block;
+}
+.printReportTable td strong {
+  color: #13202d;
+  font-size: 12px;
+}
+.printReportTable td span {
+  margin-top: 3px;
+}
+.printAccountList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.printAccountList div {
+  padding: 10px;
+  border: 1px solid #d8dee4;
+  border-radius: 8px;
+  background: #fff;
+}
+.printAccountList strong,
+.printAccountList span,
+.printAccountList em {
+  display: block;
+}
+.printAccountList strong {
+  color: #17202b;
+  font-size: 12px;
+}
+.printAccountList span,
+.printAccountList em {
+  margin-top: 4px;
+}
 .onboardingRedesign {
   display: flex;
   justify-content: space-between;
@@ -1503,6 +1756,16 @@ button:disabled { opacity: .55; cursor: wait; }
   .roadmapHero { grid-template-columns: 1fr; }
   .holdingsAccounts { grid-template-columns: 1fr; }
   .holdingsToolbar { grid-template-columns: 1fr; align-items: stretch; }
+  .printReportToolbar { align-items: stretch; flex-direction: column; }
+  .printReportActions { justify-content: stretch; }
+  .printReportActions .button,
+  .printReportActions button { flex: 1; }
+  .printReportHeader,
+  .printSectionHeader { align-items: flex-start; flex-direction: column; }
+  .printKpiGrid,
+  .printMiniGrid,
+  .printAllocationGrid,
+  .printAccountList { grid-template-columns: 1fr; }
   .taxSummaryGrid { grid-template-columns: 1fr; }
   .taxToolbar { align-items: stretch; flex-direction: column; }
   .taxToolbar .scopeSwitch,
@@ -1550,6 +1813,14 @@ button:disabled { opacity: .55; cursor: wait; }
   .assetRow, .cashRow { flex-direction: column; }
   .reportRow { grid-template-columns: 1fr; }
   .reportRow .button { width: 100%; justify-content: center; }
+  .reportActions { justify-content: stretch; }
+  .reportActions .button { flex: 1; }
+  .printReportShell { padding: 12px; }
+  .printReportPage { padding: 18px; border-radius: 16px; }
+  .printReportHeader h1 { font-size: 34px; }
+  .printReportHeader > strong { font-size: 30px; text-align: left; }
+  .printBarRow { grid-template-columns: 1fr; gap: 6px; padding: 8px 0; }
+  .printBarRow strong { text-align: left; }
   .loginActions { grid-template-columns: 1fr; }
   .syncHealthLine { align-items: flex-start; }
   .syncHealthLine span:last-child { white-space: normal; }
@@ -1574,4 +1845,78 @@ button:disabled { opacity: .55; cursor: wait; }
 
 @media (display-mode: standalone) {
   body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  body {
+    margin: 0 !important;
+    color: #17202b !important;
+  }
+
+  .screenOnly,
+  .printReportToolbar {
+    display: none !important;
+  }
+
+  .printReportShell {
+    width: auto;
+    margin: 0;
+    padding: 0;
+  }
+
+  .printReportPage {
+    min-height: auto;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    background: #fff;
+    box-shadow: none;
+  }
+
+  .printReportHeader {
+    padding-bottom: 10mm;
+  }
+
+  .printReportSection {
+    break-inside: avoid;
+    margin-top: 10mm;
+  }
+
+  .printBreakBefore {
+    break-before: page;
+  }
+
+  .printReportTable {
+    break-inside: auto;
+  }
+
+  .printReportTable tr,
+  .printKpiGrid div,
+  .printMiniGrid div,
+  .printAccountList div {
+    break-inside: avoid;
+  }
+
+  .printReportTable th {
+    background: #fff;
+  }
+
+  .printReportTable td,
+  .printReportTable th {
+    padding: 5px 6px;
+  }
 }
