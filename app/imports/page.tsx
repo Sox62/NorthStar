@@ -236,8 +236,8 @@ export default function SyncPage() {
         <Importer
           type="directsharesNotes"
           title="Directshares contract notes"
-          subtitle="Email confirmation PDFs"
-          accept=".pdf,.txt"
+          subtitle="Bulk CSV, email PDFs or text"
+          accept=".csv,.pdf,.txt"
           multiple
           owner={owners.directsharesNotes}
           result={results.directsharesNotes}

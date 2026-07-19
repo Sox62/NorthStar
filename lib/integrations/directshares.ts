@@ -9,7 +9,8 @@ const cents = (value: number) => Math.round(value * 100) / 100;
 function splitCode(code: string) {
   const compact = code.match(/^([A-Z][A-Z0-9]{1,4})(US|CA|GB)$/);
   if (!code.includes(":") && compact) return splitCode(`${compact[1]}:${compact[2]}`);
-  const [symbol, suffix] = code.split(":");
+  const [rawSymbol, suffix] = code.split(":");
+  const symbol = rawSymbol.replace(/\//g, ".");
   if (!suffix) return { symbol, exchange: "ASX", currency: "AUD" };
   if (suffix === "US") return { symbol, exchange: "US", currency: "USD" };
   if (suffix === "CA") return { symbol, exchange: "TSX/TSXV", currency: "CAD" };
@@ -54,6 +55,7 @@ function normaliseLines(text: string) {
 }
 
 function isoDate(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!match) throw new Error(`Invalid Directshares date: ${value}`);
   return `${match[3]}-${match[2]}-${match[1]}`;
@@ -197,6 +199,110 @@ export function parseDirectsharesConfirmationText(text: string): ImportedTransac
       tradeFxRate: avPrice ? Number(avPrice[3]) : undefined,
     },
   };
+}
+
+function directsharesConfirmationCsvSide(value: string): TransactionType {
+  const side = value.trim().toUpperCase();
+  if (side === "BUY" || side === "SELL") return side;
+  throw new Error(`Invalid Directshares order type: ${value}`);
+}
+
+function parseAveragePrice(value: string) {
+  const match = value.trim().match(/^([\d,.]+)\s*([A-Z]{3})?/);
+  return {
+    price: match ? numberValue(match[1]) : 0,
+    currency: match?.[2],
+  };
+}
+
+function rowCharge(row: Record<string, string>, key: string) {
+  return numberValue(row[key]);
+}
+
+function directsharesCsvFees(row: Record<string, string>, grossAud: number, considerationAud: number) {
+  const charges = [
+    "Brokerage",
+    "GST",
+    "Stampduty",
+    "Application Fee",
+    "OtherCharge",
+    "Fee",
+  ].reduce((sum, key) => sum + rowCharge(row, key), 0) - rowCharge(row, "Discount");
+  const derived = Math.abs(Math.abs(considerationAud) - Math.abs(grossAud));
+  return cents(charges || derived);
+}
+
+function parseDirectsharesConfirmationCsvRow(row: Record<string, string>): ImportedTransaction | null {
+  const confirmation = row["Confirmation Number"]?.trim();
+  const code = row.AsxCode?.trim();
+  if (!confirmation || !code) return null;
+
+  const side = directsharesConfirmationCsvSide(row["Order Type"] || "");
+  const instrument = parseInstrumentCode(code);
+  const quantity = numberValue(row.Quantity);
+  const priceAud = numberValue(row.Price);
+  const grossAud = cents(priceAud * quantity);
+  const considerationAud = numberValue(row.Consideration);
+  const fees = directsharesCsvFees(row, grossAud, considerationAud);
+  const averagePrice = parseAveragePrice(row["Avg Price"] || "");
+  const tradeDate = row["Trade Date"]?.trim() || row["As at Date"]?.trim();
+  const settleDate = row["Settlement Date"]?.trim() || row["Trade Date"]?.trim() || tradeDate;
+  if (!tradeDate) throw new Error(`Directshares confirmation ${confirmation} is missing a trade date.`);
+
+  return {
+    externalId: `Directshares:${confirmation}`,
+    externalAccountId: row["Account Number"]?.trim() || "DIRECTSHARES",
+    tradeDate: isoDate(tradeDate),
+    settleDate: settleDate ? isoDate(settleDate) : undefined,
+    symbol: instrument.symbol,
+    exchange: instrument.exchange,
+    description: instrument.symbol,
+    instrumentKey: `Directshares:${instrument.symbol}:${instrument.exchange}`,
+    type: side,
+    quantity: signedQuantity(side, quantity),
+    price: priceAud,
+    cost: signedCost(side, grossAud),
+    currency: "AUD",
+    fees,
+    taxes: 0,
+    netCash: signedNetCash(side, considerationAud),
+    fxRateToBase: 1,
+    source: "Directshares Contract Note",
+    raw: {
+      account: row["Account Number"]?.trim() || "DIRECTSHARES",
+      accountName: row["Account Name"]?.trim(),
+      confirmation,
+      side,
+      code,
+      quantity,
+      grossAud,
+      consideration: considerationAud,
+      fees,
+      tradeCurrency: averagePrice.currency || instrument.currency,
+      tradePrice: averagePrice.price || undefined,
+      tradeFxRate: numberValue(row["Exch Rate"]) || undefined,
+      settlementCurrency: "AUD",
+      asAtDate: row["As at Date"]?.trim() || undefined,
+      sourceFormat: "Directshares confirmation CSV",
+      reverseConfirmationNumber: row["Reverse Confirmation Number"]?.trim() || undefined,
+    },
+  };
+}
+
+export function parseDirectsharesConfirmationCsv(csv: string): ImportedTransaction[] {
+  const rows = parse(csv, { columns: true, skip_empty_lines: true, trim: true, bom: true, relax_column_count_more: true }) as Record<string, string>[];
+  const hasConfirmationHeaders = rows.length
+    && "Confirmation Number" in rows[0]
+    && "AsxCode" in rows[0]
+    && "Order Type" in rows[0]
+    && "Consideration" in rows[0];
+  if (!hasConfirmationHeaders) throw new Error("No Directshares confirmation rows were found in this CSV.");
+
+  const transactions = rows
+    .map(parseDirectsharesConfirmationCsvRow)
+    .filter((transaction): transaction is ImportedTransaction => Boolean(transaction));
+  if (!transactions.length) throw new Error("No Directshares confirmation rows were found in this CSV.");
+  return transactions;
 }
 
 export async function parseDirectsharesConfirmationPdf(input: Buffer | Uint8Array | ArrayBuffer): Promise<ImportedTransaction> {

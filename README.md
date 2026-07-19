@@ -19,7 +19,7 @@ A private portfolio system that preserves the legal separation between **Persona
 - Activates the **IBKR Flex Web Service** using `IBKR_FLEX_TOKEN` and `IBKR_FLEX_QUERY_ID` stored privately in Railway.
 - Adds a **Sync IBKR now** button that downloads the saved Flex Query and updates trades, Open Positions and IBKR cash.
 - Continues to deduplicate trades using IBKR transaction IDs.
-- Adds **Directshares contract-note imports** from PDF upload or an IMAP mailbox/label fed by broker confirmation emails.
+- Adds **Directshares contract-note imports** from bulk confirmation CSV, PDF upload or an IMAP mailbox/label fed by broker confirmation emails.
 - Records physical platinum in **kilograms**, defaulting to Personal ownership.
 - Retrieves the current **ABC Bullion 1 kg platinum tablet buyback price** for realisable valuation.
 - Displays ABC’s retail price and current retail-to-buyback spread separately from the investor’s actual return.
@@ -63,7 +63,7 @@ DIRECTSHARES_EMAIL_OWNER=PERSONAL
 DIRECTSHARES_EMAIL_LOOKBACK_DAYS=45
 ```
 
-If your mail rule labels confirmations for NorthStar, set `DIRECTSHARES_EMAIL_MAILBOX` to that IMAP mailbox/label. The sync filters for `service@directshares.com.au` and trade-confirmation subjects, parses attached `.PDF` files and deduplicates by Directshares confirmation number.
+If your mail rule labels confirmations for NorthStar, set `DIRECTSHARES_EMAIL_MAILBOX` to that IMAP mailbox/label. The sync filters for `service@directshares.com.au` and trade-confirmation subjects, parses attached `.PDF` files and deduplicates by Directshares confirmation number. Manual imports also accept the Directshares bulk confirmation CSV and group rows by account number before saving.
 
 Directshares dividend notices can use the same mailbox credentials or their own label/app password:
 
