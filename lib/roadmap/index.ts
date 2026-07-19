@@ -48,7 +48,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "IBKR current positions", status: "shipped", detail: "Flex Open Positions replace the broker snapshot." },
       { title: "Physical platinum", status: "shipped", detail: "Kilogram holdings are valued from ABC buyback prices." },
       { title: "Expanded asset taxonomy", status: "shipped", detail: "Current classification covers live NorthStar sectors, Directshares foreign suffixes and known VELO/LAM exceptions; options/property/crypto remain future extensions." },
-      { title: "Core accounting module", status: "planned", detail: "Move valuation and analytics rules out of storage adapters into a dedicated core layer." },
+      { title: "Core accounting module", status: "shipped", detail: "Shared core accounting now builds dashboard valuation, return, allocation, owner-scope and manual-asset calculations for both storage adapters." },
     ],
   },
   {

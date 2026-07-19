@@ -2,13 +2,16 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
+import {
+  buildDashboardModel,
+  buildManualAssetValuation,
+  buildPositionPriceValuation,
+  manualAssetPosition,
+  maskAccount,
+  ownerForScope,
+} from "@/lib/core/accounting";
 import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
-import { buildCurrencyExposure } from "./exposure";
-import { buildValuationFreshness } from "./freshness";
-import { buildIncomeSummary } from "./income";
-import { buildPeriodReturns, type NavPoint } from "./returns";
-import { buildXirrSummary } from "./xirr";
 import type {
   CashAccount,
   AllocationTarget,
@@ -109,9 +112,6 @@ async function writeStore(store: LocalStore) {
   await rename(temporary, DATA_FILE);
 }
 
-const maskAccount = (account: string) => account.length <= 4 ? account : `${account.slice(0, 2)}••••${account.slice(-3)}`;
-const ownerForScope = (scope: Scope): OwnerType | undefined => scope === "personal" ? "PERSONAL" : scope === "smsf" ? "SMSF" : undefined;
-
 function recalculateIbkrPositions(store: LocalStore, ownerType: OwnerType, accountKey: string) {
   const relevant = store.transactions.filter(transaction =>
     transaction.ownerType === ownerType && transaction.broker === "IBKR" && transaction.accountKey === accountKey && (transaction.type === "BUY" || transaction.type === "SELL")
@@ -170,19 +170,6 @@ function upsertIbkrCash(store: LocalStore, report: IbkrFlexReport, ownerType: Ow
     fxRateToAud: 1, asOfDate: report.cash.asOfDate, updatedAt: new Date().toISOString(),
   };
   if (existing) Object.assign(existing, account); else store.cashAccounts.push(account);
-}
-
-function manualAssetPosition(asset: ManualAsset): StoredPosition {
-  return {
-    id: asset.id, ownerType: asset.ownerType, broker: "Physical", accountKey: `${asset.ownerType}-PHYSICAL`,
-    instrumentKey: `manual:${asset.id}`, symbol: "PLATINUM", name: asset.name, exchange: "PHYSICAL",
-    currency: "AUD", assetClass: "Physical platinum", quantity: asset.quantityKg,
-    lastPrice: asset.buybackAudPerKg,
-    averageCostAud: asset.costAudPerKg,
-    costAud: asset.totalCostAud, marketValueAud: asset.marketValueAud,
-    dayGainAud: 0, pnlAud: asset.pnlAud, pnlPercent: asset.pnlPercent,
-    valuationBasis: "market", asOfDate: asset.asOfDate, source: "Manual physical",
-  };
 }
 
 function captureSnapshot(store: LocalStore, ownerType: OwnerType) {
@@ -273,77 +260,22 @@ function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
   const ownerType = ownerForScope(scope);
   const importedPositions = store.positions.filter(position => !ownerType || position.ownerType === ownerType);
   const manualAssets = store.manualAssets.filter(asset => !ownerType || asset.ownerType === ownerType);
-  const positions = [...importedPositions, ...manualAssets.map(manualAssetPosition)];
   const cashAccounts = store.cashAccounts.filter(account => !ownerType || account.ownerType === ownerType);
   const transactions = store.transactions.filter(transaction => !ownerType || transaction.ownerType === ownerType);
   const imports = store.imports.filter(record => !ownerType || record.ownerType === ownerType);
 
-  const investedValue = positions.reduce((sum, position) => sum + position.marketValueAud, 0);
-  const cashValue = cashAccounts.reduce((sum, account) => sum + account.balanceAud, 0);
-  const totalValue = investedValue + cashValue;
-  const dailyMovement = positions.reduce((sum, position) => sum + position.dayGainAud, 0);
-  const unrealised = positions.reduce((sum, position) => sum + position.pnlAud, 0);
-  const realised = transactions.filter(transaction => transaction.type === "SELL")
-    .reduce((sum, transaction) => sum + (transaction.realisedPnl ?? 0) * (transaction.fxRateToBase ?? 1), 0);
-  const totalReturn = unrealised + realised;
-  const totalCost = positions.reduce((sum, position) => sum + position.costAud, 0);
-  const provisionalValue = positions.filter(position => position.valuationBasis === "cost_basis").reduce((sum, position) => sum + position.marketValueAud, 0);
-  const currentValue = positions.filter(position => position.valuationBasis === "market").reduce((sum, position) => sum + position.marketValueAud, 0) + cashValue;
-
-  const holdings = [...positions].sort((a, b) => b.marketValueAud - a.marketValueAud)
-    .map(position => ({ ...position, weight: totalValue ? position.marketValueAud / totalValue * 100 : 0 }));
-
-  const allocationAmounts = new Map<string, number>();
-  for (const position of positions) allocationAmounts.set(position.assetClass, (allocationAmounts.get(position.assetClass) ?? 0) + position.marketValueAud);
-  if (cashValue) allocationAmounts.set("Cash", cashValue);
-  const allocations = [...allocationAmounts.entries()].map(([name, amount]) => ({ name, amount, value: totalValue ? amount / totalValue * 100 : 0 })).sort((a, b) => b.amount - a.amount);
-  const currencyExposure = buildCurrencyExposure(positions, cashAccounts, totalValue);
-  const allocationTargets = normaliseAllocationTargets(store.allocationTargets);
-
-  const daily = new Map<string, { PERSONAL?: Snapshot; SMSF?: Snapshot }>();
-  for (const snapshot of store.snapshots) {
-    if (ownerType && snapshot.ownerType !== ownerType) continue;
-    const day = snapshot.capturedAt.slice(0, 10);
-    const entry = daily.get(day) ?? {};
-    const existing = entry[snapshot.ownerType];
-    if (!existing || existing.capturedAt < snapshot.capturedAt) entry[snapshot.ownerType] = snapshot;
-    daily.set(day, entry);
-  }
-  const performance = [...daily.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, item]) => {
-    const personal = item.PERSONAL ? item.PERSONAL.marketValue + item.PERSONAL.cashValue : undefined;
-    const smsf = item.SMSF ? item.SMSF.marketValue + item.SMSF.cashValue : undefined;
-    return { date, overall: personal !== undefined || smsf !== undefined ? (personal ?? 0) + (smsf ?? 0) : undefined, personal, smsf };
-  });
-  const navSeries: NavPoint[] = [...daily.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, item]) => {
-    const personal = item.PERSONAL ? item.PERSONAL.marketValue + item.PERSONAL.cashValue : undefined;
-    const smsf = item.SMSF ? item.SMSF.marketValue + item.SMSF.cashValue : undefined;
-    const value = ownerType === "PERSONAL" ? personal : ownerType === "SMSF" ? smsf : (personal ?? 0) + (smsf ?? 0);
-    return { date, value: value ?? 0 };
-  });
-  const periodReturns = buildPeriodReturns(navSeries);
-  const income = buildIncomeSummary(transactions, totalValue);
-
-  const accountRows = imports.map(record => ({ name: `${record.source} ${record.ownerType === "SMSF" ? "SMSF" : "Personal"}`, detail: maskAccount(record.accountKey), status: `${record.recordCount} records`, ownerType: record.ownerType }));
-  for (const account of cashAccounts) accountRows.push({ name: `${account.institution} · ${account.name}`, detail: `${account.currency} ${account.balance.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`, status: "Cash current", ownerType: account.ownerType });
-  for (const owner of ["PERSONAL", "SMSF"] as const) {
-    const assets = manualAssets.filter(asset => asset.ownerType === owner);
-    if (assets.length) accountRows.push({ name: `Physical platinum ${owner === "SMSF" ? "SMSF" : "Personal"}`, detail: `${assets.reduce((sum, asset) => sum + asset.quantityKg, 0).toLocaleString("en-AU", { maximumFractionDigits: 4 })} kg`, status: `${assets.length} position${assets.length === 1 ? "" : "s"}`, ownerType: owner });
-  }
-
-  const updatedValues = [...imports.map(record => record.importedAt), ...cashAccounts.map(account => account.updatedAt), ...manualAssets.map(asset => asset.updatedAt)].sort();
-  const xirr = buildXirrSummary({
+  return buildDashboardModel({
     scope,
-    positions,
+    storageMode: "local-file",
+    positions: importedPositions,
+    manualAssets,
     cashAccounts,
     transactions,
-    asOfDate: updatedValues.at(-1) ?? null,
+    imports,
+    snapshots: store.snapshots.filter(snapshot => !ownerType || snapshot.ownerType === ownerType),
+    syncRuns: store.syncRuns,
+    allocationTargets: store.allocationTargets,
   });
-  const syncRuns = [...store.syncRuns]
-    .filter(run => !ownerType || !run.ownerType || run.ownerType === ownerType)
-    .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
-    .slice(0, 8);
-  const freshness = buildValuationFreshness({ positions, cashAccounts, manualAssets, syncRuns });
-  return { scope, storageMode: "local-file", totalValue, investedValue, cashValue, dailyMovement, totalReturn, totalReturnPercent: totalCost ? totalReturn / totalCost * 100 : 0, holdings, allocations, performance, periodReturns, xirr, income, allocationTargets, currencyExposure, accounts: accountRows, syncRuns, freshness, provisionalValue, currentValue, lastUpdated: updatedValues.at(-1) ?? null };
 }
 
 export class LocalStorageAdapter implements StorageAdapter {
@@ -455,16 +387,14 @@ export class LocalStorageAdapter implements StorageAdapter {
   async upsertManualAsset(input: Omit<ManualAsset, "id" | "updatedAt" | "marketValueAud" | "pnlAud" | "pnlPercent" | "costAudPerKg" | "dealerSpreadAudPerKg" | "dealerSpreadPercent"> & { id?: string }) {
     const store = await readStore();
     const existing = input.id ? store.manualAssets.find(asset => asset.id === input.id && asset.ownerType === input.ownerType) : undefined;
-    const marketValueAud = input.quantityKg * input.buybackAudPerKg;
-    const pnlAud = marketValueAud - input.totalCostAud;
-    const spread = Math.max(0, input.retailAudPerKg - input.buybackAudPerKg);
+    const valuation = buildManualAssetValuation(input);
     const asset: ManualAsset = {
       id: existing?.id ?? randomUUID(), ownerType: input.ownerType, assetType: "PLATINUM", name: input.name.trim(),
       quantityKg: input.quantityKg, totalCostAud: input.totalCostAud,
-      costAudPerKg: input.quantityKg ? input.totalCostAud / input.quantityKg : 0,
+      costAudPerKg: valuation.costAudPerKg,
       buybackAudPerKg: input.buybackAudPerKg, retailAudPerKg: input.retailAudPerKg,
-      marketValueAud, pnlAud, pnlPercent: input.totalCostAud ? pnlAud / input.totalCostAud * 100 : 0,
-      dealerSpreadAudPerKg: spread, dealerSpreadPercent: input.retailAudPerKg ? spread / input.retailAudPerKg * 100 : 0,
+      marketValueAud: valuation.marketValueAud, pnlAud: valuation.pnlAud, pnlPercent: valuation.pnlPercent,
+      dealerSpreadAudPerKg: valuation.dealerSpreadAudPerKg, dealerSpreadPercent: valuation.dealerSpreadPercent,
       priceProvider: input.priceProvider, priceSourceUrl: input.priceSourceUrl,
       purchaseDate: input.purchaseDate, asOfDate: input.asOfDate, priceRetrievedAt: input.priceRetrievedAt,
       updatedAt: new Date().toISOString(),
@@ -587,14 +517,19 @@ export class LocalStorageAdapter implements StorageAdapter {
         continue;
       }
       for (const position of validMatches) {
-        const marketValueAud = position.quantity * input.close * rateToAud;
-        position.dayGainAud = previousPrice
-          ? position.quantity * (input.close - previousPrice.close) * rateToAud
-          : marketValueAud - position.marketValueAud;
+        const valuation = buildPositionPriceValuation({
+          quantity: position.quantity,
+          close: input.close,
+          fxRateToAud: rateToAud,
+          costAud: position.costAud,
+          previousClose: previousPrice?.close ?? null,
+          previousMarketValueAud: position.marketValueAud,
+        });
+        position.dayGainAud = valuation.dayGainAud;
         position.lastPrice = input.close;
-        position.marketValueAud = marketValueAud;
-        position.pnlAud = marketValueAud - position.costAud;
-        position.pnlPercent = position.costAud ? position.pnlAud / position.costAud * 100 : 0;
+        position.marketValueAud = valuation.marketValueAud;
+        position.pnlAud = valuation.pnlAud;
+        position.pnlPercent = valuation.pnlPercent;
         position.valuationBasis = "market";
         position.asOfDate = input.priceDate;
         owners.add(position.ownerType);
@@ -622,11 +557,13 @@ export class LocalStorageAdapter implements StorageAdapter {
     for (const asset of store.manualAssets) {
       asset.buybackAudPerKg = price.buybackAudPerKg;
       asset.retailAudPerKg = price.retailAudPerKg;
-      asset.marketValueAud = asset.quantityKg * price.buybackAudPerKg;
-      asset.pnlAud = asset.marketValueAud - asset.totalCostAud;
-      asset.pnlPercent = asset.totalCostAud ? asset.pnlAud / asset.totalCostAud * 100 : 0;
-      asset.dealerSpreadAudPerKg = price.spreadAudPerKg;
-      asset.dealerSpreadPercent = price.spreadPercentOfRetail;
+      const valuation = buildManualAssetValuation(asset);
+      asset.costAudPerKg = valuation.costAudPerKg;
+      asset.marketValueAud = valuation.marketValueAud;
+      asset.pnlAud = valuation.pnlAud;
+      asset.pnlPercent = valuation.pnlPercent;
+      asset.dealerSpreadAudPerKg = valuation.dealerSpreadAudPerKg;
+      asset.dealerSpreadPercent = valuation.dealerSpreadPercent;
       asset.priceProvider = price.provider;
       asset.priceSourceUrl = price.sourceUrl;
       asset.asOfDate = price.priceDate;
