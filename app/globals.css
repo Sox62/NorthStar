@@ -676,9 +676,25 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   gap: 10px;
   flex-wrap: wrap;
 }
+.priceProviderControl {
+  min-width: 122px;
+  margin-top: 0;
+}
+.priceProviderControl select {
+  min-height: 34px;
+  padding: 7px 30px 7px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+}
 .pricePanelActions .primary {
   min-height: 34px;
   padding: 7px 11px;
+  font-size: 12px;
+}
+.pricePanelActions .button {
+  min-height: 34px;
+  padding: 7px 11px;
+  border-radius: 10px;
   font-size: 12px;
 }
 .priceCsvInput {
@@ -835,6 +851,24 @@ button:disabled { opacity: .55; cursor: wait; }
   border: 1px solid var(--result-good-border);
   border-radius: 14px;
   background: rgba(11,32,23,.80);
+}
+.priceResultList {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+.priceResultList span {
+  padding: 8px 10px;
+  border: 1px solid rgba(106,130,153,.16);
+  border-radius: 10px;
+  background: rgba(4,12,20,.34);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.priceResultList.isWarning span {
+  border-color: rgba(215,181,109,.24);
+  background: rgba(215,181,109,.08);
 }
 .nsSummaryGrid {
   display: grid;

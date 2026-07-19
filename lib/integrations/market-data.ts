@@ -17,7 +17,14 @@ export type QuoteRefreshResult = {
   quotes: MarketQuote[];
   failures: QuoteFailure[];
   providerConfigured: boolean;
+  providers: {
+    requested: QuoteProvider;
+    eodhdConfigured: boolean;
+    stooqEnabled: boolean;
+  };
 };
+
+export type QuoteProvider = "auto" | "eodhd" | "stooq";
 
 type EodhdResponse = {
   code?: string;
@@ -204,7 +211,11 @@ async function fetchStooqQuote(instrument: PriceableInstrument): Promise<MarketQ
     signal: AbortSignal.timeout(MARKETDATA_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error(`Stooq HTTP ${response.status}`);
-  const parsed = parseStooqCsv(await response.text());
+  const text = await response.text();
+  if (/<html[\s>]/i.test(text) || /requires JavaScript|__verify/i.test(text)) {
+    throw new Error("Stooq requires browser verification from this environment. Configure EODHD or use manual/CSV prices.");
+  }
+  const parsed = parseStooqCsv(text);
   if (!parsed) return null;
   return {
     symbol: instrument.symbol,
@@ -227,7 +238,7 @@ function inferredFxRate(instrument: PriceableInstrument, date: string): FxRateIn
   return { currency, rateToAud, rateDate: date, source: "Inferred from current position" };
 }
 
-export async function refreshMarketQuotes(instruments: PriceableInstrument[], provider: "auto" | "eodhd" | "stooq" = "auto"): Promise<QuoteRefreshResult> {
+export async function refreshMarketQuotes(instruments: PriceableInstrument[], provider: QuoteProvider = "auto"): Promise<QuoteRefreshResult> {
   const token = process.env.EODHD_API_TOKEN?.trim() || process.env.MARKETDATA_EODHD_API_TOKEN?.trim() || "";
   const prices: DailyPriceInput[] = [];
   const fxRates = new Map<string, FxRateInput>();
@@ -235,6 +246,11 @@ export async function refreshMarketQuotes(instruments: PriceableInstrument[], pr
   const failures: QuoteFailure[] = [];
   const useEodhd = provider !== "stooq" && Boolean(token);
   const useStooq = provider !== "eodhd";
+  const providers = {
+    requested: provider,
+    eodhdConfigured: Boolean(token),
+    stooqEnabled: useStooq,
+  };
 
   for (const instrument of instruments) {
     try {
@@ -242,7 +258,13 @@ export async function refreshMarketQuotes(instruments: PriceableInstrument[], pr
       if (useEodhd) quote = await fetchEodhdQuote(instrument, token);
       if (!quote && useStooq) quote = await fetchStooqQuote(instrument);
       if (!quote) {
-        failures.push({ symbol: instrument.symbol, exchange: instrument.exchange, message: "No supported quote provider for this instrument." });
+        failures.push({
+          symbol: instrument.symbol,
+          exchange: instrument.exchange,
+          message: provider === "eodhd" && !token
+            ? "EODHD token is not configured."
+            : "No supported quote provider returned a price for this instrument.",
+        });
         continue;
       }
       quotes.push(quote);
@@ -276,6 +298,7 @@ export async function refreshMarketQuotes(instruments: PriceableInstrument[], pr
     fxRates: [...fxRates.values()],
     quotes,
     failures,
-    providerConfigured: Boolean(token) || provider !== "eodhd",
+    providerConfigured: providers.eodhdConfigured || provider !== "eodhd",
+    providers,
   };
 }

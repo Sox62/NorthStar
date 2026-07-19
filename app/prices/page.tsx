@@ -44,7 +44,15 @@ type PriceBook = {
   fxRates: StoredFxRate[];
 };
 
-type PriceResultPayload = Record<string, unknown> & { error?: string; errors?: string[] };
+type QuoteRefreshProvider = "auto" | "eodhd" | "stooq";
+type PriceResultPayload = Record<string, unknown> & {
+  error?: string;
+  errors?: string[];
+  quotes?: Array<{ symbol: string; exchange: string; providerSymbol: string; source: string; close: number; priceDate: string }>;
+  failures?: Array<{ symbol: string; exchange: string; message: string }>;
+  providerConfigured?: boolean;
+  providers?: { requested: QuoteRefreshProvider; eodhdConfigured: boolean; stooqEnabled: boolean };
+};
 
 const today = () => new Date().toLocaleDateString("en-CA");
 const money = (value: number, maximumFractionDigits = 0) =>
@@ -60,6 +68,7 @@ export default function PricesPage() {
   const [busy, setBusy] = useState(false);
   const [csvBusy, setCsvBusy] = useState(false);
   const [refreshBusy, setRefreshBusy] = useState(false);
+  const [refreshProvider, setRefreshProvider] = useState<QuoteRefreshProvider>("auto");
   const [selectedKey, setSelectedKey] = useState("");
   const [form, setForm] = useState({ symbol: "", exchange: "", close: "", currency: "AUD", priceDate: today(), source: "Manual close", fxRateToAud: "" });
   const [csv, setCsv] = useState("");
@@ -141,14 +150,14 @@ export default function PricesPage() {
     }
   };
 
-  const refreshQuotes = async () => {
+  const refreshQuotes = async (symbols?: string[]) => {
     setRefreshBusy(true);
     setResult(null);
     try {
       const response = await fetch("/api/prices/refresh", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ provider: "auto" }),
+        body: JSON.stringify({ provider: refreshProvider, symbols }),
       });
       const payloadResult = await response.json();
       setResult(payloadResult);
@@ -240,9 +249,27 @@ export default function PricesPage() {
             </div>
             <div className="pricePanelActions">
               <span className="panelCount">{loading ? "Loading" : `${book.instruments.length} instruments`}</span>
-              <button className="primary" type="button" onClick={refreshQuotes} disabled={refreshBusy || !book.instruments.length}>
-                {refreshBusy ? "Refreshing..." : "Refresh delayed quotes"}
+              <label className="field priceProviderControl">
+                <span>Provider</span>
+                <select value={refreshProvider} onChange={(event) => setRefreshProvider(event.target.value as QuoteRefreshProvider)}>
+                  <option value="auto">Auto</option>
+                  <option value="eodhd">EODHD</option>
+                  <option value="stooq">Stooq</option>
+                </select>
+              </label>
+              <button
+                className="primary"
+                type="button"
+                onClick={() => refreshQuotes(selectedInstrument ? [`${selectedInstrument.symbol}:${selectedInstrument.exchange}`] : undefined)}
+                disabled={refreshBusy || !book.instruments.length}
+              >
+                {refreshBusy ? "Refreshing..." : selectedInstrument ? `Refresh ${selectedInstrument.symbol}` : "Refresh all"}
               </button>
+              {selectedInstrument ? (
+                <button className="button" type="button" onClick={() => refreshQuotes()} disabled={refreshBusy || !book.instruments.length}>
+                  All
+                </button>
+              ) : null}
             </div>
           </div>
           <PriceInstrumentTable instruments={book.instruments} />
@@ -277,6 +304,10 @@ export default function PricesPage() {
 function PriceResult({ result }: { result: PriceResultPayload }) {
   if (result.error) return <Notice tone="error" title="Price import failed">{result.error}</Notice>;
   const errors = Array.isArray(result.errors) ? result.errors.filter(Boolean).map(String) : [];
+  const failures = Array.isArray(result.failures) ? result.failures : [];
+  const quotes = Array.isArray(result.quotes) ? result.quotes : [];
+  const failureMessages = new Set(failures.map((failure) => `${failure.symbol}:${failure.exchange} ${failure.message}`));
+  const remainingErrors = errors.filter((error) => !failureMessages.has(error));
   return (
     <div className="result">
       <StatusBadge>{errors.length ? "Saved with notes" : "Saved"}</StatusBadge>
@@ -285,8 +316,27 @@ function PriceResult({ result }: { result: PriceResultPayload }) {
         ["Instruments", String(result.matchedInstruments ?? 0)],
         ["Positions updated", String(result.updatedPositions ?? 0)],
         ["FX rates", String(result.fxRates ?? 0)],
+        ["Provider", result.providers ? `${result.providers.requested.toUpperCase()}${result.providers.eodhdConfigured ? "" : " · no EODHD token"}` : "Manual"],
       ]} />
-      {errors.length > 0 && <p className="small">{errors.join("; ")}</p>}
+      {quotes.length > 0 && (
+        <div className="priceResultList">
+          {quotes.slice(0, 8).map((quote) => (
+            <span key={`${quote.symbol}:${quote.exchange}:${quote.providerSymbol}`}>
+              {quote.symbol}:{quote.exchange} · {quote.providerSymbol} · {number(quote.close, 6)} · {quote.priceDate}
+            </span>
+          ))}
+        </div>
+      )}
+      {failures.length > 0 && (
+        <div className="priceResultList isWarning">
+          {failures.slice(0, 8).map((failure) => (
+            <span key={`${failure.symbol}:${failure.exchange}:${failure.message}`}>
+              {failure.symbol}:{failure.exchange} · {failure.message}
+            </span>
+          ))}
+        </div>
+      )}
+      {remainingErrors.length > 0 && <p className="small">{remainingErrors.join("; ")}</p>}
     </div>
   );
 }

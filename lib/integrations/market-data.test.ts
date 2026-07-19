@@ -10,6 +10,22 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function instrument(input: Partial<PriceableInstrument> = {}): PriceableInstrument {
+  return {
+    symbol: "AAPL",
+    exchange: "US",
+    name: "Apple",
+    currency: "USD",
+    assetClass: "Technology",
+    positionCount: 1,
+    quantity: 10,
+    marketValueAud: 9999,
+    lastPrice: 100,
+    asOfDate: "2026-07-17",
+    ...input,
+  };
+}
+
 test("fetchFrankfurterFx returns an AUD conversion rate", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input) => {
@@ -48,29 +64,54 @@ test("refreshMarketQuotes falls back to Frankfurter FX before inferred position 
     throw new Error(`Unexpected URL ${url}`);
   };
 
-  const instrument: PriceableInstrument = {
-    symbol: "AAPL",
-    exchange: "US",
-    name: "Apple",
-    currency: "USD",
-    assetClass: "Technology",
-    positionCount: 1,
-    quantity: 10,
-    marketValueAud: 9999,
-    lastPrice: 100,
-    asOfDate: "2026-07-17",
-  };
-
   try {
-    const result = await refreshMarketQuotes([instrument], "eodhd");
+    const result = await refreshMarketQuotes([instrument()], "eodhd");
     assert.equal(result.prices.length, 1);
     assert.equal(result.fxRates.length, 1);
     assert.equal(result.fxRates[0].source, "Frankfurter FX");
     assert.equal(result.fxRates[0].rateToAud, 1.51);
+    assert.equal(result.providers.eodhdConfigured, true);
     assert.ok(requestedUrls.some((url) => url.includes("/USDAUD.FOREX?")));
   } finally {
     globalThis.fetch = originalFetch;
     if (originalToken == null) delete process.env.EODHD_API_TOKEN;
     else process.env.EODHD_API_TOKEN = originalToken;
+  }
+});
+
+test("refreshMarketQuotes reports missing EODHD token when EODHD is requested", async () => {
+  const originalToken = process.env.EODHD_API_TOKEN;
+  const originalAltToken = process.env.MARKETDATA_EODHD_API_TOKEN;
+  delete process.env.EODHD_API_TOKEN;
+  delete process.env.MARKETDATA_EODHD_API_TOKEN;
+
+  try {
+    const result = await refreshMarketQuotes([instrument()], "eodhd");
+    assert.equal(result.providerConfigured, false);
+    assert.equal(result.providers.eodhdConfigured, false);
+    assert.equal(result.prices.length, 0);
+    assert.match(result.failures[0].message, /EODHD token/);
+  } finally {
+    if (originalToken == null) delete process.env.EODHD_API_TOKEN;
+    else process.env.EODHD_API_TOKEN = originalToken;
+    if (originalAltToken == null) delete process.env.MARKETDATA_EODHD_API_TOKEN;
+    else process.env.MARKETDATA_EODHD_API_TOKEN = originalAltToken;
+  }
+});
+
+test("refreshMarketQuotes surfaces Stooq browser verification pages", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response("<!doctype html><noscript>This site requires JavaScript to verify your browser.</noscript><script>fetch('/__verify')</script>", {
+    status: 200,
+    headers: { "content-type": "text/html" },
+  });
+
+  try {
+    const result = await refreshMarketQuotes([instrument()], "stooq");
+    assert.equal(result.prices.length, 0);
+    assert.match(result.failures[0].message, /browser verification/);
+    assert.equal(result.providers.stooqEnabled, true);
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });
