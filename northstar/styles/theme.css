@@ -781,6 +781,11 @@ body.northstar .nsLowerGrid {
   align-items:start;
 }
 
+body.northstar .nsLowerGrid .nsPositionsPanel,
+body.northstar .nsLowerGrid .nsSectorPanel {
+  grid-column:1 / -1;
+}
+
 body.northstar .nsPanel {
   padding:27px 26px;
   min-width:0;
@@ -823,7 +828,7 @@ body.northstar .nsHoldingsTable {
 body.northstar .nsHoldingsHeader,
 body.northstar .nsHoldingRow {
   display:grid;
-  grid-template-columns:minmax(165px, 1.22fr) minmax(130px, 0.82fr) minmax(108px, 0.64fr) minmax(98px, 0.58fr) minmax(95px, 0.56fr);
+  grid-template-columns:minmax(190px, 1.35fr) minmax(118px, 0.62fr) minmax(112px, 0.62fr) minmax(104px, 0.58fr) minmax(96px, 0.54fr) minmax(120px, 0.66fr);
   gap:16px;
   align-items:center;
   min-width:0;
@@ -837,6 +842,10 @@ body.northstar .nsHoldingsHeader {
   font-weight:800;
   letter-spacing:0.12em;
   text-transform:uppercase;
+}
+
+body.northstar .nsHoldingsHeader span:nth-child(n + 3) {
+  text-align:right;
 }
 
 body.northstar .nsHoldingRow {
@@ -875,7 +884,7 @@ body.northstar .nsHoldingRow small {
 
 body.northstar .nsHoldingRow em {
   display:inline-flex;
-  min-width:54px;
+  max-width:100%;
   align-items:center;
   justify-content:center;
   padding:5px 9px;
@@ -883,21 +892,24 @@ body.northstar .nsHoldingRow em {
   font-size:11px;
   font-style:normal;
   font-weight:800;
-}
-
-body.northstar .nsWeightBar {
-  width:160px;
-  max-width:100%;
-  height:7px;
   overflow:hidden;
-  border-radius:999px;
-  background:rgba(122,149,178,0.16);
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 
-body.northstar .nsWeightBar i {
-  display:block;
-  height:100%;
-  border-radius:999px;
+body.northstar .nsSectorWeightCell {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+body.northstar .nsSectorWeightCell strong {
+  display:inline-block;
+  color:var(--muted);
+  font-family:var(--ns-sans);
+  font-size:12px;
+  font-weight:800;
+  white-space:nowrap;
 }
 
 body.northstar .nsHoldingRow > div:nth-child(3) {
@@ -917,23 +929,39 @@ body.northstar .nsHoldingEmpty {
 }
 
 body.northstar .nsHoldingRow > div:nth-child(4),
-body.northstar .nsHoldingRow > div:nth-child(5) {
+body.northstar .nsHoldingRow > div:nth-child(5),
+body.northstar .nsHoldingRow > div:nth-child(6) {
   text-align:right;
 }
 
-body.northstar .nsHoldingRow > div:nth-child(5) {
+body.northstar .nsHoldingRow > div:nth-child(5),
+body.northstar .nsHoldingRow > div:nth-child(6) {
   font-size:15px;
   font-weight:700;
 }
 
 body.northstar .nsSectorPanel {
-  min-height:520px;
+  min-height:auto;
+  display:grid;
+  grid-template-columns:minmax(180px, 0.28fr) minmax(0, 1fr);
+  column-gap:30px;
+  align-items:center;
+}
+
+body.northstar .nsSectorPanel > .nsEyebrow,
+body.northstar .nsSectorPanel > .nsDonutWrap {
+  grid-column:1;
+}
+
+body.northstar .nsSectorPanel > .nsSectorList {
+  grid-column:2;
+  grid-row:1 / span 2;
 }
 
 body.northstar .nsDonutWrap {
   display:grid;
   place-items:center;
-  margin:34px 0 28px;
+  margin:22px 0 0;
 }
 
 body.northstar .nsDonut {
@@ -1333,8 +1361,24 @@ body.northstar .nsActivityRow.is-failed em {
   }
 
   body.northstar .nsHoldingRow > div:nth-child(4),
-  body.northstar .nsHoldingRow > div:nth-child(5) {
+  body.northstar .nsHoldingRow > div:nth-child(5),
+  body.northstar .nsHoldingRow > div:nth-child(6) {
     text-align:left;
+  }
+
+  body.northstar .nsSectorPanel {
+    grid-template-columns:1fr;
+  }
+
+  body.northstar .nsSectorPanel > .nsEyebrow,
+  body.northstar .nsSectorPanel > .nsDonutWrap,
+  body.northstar .nsSectorPanel > .nsSectorList {
+    grid-column:1;
+    grid-row:auto;
+  }
+
+  body.northstar .nsSectorPanel > .nsSectorList {
+    margin-top:20px;
   }
 }
 
@@ -1443,7 +1487,8 @@ body.northstar .nsActivityRow.is-failed em {
 
   body.northstar .nsHoldingRow > div:nth-child(3),
   body.northstar .nsHoldingRow > div:nth-child(4),
-  body.northstar .nsHoldingRow > div:nth-child(5) {
+  body.northstar .nsHoldingRow > div:nth-child(5),
+  body.northstar .nsHoldingRow > div:nth-child(6) {
     text-align:left;
   }
 

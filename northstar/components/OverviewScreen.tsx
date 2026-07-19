@@ -433,7 +433,6 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
   const isOverall = scope === "overall";
   const visibleHoldings = isOverall && !showAllOverall ? holdings.slice(0, 6) : holdings;
   const scopeLabel = scope === "smsf" ? "SMSF" : scope === "personal" ? "Personal" : "Overall";
-  const max = holdings[0]?.marketValueAud || 1;
   return (
     <section id="holdings" className="nsPanel nsPositionsPanel">
       <div className="nsPanelTopline">
@@ -452,24 +451,24 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
       <div className="nsHoldingsTable" role="table" aria-label={`${scopeLabel} share positions`}>
         <div className="nsHoldingsHeader" role="row">
           <span>Holding</span>
-          <span>Sector · Weight</span>
+          <span>Sector · NAV weight</span>
           <span>Latest price</span>
           <span>Value</span>
           <span>Day P/L</span>
+          <span>Position P/L</span>
         </div>
         {visibleHoldings.map((holding) => {
           const dailyGain = holding.dayGainAud ?? 0;
           const dailyPercent = dayGainPercent(holding);
           return (
             <div className="nsHoldingRow" role="row" key={holding.id}>
-              <div>
+              <div className="nsHoldingIdentity">
                 <strong>{holding.symbol}</strong>
                 <span>{holding.name}</span>
-                <small className={holding.pnlAud >= 0 ? "isPositive" : "isNegative"}>{fmtSignedAud(holding.pnlAud)} · {fmtSignedPct(holding.pnlPercent)} position P/L</small>
               </div>
-              <div>
+              <div className="nsSectorWeightCell">
                 <em style={{ background: `${SECTOR_COLORS[holding.sector]}30`, color: SECTOR_COLORS[holding.sector] }}>{sectorShortName(holding.sector)}</em>
-                <span className="nsWeightBar"><i style={{ width: `${pct(holding.marketValueAud, max)}%`, background: SECTOR_COLORS[holding.sector] }} /></span>
+                <strong>{fmtPct(pct(holding.marketValueAud, total))}</strong>
               </div>
               <div>
                 <strong>{fmtLatestPrice(holding)}</strong>
@@ -482,6 +481,10 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
               <div className={dailyGain >= 0 ? "isPositive" : "isNegative"}>
                 <strong>{fmtSignedAud(dailyGain)}</strong>
                 <span>{dailyPercent == null ? "n/a" : fmtSignedPct(dailyPercent)}</span>
+              </div>
+              <div className={holding.pnlAud >= 0 ? "isPositive" : "isNegative"}>
+                <strong>{fmtSignedAud(holding.pnlAud)}</strong>
+                <span>{fmtSignedPct(holding.pnlPercent)} position P/L</span>
               </div>
             </div>
           );
