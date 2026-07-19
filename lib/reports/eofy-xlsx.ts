@@ -151,6 +151,29 @@ function cgtSummarySheet(report: EofyReport): XlsxSheet {
   };
 }
 
+function reconciliationSheet(report: EofyReport): XlsxSheet {
+  return {
+    name: "Reconciliation",
+    columns: [18, 30, 18, 18, 16, 12, 58],
+    rows: [
+      ...reportIntro(report, "Accountant Reconciliation"),
+      subtitle(`Overall status: ${report.reconciliation.status.toUpperCase()} | Variance tolerance $${report.reconciliation.varianceToleranceAud.toFixed(2)} AUD`),
+      header(["Area", "Check", "NorthStar Amount", "Reference Amount", "Variance", "Status", "Detail"]),
+      ...report.reconciliation.rows.map((row): Row => [
+        row.section,
+        row.check,
+        money(row.reportedAud),
+        money(row.referenceAud),
+        money(row.varianceAud),
+        row.status.toUpperCase(),
+        row.detail,
+      ]),
+      blank,
+      subtitle("Review rows are intentionally conservative and indicate where broker statements, price history or acquisition history should be checked."),
+    ],
+  };
+}
+
 function realisedCgtLotsSheet(report: EofyReport): XlsxSheet {
   const lots = [...report.realisedLots].sort((a, b) => a.saleDate.localeCompare(b.saleDate) || a.symbol.localeCompare(b.symbol));
   return {
@@ -459,6 +482,7 @@ function unrealisedCgtSheet(report: EofyReport): XlsxSheet {
 
 export function eofyReportXlsx(report: EofyReport) {
   return createXlsx([
+    reconciliationSheet(report),
     cgtSummarySheet(report),
     realisedCgtLotsSheet(report),
     taxableIncomeSheet(report),

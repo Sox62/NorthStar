@@ -276,6 +276,32 @@ export function eofyReportCsv(report: EofyReport) {
 
   addSharesightCompatibilityRows(rows, report);
 
+  for (const row of report.reconciliation.rows) {
+    rows.push([
+      "accountant_reconciliation",
+      report.ownerLabel,
+      report.financialYear.label,
+      row.check,
+      row.section,
+      "",
+      report.financialYear.startDate,
+      report.financialYear.endDate,
+      "",
+      "AUD",
+      "",
+      "",
+      "",
+      "",
+      "",
+      row.reportedAud == null ? "" : money(row.reportedAud),
+      row.referenceAud == null ? "" : money(row.referenceAud),
+      row.varianceAud == null ? "" : money(row.varianceAud),
+      "",
+      `${row.status.toUpperCase()}: ${row.detail}`,
+      report.financialYear.endDate,
+    ]);
+  }
+
   for (const row of report.incomeBySymbol) {
     rows.push([
       "income_summary",

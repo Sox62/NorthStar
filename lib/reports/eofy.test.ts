@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildEofyReport, eofyReportCsv } from "./eofy";
+import { eofyReportXlsx } from "./eofy-xlsx";
 import type { DashboardData, DashboardHolding, PriceBook, StoredTransaction } from "@/lib/storage";
 
 function transaction(input: Partial<StoredTransaction> & Pick<StoredTransaction, "id" | "externalId" | "tradeDate" | "symbol" | "exchange" | "type" | "quantity" | "cost" | "netCash">): StoredTransaction {
@@ -120,6 +121,22 @@ test("buildEofyReport values historical cost rows from EOFY price book", () => {
 });
 
 test("buildEofyReport calculates realised CGT after loss offset and discount", () => {
+  const priceBook: PriceBook = {
+    instruments: [],
+    prices: ["CMM", "NST", "LOS"].map((symbol) => ({
+      id: `p-${symbol}`,
+      instrumentId: `i-${symbol}`,
+      symbol,
+      exchange: "ASX",
+      name: symbol,
+      currency: "AUD",
+      close: 10,
+      priceDate: "2026-06-30",
+      source: "test",
+      retrievedAt: "2026-06-30T00:00:00.000Z",
+    })),
+    fxRates: [],
+  };
   const report = buildEofyReport("personal", dashboard([]), [
     transaction({
       id: "buy-long",
@@ -199,7 +216,7 @@ test("buildEofyReport calculates realised CGT after loss offset and discount", (
       cost: -600,
       netCash: 600,
     }),
-  ], 2026, new Date("2026-07-18T00:00:00.000Z"));
+  ], 2026, new Date("2026-07-18T00:00:00.000Z"), priceBook);
 
   assert.equal(report.capitalGains.summary.shortTermGainsAud, 200);
   assert.equal(report.capitalGains.summary.longTermGainsAud, 600);
@@ -212,9 +229,15 @@ test("buildEofyReport calculates realised CGT after loss offset and discount", (
   assert.equal(report.capitalGains.shortTerm.length, 1);
   assert.equal(report.capitalGains.longTerm.length, 1);
   assert.equal(report.capitalGains.losses.length, 1);
+  assert.equal(report.reconciliation.status, "ok");
+  assert.equal(report.reconciliation.rows.find((row) => row.check === "Realised proceeds subtotal")?.varianceAud, 0);
+  assert.equal(report.reconciliation.rows.find((row) => row.check === "Realised cost base subtotal")?.varianceAud, 0);
+  assert.equal(report.reconciliation.rows.find((row) => row.check === "Taxable net capital gain")?.varianceAud, 0);
 
   const csv = eofyReportCsv(report);
+  assert.match(csv, /accountant_reconciliation,Personal,FY2026,Realised proceeds subtotal,CGT/);
   assert.match(csv, /sharesight_cgt_summary,Personal,FY2026,Total net capital gain \(18A\)/);
   assert.match(csv, /realised_cgt_lot,Personal,FY2026,Capricorn Metals,CMM,Directshares,2026-01-10/);
   assert.match(csv, /discount 50%/);
+  assert.ok(eofyReportXlsx(report).includes(Buffer.from("Reconciliation")));
 });

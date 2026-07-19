@@ -5,6 +5,7 @@ import { dataQualityNotes } from "./eofy/data-quality";
 import { eofyReportCsv } from "./eofy/csv";
 import { historicalCostRows } from "./eofy/historical-cost";
 import { incomeRows, taxableIncomeRows } from "./eofy/income";
+import { eofyReconciliationReport } from "./eofy/reconciliation";
 import { holdingReference, tradeRows } from "./eofy/trades";
 import type { EofyReport, EofyScope } from "./eofy/types";
 import { dateInRange, financialYear, financialYearFromRequest, ownerLabelForEofyScope, ownerTypeForEofyScope } from "./eofy/utils";
@@ -18,6 +19,9 @@ export type {
   EofyHoldingReference,
   EofyIncomePayment,
   EofyIncomeSymbol,
+  EofyReconciliationReport,
+  EofyReconciliationRow,
+  EofyReconciliationStatus,
   EofyReport,
   EofyScope,
   EofyTaxableIncomeSections,
@@ -48,6 +52,34 @@ export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, tran
   const unrealisedCgt = unrealisedCgtReport(eofyOpenLots);
   const buyTrades = tradeMovements.filter((trade) => trade.type === "BUY");
   const sellTrades = tradeMovements.filter((trade) => trade.type === "SELL");
+  const summary = {
+    dividendPayments: income.payments.length,
+    grossIncomeAud: income.payments.reduce((sum, row) => sum + row.grossIncomeAud, 0),
+    netIncomeAud: income.payments.reduce((sum, row) => sum + row.netIncomeAud, 0),
+    frankingCreditsAud: income.payments.reduce((sum, row) => sum + row.frankingCreditsAud, 0),
+    taxWithheldAud: income.payments.reduce((sum, row) => sum + row.taxWithheldAud, 0),
+    feesAud: income.payments.reduce((sum, row) => sum + row.feesAud, 0),
+    realisedLots: realisedLots.length,
+    ...realised,
+    taxableRealisedAud: capitalGains.summary.netCapitalGainAud,
+    buyTrades: buyTrades.length,
+    sellTrades: sellTrades.length,
+    buysAud: buyTrades.reduce((sum, row) => sum + row.grossAud + row.feesAud + row.taxesAud, 0),
+    sellsAud: sellTrades.reduce((sum, row) => sum + Math.abs(row.netCashAud || row.grossAud), 0),
+    tradeFeesAud: tradeMovements.reduce((sum, row) => sum + row.feesAud + row.taxesAud, 0),
+    currentHoldings: currentHoldings.length,
+    currentMarketValueAud: currentHoldings.reduce((sum, row) => sum + row.marketValueAud, 0),
+    currentCostBaseAud: currentHoldings.reduce((sum, row) => sum + row.costAud, 0),
+  };
+  const reconciliation = eofyReconciliationReport({
+    summary,
+    incomePayments: income.payments,
+    capitalGains,
+    realisedLots,
+    historicalCost,
+    tradeMovements,
+    currentHoldings,
+  });
   const draftReport = {
     incomePayments: income.payments,
     realisedLots,
@@ -63,25 +95,7 @@ export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, tran
     financialYear: fy,
     generatedAt: generatedAt.toISOString(),
     valuationAsOf: dashboard.lastUpdated,
-    summary: {
-      dividendPayments: income.payments.length,
-      grossIncomeAud: income.payments.reduce((sum, row) => sum + row.grossIncomeAud, 0),
-      netIncomeAud: income.payments.reduce((sum, row) => sum + row.netIncomeAud, 0),
-      frankingCreditsAud: income.payments.reduce((sum, row) => sum + row.frankingCreditsAud, 0),
-      taxWithheldAud: income.payments.reduce((sum, row) => sum + row.taxWithheldAud, 0),
-      feesAud: income.payments.reduce((sum, row) => sum + row.feesAud, 0),
-      realisedLots: realisedLots.length,
-      ...realised,
-      taxableRealisedAud: capitalGains.summary.netCapitalGainAud,
-      buyTrades: buyTrades.length,
-      sellTrades: sellTrades.length,
-      buysAud: buyTrades.reduce((sum, row) => sum + row.grossAud + row.feesAud + row.taxesAud, 0),
-      sellsAud: sellTrades.reduce((sum, row) => sum + Math.abs(row.netCashAud || row.grossAud), 0),
-      tradeFeesAud: tradeMovements.reduce((sum, row) => sum + row.feesAud + row.taxesAud, 0),
-      currentHoldings: currentHoldings.length,
-      currentMarketValueAud: currentHoldings.reduce((sum, row) => sum + row.marketValueAud, 0),
-      currentCostBaseAud: currentHoldings.reduce((sum, row) => sum + row.costAud, 0),
-    },
+    summary,
     incomeBySymbol: income.symbols,
     incomePayments: income.payments,
     taxableIncome,
@@ -91,6 +105,7 @@ export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, tran
     historicalCost,
     tradeMovements,
     currentHoldings,
+    reconciliation,
     dataQuality: dataQualityNotes(draftReport),
   };
 }

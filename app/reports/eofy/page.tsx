@@ -7,6 +7,8 @@ import { Card, Notice } from "@/northstar/components";
 const money = (value: number) =>
   new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value);
 
+const moneyOrDash = (value: number | null | undefined) => value == null ? "n/a" : money(value);
+
 const signedMoney = (value: number) => `${value >= 0 ? "+" : ""}${money(value)}`;
 
 const number = (value: number | null | undefined) =>
@@ -49,6 +51,12 @@ async function loadReport(year: number): Promise<EofyReport> {
 
 function tone(value: number) {
   return value >= 0 ? "positive" : "negative";
+}
+
+function reconciliationTone(status: EofyReport["reconciliation"]["status"]) {
+  if (status === "review") return "negative";
+  if (status === "ok") return "positive";
+  return "";
 }
 
 function total<T>(rows: T[], pick: (row: T) => number) {
@@ -134,6 +142,39 @@ export default function EofyReportPage() {
             <div><span>Buy trades</span><strong>{data.summary.buyTrades}</strong><em>{money(data.summary.buysAud)} cost</em></div>
             <div><span>Sell trades</span><strong>{data.summary.sellTrades}</strong><em>{money(data.summary.sellsAud)} proceeds</em></div>
             <div><span>Current holdings ref.</span><strong>{data.summary.currentHoldings}</strong><em>{money(data.summary.currentMarketValueAud)} value</em></div>
+          </section>
+
+          <section className="printReportSection">
+            <div className="printSectionHeader">
+              <h2>Accountant Reconciliation</h2>
+              <span className={reconciliationTone(data.reconciliation.status)}>{data.reconciliation.status.toUpperCase()} · tolerance AUD {data.reconciliation.varianceToleranceAud.toFixed(2)}</span>
+            </div>
+            <table className="printReportTable">
+              <thead>
+                <tr>
+                  <th>Area</th>
+                  <th>Check</th>
+                  <th className="numeric">NorthStar</th>
+                  <th className="numeric">Reference</th>
+                  <th className="numeric">Variance</th>
+                  <th>Status</th>
+                  <th>Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.reconciliation.rows.map((row) => (
+                  <tr key={`${row.section}-${row.check}`}>
+                    <td>{row.section}</td>
+                    <td><strong>{row.check}</strong></td>
+                    <td className="numeric">{moneyOrDash(row.reportedAud)}</td>
+                    <td className="numeric">{moneyOrDash(row.referenceAud)}</td>
+                    <td className={`numeric ${row.varianceAud == null ? "" : tone(row.varianceAud)}`}>{moneyOrDash(row.varianceAud)}</td>
+                    <td className={reconciliationTone(row.status)}>{row.status.toUpperCase()}</td>
+                    <td>{row.detail}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </section>
 
           <section className="printReportSection">

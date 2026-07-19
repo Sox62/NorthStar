@@ -45,7 +45,26 @@ export type EofyReport = {
   historicalCost: EofyHistoricalCostRow[];
   tradeMovements: EofyTradeMovement[];
   currentHoldings: EofyHoldingReference[];
+  reconciliation: EofyReconciliationReport;
   dataQuality: string[];
+};
+
+export type EofyReconciliationStatus = "ok" | "review" | "info";
+
+export type EofyReconciliationRow = {
+  section: string;
+  check: string;
+  reportedAud: number | null;
+  referenceAud: number | null;
+  varianceAud: number | null;
+  status: EofyReconciliationStatus;
+  detail: string;
+};
+
+export type EofyReconciliationReport = {
+  status: EofyReconciliationStatus;
+  varianceToleranceAud: number;
+  rows: EofyReconciliationRow[];
 };
 
 export type EofyIncomeSymbol = {
