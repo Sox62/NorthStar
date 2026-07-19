@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { basicAuthEnabled } from "./lib/auth/policy";
 import { SESSION_COOKIE, verifySessionToken } from "./lib/auth/session";
 
 async function digest(value: string) {
@@ -45,7 +46,7 @@ export async function proxy(request: NextRequest) {
   const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value).catch(() => null);
   if (session) return NextResponse.next();
 
-  const authorization = request.headers.get("authorization");
+  const authorization = basicAuthEnabled() ? request.headers.get("authorization") : null;
   if (authorization?.startsWith("Basic ")) {
     try {
       const decoded = atob(authorization.slice(6));
