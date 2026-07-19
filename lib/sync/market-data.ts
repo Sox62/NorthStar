@@ -18,6 +18,10 @@ function eodhdConfigured() {
   return Boolean(process.env.EODHD_API_TOKEN?.trim() || process.env.MARKETDATA_EODHD_API_TOKEN?.trim());
 }
 
+function providerConfigured(provider: QuoteProvider) {
+  return provider === "eodhd" ? eodhdConfigured() : true;
+}
+
 function autoPriceRefreshEnabled(trigger: SyncTrigger) {
   if (trigger !== "scheduled") return true;
   return !/^(0|false|no)$/i.test(process.env.NORTHSTAR_AUTO_PRICE_REFRESH ?? "");
@@ -36,7 +40,7 @@ export async function syncMarketData(
     return { configured: false, provider, status: "skipped", instruments: 0, quotes: 0, fxRates: 0, updatedPositions: 0, errors: [], message };
   }
 
-  const configured = eodhdConfigured() || provider === "stooq";
+  const configured = providerConfigured(provider);
   if (!configured) {
     const message = "EODHD_API_TOKEN or MARKETDATA_EODHD_API_TOKEN is not configured.";
     await storage.recordSyncRun({ source: "Market Data", trigger, status: "skipped", startedAt, message });

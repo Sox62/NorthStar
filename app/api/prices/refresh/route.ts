@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 const refreshSchema = z.object({
   symbols: z.array(z.string().trim().min(1)).optional(),
-  provider: z.enum(["auto", "eodhd", "stooq"]).default("auto"),
+  provider: z.enum(["auto", "eodhd", "yahoo", "stooq"]).default("auto"),
 });
 
 function normaliseKey(value: string) {
@@ -50,6 +50,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       refreshed: true,
       providerConfigured: quotes.providerConfigured,
+      providers: quotes.providers,
       quotes: quotes.quotes,
       failures: quotes.failures,
       ...stored,

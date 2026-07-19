@@ -44,14 +44,14 @@ type PriceBook = {
   fxRates: StoredFxRate[];
 };
 
-type QuoteRefreshProvider = "auto" | "eodhd" | "stooq";
+type QuoteRefreshProvider = "auto" | "eodhd" | "yahoo" | "stooq";
 type PriceResultPayload = Record<string, unknown> & {
   error?: string;
   errors?: string[];
   quotes?: Array<{ symbol: string; exchange: string; providerSymbol: string; source: string; close: number; priceDate: string }>;
   failures?: Array<{ symbol: string; exchange: string; message: string }>;
   providerConfigured?: boolean;
-  providers?: { requested: QuoteRefreshProvider; eodhdConfigured: boolean; stooqEnabled: boolean };
+  providers?: { requested: QuoteRefreshProvider; eodhdConfigured: boolean; yahooEnabled: boolean; stooqEnabled: boolean };
 };
 
 const today = () => new Date().toLocaleDateString("en-CA");
@@ -254,6 +254,7 @@ export default function PricesPage() {
                 <select value={refreshProvider} onChange={(event) => setRefreshProvider(event.target.value as QuoteRefreshProvider)}>
                   <option value="auto">Auto</option>
                   <option value="eodhd">EODHD</option>
+                  <option value="yahoo">Yahoo</option>
                   <option value="stooq">Stooq</option>
                 </select>
               </label>
@@ -316,7 +317,12 @@ function PriceResult({ result }: { result: PriceResultPayload }) {
         ["Instruments", String(result.matchedInstruments ?? 0)],
         ["Positions updated", String(result.updatedPositions ?? 0)],
         ["FX rates", String(result.fxRates ?? 0)],
-        ["Provider", result.providers ? `${result.providers.requested.toUpperCase()}${result.providers.eodhdConfigured ? "" : " · no EODHD token"}` : "Manual"],
+        ["Provider", result.providers ? [
+          result.providers.requested.toUpperCase(),
+          result.providers.eodhdConfigured ? "EODHD token" : "no EODHD token",
+          result.providers.yahooEnabled ? "Yahoo on" : null,
+          result.providers.stooqEnabled ? "Stooq on" : null,
+        ].filter(Boolean).join(" · ") : "Manual"],
       ]} />
       {quotes.length > 0 && (
         <div className="priceResultList">

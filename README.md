@@ -83,7 +83,16 @@ Market data quote refresh:
 EODHD_API_TOKEN=<private EODHD API token>
 ```
 
-`MARKETDATA_EODHD_API_TOKEN` is also accepted. Without one of these tokens, scheduled market quote refresh records a clean skipped status and manual/CSV prices remain available. Stooq can be selected manually on the Pricing page, but it may require browser verification and should not be treated as the primary production feed.
+`MARKETDATA_EODHD_API_TOKEN` is also accepted. EODHD is preferred for production. In `auto` mode NorthStar falls back to Yahoo Finance delayed chart data and then Stooq, so scheduled pricing will attempt a no-token refresh when EODHD is absent. Yahoo can rate-limit server environments and Stooq may require browser verification, so both are fallback sources rather than the primary production feed.
+
+Provider symbol overrides are comma-separated `SYMBOL:EXCHANGE=PROVIDER_SYMBOL` pairs:
+
+```text
+MARKETDATA_EODHD_SYMBOL_OVERRIDES=SVM:TSX/TSXV=SVM.TO
+MARKETDATA_YAHOO_SYMBOL_OVERRIDES=SVM:TSX/TSXV=SVM.TO
+```
+
+`MARKETDATA_SYMBOL_OVERRIDES` remains supported as the legacy EODHD override variable.
 
 ## Passkey login
 
@@ -121,7 +130,7 @@ Railway starts NorthStar with `npm run start:railway`, which schedules an automa
 /api/sync
 ```
 
-The default schedule is `20:30 UTC`, which is 06:30 Sydney during AEST and 07:30 during AEDT. It refreshes IBKR Flex, Directshares confirmation email, Directshares dividend email, market quotes when `EODHD_API_TOKEN` or `MARKETDATA_EODHD_API_TOKEN` is configured, ABC Bullion platinum and portfolio snapshots.
+The default schedule is `20:30 UTC`, which is 06:30 Sydney during AEST and 07:30 during AEDT. It refreshes IBKR Flex, Directshares confirmation email, Directshares dividend email, delayed market quotes, ABC Bullion platinum and portfolio snapshots.
 
 Required Railway variables:
 

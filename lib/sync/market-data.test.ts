@@ -51,7 +51,7 @@ function storageStub(input: {
   } as Partial<StorageAdapter> as StorageAdapter;
 }
 
-test("syncMarketData records a clean skip when EODHD is not configured", async () => {
+test("syncMarketData records a clean skip when explicit EODHD is not configured", async () => {
   const originalToken = process.env.EODHD_API_TOKEN;
   const originalAltToken = process.env.MARKETDATA_EODHD_API_TOKEN;
   delete process.env.EODHD_API_TOKEN;
@@ -59,13 +59,74 @@ test("syncMarketData records a clean skip when EODHD is not configured", async (
   const runs: NewSyncRun[] = [];
 
   try {
-    const result = await syncMarketData(storageStub({ runs }), "scheduled");
+    const result = await syncMarketData(storageStub({ runs }), "scheduled", "eodhd");
     assert.equal(result.status, "skipped");
     assert.equal(result.configured, false);
     assert.match(result.message, /EODHD_API_TOKEN/);
     assert.equal(runs[0].source, "Market Data");
     assert.equal(runs[0].status, "skipped");
   } finally {
+    if (originalToken == null) delete process.env.EODHD_API_TOKEN;
+    else process.env.EODHD_API_TOKEN = originalToken;
+    if (originalAltToken == null) delete process.env.MARKETDATA_EODHD_API_TOKEN;
+    else process.env.MARKETDATA_EODHD_API_TOKEN = originalAltToken;
+  }
+});
+
+test("syncMarketData auto refreshes through Yahoo without EODHD", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.EODHD_API_TOKEN;
+  const originalAltToken = process.env.MARKETDATA_EODHD_API_TOKEN;
+  delete process.env.EODHD_API_TOKEN;
+  delete process.env.MARKETDATA_EODHD_API_TOKEN;
+  const runs: NewSyncRun[] = [];
+  const requestedUrls: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    requestedUrls.push(url);
+    if (url.includes("/CMM.AX?")) {
+      return new Response(JSON.stringify({
+        chart: {
+          result: [{
+            meta: { currency: "AUD", exchangeTimezoneName: "Australia/Sydney" },
+            timestamp: [Date.parse("2026-07-18T06:00:00Z") / 1000],
+            indicators: { quote: [{ close: [10.1] }] },
+          }],
+          error: null,
+        },
+      }), { status: 200 });
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  try {
+    const result = await syncMarketData(storageStub({
+      runs,
+      priceBook: {
+        instruments: [{
+          symbol: "CMM",
+          exchange: "ASX",
+          name: "Capricorn Metals",
+          currency: "AUD",
+          assetClass: "Gold miners",
+          positionCount: 1,
+          quantity: 100,
+          marketValueAud: 1010,
+          lastPrice: 10,
+          asOfDate: "2026-07-17",
+        }],
+        prices: [],
+        fxRates: [],
+      },
+    }), "scheduled", "auto");
+
+    assert.equal(result.status, "success");
+    assert.equal(result.configured, true);
+    assert.equal(result.quotes, 1);
+    assert.equal(runs[0].status, "success");
+    assert.ok(requestedUrls.some((url) => url.includes("/CMM.AX?")));
+  } finally {
+    globalThis.fetch = originalFetch;
     if (originalToken == null) delete process.env.EODHD_API_TOKEN;
     else process.env.EODHD_API_TOKEN = originalToken;
     if (originalAltToken == null) delete process.env.MARKETDATA_EODHD_API_TOKEN;
