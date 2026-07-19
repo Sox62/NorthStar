@@ -34,8 +34,18 @@ type EodhdResponse = {
   message?: string;
 };
 
+type FrankfurterRateResponse = {
+  date?: string;
+  base?: string;
+  quote?: string;
+  rate?: number;
+  error?: string;
+  message?: string;
+};
+
 const MARKETDATA_TIMEOUT_MS = 12_000;
 const EODHD_BASE_URL = "https://eodhd.com/api/real-time";
+const FRANKFURTER_BASE_URL = "https://api.frankfurter.dev/v2/rate";
 const STOOQ_DAILY_URL = "https://stooq.com/q/d/l/";
 
 function todaySydney() {
@@ -112,6 +122,15 @@ async function fetchJson(url: string) {
   return response.json() as Promise<EodhdResponse>;
 }
 
+async function fetchRateJson(url: string) {
+  const response = await fetch(url, {
+    headers: { "user-agent": "NorthStar/0.3.7 private portfolio quote refresh" },
+    signal: AbortSignal.timeout(MARKETDATA_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json() as Promise<FrankfurterRateResponse>;
+}
+
 async function fetchEodhdQuote(instrument: PriceableInstrument, token: string): Promise<MarketQuote | null> {
   const providerSymbol = eodhdSymbol(instrument);
   const url = `${EODHD_BASE_URL}/${encodeURIComponent(providerSymbol)}?api_token=${encodeURIComponent(token)}&fmt=json`;
@@ -140,6 +159,23 @@ async function fetchEodhdFx(currency: string, date: string, token: string): Prom
   const rateToAud = numberValue(payload.close) ?? numberValue(payload.price) ?? numberValue(payload.previousClose);
   if (!rateToAud) return null;
   return { currency: value, rateToAud, rateDate: eodhdDate(payload) || date, source: "EODHD FX" };
+}
+
+export async function fetchFrankfurterFx(currency: string, date?: string): Promise<FxRateInput | null> {
+  const value = currency.trim().toUpperCase();
+  if (!value || value === "AUD") return null;
+  const query = date ? `?date=${encodeURIComponent(date)}` : "";
+  const url = `${FRANKFURTER_BASE_URL}/${encodeURIComponent(value)}/AUD${query}`;
+  const payload = await fetchRateJson(url);
+  if (payload.error || payload.message) throw new Error(payload.error ?? payload.message ?? "Frankfurter FX error");
+  const rateToAud = numberValue(payload.rate);
+  if (!rateToAud) return null;
+  return {
+    currency: value,
+    rateToAud,
+    rateDate: payload.date && /^\d{4}-\d{2}-\d{2}$/.test(payload.date) ? payload.date : date ?? todaySydney(),
+    source: "Frankfurter FX",
+  };
 }
 
 function parseStooqCsv(text: string) {
@@ -222,6 +258,7 @@ export async function refreshMarketQuotes(instruments: PriceableInstrument[], pr
       if (quote.currency.toUpperCase() !== "AUD") {
         let rate: FxRateInput | null = null;
         if (useEodhd) rate = await fetchEodhdFx(quote.currency, quote.priceDate, token).catch(() => null);
+        rate ??= await fetchFrankfurterFx(quote.currency, quote.priceDate).catch(() => null);
         rate ??= inferredFxRate(instrument, quote.priceDate);
         if (rate) fxRates.set(`${rate.currency}:${rate.rateDate}:${rate.source}`, rate);
       }
