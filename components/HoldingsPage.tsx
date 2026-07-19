@@ -378,7 +378,7 @@ function NativePriceChart({ holding, storedPrices, priceError }: { holding: Dash
       </div>
 
       {series.length >= 2 ? (
-        <svg className="nativeChartSvg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${holding.symbol} stored price history`}>
+        <svg className="nativeChartSvg" width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${holding.symbol} stored price history`}>
           {yTicks.map((tick) => {
             const y = padTop + (max - tick) / range * chartHeight;
             return (
@@ -415,6 +415,8 @@ function TradingViewPanel({ holding, storedPrices, priceError }: { holding: Dash
 
     const widget = document.createElement("div");
     widget.className = "tradingview-widget-container__widget";
+    widget.style.width = "100%";
+    widget.style.height = "100%";
     container.appendChild(widget);
 
     const script = document.createElement("script");

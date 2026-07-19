@@ -341,6 +341,8 @@ function HistoryChart({ now, scope, performance }: { now: number; scope: Portfol
       <div className="nsHistoryChartWrap">
         <svg
           className="nsHistoryChart"
+          width={width}
+          height={172}
           viewBox="0 0 528 172"
           role="img"
           aria-label="Portfolio history chart"
