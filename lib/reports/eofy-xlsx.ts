@@ -11,6 +11,7 @@ import { createXlsx, xlsxCell, type XlsxSheet } from "@/lib/reports/xlsx";
 type Row = XlsxSheet["rows"][number];
 
 const blank: Row = [];
+const emptyDistributionRows = [["None"], ["Total"]];
 
 function money(value: number | null | undefined) {
   return xlsxCell(value ?? null, "money");
@@ -40,12 +41,35 @@ function totalRow(label: string, values: Array<number | null | undefined>): Row 
   return [xlsxCell(label, "section"), ...values.map((value) => money(value))];
 }
 
+function sum<T>(rows: T[], pick: (row: T) => number) {
+  return rows.reduce((total, row) => total + pick(row), 0);
+}
+
+function groupedBy<T>(rows: T[], keyFor: (row: T) => string) {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = keyFor(row) || "Other";
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
+
 function reportIntro(report: EofyReport, titleText: string): Row[] {
   return [
     title(titleText),
     subtitle(`${report.ownerLabel} | ${report.financialYear.label}: ${report.financialYear.startDate} to ${report.financialYear.endDate}`),
     subtitle(`Generated ${report.generatedAt.slice(0, 10)} | Current valuation reference ${report.valuationAsOf ?? "not recorded"}`),
     blank,
+  ];
+}
+
+function sharesightCgtIntro(report: EofyReport, sectionText: string): Row[] {
+  return [
+    title(`Australian Capital Gains Tax Report for ${report.ownerLabel}`),
+    subtitle(`Showing capital gains from ${report.financialYear.startDate} to ${report.financialYear.endDate}`),
+    subtitle("Sale allocation method assigned for this reporting period: FIFO unless row notes state otherwise"),
+    blank,
+    section(sectionText),
   ];
 }
 
@@ -83,38 +107,22 @@ function realisedDetailRow(lot: RealisedTaxLot): Row {
   ];
 }
 
-function realisedTable(titleText: string, lots: RealisedTaxLot[], finalColumn: "Gain" | "Loss"): Row[] {
-  const total = lots.reduce((sum, lot) => sum + lot.realisedGainAud, 0);
+function realisedTableRows(lots: RealisedTaxLot[], finalColumn: "Gain" | "Loss"): Row[] {
+  const total = sum(lots, (lot) => lot.realisedGainAud);
   return [
-    section(titleText),
     header(["Name", "Market", "Code", "Sale Allocation Method", "Purchase Date", "Gain Date", "Sold Quantity", "Cost Base", "Sales Value", finalColumn]),
     ...lots.map((lot) => realisedLotRow(lot, finalColumn)),
     totalRow("Total", [null, null, null, null, null, null, null, null, total]),
-    blank,
   ];
 }
 
-function cgtSummarySheet(report: EofyReport): XlsxSheet {
+function cgtCapitalGainsSheet(report: EofyReport): XlsxSheet {
   const cgt = report.capitalGains.summary;
-  const allHoldingsRows = report.capitalGains.byHolding.map((row): Row => [
-    row.name,
-    row.market,
-    row.code,
-    num(row.soldQuantity),
-    money(row.shortTermGainsAud),
-    money(row.longTermGainsAud),
-    money(0),
-    money(0),
-    money(row.lossesAud),
-    money(row.totalGainAud),
-  ]);
-
   return {
-    name: "CGT Summary",
-    columns: [34, 16, 14, 18, 18, 18, 16, 18, 16, 18],
+    name: "Capital gains or losses",
+    columns: [54, 18, 18],
     rows: [
-      ...reportIntro(report, "Australian Capital Gains Tax Report"),
-      section("Capital gains or losses"),
+      ...sharesightCgtIntro(report, "Capital gains or losses"),
       ["Total current year capital gains (18H)"],
       ["Short term capital gains", money(cgt.shortTermGainsAud)],
       ["Long term capital gains", money(cgt.longTermGainsAud)],
@@ -128,14 +136,36 @@ function cgtSummarySheet(report: EofyReport): XlsxSheet {
       ["Capital gains on shares applicable for discount method", money(cgt.longTermGainsAud)],
       [`Less CGT concession amount at ${Math.round(cgt.discountRate * 100)}%`, null, money(-cgt.cgtConcessionAud)],
       ["Total net capital gain", null, money(cgt.netCapitalGainAud)],
-      blank,
-      section("All holdings"),
+    ],
+  };
+}
+
+function cgtAllHoldingsSheet(report: EofyReport): XlsxSheet {
+  const cgt = report.capitalGains.summary;
+  const rows = report.capitalGains.byHolding.map((row): Row => [
+    row.name,
+    row.market,
+    row.code,
+    num(row.soldQuantity),
+    money(row.shortTermGainsAud),
+    money(row.longTermGainsAud),
+    money(0),
+    money(0),
+    money(row.lossesAud),
+    money(row.totalGainAud),
+  ]);
+
+  return {
+    name: "All holdings",
+    columns: [34, 16, 14, 18, 18, 18, 16, 18, 16, 18],
+    rows: [
+      ...sharesightCgtIntro(report, "All holdings"),
       header(["Name", "Market", "Code", "Sold Quantity", "Short Term Gains", "Long Term Gains", "Non Disc. Dist.", "Disc. Dist. (gross)", "Losses", "Total Gain"]),
-      ...allHoldingsRows,
+      ...rows,
       totalRow("Total", [
         null,
         null,
-        report.capitalGains.byHolding.reduce((sum, row) => sum + row.soldQuantity, 0),
+        sum(report.capitalGains.byHolding, (row) => row.soldQuantity),
         cgt.shortTermGainsAud,
         cgt.longTermGainsAud,
         0,
@@ -143,10 +173,43 @@ function cgtSummarySheet(report: EofyReport): XlsxSheet {
         cgt.lossesAud,
         cgt.totalCurrentYearCapitalGainsAud,
       ]),
-      blank,
-      ...realisedTable("Short term gains", report.capitalGains.shortTerm, "Gain"),
-      ...realisedTable("Long term gains", report.capitalGains.longTerm, "Gain"),
-      ...realisedTable("Losses", report.capitalGains.losses, "Loss"),
+    ],
+  };
+}
+
+function cgtBucketSheet(report: EofyReport, name: string, lots: RealisedTaxLot[], finalColumn: "Gain" | "Loss"): XlsxSheet {
+  return {
+    name,
+    columns: [34, 16, 14, 22, 14, 14, 16, 16, 16, 16],
+    rows: [
+      ...sharesightCgtIntro(report, name),
+      ...realisedTableRows(lots, finalColumn),
+    ],
+  };
+}
+
+function cgtDistributionSheet(report: EofyReport, name: "Non-discounted distributions" | "Discounted distributions"): XlsxSheet {
+  const finalColumn = name === "Discounted distributions" ? "Discounted Gain" : "Gain";
+  return {
+    name,
+    columns: [34, 16, 14, 14, 16],
+    rows: [
+      ...sharesightCgtIntro(report, name),
+      header(["Name", "Market", "Code", "Gain Date", finalColumn]),
+      ...emptyDistributionRows,
+    ],
+  };
+}
+
+function cgtExemptionsSheet(report: EofyReport): XlsxSheet {
+  return {
+    name: "Exemptions",
+    columns: [34, 16, 14, 22, 14, 14, 16, 16, 16, 16],
+    rows: [
+      ...sharesightCgtIntro(report, "Exemptions"),
+      header(["Name", "Market", "Code", "Sale Allocation Method", "Purchase Date", "Gain Date", "Sold Quantity", "Cost Base", "Sales Value", "Gain/loss"]),
+      ["None"],
+      ["Total"],
     ],
   };
 }
@@ -318,7 +381,7 @@ function foreignIncomeRow(row: EofyForeignIncomeRow): Row {
 function taxableIncomeSheet(report: EofyReport): XlsxSheet {
   const foreign = report.taxableIncome.foreign;
   return {
-    name: "Taxable Income",
+    name: "Taxable Income Report",
     columns: [14, 34, 14, 14, 14, 14, 14, 14, 14, 18, 18, 18, 18, 14, 14, 14, 14, 16, 16, 14, 14, 16, 40],
     rows: [
       ...reportIntro(report, "Taxable Income Report"),
@@ -366,17 +429,43 @@ function tradeRow(row: EofyTradeMovement): Row {
   ];
 }
 
-function allTradesSheet(report: EofyReport): XlsxSheet {
+function allTradesRows(rows: EofyTradeMovement[]): Row[] {
+  return [
+    header(["Code", "Market Code", "Name", "Date", "Type", "Qty", "Price", "Instrument Currency", "Cost Base Per Share (AUD)", "Brokerage", "Brokerage Currency", "Exch. Rate", "Value"]),
+    ...rows.map(tradeRow),
+    [
+      xlsxCell("Total", "section"),
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      money(sum(rows, (row) => row.type === "SELL" ? -Math.abs(row.netCashAud || row.grossAud) : row.grossAud + row.feesAud + row.taxesAud)),
+    ],
+  ];
+}
+
+function allTradesSheet(report: EofyReport, name = "All Trades", rows = report.tradeMovements, groupLabel?: string): XlsxSheet {
   return {
-    name: "All Trades",
+    name,
     columns: [14, 14, 34, 14, 12, 14, 14, 16, 18, 14, 16, 14, 16],
     rows: [
       ...reportIntro(report, "All Trades Report"),
-      header(["Code", "Market Code", "Name", "Date", "Type", "Qty", "Price", "Instrument Currency", "Cost Base Per Share (AUD)", "Brokerage", "Brokerage Currency", "Exch. Rate", "Value"]),
-      ...report.tradeMovements.map(tradeRow),
-      ["Total"],
+      ...(groupLabel ? [section(groupLabel)] : []),
+      ...allTradesRows(rows),
     ],
   };
+}
+
+function allTradeMarketSheets(report: EofyReport): XlsxSheet[] {
+  return groupedBy(report.tradeMovements, (row) => row.exchange)
+    .map(([market, rows]) => allTradesSheet(report, `Trades ${market}`, rows, `Grouping ${market}`));
 }
 
 function historicalCostRow(row: EofyHistoricalCostRow): Row {
@@ -393,26 +482,26 @@ function historicalCostRow(row: EofyHistoricalCostRow): Row {
     money(row.capitalAdjustmentsAud),
     money(row.closingBalanceAud),
     money(row.closingMarketValueAud),
+    num(row.closingQuantity),
     num(row.closingPrice),
     row.closingPriceCurrency ?? "",
     row.closingPriceDate ?? "",
     num(row.closingFxRateToAud),
     row.closingValuationStatus,
     row.closingValuationSource ?? "",
-    num(row.closingQuantity),
   ];
 }
 
-function historicalCostSheet(report: EofyReport): XlsxSheet {
-  const rows = report.historicalCost;
+function historicalCostSheet(report: EofyReport, name = "Historical Cost", rows = report.historicalCost, groupLabel?: string): XlsxSheet {
   const sum = (pick: (row: EofyHistoricalCostRow) => number) => rows.reduce((total, row) => total + pick(row), 0);
   return {
-    name: "Historical Cost",
+    name,
     columns: [14, 14, 34, 16, 16, 18, 16, 16, 16, 18, 16, 18, 14, 12, 14, 14, 18, 28, 16],
     rows: [
       ...reportIntro(report, "Historical Cost Report"),
+      ...(groupLabel ? [section(groupLabel)] : []),
       subtitle("Including brokerage. Closing market value uses stored close prices at or before 30 June where available."),
-      header(["Market", "Code", "Name", "Allocation Method", "Opening Balance", "Opening Market Value", "Opening Quantity", "Purchases", "Cost Of Sales", "Capital Adjustments", "Closing Balance", "Closing Market Value", "Closing Price", "Currency", "Price Date", "FX To AUD", "Valuation Status", "Valuation Source", "Closing Quantity"]),
+      header(["Market", "Code", "Name", "Allocation Method", "Opening Balance*", "Opening Market Value", "Opening Quantity", "Purchases*", "Cost Of Sales*", "Capital Adjustments", "Closing Balance*", "Closing Market Value", "Closing Quantity", "Closing Price", "Currency", "Price Date", "FX To AUD", "Valuation Status", "Valuation Source"]),
       ...rows.map(historicalCostRow),
       [
         xlsxCell("Total", "section"),
@@ -427,18 +516,23 @@ function historicalCostSheet(report: EofyReport): XlsxSheet {
         money(sum((row) => row.capitalAdjustmentsAud)),
         money(sum((row) => row.closingBalanceAud)),
         money(rows.reduce((total, row) => total + (row.closingMarketValueAud ?? 0), 0)),
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
         num(sum((row) => row.closingQuantity)),
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
       ],
       blank,
       subtitle("All amounts converted to Australian Dollars."),
     ],
   };
+}
+
+function historicalCostMarketSheets(report: EofyReport): XlsxSheet[] {
+  return groupedBy(report.historicalCost, (row) => row.market)
+    .map(([market, rows]) => historicalCostSheet(report, `Cost ${market}`, rows, `Grouping ${market}`));
 }
 
 function unrealisedLotRow(lot: OpenTaxLot, finalColumn: "Gain" | "Loss"): Row {
@@ -469,7 +563,7 @@ function unrealisedSection(titleText: string, lots: OpenTaxLot[], finalColumn: "
 
 function unrealisedCgtSheet(report: EofyReport): XlsxSheet {
   return {
-    name: "Unrealised CGT",
+    name: "Unrealised CGT Report",
     columns: [34, 14, 18, 14, 14, 16, 16, 16, 14, 52],
     rows: [
       ...reportIntro(report, `Unrealised CGT for ${report.financialYear.endDate}`),
@@ -483,11 +577,20 @@ function unrealisedCgtSheet(report: EofyReport): XlsxSheet {
 export function eofyReportXlsx(report: EofyReport) {
   return createXlsx([
     reconciliationSheet(report),
-    cgtSummarySheet(report),
+    cgtCapitalGainsSheet(report),
+    cgtAllHoldingsSheet(report),
+    cgtBucketSheet(report, "Short term gains", report.capitalGains.shortTerm, "Gain"),
+    cgtBucketSheet(report, "Long term gains", report.capitalGains.longTerm, "Gain"),
+    cgtBucketSheet(report, "Losses", report.capitalGains.losses, "Loss"),
+    cgtDistributionSheet(report, "Non-discounted distributions"),
+    cgtDistributionSheet(report, "Discounted distributions"),
+    cgtExemptionsSheet(report),
     realisedCgtLotsSheet(report),
     taxableIncomeSheet(report),
     allTradesSheet(report),
+    ...allTradeMarketSheets(report),
     historicalCostSheet(report),
+    ...historicalCostMarketSheets(report),
     unrealisedCgtSheet(report),
   ]);
 }

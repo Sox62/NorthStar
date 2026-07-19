@@ -46,7 +46,7 @@ const downloads: ReportDownload[] = [
     downloadLabel: "Download XLSX",
     secondaryHref: "/api/reports/eofy?scope=personal&format=csv",
     secondaryLabel: "CSV",
-    detail: "Personal financial-year income, franking, withholding, realised/unrealised CGT, trade movements and historical cost schedules.",
+    detail: "Sharesight-style XLSX tabs for CGT, taxable income, all trades, historical cost and unrealised CGT, plus NorthStar reconciliation.",
     rows: "Personal tax only",
   },
   {

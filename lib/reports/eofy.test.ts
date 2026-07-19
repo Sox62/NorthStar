@@ -239,5 +239,9 @@ test("buildEofyReport calculates realised CGT after loss offset and discount", (
   assert.match(csv, /sharesight_cgt_summary,Personal,FY2026,Total net capital gain \(18A\)/);
   assert.match(csv, /realised_cgt_lot,Personal,FY2026,Capricorn Metals,CMM,Directshares,2026-01-10/);
   assert.match(csv, /discount 50%/);
-  assert.ok(eofyReportXlsx(report).includes(Buffer.from("Reconciliation")));
+  const xlsx = eofyReportXlsx(report);
+  assert.ok(xlsx.includes(Buffer.from("Reconciliation")));
+  assert.ok(xlsx.includes(Buffer.from("Capital gains or losses")));
+  assert.ok(xlsx.includes(Buffer.from("Taxable Income Report")));
+  assert.ok(xlsx.includes(Buffer.from("Unrealised CGT Report")));
 });
