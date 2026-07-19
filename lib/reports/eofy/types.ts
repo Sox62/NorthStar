@@ -36,6 +36,7 @@ export type EofyReport = {
     currentMarketValueAud: number;
     currentCostBaseAud: number;
   };
+  accountSummaries: EofyAccountSummary[];
   incomeBySymbol: EofyIncomeSymbol[];
   incomePayments: EofyIncomePayment[];
   taxableIncome: EofyTaxableIncomeSections;
@@ -47,6 +48,23 @@ export type EofyReport = {
   currentHoldings: EofyHoldingReference[];
   reconciliation: EofyReconciliationReport;
   dataQuality: string[];
+};
+
+export type EofyAccountSummary = {
+  broker: string;
+  accountKey: string;
+  tradeMovements: number;
+  buyTrades: number;
+  sellTrades: number;
+  incomePayments: number;
+  grossIncomeAud: number;
+  netIncomeAud: number;
+  buysAud: number;
+  sellsAud: number;
+  tradeFeesAud: number;
+  currentHoldings: number;
+  currentMarketValueAud: number;
+  currentCostBaseAud: number;
 };
 
 export type EofyReconciliationStatus = "ok" | "review" | "info";
@@ -83,6 +101,7 @@ export type EofyIncomePayment = {
   symbol: string;
   name: string;
   broker: string;
+  accountKey: string;
   paymentDate: string;
   exDate: string | null;
   currency: string;
@@ -214,6 +233,7 @@ export type EofyTradeMovement = {
   exchange: string;
   name: string;
   broker: string;
+  accountKey: string;
   tradeDate: string;
   settleDate: string | null;
   quantity: number;
@@ -232,6 +252,7 @@ export type EofyHoldingReference = {
   symbol: string;
   name: string;
   broker: string;
+  accountKey: string;
   sector: string;
   quantity: number;
   currency: string;

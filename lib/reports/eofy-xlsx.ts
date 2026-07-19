@@ -237,6 +237,46 @@ function reconciliationSheet(report: EofyReport): XlsxSheet {
   };
 }
 
+function accountSummarySheet(report: EofyReport): XlsxSheet {
+  return {
+    name: "Account Summary",
+    columns: [18, 18, 14, 14, 14, 14, 16, 16, 16, 16, 16, 16],
+    rows: [
+      ...reportIntro(report, "Personal Account Coverage"),
+      subtitle("All rows in this workbook are Personal only. Multiple Directshares accounts are included when they are stored under the Personal owner."),
+      header(["Broker", "Account", "Trades", "Buys", "Sells", "Income Payments", "Buy Cost", "Sell Proceeds", "Net Income", "Trade Fees", "Current Cost", "Current Value"]),
+      ...report.accountSummaries.map((row): Row => [
+        row.broker,
+        row.accountKey,
+        num(row.tradeMovements),
+        num(row.buyTrades),
+        num(row.sellTrades),
+        num(row.incomePayments),
+        money(row.buysAud),
+        money(row.sellsAud),
+        money(row.netIncomeAud),
+        money(row.tradeFeesAud),
+        money(row.currentCostBaseAud),
+        money(row.currentMarketValueAud),
+      ]),
+      [
+        xlsxCell("Total", "section"),
+        "",
+        num(sum(report.accountSummaries, (row) => row.tradeMovements)),
+        num(sum(report.accountSummaries, (row) => row.buyTrades)),
+        num(sum(report.accountSummaries, (row) => row.sellTrades)),
+        num(sum(report.accountSummaries, (row) => row.incomePayments)),
+        money(sum(report.accountSummaries, (row) => row.buysAud)),
+        money(sum(report.accountSummaries, (row) => row.sellsAud)),
+        money(sum(report.accountSummaries, (row) => row.netIncomeAud)),
+        money(sum(report.accountSummaries, (row) => row.tradeFeesAud)),
+        money(sum(report.accountSummaries, (row) => row.currentCostBaseAud)),
+        money(sum(report.accountSummaries, (row) => row.currentMarketValueAud)),
+      ],
+    ],
+  };
+}
+
 function realisedCgtLotsSheet(report: EofyReport): XlsxSheet {
   const lots = [...report.realisedLots].sort((a, b) => a.saleDate.localeCompare(b.saleDate) || a.symbol.localeCompare(b.symbol));
   return {
@@ -416,6 +456,8 @@ function tradeRow(row: EofyTradeMovement): Row {
     row.symbol,
     row.exchange,
     row.name,
+    row.broker,
+    row.accountKey,
     row.tradeDate,
     row.type,
     num(signedQuantity),
@@ -431,10 +473,12 @@ function tradeRow(row: EofyTradeMovement): Row {
 
 function allTradesRows(rows: EofyTradeMovement[]): Row[] {
   return [
-    header(["Code", "Market Code", "Name", "Date", "Type", "Qty", "Price", "Instrument Currency", "Cost Base Per Share (AUD)", "Brokerage", "Brokerage Currency", "Exch. Rate", "Value"]),
+    header(["Code", "Market Code", "Name", "Broker", "Account", "Date", "Type", "Qty", "Price", "Instrument Currency", "Cost Base Per Share (AUD)", "Brokerage", "Brokerage Currency", "Exch. Rate", "Value"]),
     ...rows.map(tradeRow),
     [
       xlsxCell("Total", "section"),
+      "",
+      "",
       "",
       "",
       "",
@@ -454,7 +498,7 @@ function allTradesRows(rows: EofyTradeMovement[]): Row[] {
 function allTradesSheet(report: EofyReport, name = "All Trades", rows = report.tradeMovements, groupLabel?: string): XlsxSheet {
   return {
     name,
-    columns: [14, 14, 34, 14, 12, 14, 14, 16, 18, 14, 16, 14, 16],
+    columns: [14, 14, 34, 18, 18, 14, 12, 14, 14, 16, 18, 14, 16, 14, 16],
     rows: [
       ...reportIntro(report, "All Trades Report"),
       ...(groupLabel ? [section(groupLabel)] : []),
@@ -577,6 +621,7 @@ function unrealisedCgtSheet(report: EofyReport): XlsxSheet {
 export function eofyReportXlsx(report: EofyReport) {
   return createXlsx([
     reconciliationSheet(report),
+    accountSummarySheet(report),
     cgtCapitalGainsSheet(report),
     cgtAllHoldingsSheet(report),
     cgtBucketSheet(report, "Short term gains", report.capitalGains.shortTerm, "Gain"),

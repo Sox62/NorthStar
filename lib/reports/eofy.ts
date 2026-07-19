@@ -1,5 +1,6 @@
 import { buildTaxLots } from "@/lib/tax-lots";
 import type { DashboardData, PriceBook, StoredTransaction } from "@/lib/storage";
+import { accountSummaries } from "./eofy/accounts";
 import { capitalGainsReport, eofyPricedOpenLots, realisedSummary, unrealisedCgtReport } from "./eofy/cgt";
 import { dataQualityNotes } from "./eofy/data-quality";
 import { eofyReportCsv } from "./eofy/csv";
@@ -12,6 +13,7 @@ import { dateInRange, financialYear, financialYearFromRequest, ownerLabelForEofy
 
 export type {
   EofyAustralianIncomeRow,
+  EofyAccountSummary,
   EofyCapitalGainsHolding,
   EofyCapitalGainsReport,
   EofyForeignIncomeRow,
@@ -96,6 +98,7 @@ export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, tran
     generatedAt: generatedAt.toISOString(),
     valuationAsOf: dashboard.lastUpdated,
     summary,
+    accountSummaries: accountSummaries(tradeMovements, income.payments, currentHoldings),
     incomeBySymbol: income.symbols,
     incomePayments: income.payments,
     taxableIncome,

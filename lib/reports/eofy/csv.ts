@@ -276,6 +276,32 @@ export function eofyReportCsv(report: EofyReport) {
 
   addSharesightCompatibilityRows(rows, report);
 
+  for (const row of report.accountSummaries) {
+    rows.push([
+      "account_summary",
+      report.ownerLabel,
+      report.financialYear.label,
+      `${row.broker} account ${row.accountKey}`,
+      "",
+      row.broker,
+      report.financialYear.startDate,
+      report.financialYear.endDate,
+      row.currentHoldings,
+      "AUD",
+      money(row.grossIncomeAud),
+      money(row.netIncomeAud),
+      "",
+      "",
+      money(row.tradeFeesAud),
+      money(row.currentCostBaseAud),
+      money(row.currentMarketValueAud),
+      "",
+      "",
+      `${row.tradeMovements} trade movement${row.tradeMovements === 1 ? "" : "s"}; ${row.buyTrades} buy; ${row.sellTrades} sell; ${row.incomePayments} income payment${row.incomePayments === 1 ? "" : "s"}; buy cost ${money(row.buysAud)}; sell proceeds ${money(row.sellsAud)}`,
+      report.financialYear.endDate,
+    ]);
+  }
+
   for (const row of report.reconciliation.rows) {
     rows.push([
       "accountant_reconciliation",
@@ -349,7 +375,7 @@ export function eofyReportCsv(report: EofyReport) {
       "",
       "",
       "",
-      row.source,
+      `${row.source}; account ${row.accountKey}`,
       row.paymentDate,
     ]);
   }
@@ -401,7 +427,7 @@ export function eofyReportCsv(report: EofyReport) {
       row.type === "SELL" ? money(Math.abs(row.netCashAud || row.grossAud)) : "",
       "",
       "",
-      row.source,
+      `${row.source}; account ${row.accountKey}`,
       row.tradeDate,
     ]);
   }
@@ -427,7 +453,7 @@ export function eofyReportCsv(report: EofyReport) {
       money(row.marketValueAud),
       money(row.unrealisedAud),
       "",
-      `${row.sector}; current valuation reference; ${row.source}`,
+      `${row.sector}; account ${row.accountKey}; current valuation reference; ${row.source}`,
       row.asOfDate,
     ]);
   }

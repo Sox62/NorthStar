@@ -146,6 +146,40 @@ export default function EofyReportPage() {
 
           <section className="printReportSection">
             <div className="printSectionHeader">
+              <h2>Personal Account Coverage</h2>
+              <span>{data.accountSummaries.length} broker account{data.accountSummaries.length === 1 ? "" : "s"} included</span>
+            </div>
+            <table className="printReportTable">
+              <thead>
+                <tr>
+                  <th>Broker</th>
+                  <th>Account</th>
+                  <th className="numeric">Trades</th>
+                  <th className="numeric">Income</th>
+                  <th className="numeric">Buy cost</th>
+                  <th className="numeric">Sell proceeds</th>
+                  <th className="numeric">Current value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.accountSummaries.map((row) => (
+                  <tr key={`${row.broker}-${row.accountKey}`}>
+                    <td>{row.broker}</td>
+                    <td><strong>{row.accountKey}</strong><span>{row.currentHoldings} current holding{row.currentHoldings === 1 ? "" : "s"}</span></td>
+                    <td className="numeric">{row.tradeMovements}<span>{row.buyTrades} buy · {row.sellTrades} sell</span></td>
+                    <td className="numeric">{row.incomePayments}<span>{money(row.netIncomeAud)} net</span></td>
+                    <td className="numeric">{money(row.buysAud)}</td>
+                    <td className="numeric">{money(row.sellsAud)}</td>
+                    <td className="numeric">{money(row.currentMarketValueAud)}</td>
+                  </tr>
+                ))}
+                {!data.accountSummaries.length ? <tr><td colSpan={7} className="emptyCell">No Personal broker account activity stored for this financial year.</td></tr> : null}
+              </tbody>
+            </table>
+          </section>
+
+          <section className="printReportSection">
+            <div className="printSectionHeader">
               <h2>Accountant Reconciliation</h2>
               <span className={reconciliationTone(data.reconciliation.status)}>{data.reconciliation.status.toUpperCase()} · tolerance AUD {data.reconciliation.varianceToleranceAud.toFixed(2)}</span>
             </div>
@@ -298,7 +332,7 @@ export default function EofyReportPage() {
                   <tr key={row.id}>
                     <td>{dateLabel(row.paymentDate)}<span>{row.exDate ? `Ex ${dateLabel(row.exDate)}` : ""}</span></td>
                     <td><strong>{row.symbol}</strong><span>{row.name}</span></td>
-                    <td>{row.broker}</td>
+                    <td>{row.broker}<span>{row.accountKey}</span></td>
                     <td className="numeric">{number(row.units)}</td>
                     <td className="numeric">{money(row.grossIncomeAud)}</td>
                     <td className="numeric">{money(row.netIncomeAud)}</td>
@@ -376,7 +410,7 @@ export default function EofyReportPage() {
                     <td>{dateLabel(row.tradeDate)}<span>{row.settleDate ? `Settle ${dateLabel(row.settleDate)}` : ""}</span></td>
                     <td>{row.type}</td>
                     <td><strong>{row.symbol}</strong><span>{row.name}</span></td>
-                    <td>{row.broker}</td>
+                    <td>{row.broker}<span>{row.accountKey}</span></td>
                     <td className="numeric">{number(row.quantity)}</td>
                     <td className="numeric">{money(row.grossAud)}</td>
                     <td className="numeric">{money(row.feesAud + row.taxesAud)}</td>
@@ -495,7 +529,7 @@ export default function EofyReportPage() {
                 {data.currentHoldings.map((row) => (
                   <tr key={row.id}>
                     <td><strong>{row.symbol}</strong><span>{row.name}</span></td>
-                    <td>{row.broker}</td>
+                    <td>{row.broker}<span>{row.accountKey}</span></td>
                     <td>{row.sector}</td>
                     <td className="numeric">{number(row.quantity)}</td>
                     <td className="numeric">{money(row.costAud)}</td>

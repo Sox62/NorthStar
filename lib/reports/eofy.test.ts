@@ -245,3 +245,74 @@ test("buildEofyReport calculates realised CGT after loss offset and discount", (
   assert.ok(xlsx.includes(Buffer.from("Taxable Income Report")));
   assert.ok(xlsx.includes(Buffer.from("Unrealised CGT Report")));
 });
+
+test("buildEofyReport keeps multiple personal Directshares accounts in the account summary", () => {
+  const report = buildEofyReport("personal", dashboard([
+    holding({ id: "h-CMM-4317403", symbol: "CMM", name: "Capricorn Metals", exchange: "ASX", currency: "AUD", quantity: 60, costAud: 600, marketValueAud: 900, accountKey: "4317403" }),
+    holding({ id: "h-ASL-4386162", symbol: "ASL", name: "Andean Silver", exchange: "ASX", currency: "AUD", quantity: 1000, costAud: 2000, marketValueAud: 2500, accountKey: "4386162" }),
+  ]), [
+    transaction({
+      id: "buy-CMM-4317403",
+      externalId: "buy-CMM-4317403",
+      accountKey: "4317403",
+      tradeDate: "2025-07-10",
+      symbol: "CMM",
+      exchange: "ASX",
+      description: "Capricorn Metals",
+      instrumentKey: "Directshares:CMM:ASX",
+      type: "BUY",
+      quantity: 100,
+      cost: 1000,
+      netCash: -1000,
+    }),
+    transaction({
+      id: "sell-CMM-4317403",
+      externalId: "sell-CMM-4317403",
+      accountKey: "4317403",
+      tradeDate: "2026-02-10",
+      symbol: "CMM",
+      exchange: "ASX",
+      description: "Capricorn Metals",
+      instrumentKey: "Directshares:CMM:ASX",
+      type: "SELL",
+      quantity: -40,
+      cost: -500,
+      netCash: 700,
+    }),
+    transaction({
+      id: "buy-ASL-4386162",
+      externalId: "buy-ASL-4386162",
+      accountKey: "4386162",
+      tradeDate: "2025-08-01",
+      symbol: "ASL",
+      exchange: "ASX",
+      description: "Andean Silver",
+      instrumentKey: "Directshares:ASL:ASX",
+      type: "BUY",
+      quantity: 1000,
+      cost: 2000,
+      netCash: -2000,
+    }),
+    transaction({
+      id: "div-ASL-4386162",
+      externalId: "div-ASL-4386162",
+      accountKey: "4386162",
+      tradeDate: "2026-03-01",
+      symbol: "ASL",
+      exchange: "ASX",
+      description: "Andean Silver dividend",
+      instrumentKey: "Directshares:ASL:ASX",
+      type: "DIVIDEND",
+      quantity: 0,
+      cost: 0,
+      netCash: 100,
+      raw: { grossDividend: 100 },
+    }),
+  ], 2026, new Date("2026-07-18T00:00:00.000Z"));
+
+  assert.deepEqual(report.accountSummaries.map((row) => row.accountKey), ["4317403", "4386162"]);
+  assert.equal(report.accountSummaries.find((row) => row.accountKey === "4317403")?.sellTrades, 1);
+  assert.equal(report.accountSummaries.find((row) => row.accountKey === "4386162")?.incomePayments, 1);
+  assert.match(eofyReportCsv(report), /account_summary,Personal,FY2026,Directshares account 4386162/);
+  assert.ok(eofyReportXlsx(report).includes(Buffer.from("Account Summary")));
+});
