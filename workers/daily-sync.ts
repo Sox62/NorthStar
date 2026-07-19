@@ -3,6 +3,7 @@ import { fetchIbkrFlexReport } from "../lib/integrations/ibkr";
 import { getStorage, type OwnerType } from "../lib/storage";
 import { syncDirectsharesDividends } from "../lib/sync/directshares-dividends";
 import { syncDirectsharesEmail } from "../lib/sync/directshares-email";
+import { syncMarketData } from "../lib/sync/market-data";
 
 async function main() {
   const today = new Date().toISOString().slice(0, 10);
@@ -34,6 +35,13 @@ async function main() {
     console.log(`[sync] Directshares dividends: ${result.status} · ${result.imported} imported, ${result.duplicates} duplicates`);
   } catch (error) {
     console.error("[sync] Directshares dividends:", error);
+  }
+
+  try {
+    const result = await syncMarketData(storage, "scheduled");
+    console.log(`[sync] Market data: ${result.status} · ${result.updatedPositions} positions, ${result.quotes} quotes`);
+  } catch (error) {
+    console.error("[sync] Market data:", error);
   }
 
   try {

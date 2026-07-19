@@ -3,6 +3,7 @@ import { fetchIbkrFlexReport } from "@/lib/integrations/ibkr";
 import { getStorage, type OwnerType } from "@/lib/storage";
 import { syncDirectsharesDividends } from "@/lib/sync/directshares-dividends";
 import { syncDirectsharesEmail } from "@/lib/sync/directshares-email";
+import { syncMarketData } from "@/lib/sync/market-data";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -78,6 +79,17 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown Directshares dividend sync error";
     errors.push(`Directshares Dividends: ${message}`);
+  }
+
+  try {
+    const result = await syncMarketData(storage, "scheduled");
+    output.marketData = result;
+    if (result.status === "failed" || result.status === "partial") {
+      errors.push(`Market Data: ${result.errors.join("; ") || result.message}`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown market data sync error";
+    errors.push(`Market Data: ${message}`);
   }
 
   const platinumStartedAt = new Date().toISOString();

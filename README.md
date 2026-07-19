@@ -77,6 +77,14 @@ DIRECTSHARES_DIVIDEND_EMAIL_MAX_MESSAGES=50
 
 Set `DIRECTSHARES_DIVIDEND_EMAIL_HOST`, `DIRECTSHARES_DIVIDEND_EMAIL_USER` and `DIRECTSHARES_DIVIDEND_EMAIL_PASSWORD` only if the dividend rule lands in a different mailbox. Otherwise NorthStar reuses the `DIRECTSHARES_EMAIL_*` connection settings. A Sharesight feed can be added later as a reconciliation source, but broker confirmations and dividend notices remain the auditable first-source records.
 
+Market data quote refresh:
+
+```text
+EODHD_API_TOKEN=<private EODHD API token>
+```
+
+`MARKETDATA_EODHD_API_TOKEN` is also accepted. Without one of these tokens, scheduled market quote refresh records a clean skipped status and manual/CSV prices remain available. Stooq can be selected manually on the Pricing page, but it may require browser verification and should not be treated as the primary production feed.
+
 ## Passkey login
 
 NorthStar uses passkeys for normal sign-in. Open `/login`, enter the existing `NORTH_STAR_USERNAME` and `NORTH_STAR_PASSWORD` once, then create a passkey with Face ID, Touch ID, Windows Hello or a hardware security key.
@@ -113,7 +121,7 @@ Railway starts NorthStar with `npm run start:railway`, which schedules an automa
 /api/sync
 ```
 
-The default schedule is `20:30 UTC`, which is 06:30 Sydney during AEST and 07:30 during AEDT. It refreshes IBKR Flex, Directshares confirmation email, Directshares dividend email, ABC Bullion platinum and portfolio snapshots.
+The default schedule is `20:30 UTC`, which is 06:30 Sydney during AEST and 07:30 during AEDT. It refreshes IBKR Flex, Directshares confirmation email, Directshares dividend email, market quotes when `EODHD_API_TOKEN` or `MARKETDATA_EODHD_API_TOKEN` is configured, ABC Bullion platinum and portfolio snapshots.
 
 Required Railway variables:
 
@@ -128,6 +136,7 @@ DIRECTSHARES_EMAIL_PASSWORD=<mailbox app password>
 DIRECTSHARES_DIVIDEND_EMAIL_MAILBOX=INBOX
 DIRECTSHARES_EMAIL_MAILBOX=<mailbox or label containing confirmations>
 DIRECTSHARES_EMAIL_OWNER=PERSONAL
+EODHD_API_TOKEN=<private EODHD API token, optional but required for scheduled market quote refresh>
 ```
 
 Optional overrides:
@@ -136,6 +145,7 @@ Optional overrides:
 NORTHSTAR_AUTO_SYNC=false
 NORTHSTAR_AUTO_SYNC_HOUR_UTC=20
 NORTHSTAR_AUTO_SYNC_MINUTE_UTC=30
+NORTHSTAR_AUTO_PRICE_REFRESH=false
 ```
 
 ## PWA installation
