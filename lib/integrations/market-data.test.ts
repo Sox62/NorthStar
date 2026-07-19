@@ -121,6 +121,68 @@ test("refreshMarketQuotes fetches ASX closes from Yahoo without a token", async 
   }
 });
 
+test("refreshMarketQuotes fetches ETPMAG NAV from Global X", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestedUrls: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    requestedUrls.push(url);
+    if (url === "https://www.globalxetfs.com.au/funds/etpmag/") {
+      return new Response(`
+        <div>Date as of <!-- -->16 Jul 2026</div>
+        <script>{"label":"NAV/Unit (A$)","valueType":"text","textValue":"74.15180160"}</script>
+      `, { status: 200, headers: { "content-type": "text/html" } });
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  try {
+    const result = await refreshMarketQuotes([instrument({ symbol: "ETPMAG", exchange: "ASX", currency: "AUD" })], "globalx");
+    assert.equal(result.prices.length, 1);
+    assert.equal(result.quotes[0].providerSymbol, "ETPMAG.GLOBALX");
+    assert.equal(result.quotes[0].close, 74.1518016);
+    assert.equal(result.quotes[0].priceDate, "2026-07-16");
+    assert.equal(result.quotes[0].source, "Global X NAV per unit");
+    assert.ok(requestedUrls.some((url) => url.endsWith("/funds/etpmag/")));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("refreshMarketQuotes tries Global X before Yahoo for ETPMAG in auto mode", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.EODHD_API_TOKEN;
+  const originalAltToken = process.env.MARKETDATA_EODHD_API_TOKEN;
+  delete process.env.EODHD_API_TOKEN;
+  delete process.env.MARKETDATA_EODHD_API_TOKEN;
+  const requestedUrls: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    requestedUrls.push(url);
+    if (url === "https://www.globalxetfs.com.au/funds/etpmag/") {
+      return new Response(`
+        <div>Date as of <!-- -->16 Jul 2026</div>
+        <script>{"label":"NAV/Unit (A$)","valueType":"text","textValue":"74.15180160"}</script>
+      `, { status: 200, headers: { "content-type": "text/html" } });
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  try {
+    const result = await refreshMarketQuotes([instrument({ symbol: "ETPMAG", exchange: "ASX", currency: "AUD" })], "auto");
+    assert.equal(result.prices.length, 1);
+    assert.equal(result.quotes[0].source, "Global X NAV per unit");
+    assert.equal(requestedUrls.length, 1);
+    assert.ok(requestedUrls[0].endsWith("/funds/etpmag/"));
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken == null) delete process.env.EODHD_API_TOKEN;
+    else process.env.EODHD_API_TOKEN = originalToken;
+    if (originalAltToken == null) delete process.env.MARKETDATA_EODHD_API_TOKEN;
+    else process.env.MARKETDATA_EODHD_API_TOKEN = originalAltToken;
+  }
+});
+
 test("refreshMarketQuotes falls back from EODHD errors to Yahoo in auto mode", async () => {
   const originalFetch = globalThis.fetch;
   const originalToken = process.env.EODHD_API_TOKEN;

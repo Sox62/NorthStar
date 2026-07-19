@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 const refreshSchema = z.object({
   symbols: z.array(z.string().trim().min(1)).optional(),
-  provider: z.enum(["auto", "eodhd", "yahoo", "stooq"]).default("auto"),
+  provider: z.enum(["auto", "eodhd", "globalx", "yahoo", "stooq"]).default("auto"),
 });
 
 function normaliseKey(value: string) {

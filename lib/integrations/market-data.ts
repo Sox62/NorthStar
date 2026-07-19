@@ -20,12 +20,13 @@ export type QuoteRefreshResult = {
   providers: {
     requested: QuoteProvider;
     eodhdConfigured: boolean;
+    globalXEnabled: boolean;
     yahooEnabled: boolean;
     stooqEnabled: boolean;
   };
 };
 
-export type QuoteProvider = "auto" | "eodhd" | "yahoo" | "stooq";
+export type QuoteProvider = "auto" | "eodhd" | "globalx" | "yahoo" | "stooq";
 
 type EodhdResponse = {
   code?: string;
@@ -76,6 +77,10 @@ const EODHD_BASE_URL = "https://eodhd.com/api/real-time";
 const FRANKFURTER_BASE_URL = "https://api.frankfurter.dev/v2/rate";
 const STOOQ_DAILY_URL = "https://stooq.com/q/d/l/";
 const YAHOO_CHART_BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
+const GLOBAL_X_FUNDS_BASE_URL = "https://www.globalxetfs.com.au/funds";
+const GLOBAL_X_FUNDS: Record<string, { slug: string; currency: string }> = {
+  ETPMAG: { slug: "etpmag", currency: "AUD" },
+};
 
 function todaySydney() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -214,6 +219,22 @@ async function fetchYahooJson(url: string) {
   }
 }
 
+async function fetchText(url: string) {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: { "user-agent": "NorthStar/0.3.7 private portfolio quote refresh" },
+      signal: AbortSignal.timeout(MARKETDATA_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const cause = error instanceof Error && "cause" in error ? error.cause as { code?: string; hostname?: string } | undefined : undefined;
+    const detail = cause?.code ? `${cause.code}${cause.hostname ? ` ${cause.hostname}` : ""}` : error instanceof Error ? error.message : "fetch failed";
+    throw new Error(`Unable to fetch provider page: ${detail}`);
+  }
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.text();
+}
+
 function dateFromUnixSeconds(seconds: number, timeZone?: string) {
   try {
     return new Intl.DateTimeFormat("en-CA", {
@@ -225,6 +246,31 @@ function dateFromUnixSeconds(seconds: number, timeZone?: string) {
   } catch {
     return new Date(seconds * 1000).toISOString().slice(0, 10);
   }
+}
+
+function dateFromAustralianLabel(value: string) {
+  const match = value.trim().match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})$/);
+  if (!match) return null;
+  const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(match[2].slice(0, 3).toLowerCase());
+  if (month < 0) return null;
+  const day = match[1].padStart(2, "0");
+  return `${match[3]}-${String(month + 1).padStart(2, "0")}-${day}`;
+}
+
+function parseGlobalXFundPage(html: string) {
+  const navMatch =
+    html.match(/"label":"NAV\/Unit \(A\$\)","valueType":"text","textValue":"([0-9.,]+)"/) ??
+    html.match(/NAV\/Unit \(A\$\)[\s\S]{0,500}?>([0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?)</);
+  const close = navMatch ? numberValue(navMatch[1].replaceAll(",", "")) : null;
+  if (!close) return null;
+  const dateMatch =
+    html.match(/Date as of\s*<!-- -->\s*([0-9]{1,2}\s+[A-Za-z]{3,}\s+[0-9]{4})/) ??
+    html.match(/Date as of\s*",\s*"([0-9]{1,2}\s+[A-Za-z]{3,}\s+[0-9]{4})"/) ??
+    html.match(/"card-date","children":\[\[" Date as of ","([0-9]{1,2}\s+[A-Za-z]{3,}\s+[0-9]{4})"/);
+  return {
+    close,
+    priceDate: dateMatch ? dateFromAustralianLabel(dateMatch[1]) ?? todaySydney() : todaySydney(),
+  };
 }
 
 function yahooCurrencyAndClose(close: number, yahooCurrency: string | undefined, expectedCurrency: string) {
@@ -320,6 +366,29 @@ async function fetchYahooQuote(instrument: PriceableInstrument): Promise<MarketQ
   });
 }
 
+async function fetchGlobalXQuote(instrument: PriceableInstrument): Promise<MarketQuote | null> {
+  const fund = GLOBAL_X_FUNDS[normaliseSymbol(instrument.symbol)];
+  if (!fund) return null;
+  const expectedCurrency = normaliseCurrency(instrument.currency);
+  if (expectedCurrency !== fund.currency) {
+    throw new Error(`Global X ${instrument.symbol} NAV is ${fund.currency}, but the instrument is stored as ${expectedCurrency}.`);
+  }
+  const providerSymbol = `${instrument.symbol.toUpperCase()}.GLOBALX`;
+  const url = `${GLOBAL_X_FUNDS_BASE_URL}/${encodeURIComponent(fund.slug)}/`;
+  const parsed = parseGlobalXFundPage(await fetchText(url));
+  if (!parsed) return null;
+  return {
+    symbol: instrument.symbol,
+    exchange: instrument.exchange,
+    close: parsed.close,
+    currency: fund.currency,
+    priceDate: parsed.priceDate,
+    source: "Global X NAV per unit",
+    providerSymbol,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
 async function fetchEodhdFx(currency: string, date: string, token: string): Promise<FxRateInput | null> {
   const value = currency.trim().toUpperCase();
   if (value === "AUD") return null;
@@ -408,12 +477,13 @@ export async function refreshMarketQuotes(instruments: PriceableInstrument[], pr
   const quotes: MarketQuote[] = [];
   const failures: QuoteFailure[] = [];
   const quoteProviders = provider === "auto"
-    ? unique([token ? "eodhd" : null, "yahoo", "stooq"]) as Array<Exclude<QuoteProvider, "auto">>
+    ? unique([token ? "eodhd" : null, "globalx", "yahoo", "stooq"]) as Array<Exclude<QuoteProvider, "auto">>
     : [provider];
   const useEodhdFx = Boolean(token) && provider !== "stooq";
   const providers = {
     requested: provider,
     eodhdConfigured: Boolean(token),
+    globalXEnabled: provider === "auto" || provider === "globalx",
     yahooEnabled: provider === "auto" || provider === "yahoo",
     stooqEnabled: provider === "auto" || provider === "stooq",
   };
@@ -428,6 +498,7 @@ export async function refreshMarketQuotes(instruments: PriceableInstrument[], pr
           continue;
         }
         if (quoteProvider === "eodhd") quote = await fetchEodhdQuote(instrument, token);
+        if (quoteProvider === "globalx") quote = await fetchGlobalXQuote(instrument);
         if (quoteProvider === "yahoo") quote = await fetchYahooQuote(instrument);
         if (quoteProvider === "stooq") quote = await fetchStooqQuote(instrument);
         if (quote) break;

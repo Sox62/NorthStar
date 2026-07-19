@@ -44,14 +44,14 @@ type PriceBook = {
   fxRates: StoredFxRate[];
 };
 
-type QuoteRefreshProvider = "auto" | "eodhd" | "yahoo" | "stooq";
+type QuoteRefreshProvider = "auto" | "eodhd" | "globalx" | "yahoo" | "stooq";
 type PriceResultPayload = Record<string, unknown> & {
   error?: string;
   errors?: string[];
   quotes?: Array<{ symbol: string; exchange: string; providerSymbol: string; source: string; close: number; priceDate: string }>;
   failures?: Array<{ symbol: string; exchange: string; message: string }>;
   providerConfigured?: boolean;
-  providers?: { requested: QuoteRefreshProvider; eodhdConfigured: boolean; yahooEnabled: boolean; stooqEnabled: boolean };
+  providers?: { requested: QuoteRefreshProvider; eodhdConfigured: boolean; globalXEnabled: boolean; yahooEnabled: boolean; stooqEnabled: boolean };
 };
 
 const today = () => new Date().toLocaleDateString("en-CA");
@@ -254,6 +254,7 @@ export default function PricesPage() {
                 <select value={refreshProvider} onChange={(event) => setRefreshProvider(event.target.value as QuoteRefreshProvider)}>
                   <option value="auto">Auto</option>
                   <option value="eodhd">EODHD</option>
+                  <option value="globalx">Global X NAV</option>
                   <option value="yahoo">Yahoo</option>
                   <option value="stooq">Stooq</option>
                 </select>
@@ -320,6 +321,7 @@ function PriceResult({ result }: { result: PriceResultPayload }) {
         ["Provider", result.providers ? [
           result.providers.requested.toUpperCase(),
           result.providers.eodhdConfigured ? "EODHD token" : "no EODHD token",
+          result.providers.globalXEnabled ? "Global X on" : null,
           result.providers.yahooEnabled ? "Yahoo on" : null,
           result.providers.stooqEnabled ? "Stooq on" : null,
         ].filter(Boolean).join(" · ") : "Manual"],

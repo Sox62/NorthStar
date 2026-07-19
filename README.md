@@ -83,7 +83,9 @@ Market data quote refresh:
 EODHD_API_TOKEN=<private EODHD API token>
 ```
 
-`MARKETDATA_EODHD_API_TOKEN` is also accepted. EODHD is preferred for production. In `auto` mode NorthStar falls back to Yahoo Finance delayed chart data and then Stooq, so scheduled pricing will attempt a no-token refresh when EODHD is absent. Yahoo can rate-limit server environments and Stooq may require browser verification, so both are fallback sources rather than the primary production feed.
+`MARKETDATA_EODHD_API_TOKEN` is also accepted. EODHD is preferred for production. In `auto` mode NorthStar falls back to known fund NAV sources, Yahoo Finance delayed chart data and then Stooq, so scheduled pricing will attempt a no-token refresh when EODHD is absent. Yahoo can rate-limit server environments and Stooq may require browser verification, so both are fallback sources rather than the primary production feed.
+
+`ETPMAG` is treated as a known Global X physical silver ETP. If broker/Yahoo quotes are unavailable, NorthStar can price it from the Global X fund NAV/unit page and records the source as `Global X NAV per unit`.
 
 Provider symbol overrides are comma-separated `SYMBOL:EXCHANGE=PROVIDER_SYMBOL` pairs:
 
