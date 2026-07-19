@@ -47,7 +47,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "Personal and SMSF accounts", status: "shipped", detail: "Storage, dashboard queries, full holdings view and overview account breakdown preserve legal ownership." },
       { title: "IBKR current positions", status: "shipped", detail: "Flex Open Positions replace the broker snapshot." },
       { title: "Physical platinum", status: "shipped", detail: "Kilogram holdings are valued from ABC buyback prices." },
-      { title: "Expanded asset taxonomy", status: "in_progress", detail: "Current classification covers major portfolio sectors; options/property/crypto remain future work." },
+      { title: "Expanded asset taxonomy", status: "shipped", detail: "Current classification covers live NorthStar sectors, Directshares foreign suffixes and known VELO/LAM exceptions; options/property/crypto remain future extensions." },
       { title: "Core accounting module", status: "planned", detail: "Move valuation and analytics rules out of storage adapters into a dedicated core layer." },
     ],
   },

@@ -30,8 +30,10 @@ Net Proceeds: (AUD) $29,895.00
 });
 
 test("parseDirectsharesHoldingsCsv maps market suffixes and numeric fields", () => {
-  const [position] = parseDirectsharesHoldingsCsv(`Account Number,Account Name,Code,Units Held,Last,FX Rate,Net Avg Price AUD,Cost AUD,Market Value AUD,Day Gain AUD,P&L AUD,P&L %
+  const [position, compactUs, compactCa] = parseDirectsharesHoldingsCsv(`Account Number,Account Name,Code,Units Held,Last,FX Rate,Net Avg Price AUD,Cost AUD,Market Value AUD,Day Gain AUD,P&L AUD,P&L %
 4317403,Stephen,SVM:CA,"3,500",19.2,1.11,8.5,29750,74592,-1200,44842,150.7
+4317403,Stephen,CDEUS,500,12.5,1.52,11,5500,9500,100,4000,72.7
+4317403,Stephen,LAMCA,1000,0.95,1.11,0.8,800,1054,10,254,31.8
 `);
 
   assert.equal(position.symbol, "SVM");
@@ -39,4 +41,10 @@ test("parseDirectsharesHoldingsCsv maps market suffixes and numeric fields", () 
   assert.equal(position.currency, "CAD");
   assert.equal(position.quantity, 3500);
   assert.equal(position.marketValueAud, 74592);
+  assert.equal(compactUs.symbol, "CDE");
+  assert.equal(compactUs.exchange, "US");
+  assert.equal(compactUs.currency, "USD");
+  assert.equal(compactCa.symbol, "LAM");
+  assert.equal(compactCa.exchange, "TSX/TSXV");
+  assert.equal(compactCa.currency, "CAD");
 });

@@ -7,6 +7,8 @@ const moneyValue = (value: string) => Number(value.replace(/[$,\s]/g, "")) || 0;
 const cents = (value: number) => Math.round(value * 100) / 100;
 
 function splitCode(code: string) {
+  const compact = code.match(/^([A-Z][A-Z0-9]{1,4})(US|CA|GB)$/);
+  if (!code.includes(":") && compact) return splitCode(`${compact[1]}:${compact[2]}`);
   const [symbol, suffix] = code.split(":");
   if (!suffix) return { symbol, exchange: "ASX", currency: "AUD" };
   if (suffix === "US") return { symbol, exchange: "US", currency: "USD" };
