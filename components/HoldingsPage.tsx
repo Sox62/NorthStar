@@ -100,6 +100,22 @@ function tradingViewUrl(holding: DashboardHolding) {
   return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tradingViewSymbol(holding))}`;
 }
 
+function tradingViewFrameSize(container: HTMLElement) {
+  const bounds = container.getBoundingClientRect();
+  const parentBounds = container.parentElement?.getBoundingClientRect();
+  const width = Math.max(320, Math.round(bounds.width || parentBounds?.width || 980));
+  const isCompact = window.matchMedia("(max-width: 760px)").matches;
+  const minHeight = isCompact ? 340 : 420;
+  const maxHeight = isCompact ? 420 : 560;
+  const viewportHeight = window.innerHeight || 780;
+  const desiredHeight = Math.round(viewportHeight * (isCompact ? 0.56 : 0.68));
+
+  return {
+    width,
+    height: Math.max(minHeight, Math.min(maxHeight, desiredHeight)),
+  };
+}
+
 function canonicalMarket(value: string) {
   const exchange = value.trim().toUpperCase();
   if (["CA", "CANADA", "TSX", "TSXV", "TSE", "CVE", "TSX/TSXV"].includes(exchange)) return "CA";
@@ -411,36 +427,80 @@ function TradingViewPanel({ holding, storedPrices, priceError }: { holding: Dash
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    container.innerHTML = "";
+    let lastFrame = "";
+    let loadingFrame = "";
+    let animationFrame = 0;
+    let resizeTimer: number | undefined;
 
-    const widget = document.createElement("div");
-    widget.className = "tradingview-widget-container__widget";
-    widget.style.width = "100%";
-    widget.style.height = "100%";
-    container.appendChild(widget);
+    const renderWidget = () => {
+      const frame = tradingViewFrameSize(container);
+      const frameKey = `${tvSymbol}:${frame.width}:${frame.height}`;
+      if (frameKey === lastFrame && (loadingFrame === frameKey || container.querySelector("iframe"))) return;
 
-    const script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-    script.async = true;
-    script.innerHTML = JSON.stringify({
-      autosize: true,
-      symbol: tvSymbol,
-      interval: "D",
-      timezone: "Australia/Sydney",
-      theme: "dark",
-      style: "1",
-      locale: "en",
-      withdateranges: true,
-      hide_side_toolbar: false,
-      allow_symbol_change: true,
-      save_image: false,
-      calendar: false,
-      support_host: "https://www.tradingview.com",
-    });
-    container.appendChild(script);
+      lastFrame = frameKey;
+      loadingFrame = frameKey;
+      container.innerHTML = "";
+      container.style.width = "100%";
+      container.style.height = `${frame.height}px`;
+
+      const widget = document.createElement("div");
+      widget.className = "tradingview-widget-container__widget";
+      widget.style.width = "100%";
+      widget.style.height = "100%";
+      container.appendChild(widget);
+
+      const script = document.createElement("script");
+      script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+      script.async = true;
+      script.onload = () => {
+        if (loadingFrame === frameKey) loadingFrame = "";
+      };
+      script.onerror = () => {
+        if (loadingFrame === frameKey) loadingFrame = "";
+      };
+      script.innerHTML = JSON.stringify({
+        autosize: false,
+        width: frame.width,
+        height: frame.height,
+        symbol: tvSymbol,
+        interval: "D",
+        timezone: "Australia/Sydney",
+        theme: "dark",
+        style: "1",
+        locale: "en",
+        withdateranges: true,
+        hide_side_toolbar: false,
+        allow_symbol_change: true,
+        save_image: false,
+        calendar: false,
+        support_host: "https://www.tradingview.com",
+      });
+      container.appendChild(script);
+    };
+
+    const scheduleRender = () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(renderWidget);
+    };
+
+    const resizeObserver = "ResizeObserver" in window
+      ? new ResizeObserver(() => {
+        if (resizeTimer) window.clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(scheduleRender, 180);
+      })
+      : null;
+
+    scheduleRender();
+    resizeObserver?.observe(container);
+    window.addEventListener("resize", scheduleRender);
 
     return () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", scheduleRender);
       container.innerHTML = "";
+      container.style.height = "";
     };
   }, [tvSymbol]);
 
