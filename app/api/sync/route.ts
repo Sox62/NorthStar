@@ -4,14 +4,45 @@ import { getStorage, type OwnerType } from "@/lib/storage";
 import { syncDirectsharesDividends } from "@/lib/sync/directshares-dividends";
 import { syncDirectsharesEmail } from "@/lib/sync/directshares-email";
 import { syncMarketData } from "@/lib/sync/market-data";
+import type { QuoteProvider } from "@/lib/integrations/market-data";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const quoteProviders = new Set<QuoteProvider>(["auto", "eodhd", "globalx", "yahoo", "stooq"]);
+
+function quoteProviderFromRequest(request: Request): QuoteProvider {
+  const value = new URL(request.url).searchParams.get("provider")?.toLowerCase();
+  return value && quoteProviders.has(value as QuoteProvider) ? value as QuoteProvider : "auto";
+}
+
+async function runMarketDataOnly(request: Request) {
+  const storage = getStorage();
+  const errors: string[] = [];
+  const output: Record<string, unknown> = { syncedAt: new Date().toISOString(), task: "market-data" };
+
+  try {
+    const result = await syncMarketData(storage, "scheduled", quoteProviderFromRequest(request));
+    output.marketData = result;
+    if (result.status === "failed" || result.status === "partial") {
+      errors.push(`Market Data: ${result.errors.join("; ") || result.message}`);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown market data sync error";
+    errors.push(`Market Data: ${message}`);
+  }
+
+  return Response.json({ ok: errors.length === 0, ...output, errors }, { status: errors.length ? 207 : 200 });
+}
 
 export async function POST(request: Request) {
   const key = request.headers.get("x-sync-key");
   if (!process.env.SYNC_SECRET || key !== process.env.SYNC_SECRET) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (new URL(request.url).searchParams.get("task") === "market-data") {
+    return runMarketDataOnly(request);
   }
 
   const storage = getStorage();
