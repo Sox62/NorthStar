@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { NavRail } from "./NavRail";
 import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
 import { dataHealth, type HealthTone } from "../lib/data-health";
@@ -141,52 +141,36 @@ function fmtLatestPrice(holding: Holding) {
 }
 
 type MetalQuote = {
-  label: "Gold" | "Silver" | "Platinum";
+  metal: "gold" | "silver" | "platinum";
+  label: string;
   value: number | null;
-  currency: string;
-  unit: string;
+  priceDate: string | null;
   source: string;
-  asOfDate: string | null;
-  spotCompatible: boolean;
   color: string;
+  tradingViewSymbol: string;
 };
 
-const physicalGoldSymbols = new Set(["GOLD", "PMGOLD", "QAU", "GLD", "IAU", "AAAU", "SGOL", "PHAU", "SGLD", "XAU"]);
+type MetalSpotApiQuote = {
+  metal: "gold" | "silver" | "platinum";
+  label: string;
+  price: number;
+  priceDate: string;
+  source: string;
+};
 
-function metalUnitPrice(holding: Holding) {
-  if (holding.lastPrice != null && Number.isFinite(holding.lastPrice)) return holding.lastPrice;
-  return holding.units ? holding.marketValueAud / holding.units : null;
-}
+const metalQuoteShells: MetalQuote[] = [
+  { metal: "gold", label: "Gold spot", value: null, priceDate: null, source: "Loading", color: SECTOR_COLORS["Gold miners"], tradingViewSymbol: "TVC:GOLD" },
+  { metal: "silver", label: "Silver spot", value: null, priceDate: null, source: "Loading", color: SECTOR_COLORS["Silver bullion"], tradingViewSymbol: "TVC:SILVER" },
+  { metal: "platinum", label: "Plat spot", value: null, priceDate: null, source: "Loading", color: SECTOR_COLORS["Platinum bullion"], tradingViewSymbol: "TVC:PLATINUM" },
+];
 
-function metalQuoteFromHolding(holding: Holding | undefined, meta: Omit<MetalQuote, "value" | "currency" | "source" | "asOfDate">): MetalQuote {
-  return {
-    ...meta,
-    value: holding ? metalUnitPrice(holding) : null,
-    currency: holding?.priceCurrency ?? "AUD",
-    source: holding?.symbol ?? "No feed",
-    asOfDate: holding?.priceAsOfDate ?? null,
-  };
-}
-
-function metalQuotesFor(holdings: Holding[]) {
-  const largestByValue = (matches: (holding: Holding) => boolean) =>
-    holdings.filter(matches).sort((a, b) => b.marketValueAud - a.marketValueAud)[0];
-  const gold = largestByValue((holding) => physicalGoldSymbols.has(holding.symbol.toUpperCase()));
-  const silver = largestByValue((holding) => holding.symbol.toUpperCase() === "ETPMAG" || holding.sector === "Silver bullion");
-  const platinum = largestByValue((holding) => holding.sector === "Platinum bullion");
-  const goldSymbol = gold?.symbol.toUpperCase() ?? "";
-  const silverSymbol = silver?.symbol.toUpperCase() ?? "";
-  return [
-    metalQuoteFromHolding(gold, { label: "Gold", unit: "unit", spotCompatible: goldSymbol === "XAU" || goldSymbol === "XAUUSD", color: SECTOR_COLORS["Gold miners"] }),
-    metalQuoteFromHolding(silver, { label: "Silver", unit: "unit", spotCompatible: silverSymbol === "XAG" || silverSymbol === "XAGUSD", color: SECTOR_COLORS["Silver bullion"] }),
-    metalQuoteFromHolding(platinum, { label: "Platinum", unit: "kg", spotCompatible: false, color: SECTOR_COLORS["Platinum bullion"] }),
-  ];
+function tradingViewChartUrl(symbol: string) {
+  return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(symbol)}`;
 }
 
 function fmtMetalPrice(quote: MetalQuote) {
   if (quote.value == null) return "n/a";
-  const digits = quote.value >= 100 ? 2 : 3;
-  return `${quote.currency} ${quote.value.toLocaleString("en-AU", { minimumFractionDigits: digits, maximumFractionDigits: digits })}/${quote.unit}`;
+  return `USD ${quote.value.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/oz`;
 }
 
 function dayGainPercent(holding: Holding) {
@@ -467,32 +451,75 @@ function PeriodReturnStrip({ returns, xirr }: { returns: PeriodReturnSummary[]; 
   );
 }
 
-function MetalsPricePanel({ holdings }: { holdings: Holding[] }) {
-  const quotes = metalQuotesFor(holdings);
-  const gold = quotes.find((quote) => quote.label === "Gold");
-  const silver = quotes.find((quote) => quote.label === "Silver");
-  const gsr = gold?.value && silver?.value && gold.spotCompatible && silver.spotCompatible ? gold.value / silver.value : null;
+function MetalsPricePanel() {
+  const [quotes, setQuotes] = useState<MetalQuote[]>(metalQuoteShells);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadMetals() {
+      try {
+        const response = await fetch("/api/prices/metals", { cache: "no-store" });
+        const payload = await response.json() as { quotes?: MetalSpotApiQuote[]; errors?: string[] };
+        const byMetal = new Map((payload.quotes ?? []).map((quote) => [quote.metal, quote]));
+        const nextQuotes = metalQuoteShells.map((shell) => {
+          const quote = byMetal.get(shell.metal);
+          return quote ? {
+            ...shell,
+            label: quote.label,
+            value: quote.price,
+            priceDate: quote.priceDate,
+            source: quote.source.replace(" spot mid", ""),
+          } : { ...shell, source: "No spot quote" };
+        });
+        if (!cancelled) {
+          setQuotes(nextQuotes);
+          setError((payload.errors ?? []).join("; "));
+        }
+      } catch (reason) {
+        if (!cancelled) {
+          setQuotes(metalQuoteShells.map((quote) => ({ ...quote, source: "No spot quote" })));
+          setError(reason instanceof Error ? reason.message : "Unable to load metals spot prices.");
+        }
+      }
+    }
+    void loadMetals();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const gold = quotes.find((quote) => quote.metal === "gold");
+  const silver = quotes.find((quote) => quote.metal === "silver");
+  const gsr = gold?.value && silver?.value ? gold.value / silver.value : null;
 
   return (
     <section className="nsMetalsPanel" aria-label="Metals prices">
       <div className="nsMetalsHeader">
         <p className="nsEyebrow">Metals prices</p>
-        <strong>Gold · Silver · Platinum · GSR</strong>
+        <strong>Gold spot USD/oz · Silver spot USD/oz · Plat USD/oz · GSR</strong>
       </div>
       <div className="nsMetalsGrid">
         {quotes.map((quote) => (
           <article key={quote.label} className="nsMetalTile" style={{ borderColor: `${quote.color}42` }}>
-            <span><i style={{ background: quote.color }} />{quote.label}</span>
+            <span>
+              <i style={{ background: quote.color }} />{quote.label}
+              <a href={tradingViewChartUrl(quote.tradingViewSymbol)} target="_blank" rel="noreferrer" aria-label={`Open ${quote.label} on TradingView`}>TV</a>
+            </span>
             <strong>{fmtMetalPrice(quote)}</strong>
-            <em>{quote.value == null ? "No stored quote" : `${quote.source} · ${fmtDate(quote.asOfDate)}`}</em>
+            <em>{quote.value == null ? quote.source : `${quote.source} · ${fmtDate(quote.priceDate)}`}</em>
           </article>
         ))}
         <article className="nsMetalTile nsMetalRatio">
-          <span><i />GSR</span>
+          <span>
+            <i />GSR
+            <a href={tradingViewChartUrl("TVC:GOLD/TVC:SILVER")} target="_blank" rel="noreferrer" aria-label="Open GSR on TradingView">TV</a>
+          </span>
           <strong>{gsr == null ? "n/a" : gsr.toFixed(1)}</strong>
-          <em>{gsr == null ? "Needs gold + silver spot" : "Gold / silver"}</em>
+          <em>{gsr == null ? "Needs gold + silver spot" : "Gold spot / silver spot"}</em>
         </article>
       </div>
+      {error ? <p className="nsMetalsError">{error}</p> : null}
     </section>
   );
 }
@@ -852,7 +879,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
           </div>
           <div className="nsHeroChartStack">
             <HistoryChart now={t.marketValue} scope={scope} performance={performance} />
-            <MetalsPricePanel holdings={view} />
+            <MetalsPricePanel />
           </div>
         </section>
 

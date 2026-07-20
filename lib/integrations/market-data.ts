@@ -72,14 +72,50 @@ type YahooChartResponse = {
   };
 };
 
+type SwissquoteQuoteResponse = Array<{
+  spreadProfilePrices?: Array<{
+    bid?: number;
+    ask?: number;
+    spreadProfile?: string;
+  }>;
+  ts?: number;
+}>;
+
 const MARKETDATA_TIMEOUT_MS = 12_000;
 const EODHD_BASE_URL = "https://eodhd.com/api/real-time";
 const FRANKFURTER_BASE_URL = "https://api.frankfurter.dev/v2/rate";
 const STOOQ_DAILY_URL = "https://stooq.com/q/d/l/";
 const YAHOO_CHART_BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
+const SWISSQUOTE_BBO_BASE_URL = "https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument";
 const GLOBAL_X_FUNDS_BASE_URL = "https://www.globalxetfs.com.au/funds";
 const GLOBAL_X_FUNDS: Record<string, { slug: string; currency: string }> = {
   ETPMAG: { slug: "etpmag", currency: "AUD" },
+};
+
+const METAL_SPOT_INSTRUMENTS = [
+  { metal: "gold", label: "Gold spot", providerSymbol: "XAU/USD" },
+  { metal: "silver", label: "Silver spot", providerSymbol: "XAG/USD" },
+  { metal: "platinum", label: "Plat spot", providerSymbol: "XPT/USD" },
+] as const;
+
+export type MetalSpotQuote = {
+  metal: typeof METAL_SPOT_INSTRUMENTS[number]["metal"];
+  label: string;
+  providerSymbol: string;
+  currency: "USD";
+  unit: "oz";
+  bid: number;
+  ask: number;
+  price: number;
+  priceDate: string;
+  retrievedAt: string;
+  source: "Swissquote spot mid";
+};
+
+export type MetalSpotResult = {
+  quotes: MetalSpotQuote[];
+  errors: string[];
+  source: "Swissquote";
 };
 
 function todaySydney() {
@@ -185,6 +221,10 @@ function eodhdDate(response: EodhdResponse) {
   return todaySydney();
 }
 
+function dateFromUnixMilliseconds(milliseconds: number) {
+  return new Date(milliseconds).toISOString().slice(0, 10);
+}
+
 async function fetchJson(url: string) {
   const response = await fetch(url, {
     headers: { "user-agent": "NorthStar/0.3.7 private portfolio quote refresh" },
@@ -192,6 +232,15 @@ async function fetchJson(url: string) {
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json() as Promise<EodhdResponse>;
+}
+
+async function fetchSwissquoteJson(url: string) {
+  const response = await fetch(url, {
+    headers: { "user-agent": "NorthStar/0.3.7 private portfolio metals quote refresh" },
+    signal: AbortSignal.timeout(MARKETDATA_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json() as Promise<SwissquoteQuoteResponse>;
 }
 
 async function fetchRateJson(url: string) {
@@ -233,6 +282,50 @@ async function fetchText(url: string) {
   }
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.text();
+}
+
+async function fetchSwissquoteMetalSpotQuote(spec: typeof METAL_SPOT_INSTRUMENTS[number]): Promise<MetalSpotQuote> {
+  const url = `${SWISSQUOTE_BBO_BASE_URL}/${spec.providerSymbol.split("/").map(encodeURIComponent).join("/")}`;
+  const payload = await fetchSwissquoteJson(url);
+  const candidates = payload
+    .flatMap((quote) => (quote.spreadProfilePrices ?? []).map((price) => ({
+      bid: numberValue(price.bid),
+      ask: numberValue(price.ask),
+      timestamp: quote.ts,
+    })))
+    .filter((price): price is { bid: number; ask: number; timestamp: number | undefined } =>
+      price.bid != null && price.ask != null && price.ask >= price.bid
+    )
+    .sort((a, b) => (a.ask - a.bid) - (b.ask - b.bid));
+  const best = candidates[0];
+  if (!best) throw new Error(`${spec.providerSymbol} returned no valid bid/ask quote.`);
+  const retrievedAt = new Date(best.timestamp ?? Date.now()).toISOString();
+  return {
+    metal: spec.metal,
+    label: spec.label,
+    providerSymbol: spec.providerSymbol,
+    currency: "USD",
+    unit: "oz",
+    bid: best.bid,
+    ask: best.ask,
+    price: (best.bid + best.ask) / 2,
+    priceDate: best.timestamp ? dateFromUnixMilliseconds(best.timestamp) : todaySydney(),
+    retrievedAt,
+    source: "Swissquote spot mid",
+  };
+}
+
+export async function fetchMetalSpotQuotes(): Promise<MetalSpotResult> {
+  const quotes: MetalSpotQuote[] = [];
+  const errors: string[] = [];
+  for (const spec of METAL_SPOT_INSTRUMENTS) {
+    try {
+      quotes.push(await fetchSwissquoteMetalSpotQuote(spec));
+    } catch (error) {
+      errors.push(`${spec.label}: ${error instanceof Error ? error.message : "quote failed"}`);
+    }
+  }
+  return { quotes, errors, source: "Swissquote" };
 }
 
 function dateFromUnixSeconds(seconds: number, timeZone?: string) {

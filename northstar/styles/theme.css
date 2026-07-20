@@ -711,6 +711,22 @@ body.northstar .nsMetalTile span {
   text-transform:uppercase;
 }
 
+body.northstar .nsMetalTile span a {
+  margin-left:auto;
+  padding:2px 6px;
+  border:1px solid rgba(215,181,109,0.28);
+  border-radius:999px;
+  color:var(--gold);
+  font-size:10px;
+  line-height:1.15;
+  text-decoration:none;
+}
+
+body.northstar .nsMetalTile span a:hover {
+  border-color:rgba(215,181,109,0.62);
+  background:rgba(215,181,109,0.08);
+}
+
 body.northstar .nsMetalTile span i {
   width:8px;
   height:8px;
@@ -738,6 +754,13 @@ body.northstar .nsMetalTile em {
   font-style:normal;
   line-height:1.25;
   overflow-wrap:anywhere;
+}
+
+body.northstar .nsMetalsError {
+  margin:10px 0 0;
+  color:var(--muted-dim);
+  font-size:10px;
+  line-height:1.35;
 }
 
 body.northstar .nsMetricGrid {

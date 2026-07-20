@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fetchFrankfurterFx, refreshMarketQuotes } from "./market-data";
+import { fetchFrankfurterFx, fetchMetalSpotQuotes, refreshMarketQuotes } from "./market-data";
 import type { PriceableInstrument } from "@/lib/storage";
 
 function jsonResponse(body: unknown, status = 200) {
@@ -41,6 +41,43 @@ test("fetchFrankfurterFx returns an AUD conversion rate", async () => {
       rateDate: "2026-07-18",
       source: "Frankfurter FX",
     });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("fetchMetalSpotQuotes returns Swissquote USD per ounce mid prices", async () => {
+  const originalFetch = globalThis.fetch;
+  const timestamp = Date.parse("2026-07-21T01:02:03Z");
+  const requestedUrls: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    requestedUrls.push(url);
+    if (url.endsWith("/XAU/USD")) {
+      return jsonResponse([{ ts: timestamp, spreadProfilePrices: [{ bid: 4000, ask: 4010 }, { bid: 4001, ask: 4003 }] }]);
+    }
+    if (url.endsWith("/XAG/USD")) {
+      return jsonResponse([{ ts: timestamp, spreadProfilePrices: [{ bid: 55.8, ask: 55.9 }] }]);
+    }
+    if (url.endsWith("/XPT/USD")) {
+      return jsonResponse([{ ts: timestamp, spreadProfilePrices: [{ bid: 1591, ask: 1595 }] }]);
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  try {
+    const result = await fetchMetalSpotQuotes();
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.quotes.length, 3);
+    assert.equal(result.quotes[0].metal, "gold");
+    assert.equal(result.quotes[0].providerSymbol, "XAU/USD");
+    assert.equal(result.quotes[0].price, 4002);
+    assert.equal(result.quotes[0].currency, "USD");
+    assert.equal(result.quotes[0].unit, "oz");
+    assert.equal(result.quotes[0].priceDate, "2026-07-21");
+    assert.ok(requestedUrls.some((url) => url.endsWith("/XAU/USD")));
+    assert.ok(requestedUrls.some((url) => url.endsWith("/XAG/USD")));
+    assert.ok(requestedUrls.some((url) => url.endsWith("/XPT/USD")));
   } finally {
     globalThis.fetch = originalFetch;
   }
