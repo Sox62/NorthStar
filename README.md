@@ -134,7 +134,7 @@ Railway starts NorthStar with `npm run start:railway`, which schedules an automa
 
 The default schedule is `20:30 UTC`, which is 06:30 Sydney during AEST and 07:30 during AEDT. It refreshes IBKR Flex, Directshares confirmation email, Directshares dividend email, delayed market quotes, ABC Bullion platinum and portfolio snapshots.
 
-Intraday pricing is a lightweight market-data-only refresh. In `auto` mode it turns on when `EODHD_API_TOKEN` or `MARKETDATA_EODHD_API_TOKEN` is configured, and otherwise stays off to avoid hammering unauthenticated fallback sources. The default intraday cadence is every 60 minutes during broad UTC market windows covering ASX, London and North America.
+Intraday pricing is a lightweight market-data-only refresh. It is enabled by default, runs shortly after the Railway process starts if the current time is inside a market window, and then runs every 60 minutes during broad UTC market windows covering ASX, London and North America. EODHD is recommended for production; without it, `auto` provider mode falls back to known fund NAV sources, Yahoo delayed quotes and Stooq.
 
 Required Railway variables:
 
@@ -159,10 +159,11 @@ NORTHSTAR_AUTO_SYNC=false
 NORTHSTAR_AUTO_SYNC_HOUR_UTC=20
 NORTHSTAR_AUTO_SYNC_MINUTE_UTC=30
 NORTHSTAR_AUTO_PRICE_REFRESH=false
-NORTHSTAR_INTRADAY_PRICE_REFRESH=auto
+NORTHSTAR_INTRADAY_PRICE_REFRESH=true
 NORTHSTAR_INTRADAY_PRICE_REFRESH_INTERVAL_MINUTES=60
 NORTHSTAR_INTRADAY_PRICE_PROVIDER=auto
 NORTHSTAR_INTRADAY_PRICE_REFRESH_WINDOWS_UTC=23:00-06:30,07:30-21:30
+NORTHSTAR_INTRADAY_PRICE_REFRESH_STARTUP_DELAY_SECONDS=120
 ```
 
 ## PWA installation

@@ -4,10 +4,11 @@ const AUTO_SYNC_DISABLED = /^(0|false|no)$/i.test(process.env.NORTHSTAR_AUTO_SYN
 const SYNC_HOUR_UTC = Number(process.env.NORTHSTAR_AUTO_SYNC_HOUR_UTC ?? 20);
 const SYNC_MINUTE_UTC = Number(process.env.NORTHSTAR_AUTO_SYNC_MINUTE_UTC ?? 30);
 const SYNC_TIMEOUT_MS = 90_000;
-const INTRADAY_PRICE_REFRESH_SETTING = process.env.NORTHSTAR_INTRADAY_PRICE_REFRESH ?? "auto";
+const INTRADAY_PRICE_REFRESH_SETTING = process.env.NORTHSTAR_INTRADAY_PRICE_REFRESH ?? "true";
 const INTRADAY_PRICE_REFRESH_PROVIDER = process.env.NORTHSTAR_INTRADAY_PRICE_PROVIDER ?? "auto";
 const INTRADAY_PRICE_REFRESH_WINDOWS_UTC = process.env.NORTHSTAR_INTRADAY_PRICE_REFRESH_WINDOWS_UTC ?? "23:00-06:30,07:30-21:30";
 const INTRADAY_PRICE_REFRESH_TIMEOUT_MS = 90_000;
+const INTRADAY_PRICE_REFRESH_STARTUP_DELAY_SECONDS = positiveNumber(process.env.NORTHSTAR_INTRADAY_PRICE_REFRESH_STARTUP_DELAY_SECONDS, 120, 30);
 let syncInFlight = false;
 
 function positiveNumber(value, fallback, minimum) {
@@ -145,6 +146,12 @@ function scheduleIntradayPriceRefresh() {
 
   const intervalMs = INTRADAY_PRICE_REFRESH_INTERVAL_MINUTES * 60 * 1000;
   console.log(`[intraday-price-refresh] scheduled every ${INTRADAY_PRICE_REFRESH_INTERVAL_MINUTES} minutes in UTC windows ${INTRADAY_PRICE_REFRESH_WINDOWS_UTC}.`);
+  const startupTimer = setTimeout(async () => {
+    if (!isIntradayPriceRefreshWindow()) return;
+    await runIntradayPriceRefresh();
+  }, INTRADAY_PRICE_REFRESH_STARTUP_DELAY_SECONDS * 1000);
+  startupTimer.unref?.();
+
   const timer = setInterval(async () => {
     if (!isIntradayPriceRefreshWindow()) return;
     await runIntradayPriceRefresh();
