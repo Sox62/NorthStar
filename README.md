@@ -164,7 +164,10 @@ NORTHSTAR_INTRADAY_PRICE_REFRESH_INTERVAL_MINUTES=60
 NORTHSTAR_INTRADAY_PRICE_PROVIDER=auto
 NORTHSTAR_INTRADAY_PRICE_REFRESH_WINDOWS_UTC=23:00-06:30,07:30-21:30
 NORTHSTAR_INTRADAY_PRICE_REFRESH_STARTUP_DELAY_SECONDS=120
+NEXT_PUBLIC_TRADINGVIEW_CHART_URL=https://www.tradingview.com/chart/<your-layout-id>/
 ```
+
+`NEXT_PUBLIC_TRADINGVIEW_CHART_URL` is optional public configuration, not a secret. Set it to your saved TradingView chart layout URL if you want NorthStar chart links to open your logged-in TradingView layout with the requested symbol applied.
 
 ## PWA installation
 

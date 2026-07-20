@@ -5,6 +5,7 @@ import { NavRail } from "./NavRail";
 import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
 import { dataHealth, type HealthTone } from "../lib/data-health";
 import { byComposition, byScope, bySector, fmtAud, totals } from "../lib/portfolio-metrics";
+import { tradingViewChartUrl } from "../lib/tradingview";
 import { COMPOSITION_OF, SECTOR_COLORS, type CompositionGroup, type Holding, type PortfolioScope, type Sector } from "../types";
 
 type PerformancePoint = { date: string; overall?: number; personal?: number; smsf?: number };
@@ -163,10 +164,6 @@ const metalQuoteShells: MetalQuote[] = [
   { metal: "silver", label: "Silver spot", value: null, priceDate: null, source: "Loading", color: SECTOR_COLORS["Silver bullion"], tradingViewSymbol: "TVC:SILVER" },
   { metal: "platinum", label: "Plat spot", value: null, priceDate: null, source: "Loading", color: SECTOR_COLORS["Platinum bullion"], tradingViewSymbol: "TVC:PLATINUM" },
 ];
-
-function tradingViewChartUrl(symbol: string) {
-  return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(symbol)}`;
-}
 
 function fmtMetalPrice(quote: MetalQuote) {
   if (quote.value == null) return "n/a";

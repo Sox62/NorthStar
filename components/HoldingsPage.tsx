@@ -5,6 +5,7 @@ import PageHeader from "@/components/PageHeader";
 import type { DashboardData, DashboardHolding, Scope, StoredDailyPrice } from "@/lib/storage";
 import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
+import { tradingViewChartUrl } from "@/northstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
 type PriceBookResponse = {
@@ -97,7 +98,7 @@ function tradingViewSymbol(holding: DashboardHolding) {
 }
 
 function tradingViewUrl(holding: DashboardHolding) {
-  return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tradingViewSymbol(holding))}`;
+  return tradingViewChartUrl(tradingViewSymbol(holding));
 }
 
 function tradingViewFrameSize(container: HTMLElement) {
