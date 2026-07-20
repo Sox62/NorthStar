@@ -141,7 +141,7 @@ function fmtLatestPrice(holding: Holding) {
 }
 
 type MetalQuote = {
-  label: "Gold" | "Silver" | "Platinum" | "Rhodium";
+  label: "Gold" | "Silver" | "Platinum";
   value: number | null;
   currency: string;
   unit: string;
@@ -174,14 +174,12 @@ function metalQuotesFor(holdings: Holding[]) {
   const gold = largestByValue((holding) => physicalGoldSymbols.has(holding.symbol.toUpperCase()));
   const silver = largestByValue((holding) => holding.symbol.toUpperCase() === "ETPMAG" || holding.sector === "Silver bullion");
   const platinum = largestByValue((holding) => holding.sector === "Platinum bullion");
-  const rhodium = largestByValue((holding) => holding.sector === "Rhodium metal");
   const goldSymbol = gold?.symbol.toUpperCase() ?? "";
   const silverSymbol = silver?.symbol.toUpperCase() ?? "";
   return [
     metalQuoteFromHolding(gold, { label: "Gold", unit: "unit", spotCompatible: goldSymbol === "XAU" || goldSymbol === "XAUUSD", color: SECTOR_COLORS["Gold miners"] }),
     metalQuoteFromHolding(silver, { label: "Silver", unit: "unit", spotCompatible: silverSymbol === "XAG" || silverSymbol === "XAGUSD", color: SECTOR_COLORS["Silver bullion"] }),
     metalQuoteFromHolding(platinum, { label: "Platinum", unit: "kg", spotCompatible: false, color: SECTOR_COLORS["Platinum bullion"] }),
-    metalQuoteFromHolding(rhodium, { label: "Rhodium", unit: "unit", spotCompatible: false, color: SECTOR_COLORS["Rhodium metal"] }),
   ];
 }
 
@@ -479,7 +477,7 @@ function MetalsPricePanel({ holdings }: { holdings: Holding[] }) {
     <section className="nsMetalsPanel" aria-label="Metals prices">
       <div className="nsMetalsHeader">
         <p className="nsEyebrow">Metals prices</p>
-        <strong>Gold · Silver · Platinum · Rhodium · GSR</strong>
+        <strong>Gold · Silver · Platinum · GSR</strong>
       </div>
       <div className="nsMetalsGrid">
         {quotes.map((quote) => (
