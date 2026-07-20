@@ -140,6 +140,57 @@ function fmtLatestPrice(holding: Holding) {
   return `${currency} ${value}`;
 }
 
+type MetalQuote = {
+  label: "Gold" | "Silver" | "Platinum" | "Rhodium";
+  value: number | null;
+  currency: string;
+  unit: string;
+  source: string;
+  asOfDate: string | null;
+  spotCompatible: boolean;
+  color: string;
+};
+
+const physicalGoldSymbols = new Set(["GOLD", "PMGOLD", "QAU", "GLD", "IAU", "AAAU", "SGOL", "PHAU", "SGLD", "XAU"]);
+
+function metalUnitPrice(holding: Holding) {
+  if (holding.lastPrice != null && Number.isFinite(holding.lastPrice)) return holding.lastPrice;
+  return holding.units ? holding.marketValueAud / holding.units : null;
+}
+
+function metalQuoteFromHolding(holding: Holding | undefined, meta: Omit<MetalQuote, "value" | "currency" | "source" | "asOfDate">): MetalQuote {
+  return {
+    ...meta,
+    value: holding ? metalUnitPrice(holding) : null,
+    currency: holding?.priceCurrency ?? "AUD",
+    source: holding?.symbol ?? "No feed",
+    asOfDate: holding?.priceAsOfDate ?? null,
+  };
+}
+
+function metalQuotesFor(holdings: Holding[]) {
+  const largestByValue = (matches: (holding: Holding) => boolean) =>
+    holdings.filter(matches).sort((a, b) => b.marketValueAud - a.marketValueAud)[0];
+  const gold = largestByValue((holding) => physicalGoldSymbols.has(holding.symbol.toUpperCase()));
+  const silver = largestByValue((holding) => holding.symbol.toUpperCase() === "ETPMAG" || holding.sector === "Silver bullion");
+  const platinum = largestByValue((holding) => holding.sector === "Platinum bullion");
+  const rhodium = largestByValue((holding) => holding.sector === "Rhodium metal");
+  const goldSymbol = gold?.symbol.toUpperCase() ?? "";
+  const silverSymbol = silver?.symbol.toUpperCase() ?? "";
+  return [
+    metalQuoteFromHolding(gold, { label: "Gold", unit: "unit", spotCompatible: goldSymbol === "XAU" || goldSymbol === "XAUUSD", color: SECTOR_COLORS["Gold miners"] }),
+    metalQuoteFromHolding(silver, { label: "Silver", unit: "unit", spotCompatible: silverSymbol === "XAG" || silverSymbol === "XAGUSD", color: SECTOR_COLORS["Silver bullion"] }),
+    metalQuoteFromHolding(platinum, { label: "Platinum", unit: "kg", spotCompatible: false, color: SECTOR_COLORS["Platinum bullion"] }),
+    metalQuoteFromHolding(rhodium, { label: "Rhodium", unit: "unit", spotCompatible: false, color: SECTOR_COLORS["Rhodium metal"] }),
+  ];
+}
+
+function fmtMetalPrice(quote: MetalQuote) {
+  if (quote.value == null) return "n/a";
+  const digits = quote.value >= 100 ? 2 : 3;
+  return `${quote.currency} ${quote.value.toLocaleString("en-AU", { minimumFractionDigits: digits, maximumFractionDigits: digits })}/${quote.unit}`;
+}
+
 function dayGainPercent(holding: Holding) {
   const gain = holding.dayGainAud ?? 0;
   const previousValue = holding.marketValueAud - gain;
@@ -414,6 +465,36 @@ function PeriodReturnStrip({ returns, xirr }: { returns: PeriodReturnSummary[]; 
           <em>{xirr.valuePercent == null ? xirr.note : `${xirr.cashFlowCount} flows · ${xirr.note}`}</em>
         </article>
       ) : null}
+    </section>
+  );
+}
+
+function MetalsPricePanel({ holdings }: { holdings: Holding[] }) {
+  const quotes = metalQuotesFor(holdings);
+  const gold = quotes.find((quote) => quote.label === "Gold");
+  const silver = quotes.find((quote) => quote.label === "Silver");
+  const gsr = gold?.value && silver?.value && gold.spotCompatible && silver.spotCompatible ? gold.value / silver.value : null;
+
+  return (
+    <section className="nsMetalsPanel" aria-label="Metals prices">
+      <div className="nsMetalsHeader">
+        <p className="nsEyebrow">Metals prices</p>
+        <strong>Gold · Silver · Platinum · Rhodium · GSR</strong>
+      </div>
+      <div className="nsMetalsGrid">
+        {quotes.map((quote) => (
+          <article key={quote.label} className="nsMetalTile" style={{ borderColor: `${quote.color}42` }}>
+            <span><i style={{ background: quote.color }} />{quote.label}</span>
+            <strong>{fmtMetalPrice(quote)}</strong>
+            <em>{quote.value == null ? "No stored quote" : `${quote.source} · ${fmtDate(quote.asOfDate)}`}</em>
+          </article>
+        ))}
+        <article className="nsMetalTile nsMetalRatio">
+          <span><i />GSR</span>
+          <strong>{gsr == null ? "n/a" : gsr.toFixed(1)}</strong>
+          <em>{gsr == null ? "Needs gold + silver spot" : "Gold / silver"}</em>
+        </article>
+      </div>
     </section>
   );
 }
@@ -771,7 +852,10 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
             <SplitBar segments={groupSegments} total={t.marketValue} />
             <SplitLegend segments={groupSegments} total={t.marketValue} />
           </div>
-          <HistoryChart now={t.marketValue} scope={scope} performance={performance} />
+          <div className="nsHeroChartStack">
+            <HistoryChart now={t.marketValue} scope={scope} performance={performance} />
+            <MetalsPricePanel holdings={view} />
+          </div>
         </section>
 
         <section className="nsMetricGrid" aria-label="Portfolio summary cards">

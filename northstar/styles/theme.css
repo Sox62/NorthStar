@@ -443,6 +443,12 @@ body.northstar .nsHeroSummary {
   border-right:1px solid rgba(122,149,178,0.11);
 }
 
+body.northstar .nsHeroChartStack {
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+}
+
 body.northstar .nsEyebrow {
   margin:0;
   color:var(--muted);
@@ -652,6 +658,86 @@ body.northstar .nsChartMonths {
   gap:8px;
   color:var(--muted-dim);
   font-size:11px;
+}
+
+body.northstar .nsMetalsPanel {
+  padding:16px 25px 24px;
+  border-top:1px solid rgba(122,149,178,0.11);
+}
+
+body.northstar .nsMetalsHeader {
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:18px;
+  margin-bottom:12px;
+}
+
+body.northstar .nsMetalsHeader strong {
+  color:#dfe7ef;
+  font-size:12px;
+  font-weight:700;
+  text-align:right;
+}
+
+body.northstar .nsMetalsGrid {
+  display:grid;
+  grid-template-columns:repeat(5, minmax(0, 1fr));
+  gap:10px;
+}
+
+body.northstar .nsMetalTile {
+  min-width:0;
+  padding:11px 12px;
+  border:1px solid rgba(122,149,178,0.18);
+  border-radius:14px;
+  background:rgba(7,18,29,0.52);
+}
+
+body.northstar .nsMetalTile span,
+body.northstar .nsMetalTile strong,
+body.northstar .nsMetalTile em {
+  display:block;
+  min-width:0;
+}
+
+body.northstar .nsMetalTile span {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  color:var(--muted);
+  font-size:11px;
+  font-weight:800;
+  text-transform:uppercase;
+}
+
+body.northstar .nsMetalTile span i {
+  width:8px;
+  height:8px;
+  border-radius:999px;
+  flex:0 0 auto;
+}
+
+body.northstar .nsMetalRatio span i {
+  background:var(--gold);
+}
+
+body.northstar .nsMetalTile strong {
+  margin-top:8px;
+  color:#eef3f8;
+  font-size:14px;
+  font-weight:800;
+  line-height:1.2;
+  overflow-wrap:anywhere;
+}
+
+body.northstar .nsMetalTile em {
+  margin-top:5px;
+  color:var(--muted-dim);
+  font-size:10px;
+  font-style:normal;
+  line-height:1.25;
+  overflow-wrap:anywhere;
 }
 
 body.northstar .nsMetricGrid {
@@ -1349,6 +1435,10 @@ body.northstar .nsActivityRow.is-failed em {
     border-bottom:1px solid rgba(122,149,178,0.11);
   }
 
+  body.northstar .nsMetalsGrid {
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+  }
+
   body.northstar .nsHoldingsHeader {
     display:none;
   }
@@ -1449,6 +1539,20 @@ body.northstar .nsActivityRow.is-failed em {
   body.northstar .nsHeroStats,
   body.northstar .nsSplitLegend {
     gap:16px;
+  }
+
+  body.northstar .nsMetalsHeader {
+    align-items:flex-start;
+    flex-direction:column;
+    gap:6px;
+  }
+
+  body.northstar .nsMetalsHeader strong {
+    text-align:left;
+  }
+
+  body.northstar .nsMetalsGrid {
+    grid-template-columns:repeat(2, minmax(0, 1fr));
   }
 
   body.northstar .nsMetricGrid {
