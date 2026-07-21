@@ -312,7 +312,7 @@ export type ImportResult = {
   storageMode: "local-file" | "postgresql";
   openPositions?: number;
   cashAud?: number;
-  valuationSource?: "open_positions" | "trade_cost_basis";
+  valuationSource?: "open_positions" | "open_positions_with_trade_overlay" | "trade_cost_basis";
 };
 
 export interface StorageAdapter {

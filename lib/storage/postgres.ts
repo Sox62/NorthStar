@@ -4,6 +4,7 @@ import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib
 import { buildDashboardModel, buildManualAssetValuation, maskAccount, numberValue, ownerForScope } from "@/lib/core/accounting";
 import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
+import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
 import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, Scope, StorageAdapter, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
@@ -87,8 +88,8 @@ async function rebuildIbkrPositions(client: PoolClient, portfolioId: string, acc
     instrument_id: string; quantity: string; cost_aud: string; last_price: string | null; as_of_date: string;
   }>(`
     SELECT i.id AS instrument_id,
-      SUM(COALESCE(t.quantity,0))::text AS quantity,
-      SUM(COALESCE(t.cost,0) * COALESCE(t.fx_rate_to_base,1))::text AS cost_aud,
+      SUM(CASE WHEN t.type='SELL' THEN -ABS(COALESCE(t.quantity,0)) ELSE ABS(COALESCE(t.quantity,0)) END)::text AS quantity,
+      SUM(CASE WHEN t.type='SELL' THEN -ABS(COALESCE(t.cost,0) * COALESCE(t.fx_rate_to_base,1)) ELSE ABS(COALESCE(t.cost,0) * COALESCE(t.fx_rate_to_base,1)) END)::text AS cost_aud,
       (ARRAY_AGG(COALESCE(t.close_price,t.price) ORDER BY t.trade_date DESC, t.created_at DESC))[1]::text AS last_price,
       MAX(t.trade_date)::text AS as_of_date
     FROM transactions t JOIN instruments i ON i.id=t.instrument_id
@@ -115,7 +116,8 @@ async function rebuildIbkrPositions(client: PoolClient, portfolioId: string, acc
 
 async function replaceIbkrOpenPositions(client: PoolClient, report: IbkrFlexReport, portfolioId: string, accountId: string) {
   await client.query(`DELETE FROM current_positions WHERE account_id=$1`, [accountId]);
-  for (const position of report.openPositions) {
+  const positions = resolveIbkrCurrentPositions(report);
+  for (const position of positions) {
     const instrumentId = await ensureInstrument(client, {
       source: "IBKR", externalKey: position.instrumentKey, name: position.description,
       ticker: position.symbol, exchange: position.exchange, currency: position.currency,
@@ -125,11 +127,11 @@ async function replaceIbkrOpenPositions(client: PoolClient, report: IbkrFlexRepo
       INSERT INTO current_positions (
         portfolio_id, account_id, instrument_id, source, quantity, last_price, average_cost_aud,
         cost_aud, market_value_aud, day_gain_aud, pnl_aud, pnl_percent, valuation_basis, as_of_date, updated_at
-      ) VALUES ($1,$2,$3,'IBKR Open Positions',$4,$5,$6,$7,$8,0,$9,$10,'market',$11,NOW())
-    `, [portfolioId, accountId, instrumentId, position.quantity, position.lastPrice, position.averageCostAud,
-      position.costAud, position.marketValueAud, position.pnlAud, position.pnlPercent, position.asOfDate]);
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,0,$10,$11,$12,$13,NOW())
+    `, [portfolioId, accountId, instrumentId, position.source, position.quantity, position.lastPrice, position.averageCostAud,
+      position.costAud, position.marketValueAud, position.pnlAud, position.pnlPercent, position.valuationBasis, position.asOfDate]);
   }
-  return report.openPositions.length;
+  return positions.length;
 }
 
 async function upsertIbkrCash(client: PoolClient, report: IbkrFlexReport, portfolioId: string) {
@@ -200,7 +202,10 @@ export class PostgresStorageAdapter implements StorageAdapter {
       await client.query(`INSERT INTO import_runs (portfolio_id, account_id, source, record_count) VALUES ($1,$2,'IBKR',$3)`, [portfolioId, accountId, report.transactions.length]);
       await captureSnapshot(client, portfolioId);
       await client.query("COMMIT");
-      return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, openPositions: report.openPositions.length, cashAud: report.cash?.balanceAud, valuationSource: report.openPositions.length ? "open_positions" : "trade_cost_basis", storageMode: "postgresql" };
+      const valuationSource = report.openPositions.length
+        ? "open_positions_with_trade_overlay"
+        : "trade_cost_basis";
+      return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, openPositions: report.openPositions.length, cashAud: report.cash?.balanceAud, valuationSource, storageMode: "postgresql" };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

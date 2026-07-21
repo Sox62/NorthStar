@@ -269,7 +269,7 @@ export default function SyncPage() {
       </section>
 
       <Notice tone="neutral" title="IBKR valuation">
-        NorthStar treats Open Positions as the authoritative current holdings snapshot and Cash Report as the IBKR cash balance. Trades are deduplicated using IBKR transaction identifiers.
+        NorthStar uses Open Positions as the base holdings snapshot, then overlays newer IBKR trades that are not yet reflected in that snapshot. Cash Report remains the IBKR cash balance, and trades are deduplicated using IBKR transaction identifiers.
       </Notice>
     </main>
   );

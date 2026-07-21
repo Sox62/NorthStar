@@ -12,6 +12,7 @@ import {
 } from "@/lib/core/accounting";
 import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
+import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import type {
   CashAccount,
   AllocationTarget,
@@ -33,7 +34,6 @@ import type {
   StorageAdapter,
   SyncRun,
   StoredPosition,
-  StoredTransaction,
 } from "./types";
 
 const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".north-star", "data.json");
@@ -112,42 +112,9 @@ async function writeStore(store: LocalStore) {
   await rename(temporary, DATA_FILE);
 }
 
-function recalculateIbkrPositions(store: LocalStore, ownerType: OwnerType, accountKey: string) {
-  const relevant = store.transactions.filter(transaction =>
-    transaction.ownerType === ownerType && transaction.broker === "IBKR" && transaction.accountKey === accountKey && (transaction.type === "BUY" || transaction.type === "SELL")
-  );
-
-  const grouped = new Map<string, StoredTransaction[]>();
-  for (const transaction of relevant) {
-    const key = transaction.instrumentKey || `${transaction.symbol}:${transaction.exchange}`;
-    grouped.set(key, [...(grouped.get(key) ?? []), transaction]);
-  }
-
-  store.positions = store.positions.filter(position => !(position.ownerType === ownerType && position.broker === "IBKR" && position.accountKey === accountKey));
-
-  for (const [instrumentKey, transactions] of grouped) {
-    const quantity = transactions.reduce((sum, transaction) => sum + (transaction.quantity ?? 0), 0);
-    if (Math.abs(quantity) < 0.00000001) continue;
-    const ordered = [...transactions].sort((a, b) => a.tradeDate.localeCompare(b.tradeDate));
-    const latest = ordered.at(-1)!;
-    const costAud = transactions.reduce((sum, transaction) => sum + (transaction.cost ?? 0) * (transaction.fxRateToBase ?? 1), 0);
-    const safeCost = Math.max(0, costAud);
-
-    store.positions.push({
-      id: randomUUID(), ownerType, broker: "IBKR", accountKey, instrumentKey,
-      symbol: latest.symbol, name: latest.description || latest.symbol, exchange: latest.exchange,
-      currency: latest.currency, assetClass: classifyAsset(latest.symbol, latest.description || ""),
-      quantity, lastPrice: latest.closePrice ?? latest.price ?? null,
-      averageCostAud: quantity ? safeCost / quantity : 0, costAud: safeCost, marketValueAud: safeCost,
-      dayGainAud: 0, pnlAud: 0, pnlPercent: 0, valuationBasis: "cost_basis",
-      asOfDate: latest.tradeDate, source: "IBKR Flex",
-    });
-  }
-}
-
 function replaceIbkrOpenPositions(store: LocalStore, report: IbkrFlexReport, ownerType: OwnerType, accountKey: string) {
   store.positions = store.positions.filter(position => !(position.ownerType === ownerType && position.broker === "IBKR" && position.accountKey === accountKey));
-  for (const position of report.openPositions) {
+  for (const position of resolveIbkrCurrentPositions(report)) {
     store.positions.push({
       id: randomUUID(), ownerType, broker: "IBKR", accountKey,
       instrumentKey: position.instrumentKey, symbol: position.symbol, name: position.description,
@@ -156,7 +123,7 @@ function replaceIbkrOpenPositions(store: LocalStore, report: IbkrFlexReport, own
       lastPrice: position.lastPrice, averageCostAud: position.averageCostAud,
       costAud: position.costAud, marketValueAud: position.marketValueAud,
       dayGainAud: 0, pnlAud: position.pnlAud, pnlPercent: position.pnlPercent,
-      valuationBasis: "market", asOfDate: position.asOfDate, source: "IBKR Open Positions",
+      valuationBasis: position.valuationBasis, asOfDate: position.asOfDate, source: position.source,
     });
   }
 }
@@ -295,8 +262,15 @@ export class LocalStorageAdapter implements StorageAdapter {
       imported += 1;
     }
 
-    if (report.openPositions.length) replaceIbkrOpenPositions(store, report, ownerType, accountKey);
-    else recalculateIbkrPositions(store, ownerType, accountKey);
+    const positionReport = report.openPositions.length
+      ? report
+      : {
+          ...report,
+          transactions: store.transactions.filter(transaction =>
+            transaction.ownerType === ownerType && transaction.broker === "IBKR" && transaction.accountKey === accountKey
+          ),
+        };
+    replaceIbkrOpenPositions(store, positionReport, ownerType, accountKey);
     upsertIbkrCash(store, report, ownerType);
 
     const importRecord = store.imports.find(record => record.source === "IBKR" && record.ownerType === ownerType && record.accountKey === accountKey);
@@ -307,7 +281,10 @@ export class LocalStorageAdapter implements StorageAdapter {
     captureSnapshot(store, ownerType);
     await writeStore(store);
     const positionCount = store.positions.filter(position => position.ownerType === ownerType && position.broker === "IBKR" && position.accountKey === accountKey).length;
-    return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, openPositions: report.openPositions.length, cashAud: report.cash?.balanceAud, valuationSource: report.openPositions.length ? "open_positions" : "trade_cost_basis", storageMode: "local-file" };
+    const valuationSource = report.openPositions.length
+      ? "open_positions_with_trade_overlay"
+      : "trade_cost_basis";
+    return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, openPositions: report.openPositions.length, cashAud: report.cash?.balanceAud, valuationSource, storageMode: "local-file" };
   }
 
   async importDirectshares(positions: OpeningPosition[], ownerType: OwnerType): Promise<ImportResult> {
