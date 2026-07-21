@@ -1,6 +1,7 @@
 import "./check-railway-env.mjs";
 
 const AUTO_SYNC_DISABLED = /^(0|false|no)$/i.test(process.env.NORTHSTAR_AUTO_SYNC ?? "");
+const STARTUP_SYNC_DISABLED = /^(0|false|no)$/i.test(process.env.NORTHSTAR_STARTUP_SYNC ?? "");
 const SYNC_HOUR_UTC = Number(process.env.NORTHSTAR_AUTO_SYNC_HOUR_UTC ?? 20);
 const SYNC_MINUTE_UTC = Number(process.env.NORTHSTAR_AUTO_SYNC_MINUTE_UTC ?? 30);
 const SYNC_TIMEOUT_MS = 90_000;
@@ -9,6 +10,7 @@ const INTRADAY_PRICE_REFRESH_PROVIDER = process.env.NORTHSTAR_INTRADAY_PRICE_PRO
 const INTRADAY_PRICE_REFRESH_WINDOWS_UTC = process.env.NORTHSTAR_INTRADAY_PRICE_REFRESH_WINDOWS_UTC ?? "23:00-06:30,07:30-21:30";
 const INTRADAY_PRICE_REFRESH_TIMEOUT_MS = 90_000;
 const INTRADAY_PRICE_REFRESH_STARTUP_DELAY_SECONDS = positiveNumber(process.env.NORTHSTAR_INTRADAY_PRICE_REFRESH_STARTUP_DELAY_SECONDS, 120, 30);
+const STARTUP_SYNC_DELAY_SECONDS = positiveNumber(process.env.NORTHSTAR_STARTUP_SYNC_DELAY_SECONDS, 180, 30);
 let syncInFlight = false;
 
 function positiveNumber(value, fallback, minimum) {
@@ -117,6 +119,10 @@ async function runSync() {
   await runLocalSync("/api/sync", "auto-sync", SYNC_TIMEOUT_MS);
 }
 
+async function runStartupSync() {
+  await runLocalSync("/api/sync", "startup-sync", SYNC_TIMEOUT_MS);
+}
+
 async function runIntradayPriceRefresh() {
   const provider = encodeURIComponent(INTRADAY_PRICE_REFRESH_PROVIDER);
   await runLocalSync(`/api/sync?task=market-data&provider=${provider}`, "intraday-price-refresh", INTRADAY_PRICE_REFRESH_TIMEOUT_MS);
@@ -135,6 +141,19 @@ function scheduleNextSync() {
     await runSync();
     scheduleNextSync();
   }, delay);
+  timer.unref?.();
+}
+
+function scheduleStartupSync() {
+  if (STARTUP_SYNC_DISABLED || AUTO_SYNC_DISABLED) {
+    console.log("[startup-sync] disabled by NORTHSTAR_STARTUP_SYNC or NORTHSTAR_AUTO_SYNC.");
+    return;
+  }
+
+  console.log(`[startup-sync] one-off run scheduled in ${STARTUP_SYNC_DELAY_SECONDS} seconds.`);
+  const timer = setTimeout(async () => {
+    await runStartupSync();
+  }, STARTUP_SYNC_DELAY_SECONDS * 1000);
   timer.unref?.();
 }
 
@@ -159,6 +178,7 @@ function scheduleIntradayPriceRefresh() {
   timer.unref?.();
 }
 
+scheduleStartupSync();
 scheduleNextSync();
 scheduleIntradayPriceRefresh();
 await import("../.next/standalone/server.js");
