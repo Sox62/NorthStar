@@ -90,6 +90,7 @@ function tradingViewSymbol(holding: DashboardHolding) {
   const key = `${symbol}:${exchange}`;
   if (tradingViewOverrides[key]) return tradingViewOverrides[key];
   if (exchange.includes("ASX")) return `ASX:${symbol}`;
+  if (exchange === "TSX/TSXV") return `TSX:${symbol}`;
   if (exchange.includes("TSXV") || exchange.includes("VENTURE")) return `TSXV:${symbol}`;
   if (exchange.includes("TSX") || exchange.includes("CA")) return `TSX:${symbol}`;
   if (exchange.includes("LSE") || exchange.includes("GB")) return `LSE:${symbol}`;
