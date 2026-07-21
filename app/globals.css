@@ -697,6 +697,46 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border-radius: 10px;
   font-size: 12px;
 }
+.priceCoverageSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 12px;
+}
+.priceCoverageSummary span,
+.priceStatus {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+.priceCoverageSummary span { padding: 7px 10px; }
+.priceStatus { padding: 6px 9px; }
+.priceCoverageSummary .isGood,
+.priceStatus.is-good {
+  border-color: rgba(98, 211, 151, 0.28);
+  background: rgba(98, 211, 151, 0.1);
+  color: var(--positive);
+}
+.priceCoverageSummary .isWarn,
+.priceStatus.is-warn {
+  border-color: rgba(215, 181, 109, 0.3);
+  background: rgba(215, 181, 109, 0.1);
+  color: var(--gold);
+}
+.priceCoverageSummary .isBad,
+.priceStatus.is-bad {
+  border-color: rgba(255, 112, 112, 0.28);
+  background: rgba(255, 112, 112, 0.1);
+  color: var(--negative);
+}
 .priceCsvInput {
   width: 100%;
   min-height: 242px;

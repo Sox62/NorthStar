@@ -61,6 +61,27 @@ const number = (value: number, maximumFractionDigits = 4) =>
   new Intl.NumberFormat("en-AU", { maximumFractionDigits }).format(value);
 const date = (value: string | null) => value ? value : "No date";
 
+function priceCoverageStatus(instrument: PriceableInstrument) {
+  if (instrument.lastPrice == null || !Number.isFinite(instrument.lastPrice) || instrument.lastPrice <= 0) {
+    return { label: "Missing", tone: "bad" as const };
+  }
+  if (!instrument.asOfDate) return { label: "No date", tone: "warn" as const };
+  return { label: "Present", tone: "good" as const };
+}
+
+function priceCoverageSummary(instruments: PriceableInstrument[]) {
+  return instruments.reduce(
+    (summary, instrument) => {
+      const status = priceCoverageStatus(instrument);
+      if (status.tone === "good") summary.present += 1;
+      else if (status.tone === "warn") summary.undated += 1;
+      else summary.missing += 1;
+      return summary;
+    },
+    { present: 0, missing: 0, undated: 0 },
+  );
+}
+
 export default function PricesPage() {
   const [book, setBook] = useState<PriceBook>({ instruments: [], prices: [], fxRates: [] });
   const [loading, setLoading] = useState(true);
@@ -351,24 +372,36 @@ function PriceResult({ result }: { result: PriceResultPayload }) {
 
 function PriceInstrumentTable({ instruments }: { instruments: PriceableInstrument[] }) {
   if (!instruments.length) return <p className="empty">No current holdings are available for price imports.</p>;
+  const coverage = priceCoverageSummary(instruments);
   return (
-    <div className="priceTableWrap">
-      <table className="priceTable">
-        <thead><tr><th>Instrument</th><th>Currency</th><th className="numeric">Quantity</th><th className="numeric">Value</th><th className="numeric">Last</th><th>Date</th></tr></thead>
-        <tbody>
-          {instruments.map((instrument) => (
-            <tr key={`${instrument.symbol}:${instrument.exchange}`}>
-              <td><strong>{instrument.symbol}</strong><span>{instrument.name} · {instrument.exchange}</span></td>
-              <td>{instrument.currency}</td>
-              <td className="numeric">{number(instrument.quantity)}</td>
-              <td className="numeric">{money(instrument.marketValueAud)}</td>
-              <td className="numeric">{instrument.lastPrice == null ? "—" : number(instrument.lastPrice, 6)}</td>
-              <td>{date(instrument.asOfDate)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <div className="priceCoverageSummary">
+        <span className="isGood">{coverage.present} price present</span>
+        <span className={coverage.missing ? "isBad" : undefined}>{coverage.missing} missing or zero</span>
+        <span className={coverage.undated ? "isWarn" : undefined}>{coverage.undated} no date</span>
+      </div>
+      <div className="priceTableWrap">
+        <table className="priceTable">
+          <thead><tr><th>Instrument</th><th>Status</th><th>Currency</th><th className="numeric">Quantity</th><th className="numeric">Value</th><th className="numeric">Last</th><th>Date</th></tr></thead>
+          <tbody>
+            {instruments.map((instrument) => {
+              const status = priceCoverageStatus(instrument);
+              return (
+                <tr key={`${instrument.symbol}:${instrument.exchange}`}>
+                  <td><strong>{instrument.symbol}</strong><span>{instrument.name} · {instrument.exchange}</span></td>
+                  <td><span className={`priceStatus is-${status.tone}`}>{status.label}</span></td>
+                  <td>{instrument.currency}</td>
+                  <td className="numeric">{number(instrument.quantity)}</td>
+                  <td className="numeric">{money(instrument.marketValueAud)}</td>
+                  <td className="numeric">{instrument.lastPrice == null ? "—" : number(instrument.lastPrice, 6)}</td>
+                  <td>{date(instrument.asOfDate)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
