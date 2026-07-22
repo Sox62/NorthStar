@@ -291,8 +291,8 @@ export default function HoldingsPage() {
                     <th>Owner</th>
                     <th>Sector</th>
                     <th className="numeric">Units</th>
-                    <th className="numeric">Latest price</th>
-                    <th className="numeric">Value</th>
+                    <th className="numeric">Latest price (local)</th>
+                    <th className="numeric">Value (AUD)</th>
                     <th className="numeric">Weight</th>
                     <th className="numeric">Day P/L</th>
                     <th className="numeric">Position P/L</th>
