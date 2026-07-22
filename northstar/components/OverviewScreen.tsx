@@ -555,8 +555,8 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
         <div className="nsHoldingsHeader" role="row">
           <span>Holding</span>
           <span>Sector · NAV weight</span>
-          <span>Latest price</span>
-          <span>Value</span>
+          <span>Latest price (local)</span>
+          <span>Value (AUD)</span>
           <span>Day P/L</span>
           <span>Position P/L</span>
         </div>
