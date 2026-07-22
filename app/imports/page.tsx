@@ -8,11 +8,11 @@ import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
 
 type ImportType = "ibkr" | "directshares" | "directsharesNotes" | "dividends";
 type OwnerType = "PERSONAL" | "SMSF";
-type Result = Record<string, unknown> & { error?: string; preview?: boolean; synced?: boolean };
+type Result = Record<string, unknown> & { error?: string; preview?: boolean; synced?: boolean; ok?: boolean };
 type SyncRun = DashboardData["syncRuns"][number];
 type FreshnessCheck = DashboardData["freshness"][number];
 
-const syncSources = ["IBKR", "Directshares Email", "Directshares Dividends", "ABC Bullion"];
+const syncSources = ["IBKR", "Directshares Email", "Directshares Dividends", "Market Data", "ABC Bullion"];
 
 const money = (value: unknown) =>
   new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(Number(value ?? 0));
@@ -38,6 +38,8 @@ export default function SyncPage() {
   const [directsharesSyncResult, setDirectsharesSyncResult] = useState<Result | undefined>();
   const [dividendSyncing, setDividendSyncing] = useState(false);
   const [dividendSyncResult, setDividendSyncResult] = useState<Result | undefined>();
+  const [allSyncing, setAllSyncing] = useState(false);
+  const [allSyncResult, setAllSyncResult] = useState<Result | undefined>();
 
   const refreshDashboard = async () => {
     setDashboardError("");
@@ -77,6 +79,18 @@ export default function SyncPage() {
       if (commit) void refreshDashboard();
     } finally {
       setBusy(null);
+    }
+  };
+
+  const syncEverything = async () => {
+    setAllSyncing(true);
+    setAllSyncResult(undefined);
+    try {
+      const response = await fetch("/api/sync/all", { method: "POST" });
+      setAllSyncResult(await response.json());
+      void refreshDashboard();
+    } finally {
+      setAllSyncing(false);
     }
   };
 
@@ -130,12 +144,19 @@ export default function SyncPage() {
         ]}
       />
 
-      <SyncStatusOverview
-        dashboard={dashboard}
-        loading={dashboardLoading}
-        error={dashboardError}
-        onRefresh={() => void refreshDashboard()}
-      />
+      <Card className="syncCard">
+        <div>
+          <p className="eyebrow">Manual run</p>
+          <h2 className="cardTitle">Sync everything</h2>
+          <p className="cardIntro">Runs IBKR, Directshares confirmations, Directshares dividends, market pricing and metals pricing in one pass.</p>
+        </div>
+        <div>
+          <button className="primary" type="button" onClick={syncEverything} disabled={allSyncing}>
+            {allSyncing ? "Syncing everything..." : "Sync everything now"}
+          </button>
+        </div>
+        {allSyncResult && <div style={{ gridColumn: "1 / -1" }}><ImportSummary result={allSyncResult} /></div>}
+      </Card>
 
       <Card className="syncCard">
         <div>
@@ -271,6 +292,13 @@ export default function SyncPage() {
       <Notice tone="neutral" title="IBKR valuation">
         NorthStar uses Open Positions as the base holdings snapshot, then overlays newer IBKR trades that are not yet reflected in that snapshot. Cash Report remains the IBKR cash balance, and trades are deduplicated using IBKR transaction identifiers.
       </Notice>
+
+      <SyncStatusOverview
+        dashboard={dashboard}
+        loading={dashboardLoading}
+        error={dashboardError}
+        onRefresh={() => void refreshDashboard()}
+      />
     </main>
   );
 }
@@ -475,6 +503,7 @@ function Importer({ title, subtitle, accept, multiple = false, owner, result, bu
 function ImportSummary({ result }: { result: Result }) {
   if (result.error) return <Notice tone="error" title="Import failed">{result.error}</Notice>;
 
+  const errors = Array.isArray(result.errors) ? result.errors.filter(Boolean) : [];
   const entries = Object.entries(result).filter(
     ([key, value]) => !["preview", "note", "source", "owner", "ownerType", "storageMode", "synced", "generatedAt"].includes(key)
       && !(key === "errors" && Array.isArray(value) && value.length === 0),
@@ -482,12 +511,14 @@ function ImportSummary({ result }: { result: Result }) {
 
   return (
     <div className="result">
-      <StatusBadge>{result.preview ? "Validated" : result.synced ? "Synced" : "Saved"}</StatusBadge>
+      <StatusBadge>{result.preview ? "Validated" : errors.length ? "Partial" : result.synced || result.ok ? "Synced" : "Saved"}</StatusBadge>
       <SummaryGrid
-        entries={entries.map(([key, value]) => [
-          key.replace(/([A-Z])/g, " $1"),
-          /value|cost|pnl|cash|fee|consideration/i.test(key) ? money(value) : Array.isArray(value) ? value.join("; ") : String(value),
-        ])}
+        entries={entries
+          .filter(([, value]) => value == null || Array.isArray(value) || typeof value !== "object")
+          .map(([key, value]) => [
+            key.replace(/([A-Z])/g, " $1"),
+            /value|cost|pnl|cash|fee|consideration/i.test(key) ? money(value) : Array.isArray(value) ? value.join("; ") : String(value),
+          ])}
       />
       {result.note != null && <p className="small">{String(result.note)}</p>}
       {result.storageMode != null && <p className="small">Storage: {String(result.storageMode)}</p>}

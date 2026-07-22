@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { DashboardData } from "@/lib/storage";
 import { Card, Notice, OverviewScreen } from "@/northstar/components";
 import type { Holding } from "@/northstar/types";
@@ -28,39 +28,32 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-      setError("");
-      try {
-        const [overall, personal, smsf] = await Promise.all([loadDashboard("overall"), loadDashboard("personal"), loadDashboard("smsf")]);
-        if (!cancelled) {
-          setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
-          setPerformance(overall.performance ?? []);
-          setPeriodReturnsByScope({ overall: overall.periodReturns ?? [], personal: personal.periodReturns ?? [], smsf: smsf.periodReturns ?? [] });
-          setXirrByScope({ overall: overall.xirr, personal: personal.xirr, smsf: smsf.xirr });
-          setIncomeByScope({ overall: overall.income, personal: personal.income, smsf: smsf.income });
-          setCurrencyExposureByScope({ overall: overall.currencyExposure ?? [], personal: personal.currencyExposure ?? [], smsf: smsf.currencyExposure ?? [] });
-          setAllocationTargets(overall.allocationTargets ?? []);
-          setAccountBreakdown([dashboardToAccountSummary(personal, overall.totalValue), dashboardToAccountSummary(smsf, overall.totalValue)].filter((item): item is AccountSummary => item !== null));
-          setSyncRuns(overall.syncRuns ?? []);
-          setFreshnessByScope({ overall: overall.freshness ?? [], personal: personal.freshness ?? [], smsf: smsf.freshness ?? [] });
-          setLastUpdatedByScope({ overall: overall.lastUpdated ?? null, personal: personal.lastUpdated ?? null, smsf: smsf.lastUpdated ?? null });
-        }
-      } catch (reason) {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load NorthStar");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  const refreshDashboard = useCallback(async (showLoading = false) => {
+    if (showLoading) setLoading(true);
+    setError("");
+    try {
+      const [overall, personal, smsf] = await Promise.all([loadDashboard("overall"), loadDashboard("personal"), loadDashboard("smsf")]);
+      setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
+      setPerformance(overall.performance ?? []);
+      setPeriodReturnsByScope({ overall: overall.periodReturns ?? [], personal: personal.periodReturns ?? [], smsf: smsf.periodReturns ?? [] });
+      setXirrByScope({ overall: overall.xirr, personal: personal.xirr, smsf: smsf.xirr });
+      setIncomeByScope({ overall: overall.income, personal: personal.income, smsf: smsf.income });
+      setCurrencyExposureByScope({ overall: overall.currencyExposure ?? [], personal: personal.currencyExposure ?? [], smsf: smsf.currencyExposure ?? [] });
+      setAllocationTargets(overall.allocationTargets ?? []);
+      setAccountBreakdown([dashboardToAccountSummary(personal, overall.totalValue), dashboardToAccountSummary(smsf, overall.totalValue)].filter((item): item is AccountSummary => item !== null));
+      setSyncRuns(overall.syncRuns ?? []);
+      setFreshnessByScope({ overall: overall.freshness ?? [], personal: personal.freshness ?? [], smsf: smsf.freshness ?? [] });
+      setLastUpdatedByScope({ overall: overall.lastUpdated ?? null, personal: personal.lastUpdated ?? null, smsf: smsf.lastUpdated ?? null });
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to load NorthStar");
+    } finally {
+      if (showLoading) setLoading(false);
     }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useEffect(() => {
+    void refreshDashboard(true);
+  }, [refreshDashboard]);
 
   if (loading) {
     return (
@@ -78,5 +71,5 @@ export default function Dashboard() {
     );
   }
 
-  return <OverviewScreen holdings={holdings} performance={performance} periodReturnsByScope={periodReturnsByScope} xirrByScope={xirrByScope} incomeByScope={incomeByScope} currencyExposureByScope={currencyExposureByScope} allocationTargets={allocationTargets} accountBreakdown={accountBreakdown} syncRuns={syncRuns} freshnessByScope={freshnessByScope} lastUpdatedByScope={lastUpdatedByScope} />;
+  return <OverviewScreen holdings={holdings} performance={performance} periodReturnsByScope={periodReturnsByScope} xirrByScope={xirrByScope} incomeByScope={incomeByScope} currencyExposureByScope={currencyExposureByScope} allocationTargets={allocationTargets} accountBreakdown={accountBreakdown} syncRuns={syncRuns} freshnessByScope={freshnessByScope} lastUpdatedByScope={lastUpdatedByScope} onRefresh={refreshDashboard} />;
 }

@@ -265,6 +265,12 @@ body.northstar .nsReportButton:hover {
   text-decoration:underline;
 }
 
+body.northstar .nsReportButton:disabled {
+  cursor:wait;
+  opacity:0.6;
+  text-decoration:none;
+}
+
 body.northstar .nsScopeTabs,
 body.northstar .nsRangeTabs {
   display:inline-flex;

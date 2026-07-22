@@ -793,7 +793,7 @@ function AccountBreakdownPanel({ accounts, scope, xirrByScope }: { accounts: Acc
 }
 
 /** Full redesigned overview dashboard matching the screenshot reference. */
-export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, xirrByScope, incomeByScope, currencyExposureByScope, allocationTargets = [], accountBreakdown = [], syncRuns = [], freshnessByScope, lastUpdatedByScope }: {
+export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, xirrByScope, incomeByScope, currencyExposureByScope, allocationTargets = [], accountBreakdown = [], syncRuns = [], freshnessByScope, lastUpdatedByScope, onRefresh }: {
   holdings: Holding[];
   logoSrc?: string;
   performance?: PerformancePoint[];
@@ -806,8 +806,12 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
   syncRuns?: SyncRunSummary[];
   freshnessByScope?: Partial<Record<PortfolioScope, ValuationFreshnessSummary[]>>;
   lastUpdatedByScope?: Partial<Record<PortfolioScope, string | null>>;
+  onRefresh?: () => Promise<void> | void;
 }) {
   const [scope, setScope] = useState<PortfolioScope>("overall");
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
+  const [syncMessageTone, setSyncMessageTone] = useState<"good" | "warning" | "bad">("good");
   const view = byScope(holdings, scope);
   const t = totals(view);
   const dailyPnl = view.reduce((sum, holding) => sum + (holding.dayGainAud ?? 0), 0);
@@ -841,6 +845,30 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.assign("/login");
   };
+  const syncEverything = async () => {
+    setSyncingAll(true);
+    setSyncMessage("Sync running...");
+    setSyncMessageTone("warning");
+    try {
+      const response = await fetch("/api/sync/all", { method: "POST" });
+      const payload = await response.json();
+      const errors = Array.isArray(payload.errors) ? payload.errors.filter(Boolean) : [];
+      if (!response.ok && !errors.length) throw new Error(payload.error || "Sync failed.");
+      if (errors.length) {
+        setSyncMessage(`Sync finished with ${errors.length} issue${errors.length === 1 ? "" : "s"}.`);
+        setSyncMessageTone("warning");
+      } else {
+        setSyncMessage("Sync complete.");
+        setSyncMessageTone("good");
+      }
+      await onRefresh?.();
+    } catch (error) {
+      setSyncMessage(error instanceof Error ? error.message : "Sync failed.");
+      setSyncMessageTone("bad");
+    } finally {
+      setSyncingAll(false);
+    }
+  };
 
   return (
     <div className="nsScreen">
@@ -854,7 +882,11 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
           <div className="nsHeaderControls">
             <ScopeTabs value={scope} onChange={setScope} />
             <p><span className={`nsStatusPip is-${health.tone}`} />{health.label} · Valuations · {fmtLongDate(selectedUpdatedAt)}</p>
+            {syncMessage ? <p><span className={`nsStatusPip is-${syncMessageTone}`} />{syncMessage}</p> : null}
             <div className="nsReportLinks">
+              <button className="nsReportButton" type="button" onClick={() => void syncEverything()} disabled={syncingAll}>
+                {syncingAll ? "Syncing..." : "Sync everything"}
+              </button>
               <a className="nsReportLink" href={`/api/reports/wealth-statement?scope=${scope}`}>Wealth CSV</a>
               <a className="nsReportLink" href="/api/reports/estate-summary">Estate CSV</a>
               <button className="nsReportButton" type="button" onClick={() => void signOut()}>Sign out</button>
