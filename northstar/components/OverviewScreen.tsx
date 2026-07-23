@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import TradingViewWidget from "@/components/TradingViewWidget";
 import { NavRail } from "./NavRail";
 import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
 import { dataHealth, type HealthTone } from "../lib/data-health";
 import { byComposition, byScope, bySector, fmtAud, totals } from "../lib/portfolio-metrics";
-import { tradingViewChartUrl } from "../lib/tradingview";
+import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "../lib/tradingview";
 import { COMPOSITION_OF, SECTOR_COLORS, type CompositionGroup, type Holding, type PortfolioScope, type Sector } from "../types";
 
 type PerformancePoint = { date: string; overall?: number; personal?: number; smsf?: number };
@@ -531,11 +532,34 @@ function MetricCard({ label, value, note, tone }: { label: string; value: React.
   );
 }
 
+function OverviewStockChartPanel({ holding }: { holding: Holding }) {
+  const tvSymbol = tradingViewSymbolForInstrument(holding);
+  return (
+    <section className="stockChartPanel nsStockChartPanel">
+      <div className="panelHeader">
+        <div>
+          <p className="eyebrow">Stock chart</p>
+          <h3 className="cardTitle">{holding.symbol} · {holding.name}</h3>
+          <p className="cardIntro">{tvSymbol} · {holding.exchange ?? "Market"} · {holding.priceCurrency ?? "Local"}</p>
+        </div>
+        <a className="button" href={tradingViewChartUrl(tvSymbol)} target="_blank" rel="noreferrer">Open in TradingView</a>
+      </div>
+      <TradingViewWidget symbol={tvSymbol} minHeight={320} maxHeight={420} compactMinHeight={300} compactMaxHeight={380} heightRatio={0.48} compactHeightRatio={0.5} />
+    </section>
+  );
+}
+
 function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holding[]; total: number; scope: PortfolioScope; healthTone: HealthTone }) {
   const [showAllOverall, setShowAllOverall] = useState(false);
+  const [chartHolding, setChartHolding] = useState<Holding | null>(null);
   const isOverall = scope === "overall";
   const visibleHoldings = isOverall && !showAllOverall ? holdings.slice(0, 6) : holdings;
   const scopeLabel = scope === "smsf" ? "SMSF" : scope === "personal" ? "Personal" : "Overall";
+
+  useEffect(() => {
+    if (chartHolding && !holdings.some((holding) => holding.id === chartHolding.id)) setChartHolding(null);
+  }, [chartHolding, holdings]);
+
   return (
     <section id="holdings" className="nsPanel nsPositionsPanel">
       <div className="nsPanelTopline">
@@ -551,6 +575,7 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
           <span className="nsPositionsCount"><span className={`nsStatusPip is-${healthTone}`} />All {holdings.length} shown</span>
         )}
       </div>
+      {chartHolding ? <OverviewStockChartPanel holding={chartHolding} /> : null}
       <div className="nsHoldingsTable" role="table" aria-label={`${scopeLabel} share positions`}>
         <div className="nsHoldingsHeader" role="row">
           <span>Holding</span>
@@ -564,7 +589,20 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
           const dailyGain = holding.dayGainAud ?? 0;
           const dailyPercent = dayGainPercent(holding);
           return (
-            <div className="nsHoldingRow" role="row" key={holding.id}>
+            <div
+              className={`nsHoldingRow${chartHolding?.id === holding.id ? " isSelected" : ""}`}
+              role="row"
+              tabIndex={0}
+              aria-selected={chartHolding?.id === holding.id}
+              key={holding.id}
+              onClick={() => setChartHolding(holding)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setChartHolding(holding);
+                }
+              }}
+            >
               <div className="nsHoldingIdentity">
                 <strong>{holding.symbol}</strong>
                 <span>{holding.name}</span>

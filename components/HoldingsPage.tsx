@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
+import TradingViewWidget from "@/components/TradingViewWidget";
 import type { DashboardData, DashboardHolding, Scope, StoredDailyPrice } from "@/lib/storage";
 import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
-import { tradingViewChartUrl } from "@/northstar/lib/tradingview";
+import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
 type PriceBookResponse = {
@@ -68,54 +69,12 @@ function pnlTone(value: number) {
   return value >= 0 ? "positive" : "negative";
 }
 
-const tradingViewOverrides: Record<string, string> = {
-  "CDE:US": "NYSE:CDE",
-  "XOM:US": "NYSE:XOM",
-  "EC:US": "NYSE:EC",
-  "HL:US": "NYSE:HL",
-  "AG:US": "NYSE:AG",
-  "NEM:US": "NYSE:NEM",
-  "PAAS:US": "NASDAQ:PAAS",
-  "GDX:US": "AMEX:GDX",
-  "SIL:US": "AMEX:SIL",
-  "SILJ:US": "AMEX:SILJ",
-  "URNM:US": "AMEX:URNM",
-  "URA:US": "AMEX:URA",
-  "UUUU:US": "AMEX:UUUU",
-};
-
 function tradingViewSymbol(holding: DashboardHolding) {
-  const symbol = holding.symbol.toUpperCase();
-  const exchange = holding.exchange.toUpperCase();
-  const key = `${symbol}:${exchange}`;
-  if (tradingViewOverrides[key]) return tradingViewOverrides[key];
-  if (exchange.includes("ASX")) return `ASX:${symbol}`;
-  if (exchange === "TSX/TSXV") return `TSX:${symbol}`;
-  if (exchange.includes("TSXV") || exchange.includes("VENTURE")) return `TSXV:${symbol}`;
-  if (exchange.includes("TSX") || exchange.includes("CA")) return `TSX:${symbol}`;
-  if (exchange.includes("LSE") || exchange.includes("GB")) return `LSE:${symbol}`;
-  if (exchange === "US") return symbol;
-  return `${exchange || "ASX"}:${symbol}`;
+  return tradingViewSymbolForInstrument(holding);
 }
 
 function tradingViewUrl(holding: DashboardHolding) {
   return tradingViewChartUrl(tradingViewSymbol(holding));
-}
-
-function tradingViewFrameSize(container: HTMLElement) {
-  const bounds = container.getBoundingClientRect();
-  const parentBounds = container.parentElement?.getBoundingClientRect();
-  const width = Math.max(320, Math.round(bounds.width || parentBounds?.width || 980));
-  const isCompact = window.matchMedia("(max-width: 760px)").matches;
-  const minHeight = isCompact ? 340 : 420;
-  const maxHeight = isCompact ? 420 : 560;
-  const viewportHeight = window.innerHeight || 780;
-  const desiredHeight = Math.round(viewportHeight * (isCompact ? 0.56 : 0.68));
-
-  return {
-    width,
-    height: Math.max(minHeight, Math.min(maxHeight, desiredHeight)),
-  };
 }
 
 function canonicalMarket(value: string) {
@@ -423,88 +382,7 @@ function NativePriceChart({ holding, storedPrices, priceError }: { holding: Dash
 }
 
 function TradingViewPanel({ holding, storedPrices, priceError }: { holding: DashboardHolding; storedPrices: StoredDailyPrice[]; priceError: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const tvSymbol = tradingViewSymbol(holding);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    let lastFrame = "";
-    let loadingFrame = "";
-    let animationFrame = 0;
-    let resizeTimer: number | undefined;
-
-    const renderWidget = () => {
-      const frame = tradingViewFrameSize(container);
-      const frameKey = `${tvSymbol}:${frame.width}:${frame.height}`;
-      if (frameKey === lastFrame && (loadingFrame === frameKey || container.querySelector("iframe"))) return;
-
-      lastFrame = frameKey;
-      loadingFrame = frameKey;
-      container.innerHTML = "";
-      container.style.width = "100%";
-      container.style.height = `${frame.height}px`;
-
-      const widget = document.createElement("div");
-      widget.className = "tradingview-widget-container__widget";
-      widget.style.width = "100%";
-      widget.style.height = "100%";
-      container.appendChild(widget);
-
-      const script = document.createElement("script");
-      script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-      script.async = true;
-      script.onload = () => {
-        if (loadingFrame === frameKey) loadingFrame = "";
-      };
-      script.onerror = () => {
-        if (loadingFrame === frameKey) loadingFrame = "";
-      };
-      script.innerHTML = JSON.stringify({
-        autosize: false,
-        width: frame.width,
-        height: frame.height,
-        symbol: tvSymbol,
-        interval: "D",
-        timezone: "Australia/Sydney",
-        theme: "dark",
-        style: "1",
-        locale: "en",
-        withdateranges: true,
-        hide_side_toolbar: false,
-        allow_symbol_change: true,
-        save_image: false,
-        calendar: false,
-        support_host: "https://www.tradingview.com",
-      });
-      container.appendChild(script);
-    };
-
-    const scheduleRender = () => {
-      if (animationFrame) window.cancelAnimationFrame(animationFrame);
-      animationFrame = window.requestAnimationFrame(renderWidget);
-    };
-
-    const resizeObserver = "ResizeObserver" in window
-      ? new ResizeObserver(() => {
-        if (resizeTimer) window.clearTimeout(resizeTimer);
-        resizeTimer = window.setTimeout(scheduleRender, 180);
-      })
-      : null;
-
-    scheduleRender();
-    resizeObserver?.observe(container);
-    window.addEventListener("resize", scheduleRender);
-
-    return () => {
-      if (animationFrame) window.cancelAnimationFrame(animationFrame);
-      if (resizeTimer) window.clearTimeout(resizeTimer);
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", scheduleRender);
-      container.innerHTML = "";
-      container.style.height = "";
-    };
-  }, [tvSymbol]);
 
   return (
     <section className="stockChartPanel">
@@ -517,7 +395,7 @@ function TradingViewPanel({ holding, storedPrices, priceError }: { holding: Dash
         <a className="button" href={tradingViewUrl(holding)} target="_blank" rel="noreferrer">Open in TradingView</a>
       </div>
       <NativePriceChart holding={holding} storedPrices={storedPrices} priceError={priceError} />
-      <div ref={containerRef} className="tradingview-widget-container stockChartWidget" />
+      <TradingViewWidget symbol={tvSymbol} />
     </section>
   );
 }

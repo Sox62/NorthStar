@@ -965,11 +965,30 @@ body.northstar .nsHoldingsHeader span:nth-child(n + 3) {
 
 body.northstar .nsHoldingRow {
   min-height:80px;
+  margin:0 -10px;
+  padding:0 10px;
   border-bottom:1px solid rgba(122,149,178,0.13);
+  border-radius:10px;
+  cursor:pointer;
+  transition:background 150ms ease, box-shadow 150ms ease;
 }
 
 body.northstar .nsHoldingRow > div {
   min-width:0;
+}
+
+body.northstar .nsHoldingRow:hover {
+  background:rgba(119,169,216,0.045);
+}
+
+body.northstar .nsHoldingRow.isSelected {
+  background:rgba(215,181,109,0.08);
+  box-shadow:inset 3px 0 0 rgba(215,181,109,0.72);
+}
+
+body.northstar .nsHoldingRow:focus-visible {
+  outline:2px solid rgba(215,181,109,0.7);
+  outline-offset:3px;
 }
 
 body.northstar .nsHoldingRow strong {
@@ -1053,6 +1072,18 @@ body.northstar .nsHoldingRow > div:nth-child(5),
 body.northstar .nsHoldingRow > div:nth-child(6) {
   font-size:15px;
   font-weight:700;
+}
+
+body.northstar .nsStockChartPanel {
+  margin-top:18px;
+}
+
+body.northstar .nsStockChartPanel .panelHeader {
+  flex-wrap:wrap;
+}
+
+body.northstar .nsStockChartPanel .cardTitle {
+  font-size:22px;
 }
 
 body.northstar .nsSectorPanel {
