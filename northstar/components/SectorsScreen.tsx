@@ -53,7 +53,6 @@ export function SectorsScreen({ holdings, logoSrc }: { holdings: Holding[]; logo
               <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 20 }}>
                 {gsecs.map((s) => {
                   const rows = holdingsIn(s.sector);
-                  const top = rows.slice(0, 5);
                   return (
                     <div key={s.sector} style={{ ...glass, padding: 22 }}>
                       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
@@ -67,13 +66,12 @@ export function SectorsScreen({ holdings, logoSrc }: { holdings: Holding[]; logo
                         <span style={{ display: "block", height: "100%", borderRadius: 999, width: `${(s.value / smax) * 100}%`, background: SECTOR_COLORS[s.sector] }} />
                       </div>
                       <div style={{ marginTop: 12, borderTop: "1px solid var(--line)" }}>
-                        {top.map((h) => (
+                        {rows.map((h) => (
                           <div key={h.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
                             <div><div style={{ fontWeight: 600 }}>{h.symbol}<span style={{ fontWeight: 400, fontSize: 10, marginLeft: 6, color: "var(--muted-dim)" }}>{h.ownerType === "SMSF" ? "SMSF" : "Personal"}</span></div><div style={{ fontSize: 11.5, color: "var(--muted-dim)" }}>{h.name}</div></div>
                             <div style={{ textAlign: "right", fontFamily: serif }}>{fmtAud(h.marketValueAud)}<div style={{ fontFamily: "var(--ns-sans)", fontSize: 11.5, marginTop: 2, color: h.pnlPercent >= 0 ? "var(--pos)" : "var(--neg)" }}>{h.pnlPercent >= 0 ? "+" : ""}{h.pnlPercent.toFixed(1)}%</div></div>
                           </div>
                         ))}
-                        {rows.length > 5 && <div style={{ padding: "9px 0", fontSize: 13, color: "var(--muted-dim)" }}>+ {rows.length - 5} more</div>}
                         {rows.length === 0 && <div style={{ padding: "9px 0", fontSize: 13, color: "var(--muted)" }}>Single holding</div>}
                       </div>
                     </div>
