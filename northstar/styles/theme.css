@@ -991,6 +991,16 @@ body.northstar .nsHoldingRow:focus-visible {
   outline-offset:3px;
 }
 
+body.northstar .nsHoldingRow .isPositive strong,
+body.northstar .nsHoldingRow .isPositive span {
+  color:var(--pos) !important;
+}
+
+body.northstar .nsHoldingRow .isNegative strong,
+body.northstar .nsHoldingRow .isNegative span {
+  color:var(--neg) !important;
+}
+
 body.northstar .nsHoldingRow strong {
   display:block;
   color:#eaf1f8;
