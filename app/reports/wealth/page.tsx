@@ -136,7 +136,7 @@ export default function WealthReportPage() {
                 <div key={item.key}>
                   <span>{item.label}</span>
                   <strong className={(item.valueAud ?? 0) >= 0 ? "positive" : "negative"}>{percent(item.valuePercent)}</strong>
-                  <em>{item.valueAud == null ? item.note : `${signedMoney(item.valueAud)} NAV`}</em>
+                  <em className={item.valueAud == null ? undefined : item.valueAud >= 0 ? "positive" : "negative"}>{item.valueAud == null ? item.note : `${signedMoney(item.valueAud)} NAV`}</em>
                 </div>
               ))}
               <div>

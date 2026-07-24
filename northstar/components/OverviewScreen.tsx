@@ -434,7 +434,7 @@ function PeriodReturnStrip({ returns, xirr }: { returns: PeriodReturnSummary[]; 
           <article key={item.key} className="nsReturnItem">
             <span>{item.label}</span>
             <strong className={hasValue ? positive ? "isPositive" : "isNegative" : undefined}>{fmtSignedPct(item.valuePercent)}</strong>
-            <em>{hasValue ? `${fmtSignedAud(item.valueAud ?? 0)} NAV` : item.note}</em>
+            <em className={hasValue ? positive ? "isPositive" : "isNegative" : undefined}>{hasValue ? `${fmtSignedAud(item.valueAud ?? 0)} NAV` : item.note}</em>
           </article>
         );
       })}

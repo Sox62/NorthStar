@@ -197,7 +197,7 @@ export default function HoldingsPage() {
                 <SummaryGrid
                   entries={[
                     ["P/L", money(account.totalReturn)],
-                    ["Day P/L", signedMoney(account.dailyMovement)],
+                    ["Day P/L", signedMoney(account.dailyMovement), pnlTone(account.dailyMovement)],
                     ["Return", percent(account.totalReturnPercent)],
                     ["Cash", money(account.cashValue)],
                     ["Updated", dateLabel(account.lastUpdated)],
@@ -233,7 +233,7 @@ export default function HoldingsPage() {
             <SummaryGrid
               entries={[
                 ["NAV", money(selected.totalValue)],
-                ["Day P/L", signedMoney(selected.dailyMovement)],
+                ["Day P/L", signedMoney(selected.dailyMovement), pnlTone(selected.dailyMovement)],
                 ["Invested", money(selected.investedValue)],
                 ["Cash", money(selected.cashValue)],
                 ["Cost fallback", fallbackCount],
