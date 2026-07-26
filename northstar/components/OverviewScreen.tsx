@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import TradingViewWidget from "@/components/TradingViewWidget";
+import type { IbkrOpenOrdersResult } from "@/lib/integrations/ibkr-open-orders";
 import { NavRail } from "./NavRail";
 import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
 import { dataHealth, type HealthTone } from "../lib/data-health";
@@ -130,6 +131,16 @@ function fmtSignedAud(value: number) {
 function fmtSignedPct(value: number | null) {
   if (value == null) return "n/a";
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function fmtQuantity(value: number | null) {
+  if (value == null) return "n/a";
+  return value.toLocaleString("en-AU", { maximumFractionDigits: 4 });
+}
+
+function fmtOrderPrice(value: number | null, currency: string) {
+  if (value == null) return "-";
+  return `${currency ? `${currency} ` : ""}${value.toLocaleString("en-AU", { minimumFractionDigits: value >= 100 ? 2 : 3, maximumFractionDigits: value >= 100 ? 2 : 4 })}`;
 }
 
 function fmtLatestPrice(holding: Holding) {
@@ -445,6 +456,80 @@ function PeriodReturnStrip({ returns, xirr }: { returns: PeriodReturnSummary[]; 
           <em>{xirr.valuePercent == null ? xirr.note : `${xirr.cashFlowCount} flows · ${xirr.note}`}</em>
         </article>
       ) : null}
+    </section>
+  );
+}
+
+function IbkrOpenOrdersPanel() {
+  const [orders, setOrders] = useState<IbkrOpenOrdersResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const loadOrders = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/ibkr/open-orders", { cache: "no-store" });
+      const payload = await response.json() as IbkrOpenOrdersResult;
+      setOrders(payload);
+      if (!response.ok) setError(payload.message || "Unable to load IBKR open orders.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to load IBKR open orders.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadOrders();
+  }, []);
+
+  return (
+    <section className="nsPanel nsOpenOrdersPanel">
+      <div className="nsPanelTopline">
+        <div>
+          <p className="nsEyebrow">IBKR open orders</p>
+          <h2>Working orders</h2>
+        </div>
+        <button className="nsReportButton" type="button" onClick={() => void loadOrders()} disabled={loading}>
+          {loading ? "Checking..." : "Refresh"}
+        </button>
+      </div>
+
+      {loading ? <p className="nsOpenOrdersEmpty">Checking IBKR open orders...</p> : null}
+      {!loading && error ? <p className="nsOpenOrdersError">{error}</p> : null}
+      {!loading && !error && orders && !orders.configured ? (
+        <p className="nsOpenOrdersEmpty">{orders.message} Configure IBKR Client Portal/Web API to show live working orders.</p>
+      ) : null}
+      {!loading && !error && orders?.configured && !orders.orders.length ? (
+        <p className="nsOpenOrdersEmpty">{orders.message}</p>
+      ) : null}
+      {!loading && !error && orders?.orders.length ? (
+        <div className="nsOpenOrderRows">
+          {orders.orders.map((order) => (
+            <article key={order.orderId || `${order.account}-${order.symbol}-${order.description}`} className="nsOpenOrderRow">
+              <div>
+                <strong>{order.symbol || order.companyName || "Order"}</strong>
+                <span>{order.description || order.companyName}</span>
+              </div>
+              <em className={order.side === "BUY" ? "isPositive" : order.side === "SELL" ? "isNegative" : undefined}>{order.side || "n/a"}</em>
+              <div>
+                <strong>{order.orderType || "Order"}</strong>
+                <span>{order.status || "Open"} · {order.timeInForce || "TIF n/a"}</span>
+              </div>
+              <div>
+                <strong>{fmtOrderPrice(order.limitPrice, order.currency)}</strong>
+                <span>Stop {fmtOrderPrice(order.stopPrice, order.currency)}</span>
+              </div>
+              <div>
+                <strong>{fmtQuantity(order.remainingQuantity)} open</strong>
+                <span>{fmtQuantity(order.filledQuantity)} filled · {fmtQuantity(order.totalQuantity)} total</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
+      {orders?.configured ? <p className="nsOpenOrdersMeta">Fetched {fmtDate(orders.fetchedAt)} · {orders.accountId ?? "selected IBKR account"}</p> : null}
     </section>
   );
 }
@@ -958,6 +1043,8 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
         </section>
 
         <PeriodReturnStrip returns={periodReturns} xirr={xirr} />
+
+        <IbkrOpenOrdersPanel />
 
         <AccountBreakdownPanel accounts={accountBreakdown} scope={scope} xirrByScope={xirrByScope} />
 

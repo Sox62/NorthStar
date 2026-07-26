@@ -50,6 +50,16 @@ IBKR_FLEX_OWNER=SMSF
 
 Do not commit or share the token.
 
+Read-only IBKR open orders:
+
+```text
+IBKR_CP_BASE_URL=https://localhost:5000/v1/api
+IBKR_CP_ACCOUNT_ID=<IBKR account id>
+IBKR_CP_ORDER_FILTERS=submitted,pre_submitted,pending_submit,inactive
+```
+
+Open orders use IBKR Client Portal/Web API, not the Flex report. The gateway or OAuth session must already be authenticated and reachable from the NorthStar server. On Railway, `localhost` means the Railway container, not your Mac, so production needs a reachable gateway/OAuth setup before the Overview open-orders card can show live working orders.
+
 Directshares email automation:
 
 ```text
@@ -111,6 +121,8 @@ The saved Flex Query should contain:
 - Trades
 
 NorthStar uses Open Positions as the authoritative holdings snapshot and `CashReport → BASE_SUMMARY → endingCash` as the IBKR cash balance.
+
+IBKR open orders are read-only and use Client Portal/Web API `GET /iserver/account/orders`. They are displayed separately from trades because unfilled orders are not positions and should not affect NAV, P/L or cash until executed.
 
 ## Platinum valuation
 
