@@ -48,6 +48,15 @@ IBKR_FLEX_QUERY_ID=<IBKR NS query ID>
 IBKR_FLEX_OWNER=SMSF
 ```
 
+To sync both legal books from IBKR at the same time, keep `IBKR_FLEX_TOKEN` as the shared token and add owner-specific query IDs:
+
+```text
+IBKR_SMSF_FLEX_QUERY_ID=<SMSF Flex Query ID>
+IBKR_PERSONAL_FLEX_QUERY_ID=<Personal Flex Query ID>
+```
+
+If either book needs a separate token, set `IBKR_SMSF_FLEX_TOKEN` or `IBKR_PERSONAL_FLEX_TOKEN`; otherwise NorthStar reuses `IBKR_FLEX_TOKEN`. The legacy `IBKR_FLEX_QUERY_ID` still works and can remain as the SMSF query while you add `IBKR_PERSONAL_FLEX_QUERY_ID`.
+
 Do not commit or share the token.
 
 Read-only IBKR open orders:
@@ -123,6 +132,8 @@ The saved Flex Query should contain:
 NorthStar uses Open Positions as the authoritative holdings snapshot and `CashReport → BASE_SUMMARY → endingCash` as the IBKR cash balance.
 
 IBKR open orders are read-only and use Client Portal/Web API `GET /iserver/account/orders`. They are displayed separately from trades because unfilled orders are not positions and should not affect NAV, P/L or cash until executed.
+
+For two IBKR legal books, create one Activity Flex Query for SMSF and one Activity Flex Query for Personal with the same Cash Report, Open Positions and Trades sections, then store their query IDs in `IBKR_SMSF_FLEX_QUERY_ID` and `IBKR_PERSONAL_FLEX_QUERY_ID`.
 
 ## Platinum valuation
 

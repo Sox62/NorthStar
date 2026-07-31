@@ -1,7 +1,7 @@
 import { fetchAbcPlatinumPrice } from "@/lib/integrations/abc-bullion";
-import { fetchIbkrFlexReport } from "@/lib/integrations/ibkr";
 import type { QuoteProvider } from "@/lib/integrations/market-data";
-import { getStorage, type OwnerType, type SyncTrigger } from "@/lib/storage";
+import { getStorage, type SyncTrigger } from "@/lib/storage";
+import { configuredIbkrFlexSyncs, ibkrFlexNotConfiguredMessage, legacyIbkrFlexOwner, syncIbkrFlexConfig } from "@/lib/sync/ibkr-flex";
 import { syncDirectsharesDividends } from "@/lib/sync/directshares-dividends";
 import { syncDirectsharesEmail } from "@/lib/sync/directshares-email";
 import { syncMarketData } from "@/lib/sync/market-data";
@@ -12,15 +12,12 @@ export type FullSyncResult = {
   task?: "market-data";
   errors: string[];
   ibkr?: unknown;
+  ibkrAccounts?: string;
   directsharesEmail?: unknown;
   directsharesDividends?: unknown;
   marketData?: unknown;
   platinum?: unknown;
 };
-
-function ibkrOwnerFromEnv() {
-  return ((process.env.IBKR_FLEX_OWNER || "SMSF").toUpperCase() === "PERSONAL" ? "PERSONAL" : "SMSF") as OwnerType;
-}
 
 export async function runMarketDataOnlySync(trigger: SyncTrigger, provider: QuoteProvider = "auto"): Promise<FullSyncResult> {
   const storage = getStorage();
@@ -46,45 +43,31 @@ export async function runFullSync(trigger: SyncTrigger, provider: QuoteProvider 
   const storage = getStorage();
   const output: FullSyncResult = { ok: true, syncedAt: new Date().toISOString(), errors: [] };
   const errors = output.errors;
+  const ibkrConfigs = configuredIbkrFlexSyncs();
 
-  if (process.env.IBKR_FLEX_TOKEN && process.env.IBKR_FLEX_QUERY_ID) {
-    const startedAt = new Date().toISOString();
-    const owner = ibkrOwnerFromEnv();
-    try {
-      const report = await fetchIbkrFlexReport();
-      const result = await storage.importIbkr(report, owner);
-      output.ibkr = result;
-      await storage.recordSyncRun({
-        source: "IBKR",
-        ownerType: owner,
-        trigger,
-        status: "success",
-        startedAt,
-        recordCount: report.transactions.length,
-        positionCount: result.positions,
-        cashAud: result.cashAud ?? null,
-        message: `${result.positions} positions from Flex statement ending ${report.toDate}`,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown sync error";
-      errors.push(`IBKR: ${message}`);
-      await storage.recordSyncRun({
-        source: "IBKR",
-        ownerType: owner,
-        trigger,
-        status: "failed",
-        startedAt,
-        error: message,
-      }).catch(() => {});
+  if (ibkrConfigs.length) {
+    const ibkrResults = [];
+    for (const config of ibkrConfigs) {
+      try {
+        const result = await syncIbkrFlexConfig(storage, config, trigger);
+        ibkrResults.push(result);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown sync error";
+        errors.push(`IBKR: ${message}`);
+      }
     }
+    output.ibkr = ibkrResults;
+    output.ibkrAccounts = ibkrResults.length
+      ? ibkrResults.map((result) => `${result.ownerType}: ${result.positions} positions`).join("; ")
+      : "No IBKR accounts synced.";
   } else {
     await storage.recordSyncRun({
       source: "IBKR",
-      ownerType: ibkrOwnerFromEnv(),
+      ownerType: legacyIbkrFlexOwner(),
       trigger,
       status: "skipped",
       startedAt: new Date().toISOString(),
-      message: "IBKR_FLEX_TOKEN or IBKR_FLEX_QUERY_ID is not configured.",
+      message: ibkrFlexNotConfiguredMessage(),
     }).catch(() => {});
   }
 

@@ -221,8 +221,8 @@ export async function fetchIbkrFlexXml(token = process.env.IBKR_FLEX_TOKEN, quer
   throw new Error("IBKR took too long to generate the Flex report. Try Sync IBKR again shortly.");
 }
 
-export async function fetchIbkrFlexReport(): Promise<IbkrFlexReport> {
-  return parseIbkrFlexXml(await fetchIbkrFlexXml());
+export async function fetchIbkrFlexReport(token?: string, queryId?: string): Promise<IbkrFlexReport> {
+  return parseIbkrFlexXml(await fetchIbkrFlexXml(token, queryId));
 }
 
 export class IbkrFlexAdapter implements BrokerAdapter {

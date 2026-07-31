@@ -148,7 +148,7 @@ export default function SyncPage() {
         <div>
           <p className="eyebrow">Manual run</p>
           <h2 className="cardTitle">Sync everything</h2>
-          <p className="cardIntro">Runs IBKR, Directshares confirmations, Directshares dividends, market pricing and metals pricing in one pass.</p>
+          <p className="cardIntro">Runs configured IBKR Flex accounts, Directshares confirmations, Directshares dividends, market pricing and metals pricing in one pass.</p>
         </div>
         <div>
           <button className="primary" type="button" onClick={syncEverything} disabled={allSyncing}>
@@ -162,7 +162,7 @@ export default function SyncPage() {
         <div>
           <p className="eyebrow">Automated broker feed</p>
           <h2 className="cardTitle">IBKR Flex Web Service</h2>
-          <p className="cardIntro">Uses the private IBKR token and Flex Query ID stored in Railway. It updates trades, Open Positions and IBKR cash without uploading an XML file.</p>
+          <p className="cardIntro">Uses the private IBKR token and the selected owner's Flex Query ID stored in Railway. It updates trades, Open Positions and IBKR cash without uploading an XML file.</p>
           <label className="field compactOwner">
             <span>Legal owner</span>
             <select value={owners.ibkr} onChange={(event) => setOwners((value) => ({ ...value, ibkr: event.target.value as OwnerType }))}>
@@ -505,7 +505,7 @@ function ImportSummary({ result }: { result: Result }) {
 
   const errors = Array.isArray(result.errors) ? result.errors.filter(Boolean) : [];
   const entries = Object.entries(result).filter(
-    ([key, value]) => !["preview", "note", "source", "owner", "ownerType", "storageMode", "synced", "generatedAt"].includes(key)
+    ([key, value]) => !["preview", "note", "source", "owner", "ownerType", "storageMode", "synced", "generatedAt", "ibkr"].includes(key)
       && !(key === "errors" && Array.isArray(value) && value.length === 0),
   );
 
