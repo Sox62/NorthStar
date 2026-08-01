@@ -212,7 +212,7 @@ test("buildDashboardModel reclassifies stale stored asset classes before allocat
     allocationTargets: [],
   });
 
-  assert.equal(dashboard.holdings.find((holding) => holding.symbol === "ASL")?.assetClass, "Gold miners");
+  assert.equal(dashboard.holdings.find((holding) => holding.symbol === "ASL")?.assetClass, "Silver miners");
   assert.equal(dashboard.holdings.find((holding) => holding.symbol === "DBA")?.assetClass, "Broad equities");
-  assert.deepEqual(dashboard.allocations.map((item) => item.name), ["Gold miners", "Broad equities"]);
+  assert.deepEqual(dashboard.allocations.map((item) => item.name), ["Silver miners", "Broad equities"]);
 });

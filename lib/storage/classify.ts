@@ -1,6 +1,7 @@
 import type { Sector } from "@/northstar/types";
 
 const SYMBOL_SECTORS: Record<string, Sector> = {
+  ASL: "Silver miners",
   AYA: "Silver miners",
   CDE: "Silver miners",
   EDR: "Silver miners",
@@ -13,7 +14,6 @@ const SYMBOL_SECTORS: Record<string, Sector> = {
   SLVM: "Silver miners",
   SVM: "Silver miners",
 
-  ASL: "Gold miners",
   B: "Gold miners",
   GDX: "Gold miners",
   NEM: "Gold miners",
@@ -69,7 +69,7 @@ export function classifyAsset(symbol: string, name: string): Sector {
   if (/LARAMIDE|U3O8|U308|URANIUM EXPLOR/.test(text)) return "Uranium explorers";
   if (/URANIUM|NUCLEAR|PALADIN|BANNERMAN/.test(text)) return "Uranium miners";
   if (/SILVER|COEUR|HECLA/.test(text)) return "Silver miners";
-  if (/GOLD|BARRICK|VAULT|WESTERN COPPER|ANDEAN SILVER/.test(text)) return "Gold miners";
+  if (/GOLD|BARRICK|VAULT|WESTERN COPPER/.test(text)) return "Gold miners";
   if (/OIL|ENERGY|EXXON|ECOPETROL|PETROL/.test(text)) return "Oil";
   return "Broad equities";
 }

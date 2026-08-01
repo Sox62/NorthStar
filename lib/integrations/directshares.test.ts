@@ -55,6 +55,24 @@ test("parseDirectsharesHoldingsCsv maps market suffixes and numeric fields", () 
   assert.equal(explicitCurrency.marketValueAud, 36140.95);
 });
 
+test("parseDirectsharesHoldingsCsv keeps XRH0 in USD when the export omits a Currency column", () => {
+  const positions = parseDirectsharesHoldingsCsv(`"Account Number","Account Name","CHESS HIN","Code","Last","FX Rate","Units Held","Net Avg Price AUD","Cost AUD","Market Value AUD","Day Gain AUD","P&L AUD","P&L %"
+"4317403","Stephen Oxenbury","X#######647","ASL","1.940","","23486","1.451","34078.19","45562.84","1291.73","11484.65","33.70"
+"4317403","Stephen Oxenbury","X#######647","XRH0:GB","807.5",".708","33","997.458","32916.11","37634.37","-815.61","4718.26","14.33"
+"TOTALS","","","","","","","","291813.24","366407.73","-5102.15","74594.49","25.56"
+`);
+
+  assert.equal(positions.length, 2, "the TOTALS row must not become a position");
+  const [asl, rhodium] = positions;
+  assert.equal(asl.symbol, "ASL");
+  assert.equal(asl.quantity, 23486);
+  assert.equal(asl.costAud, 34078.19);
+  assert.equal(asl.marketValueAud, 45562.84);
+  assert.equal(rhodium.symbol, "XRH0");
+  assert.equal(rhodium.exchange, "LSE");
+  assert.equal(rhodium.currency, "USD", "the :GB suffix must not reintroduce GBP");
+});
+
 test("parseDirectsharesConfirmationCsv extracts bulk confirmations across accounts", () => {
   const transactions = parseDirectsharesConfirmationCsv(`Account Number,Account Name,AsxCode,Confirmation Number,Order Type,As at Date,Trade Date,Settlement Date,Avg Price,Exch Rate,Price,Quantity,Brokerage,GST,Stampduty,Application Fee,OtherCharge,Fee,Discount,Consideration,Reverse Confirmation Number
 4317403,STEPHEN OXENBURY,SVM:CA,38483957,Sell,2026-06-16,2026-06-17,2026-06-17,"17.5000 CAD",1.003458,17.56050000,3500.000000000,362.62,0.00,0.00,0.00,0.00,0.00,0.00,61099.1300,0,

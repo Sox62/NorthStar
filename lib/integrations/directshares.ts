@@ -12,12 +12,19 @@ function normaliseCurrency(value: string | undefined) {
   return currency && CURRENCY_PATTERN.test(currency) ? currency : undefined;
 }
 
+// Instruments whose listing suffix does not imply their quote currency. The Profit & Loss
+// export carries no Currency column, so without these the suffix default wins and silently
+// overwrites the repaired currency on every re-import.
+const SYMBOL_CURRENCIES: Record<string, string> = {
+  XRH0: "USD",
+};
+
 function splitCode(code: string, currencyOverride?: string) {
   const compact = code.match(/^([A-Z][A-Z0-9]{1,4})(US|CA|GB)$/);
   if (!code.includes(":") && compact) return splitCode(`${compact[1]}:${compact[2]}`, currencyOverride);
   const [rawSymbol, suffix] = code.split(":");
   const symbol = rawSymbol.replace(/\//g, ".");
-  const explicitCurrency = normaliseCurrency(currencyOverride);
+  const explicitCurrency = normaliseCurrency(currencyOverride) ?? SYMBOL_CURRENCIES[symbol.toUpperCase()];
   if (!suffix) return { symbol, exchange: "ASX", currency: explicitCurrency ?? "AUD" };
   if (suffix === "US") return { symbol, exchange: "US", currency: explicitCurrency ?? "USD" };
   if (suffix === "CA") return { symbol, exchange: "TSX/TSXV", currency: explicitCurrency ?? "CAD" };

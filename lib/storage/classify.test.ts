@@ -14,7 +14,8 @@ test("sectorForInstrument maps live exceptions to the intended dashboard sectors
 });
 
 test("classifyAsset maps known NorthStar resource holdings and unknown broad assets", () => {
-  assert.equal(classifyAsset("ASL", "ASL"), "Gold miners");
+  assert.equal(classifyAsset("ASL", "ASL"), "Silver miners");
+  assert.equal(classifyAsset("ASL", "Andean Silver"), "Silver miners");
   assert.equal(classifyAsset("B", "B"), "Gold miners");
   assert.equal(classifyAsset("WRN", "WRN"), "Gold miners");
   assert.equal(classifyAsset("DBA", "Invesco DB Agriculture Fund"), "Broad equities");
