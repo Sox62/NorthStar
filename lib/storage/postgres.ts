@@ -68,6 +68,13 @@ async function ensureInstrument(client: PoolClient, input: {
   return result.rows[0].id;
 }
 
+function transactionInstrumentCurrency(transaction: ImportedTransaction) {
+  const rawCurrency = transaction.raw?.tradeCurrency;
+  return typeof rawCurrency === "string" && /^[A-Z]{3}$/i.test(rawCurrency.trim())
+    ? rawCurrency.trim().toUpperCase()
+    : transaction.currency;
+}
+
 async function captureSnapshot(client: PoolClient, portfolioId: string) {
   const totals = await client.query<{ market_value: string; cash_value: string }>(`
     SELECT
@@ -223,10 +230,11 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const asOfDate = new Date().toISOString().slice(0, 10);
 
       for (const position of positions) {
+        const name = position.name || position.symbol;
         const instrumentId = await ensureInstrument(client, {
-          source: "Directshares", externalKey: `${position.symbol}:${position.exchange}`, name: position.symbol,
+          source: "Directshares", externalKey: `${position.symbol}:${position.exchange}`, name,
           ticker: position.symbol, exchange: position.exchange, currency: position.currency,
-          assetClass: classifyAsset(position.symbol, position.symbol),
+          assetClass: classifyAsset(position.symbol, name),
         });
         await client.query(`
           INSERT INTO current_positions (
@@ -264,7 +272,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
           name: transaction.description || transaction.symbol,
           ticker: transaction.symbol,
           exchange: transaction.exchange,
-          currency: transaction.currency,
+          currency: transactionInstrumentCurrency(transaction),
           assetClass: classifyAsset(transaction.symbol, transaction.description || ""),
           isin: transaction.isin,
         });

@@ -8,7 +8,7 @@ import { SECTOR_COLORS, COMPOSITION_OF, type Holding, type CompositionGroup, typ
 const glass: React.CSSProperties = { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 18, backdropFilter: "blur(8px)" };
 const eyebrow: React.CSSProperties = { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.14em", color: "var(--muted)", fontWeight: 600 };
 const serif = "var(--ns-serif)";
-const GROUP_LABEL: Record<CompositionGroup, string> = { miners: "Miners", metals: "Metals & bullion", other: "Oil & cash" };
+const GROUP_LABEL: Record<CompositionGroup, string> = { miners: "Miners", metals: "Metals & bullion", other: "Other" };
 const GROUP_COLOR: Record<CompositionGroup, string> = { miners: "#d7b56d", metals: "#8fa6bf", other: "#5d6f81" };
 
 /** Dedicated Sectors screen — composition split up top, then per-sector cards

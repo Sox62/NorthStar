@@ -5,17 +5,28 @@ import type { ImportedTransaction, OpeningPosition, TransactionType } from "./ty
 const numberValue = (value: unknown) => Number(String(value ?? "").replace(/[$,%\s,]/g, "")) || 0;
 const moneyValue = (value: string) => Number(value.replace(/[$,\s]/g, "")) || 0;
 const cents = (value: number) => Math.round(value * 100) / 100;
+const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 
-function splitCode(code: string) {
+function normaliseCurrency(value: string | undefined) {
+  const currency = value?.trim().toUpperCase();
+  return currency && CURRENCY_PATTERN.test(currency) ? currency : undefined;
+}
+
+function splitCode(code: string, currencyOverride?: string) {
   const compact = code.match(/^([A-Z][A-Z0-9]{1,4})(US|CA|GB)$/);
-  if (!code.includes(":") && compact) return splitCode(`${compact[1]}:${compact[2]}`);
+  if (!code.includes(":") && compact) return splitCode(`${compact[1]}:${compact[2]}`, currencyOverride);
   const [rawSymbol, suffix] = code.split(":");
   const symbol = rawSymbol.replace(/\//g, ".");
-  if (!suffix) return { symbol, exchange: "ASX", currency: "AUD" };
-  if (suffix === "US") return { symbol, exchange: "US", currency: "USD" };
-  if (suffix === "CA") return { symbol, exchange: "TSX/TSXV", currency: "CAD" };
-  if (suffix === "GB") return { symbol, exchange: "LSE", currency: "GBP" };
-  return { symbol, exchange: suffix, currency: "AUD" };
+  const explicitCurrency = normaliseCurrency(currencyOverride);
+  if (!suffix) return { symbol, exchange: "ASX", currency: explicitCurrency ?? "AUD" };
+  if (suffix === "US") return { symbol, exchange: "US", currency: explicitCurrency ?? "USD" };
+  if (suffix === "CA") return { symbol, exchange: "TSX/TSXV", currency: explicitCurrency ?? "CAD" };
+  if (suffix === "GB") return { symbol, exchange: "LSE", currency: explicitCurrency ?? "GBP" };
+  return { symbol, exchange: suffix, currency: explicitCurrency ?? "AUD" };
+}
+
+function firstText(row: Record<string, string>, keys: string[]) {
+  return keys.map((key) => row[key]?.trim()).find(Boolean);
 }
 
 export function parseDirectsharesHoldingsCsv(csv: string): OpeningPosition[] {
@@ -23,11 +34,12 @@ export function parseDirectsharesHoldingsCsv(csv: string): OpeningPosition[] {
   const positions = rows
     .filter(row => row.Code && row.Code.toUpperCase() !== "TOTALS")
     .map(row => {
-      const instrument = splitCode(row.Code);
+      const instrument = splitCode(row.Code, firstText(row, ["Currency", "Currency Code", "Ccy", "CCY", "Price Currency"]));
       return {
         externalAccountId: row["Account Number"],
         accountName: row["Account Name"],
         symbol: instrument.symbol,
+        name: firstText(row, ["Security Name", "Description", "Name", "Security"]),
         exchange: instrument.exchange,
         currency: instrument.currency,
         quantity: numberValue(row["Units Held"]),

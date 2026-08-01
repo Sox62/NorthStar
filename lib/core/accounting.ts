@@ -4,6 +4,7 @@ import { buildValuationFreshness } from "@/lib/storage/freshness";
 import { buildIncomeSummary } from "@/lib/storage/income";
 import { buildPeriodReturns, type NavPoint } from "@/lib/storage/returns";
 import { buildXirrSummary } from "@/lib/storage/xirr";
+import { classifyAsset } from "@/lib/storage/classify";
 import type {
   AllocationTarget,
   CashAccount,
@@ -165,6 +166,11 @@ function navSeriesForScope(performance: DashboardData["performance"], ownerType:
   });
 }
 
+function normalisePositionClassification(position: StoredPosition): StoredPosition {
+  const assetClass = classifyAsset(position.symbol, `${position.name} ${position.assetClass}`);
+  return assetClass === position.assetClass ? position : { ...position, assetClass };
+}
+
 function buildAccountRows(input: {
   imports: DashboardImportSummary[];
   cashAccounts: CashAccount[];
@@ -220,7 +226,7 @@ export function buildDashboardModel(input: {
   const imports = input.imports.filter((record) => !ownerType || record.ownerType === ownerType);
   const snapshots = input.snapshots.filter((snapshot) => !ownerType || snapshot.ownerType === ownerType);
   const manualPositions = manualAssets.map(manualAssetPosition);
-  const positions = [...importedPositions, ...manualPositions];
+  const positions = [...importedPositions, ...manualPositions].map(normalisePositionClassification);
   const investedValue = positions.reduce((sum, position) => sum + position.marketValueAud, 0);
   const cashValue = cashAccounts.reduce((sum, account) => sum + account.balanceAud, 0);
   const totalValue = investedValue + cashValue;

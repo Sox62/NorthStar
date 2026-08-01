@@ -5,10 +5,18 @@ import { sectorForInstrument } from "@/northstar/lib/sector-map";
 
 test("classifyAsset preserves known NorthStar exceptions", () => {
   assert.equal(classifyAsset("VELO", "Velocity Composites"), "Technology");
-  assert.equal(classifyAsset("LAM", "Laramide Resources"), "Uranium");
+  assert.equal(classifyAsset("LAM", "Laramide Resources"), "Uranium explorers");
 });
 
 test("sectorForInstrument maps live exceptions to the intended dashboard sectors", () => {
   assert.equal(sectorForInstrument({ symbol: "VELO", name: "Velocity Composites", assetClass: "Technology" }), "Technology");
-  assert.equal(sectorForInstrument({ symbol: "LAM", name: "Laramide Resources", assetClass: "Uranium" }), "Uranium explorers");
+  assert.equal(sectorForInstrument({ symbol: "LAM", name: "Laramide Resources", assetClass: "Broad equities" }), "Uranium explorers");
+});
+
+test("classifyAsset maps known NorthStar resource holdings and unknown broad assets", () => {
+  assert.equal(classifyAsset("ASL", "ASL"), "Gold miners");
+  assert.equal(classifyAsset("B", "B"), "Gold miners");
+  assert.equal(classifyAsset("WRN", "WRN"), "Gold miners");
+  assert.equal(classifyAsset("DBA", "Invesco DB Agriculture Fund"), "Broad equities");
+  assert.equal(classifyAsset("XRH0", "Xtrackers Physical Rhodium"), "Rhodium metal");
 });

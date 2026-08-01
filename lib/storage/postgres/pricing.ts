@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db/client";
+import { classifyAsset } from "../classify";
 import type { DailyPriceInput, FxRateInput, PlatinumPrice, PriceBook, PriceImportResult } from "../types";
 
 const numberValue = (value: unknown) => Number(value ?? 0);
@@ -75,7 +76,7 @@ export async function listPriceBookPostgres(limit = 80): Promise<PriceBook> {
       exchange: row.exchange,
       name: row.name,
       currency: row.currency,
-      assetClass: row.asset_class,
+      assetClass: classifyAsset(row.ticker, `${row.name} ${row.asset_class}`),
       positionCount: numberValue(row.position_count),
       quantity: numberValue(row.quantity),
       marketValueAud: numberValue(row.market_value_aud),

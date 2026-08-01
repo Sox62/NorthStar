@@ -30,13 +30,15 @@ Net Proceeds: (AUD) $29,895.00
 });
 
 test("parseDirectsharesHoldingsCsv maps market suffixes and numeric fields", () => {
-  const [position, compactUs, compactCa] = parseDirectsharesHoldingsCsv(`Account Number,Account Name,Code,Units Held,Last,FX Rate,Net Avg Price AUD,Cost AUD,Market Value AUD,Day Gain AUD,P&L AUD,P&L %
-4317403,Stephen,SVM:CA,"3,500",19.2,1.11,8.5,29750,74592,-1200,44842,150.7
-4317403,Stephen,CDEUS,500,12.5,1.52,11,5500,9500,100,4000,72.7
-4317403,Stephen,LAMCA,1000,0.95,1.11,0.8,800,1054,10,254,31.8
+  const [position, compactUs, compactCa, explicitCurrency] = parseDirectsharesHoldingsCsv(`Account Number,Account Name,Code,Security Name,Currency,Units Held,Last,FX Rate,Net Avg Price AUD,Cost AUD,Market Value AUD,Day Gain AUD,P&L AUD,P&L %
+4317403,Stephen,SVM:CA,Silvercorp,CAD,"3,500",19.2,1.11,8.5,29750,74592,-1200,44842,150.7
+4317403,Stephen,CDEUS,Coeur Mining,USD,500,12.5,1.52,11,5500,9500,100,4000,72.7
+4317403,Stephen,LAMCA,Laramide Resources,CAD,1000,0.95,1.11,0.8,800,1054,10,254,31.8
+4317403,Stephen,XRH0:GB,Xtrackers Physical Rhodium,USD,33,807.5,1.53,700,23100,36140.95,0,13040,56.5
 `);
 
   assert.equal(position.symbol, "SVM");
+  assert.equal(position.name, "Silvercorp");
   assert.equal(position.exchange, "TSX/TSXV");
   assert.equal(position.currency, "CAD");
   assert.equal(position.quantity, 3500);
@@ -47,6 +49,10 @@ test("parseDirectsharesHoldingsCsv maps market suffixes and numeric fields", () 
   assert.equal(compactCa.symbol, "LAM");
   assert.equal(compactCa.exchange, "TSX/TSXV");
   assert.equal(compactCa.currency, "CAD");
+  assert.equal(explicitCurrency.symbol, "XRH0");
+  assert.equal(explicitCurrency.exchange, "LSE");
+  assert.equal(explicitCurrency.currency, "USD");
+  assert.equal(explicitCurrency.marketValueAud, 36140.95);
 });
 
 test("parseDirectsharesConfirmationCsv extracts bulk confirmations across accounts", () => {

@@ -96,7 +96,7 @@ const scopeOptions: PortfolioScope[] = ["overall", "personal", "smsf"];
 const groupLabel: Record<CompositionGroup, string> = {
   miners: "Miners",
   metals: "Metals & bullion",
-  other: "Oil & cash",
+  other: "Other",
 };
 const groupColor: Record<CompositionGroup, string> = {
   miners: "#d7b56d",
@@ -110,6 +110,7 @@ const commodityBySector: Record<Sector, { name: string; color: string }> = {
   "Uranium miners": { name: "Uranium", color: "#8dc6a0" },
   "Uranium explorers": { name: "Uranium", color: "#5fbf8f" },
   Technology: { name: "Technology", color: "#77a9d8" },
+  "Broad equities": { name: "Broad equities", color: "#9aa9ba" },
   "Platinum bullion": { name: "Platinum", color: "#8fa6bf" },
   "Rhodium metal": { name: "Rhodium", color: "#c78db8" },
   Oil: { name: "Oil", color: "#dd8b6f" },

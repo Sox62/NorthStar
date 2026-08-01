@@ -191,6 +191,28 @@ test("buildDashboardModel scopes legal owners and centralises dashboard accounti
   assert.equal(dashboard.holdings.length, 2);
   assert.equal(dashboard.accounts.length, 3);
   assert.equal(dashboard.syncRuns.length, 1);
-  assert.equal(dashboard.allocations[0].name, "Physical platinum");
+  assert.equal(dashboard.allocations[0].name, "Platinum bullion");
   assert.equal(dashboard.currencyExposure[0].currency, "AUD");
+});
+
+test("buildDashboardModel reclassifies stale stored asset classes before allocations", () => {
+  const dashboard = buildDashboardModel({
+    scope: "personal",
+    storageMode: "local-file",
+    positions: [
+      position({ id: "asl", symbol: "ASL", name: "ASL", assetClass: "Broad equities", marketValueAud: 45_000 }),
+      position({ id: "dba", symbol: "DBA", name: "Invesco DB Agriculture Fund", assetClass: "Gold miners", marketValueAud: 10_000 }),
+    ],
+    manualAssets: [],
+    cashAccounts: [],
+    transactions: [],
+    imports: [],
+    snapshots: [],
+    syncRuns: [],
+    allocationTargets: [],
+  });
+
+  assert.equal(dashboard.holdings.find((holding) => holding.symbol === "ASL")?.assetClass, "Gold miners");
+  assert.equal(dashboard.holdings.find((holding) => holding.symbol === "DBA")?.assetClass, "Broad equities");
+  assert.deepEqual(dashboard.allocations.map((item) => item.name), ["Gold miners", "Broad equities"]);
 });

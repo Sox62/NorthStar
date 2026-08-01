@@ -7,6 +7,9 @@ type XirrFlow = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const FALLBACK_MINIMUM_DAYS = 90;
+const QUANTITY_TOLERANCE = 0.000001;
+const MATERIAL_VALUE_AUD = 100;
 
 function dateOnly(value: string | null | undefined) {
   if (!value) return new Date().toISOString().slice(0, 10);
@@ -51,8 +54,19 @@ function positionKey(input: { ownerType: OwnerType; accountKey: string; symbol: 
   return `${input.ownerType}:${input.accountKey}:${input.symbol.toUpperCase()}:${input.exchange.toUpperCase()}`;
 }
 
+function tradeQuantityDelta(transaction: StoredTransaction) {
+  if (transaction.type !== "BUY" && transaction.type !== "SELL") return 0;
+  const quantity = Math.abs(transaction.quantity ?? 0);
+  if (quantity <= QUANTITY_TOLERANCE) return 0;
+  return transaction.type === "SELL" ? -quantity : quantity;
+}
+
 function yearsFromStart(start: Date, date: Date) {
   return (date.getTime() - start.getTime()) / DAY_MS / 365;
+}
+
+function daysBetween(left: string, right: string) {
+  return Math.round((new Date(`${right}T12:00:00Z`).getTime() - new Date(`${left}T12:00:00Z`).getTime()) / DAY_MS);
 }
 
 function xnpv(rate: number, flows: XirrFlow[]) {
@@ -103,11 +117,12 @@ export function buildXirrSummary(input: {
   asOfDate?: string | null;
 }): XirrSummary {
   const flows: XirrFlow[] = [];
-  const transactionPositionKeys = new Set<string>();
+  const transactionQuantities = new Map<string, number>();
 
   for (const transaction of input.transactions) {
     if (transaction.type === "BUY" || transaction.type === "SELL") {
-      transactionPositionKeys.add(positionKey(transaction));
+      const key = positionKey(transaction);
+      transactionQuantities.set(key, (transactionQuantities.get(key) ?? 0) + tradeQuantityDelta(transaction));
     }
     const amount = transactionCashFlowAud(transaction);
     if (amount == null) continue;
@@ -118,18 +133,6 @@ export function buildXirrSummary(input: {
     });
   }
 
-  let fallbackPositionCount = 0;
-  for (const position of input.positions) {
-    if (position.costAud <= 0) continue;
-    if (transactionPositionKeys.has(positionKey(position))) continue;
-    fallbackPositionCount += 1;
-    addFlow(flows, {
-      date: position.asOfDate,
-      amount: -Math.abs(position.costAud),
-      source: "cost-basis fallback",
-    });
-  }
-
   const terminalValue =
     input.positions.reduce((sum, position) => sum + position.marketValueAud, 0) +
     input.cashAccounts.reduce((sum, account) => sum + account.balanceAud, 0);
@@ -137,12 +140,52 @@ export function buildXirrSummary(input: {
     ...input.positions.map((position) => position.asOfDate),
     ...input.cashAccounts.map((account) => account.asOfDate),
   ].sort().at(-1));
+
+  let fallbackPositionCount = 0;
+  let uncoveredPositionCount = 0;
+  let uncoveredLegacySaleCount = 0;
+  let uncoveredValueAud = 0;
+  const currentPositionKeys = new Set<string>();
+  for (const position of input.positions) {
+    const key = positionKey(position);
+    currentPositionKeys.add(key);
+    if (position.costAud <= 0) continue;
+    const tradedQuantity = transactionQuantities.get(key) ?? 0;
+    const quantityGap = position.quantity - tradedQuantity;
+    if (Math.abs(quantityGap) <= QUANTITY_TOLERANCE) continue;
+
+    const materialValue = Math.max(position.costAud, position.marketValueAud);
+    const fallbackAgeDays = daysBetween(dateOnly(position.asOfDate), terminalDate);
+    if (fallbackAgeDays < FALLBACK_MINIMUM_DAYS || materialValue > MATERIAL_VALUE_AUD && tradedQuantity !== 0) {
+      uncoveredPositionCount += 1;
+      uncoveredValueAud += Math.max(0, materialValue);
+      continue;
+    }
+
+    fallbackPositionCount += 1;
+    addFlow(flows, {
+      date: position.asOfDate,
+      amount: -Math.abs(position.costAud),
+      source: "cost-basis fallback",
+    });
+  }
+  for (const [key, quantity] of transactionQuantities) {
+    if (currentPositionKeys.has(key) || quantity >= -QUANTITY_TOLERANCE) continue;
+    uncoveredLegacySaleCount += 1;
+    uncoveredValueAud += MATERIAL_VALUE_AUD + 1;
+  }
+
   addFlow(flows, { date: terminalDate, amount: terminalValue, source: "current NAV" });
 
   const sorted = flows.sort((left, right) => left.date.localeCompare(right.date));
-  const annualizedRate = calculateXirr(sorted);
+  const hasUncoveredTerminalValue = uncoveredValueAud > Math.max(MATERIAL_VALUE_AUD, terminalValue * 0.01);
+  const annualizedRate = hasUncoveredTerminalValue ? null : calculateXirr(sorted);
   const note = annualizedRate == null
-    ? "Not enough dated cash-flow history yet."
+    ? hasUncoveredTerminalValue
+      ? uncoveredLegacySaleCount
+        ? `XIRR hidden: cash-flow history includes ${uncoveredLegacySaleCount} legacy sale${uncoveredLegacySaleCount === 1 ? "" : "s"} without dated acquisition history.`
+        : `XIRR hidden: terminal NAV includes ${uncoveredPositionCount} position${uncoveredPositionCount === 1 ? "" : "s"} without dated acquisition or opening cash-flow history.`
+      : "Not enough dated cash-flow history yet."
     : fallbackPositionCount
       ? `Uses imported cash flows plus ${fallbackPositionCount} cost-basis fallback position${fallbackPositionCount === 1 ? "" : "s"}.`
       : "Uses imported trade, dividend and current NAV cash flows.";

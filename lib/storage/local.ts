@@ -207,7 +207,7 @@ function priceBookFromStore(store: LocalStore, limit = 80): PriceBook {
         exchange: position.exchange,
         name: position.name,
         currency: position.currency,
-        assetClass: position.assetClass,
+        assetClass: classifyAsset(position.symbol, `${position.name} ${position.assetClass}`),
         positionCount: 1,
         quantity: position.quantity,
         marketValueAud: position.marketValueAud,
@@ -292,14 +292,17 @@ export class LocalStorageAdapter implements StorageAdapter {
     const accountKey = positions.find(position => position.externalAccountId)?.externalAccountId || "DIRECTSHARES";
     store.positions = store.positions.filter(position => !(position.ownerType === ownerType && position.broker === "Directshares" && position.accountKey === accountKey));
     const asOfDate = new Date().toISOString().slice(0, 10);
-    for (const position of positions) store.positions.push({
-      id: randomUUID(), ownerType, broker: "Directshares", accountKey,
-      instrumentKey: `Directshares:${position.symbol}:${position.exchange}`, symbol: position.symbol, name: position.symbol,
-      exchange: position.exchange, currency: position.currency, assetClass: classifyAsset(position.symbol, position.symbol),
-      quantity: position.quantity, lastPrice: position.lastPrice, averageCostAud: position.averageCostAud,
-      costAud: position.costAud, marketValueAud: position.marketValueAud, dayGainAud: position.dayGainAud,
-      pnlAud: position.pnlAud, pnlPercent: position.pnlPercent, valuationBasis: "market", asOfDate, source: "Directshares CSV",
-    });
+    for (const position of positions) {
+      const name = position.name || position.symbol;
+      store.positions.push({
+        id: randomUUID(), ownerType, broker: "Directshares", accountKey,
+        instrumentKey: `Directshares:${position.symbol}:${position.exchange}`, symbol: position.symbol, name,
+        exchange: position.exchange, currency: position.currency, assetClass: classifyAsset(position.symbol, name),
+        quantity: position.quantity, lastPrice: position.lastPrice, averageCostAud: position.averageCostAud,
+        costAud: position.costAud, marketValueAud: position.marketValueAud, dayGainAud: position.dayGainAud,
+        pnlAud: position.pnlAud, pnlPercent: position.pnlPercent, valuationBasis: "market", asOfDate, source: "Directshares CSV",
+      });
+    }
 
     const importRecord = store.imports.find(record => record.source === "Directshares" && record.ownerType === ownerType && record.accountKey === accountKey);
     if (importRecord) { importRecord.importedAt = new Date().toISOString(); importRecord.recordCount = positions.length; }

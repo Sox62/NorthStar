@@ -76,6 +76,7 @@ export type OpeningPosition = {
   externalAccountId?: string;
   accountName?: string;
   symbol: string;
+  name?: string;
   exchange: string;
   currency: string;
   quantity: number;
