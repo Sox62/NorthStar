@@ -10,6 +10,15 @@ const numberValue = (value: unknown, fallback = 0) => {
 const numberOrUndefined = (value: unknown) => value === "" || value == null ? undefined : Number(value);
 const isoDate = (value: unknown) => String(value ?? "").replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
 
+// Flex reports the local exchange symbol, and IBKR's LSE listings carry a trailing lowercase
+// venue letter ("XRH0l"). Every other source — the trading API, Directshares, TradingView and
+// our own sector map — uses the bare ticker, so normalise at the edge rather than teaching each
+// consumer about the suffix. Position identity is keyed on conid, so this does not re-key anything.
+function flexSymbol(symbol: string, exchange: string) {
+  if (exchange.toUpperCase() !== "LSE") return symbol;
+  return /^[A-Z0-9]{2,}[a-z]$/.test(symbol) ? symbol.slice(0, -1) : symbol;
+}
+
 function parseTransactions(statement: Record<string, unknown>, statementAccount: string): ImportedTransaction[] {
   const output: ImportedTransaction[] = [];
   const trades = arr<Record<string, unknown>>((statement as { Trades?: { Trade?: Record<string, unknown> | Record<string, unknown>[] } }).Trades?.Trade);
@@ -19,8 +28,8 @@ function parseTransactions(statement: Record<string, unknown>, statementAccount:
     const type = isCash ? "FX" : String(trade.buySell).toUpperCase() === "SELL" ? "SELL" : "BUY";
     const conid = String(trade.conid ?? "");
     const isin = String(trade.isin ?? trade.securityID ?? "");
-    const symbol = String(trade.symbol ?? "");
     const exchange = String(trade.listingExchange ?? trade.exchange ?? "");
+    const symbol = flexSymbol(String(trade.symbol ?? ""), exchange);
 
     output.push({
       externalId: String(trade.transactionID ?? trade.tradeID ?? trade.ibExecID),
@@ -65,8 +74,8 @@ function parseOpenPositions(statement: Record<string, unknown>, statementAccount
     const fxRateToBase = numberValue(position.fxRateToBase, 1) || 1;
     const conid = String(position.conid ?? "");
     const isin = String(position.isin ?? position.securityID ?? "");
-    const symbol = String(position.symbol ?? "");
     const exchange = String(position.listingExchange ?? "");
+    const symbol = flexSymbol(String(position.symbol ?? ""), exchange);
     const costAud = numberValue(position.costBasisMoney) * fxRateToBase;
     const marketValueAud = numberValue(position.positionValue) * fxRateToBase;
     const pnlAud = numberValue(position.fifoPnlUnrealized) * fxRateToBase;
