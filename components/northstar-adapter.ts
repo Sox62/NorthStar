@@ -57,6 +57,7 @@ export function dashboardToNorthstarHoldings(data: DashboardData): Holding[] {
     priceCurrency: position.currency,
     priceAsOfDate: position.asOfDate,
     exchange: position.exchange,
+    broker: position.broker,
   }));
 
   const cash = cashHolding(data);

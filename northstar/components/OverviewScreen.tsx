@@ -239,8 +239,14 @@ function sectorShortName(sector: Sector) {
   return sector.replace(" miners", "").replace(" bullion", "");
 }
 
+// The share tables list what is held in a brokerage account, so the test is how a holding
+// is held rather than what it tracks. Physical metal is a manual asset and cash is not a
+// position; metal-backed ETCs such as XRH0 and ETPMAG are listed securities with a ticker,
+// a live price and a P/L, and belong here alongside SILJ and GDX.
+const PHYSICAL_BROKER = "Physical";
+
 function isShareLike(holding: Holding) {
-  return !["Cash", "Platinum bullion", "Rhodium metal", "Silver bullion"].includes(holding.sector);
+  return holding.sector !== "Cash" && holding.broker !== PHYSICAL_BROKER;
 }
 
 function commodityExposureFor(holdings: Holding[]): CommodityExposureSummary[] {

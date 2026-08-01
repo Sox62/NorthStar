@@ -43,6 +43,8 @@ export interface Holding {
   priceCurrency?: string;
   priceAsOfDate?: string | null;
   exchange?: string;
+  /** Where the position is held — "IBKR", "Directshares", or "Physical" for manual metal. */
+  broker?: string;
 }
 
 /** Sector colour palette — keep tags, donut and value bars consistent. */
