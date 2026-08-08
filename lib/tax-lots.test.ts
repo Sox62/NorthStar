@@ -54,6 +54,7 @@ function dashboard(holdings: DashboardHolding[]): DashboardData {
     totalReturn: 600,
     totalReturnPercent: 100,
     holdings,
+    cashAccounts: [],
     allocations: [],
     performance: [],
     periodReturns: [],

@@ -287,6 +287,7 @@ export type DashboardData = {
   totalReturn: number;
   totalReturnPercent: number;
   holdings: DashboardHolding[];
+  cashAccounts: CashAccount[];
   allocations: Array<{ name: string; value: number; amount: number }>;
   performance: Array<{ date: string; overall?: number; personal?: number; smsf?: number }>;
   periodReturns: PeriodReturn[];

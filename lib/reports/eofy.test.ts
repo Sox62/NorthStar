@@ -48,6 +48,7 @@ function dashboard(holdings: DashboardHolding[]): DashboardData {
     totalReturn: holdings.reduce((sum, row) => sum + row.pnlAud, 0),
     totalReturnPercent: 0,
     holdings,
+    cashAccounts: [],
     allocations: [],
     performance: [],
     periodReturns: [],

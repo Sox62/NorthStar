@@ -279,6 +279,7 @@ export function buildDashboardModel(input: {
     totalReturn,
     totalReturnPercent: percent(totalReturn, totalCost),
     holdings,
+    cashAccounts,
     allocations,
     performance,
     periodReturns: buildPeriodReturns(navSeriesForScope(performance, ownerType)),
