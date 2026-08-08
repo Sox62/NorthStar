@@ -249,6 +249,68 @@ function isShareLike(holding: Holding) {
   return holding.sector !== "Cash" && holding.broker !== PHYSICAL_BROKER;
 }
 
+type HoldingAccountGroup = {
+  key: string;
+  label: string;
+  detail: string;
+  value: number;
+  holdings: Holding[];
+};
+
+function brokerDisplayName(broker?: string) {
+  const normalized = (broker ?? "Unknown").trim();
+  if (normalized.toLowerCase() === "ibkr") return "IBKR";
+  if (normalized.toLowerCase() === "directshares") return "Directshares";
+  return normalized || "Unknown";
+}
+
+function accountGroupKey(holding: Holding) {
+  return [
+    holding.ownerType,
+    brokerDisplayName(holding.broker),
+    holding.accountKey ?? holding.accountLabel ?? "unknown",
+  ].join(":");
+}
+
+function ownerDisplayName(ownerType: Holding["ownerType"]) {
+  return ownerType === "SMSF" ? "SMSF" : "Personal";
+}
+
+function accountGroupLabel(holding: Holding) {
+  const owner = ownerDisplayName(holding.ownerType);
+  const broker = brokerDisplayName(holding.broker);
+  return broker === "Unknown" ? owner : `${owner} ${broker}`;
+}
+
+function accountGroupDetail(group: HoldingAccountGroup) {
+  const keys = [...new Set(group.holdings.map((holding) => holding.accountKey).filter(Boolean))];
+  const account = keys.length === 1 ? ` · Account ${keys[0]}` : "";
+  return `${group.holdings.length} position${group.holdings.length === 1 ? "" : "s"}${account}`;
+}
+
+function holdingAccountGroups(holdings: Holding[]): HoldingAccountGroup[] {
+  const groups = new Map<string, HoldingAccountGroup>();
+  for (const holding of holdings) {
+    const key = accountGroupKey(holding);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.holdings.push(holding);
+      existing.value += holding.marketValueAud;
+      continue;
+    }
+    groups.set(key, {
+      key,
+      label: accountGroupLabel(holding),
+      detail: "",
+      value: holding.marketValueAud,
+      holdings: [holding],
+    });
+  }
+  return [...groups.values()]
+    .map((group) => ({ ...group, detail: accountGroupDetail(group) }))
+    .sort((a, b) => b.value - a.value);
+}
+
 function commodityExposureFor(holdings: Holding[]): CommodityExposureSummary[] {
   const buckets = new Map<string, CommodityExposureSummary>();
   for (const holding of holdings) {
@@ -646,18 +708,66 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
   const [chartHolding, setChartHolding] = useState<Holding | null>(null);
   const isOverall = scope === "overall";
   const visibleHoldings = isOverall && !showAllOverall ? holdings.slice(0, 6) : holdings;
+  const accountGroups = useMemo(() => holdingAccountGroups(visibleHoldings), [visibleHoldings]);
+  const showAccountGroups = !isOverall && accountGroups.length > 1;
   const scopeLabel = scope === "smsf" ? "SMSF" : scope === "personal" ? "Personal" : "Overall";
 
   useEffect(() => {
     if (chartHolding && !holdings.some((holding) => holding.id === chartHolding.id)) setChartHolding(null);
   }, [chartHolding, holdings]);
 
+  const renderRows = (rows: Holding[]) => rows.map((holding) => {
+    const dailyGain = holding.dayGainAud ?? 0;
+    const dailyPercent = dayGainPercent(holding);
+    return (
+      <div
+        className={`nsHoldingRow${chartHolding?.id === holding.id ? " isSelected" : ""}`}
+        role="row"
+        tabIndex={0}
+        aria-selected={chartHolding?.id === holding.id}
+        key={holding.id}
+        onClick={() => setChartHolding(holding)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setChartHolding(holding);
+          }
+        }}
+      >
+        <div className="nsHoldingIdentity">
+          <strong>{holding.symbol}</strong>
+          <span>{holding.name}</span>
+        </div>
+        <div className="nsSectorWeightCell">
+          <em style={{ background: `${SECTOR_COLORS[holding.sector]}30`, color: SECTOR_COLORS[holding.sector] }}>{sectorShortName(holding.sector)}</em>
+          <strong>{fmtPct(pct(holding.marketValueAud, total))}</strong>
+        </div>
+        <div>
+          <strong>{fmtLatestPrice(holding)}</strong>
+          <span>{holding.priceAsOfDate ?? holding.exchange ?? "Latest stored close"}</span>
+        </div>
+        <div>
+          <strong>{fmtAud(holding.marketValueAud)}</strong>
+          <span>{fmtPct(pct(holding.marketValueAud, total))} of NAV</span>
+        </div>
+        <div className={dailyGain >= 0 ? "isPositive" : "isNegative"}>
+          <strong>{fmtSignedAud(dailyGain)}</strong>
+          <span>{dailyPercent == null ? "n/a" : fmtSignedPct(dailyPercent)}</span>
+        </div>
+        <div className={holding.pnlAud >= 0 ? "isPositive" : "isNegative"}>
+          <strong>{fmtSignedAud(holding.pnlAud)}</strong>
+          <span>{fmtSignedPct(holding.pnlPercent)} position P/L</span>
+        </div>
+      </div>
+    );
+  });
+
   return (
     <section id="holdings" className="nsPanel nsPositionsPanel">
       <div className="nsPanelTopline">
         <div>
-          <p className="nsEyebrow">{isOverall ? "Largest positions" : `All ${scopeLabel} shares`}</p>
-          <h2>{isOverall ? "Allocation of shares" : `${scopeLabel} share allocation`}</h2>
+          <p className="nsEyebrow">{isOverall ? "Largest positions" : showAccountGroups ? `${scopeLabel} shares by account` : `All ${scopeLabel} shares`}</p>
+          <h2>{isOverall ? "Allocation of shares" : showAccountGroups ? `${scopeLabel} account allocation` : `${scopeLabel} share allocation`}</h2>
         </div>
         {isOverall && holdings.length > 6 ? (
           <button className="nsPositionsToggle" type="button" onClick={() => setShowAllOverall((current) => !current)}>
@@ -677,51 +787,18 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
           <span>Day P/L</span>
           <span>Position P/L</span>
         </div>
-        {visibleHoldings.map((holding) => {
-          const dailyGain = holding.dayGainAud ?? 0;
-          const dailyPercent = dayGainPercent(holding);
-          return (
-            <div
-              className={`nsHoldingRow${chartHolding?.id === holding.id ? " isSelected" : ""}`}
-              role="row"
-              tabIndex={0}
-              aria-selected={chartHolding?.id === holding.id}
-              key={holding.id}
-              onClick={() => setChartHolding(holding)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  setChartHolding(holding);
-                }
-              }}
-            >
-              <div className="nsHoldingIdentity">
-                <strong>{holding.symbol}</strong>
-                <span>{holding.name}</span>
-              </div>
-              <div className="nsSectorWeightCell">
-                <em style={{ background: `${SECTOR_COLORS[holding.sector]}30`, color: SECTOR_COLORS[holding.sector] }}>{sectorShortName(holding.sector)}</em>
-                <strong>{fmtPct(pct(holding.marketValueAud, total))}</strong>
-              </div>
+        {showAccountGroups ? accountGroups.map((group) => (
+          <section className="nsHoldingsAccountGroup" key={group.key} aria-label={group.label}>
+            <div className="nsHoldingsAccountHeader">
               <div>
-                <strong>{fmtLatestPrice(holding)}</strong>
-                <span>{holding.priceAsOfDate ?? holding.exchange ?? "Latest stored close"}</span>
+                <strong>{group.label}</strong>
+                <span>{group.detail}</span>
               </div>
-              <div>
-                <strong>{fmtAud(holding.marketValueAud)}</strong>
-                <span>{fmtPct(pct(holding.marketValueAud, total))} of NAV</span>
-              </div>
-              <div className={dailyGain >= 0 ? "isPositive" : "isNegative"}>
-                <strong>{fmtSignedAud(dailyGain)}</strong>
-                <span>{dailyPercent == null ? "n/a" : fmtSignedPct(dailyPercent)}</span>
-              </div>
-              <div className={holding.pnlAud >= 0 ? "isPositive" : "isNegative"}>
-                <strong>{fmtSignedAud(holding.pnlAud)}</strong>
-                <span>{fmtSignedPct(holding.pnlPercent)} position P/L</span>
-              </div>
+              <em>{fmtAud(group.value)} · {fmtPct(pct(group.value, total))} of NAV</em>
             </div>
-          );
-        })}
+            {renderRows(group.holdings)}
+          </section>
+        )) : renderRows(visibleHoldings)}
         {!visibleHoldings.length ? <div className="nsHoldingEmpty">No share holdings in this view.</div> : null}
       </div>
     </section>

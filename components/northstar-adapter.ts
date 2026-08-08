@@ -36,6 +36,9 @@ function cashHolding(data: DashboardData): Holding | null {
     pnlAud: 0,
     pnlPercent: 0,
     valuationBasis: "market",
+    broker: "Cash",
+    accountKey: `${data.scope}-cash`,
+    accountLabel: `${ownerLabel} cash`,
   };
 }
 
@@ -58,6 +61,8 @@ export function dashboardToNorthstarHoldings(data: DashboardData): Holding[] {
     priceAsOfDate: position.asOfDate,
     exchange: position.exchange,
     broker: position.broker,
+    accountKey: position.accountKey,
+    accountLabel: position.accountKey ? `${position.broker} ${position.accountKey}` : position.broker,
   }));
 
   const cash = cashHolding(data);

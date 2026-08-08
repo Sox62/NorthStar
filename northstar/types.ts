@@ -45,6 +45,10 @@ export interface Holding {
   exchange?: string;
   /** Where the position is held — "IBKR", "Directshares", or "Physical" for manual metal. */
   broker?: string;
+  /** Stable broker account/feed key, used to separate Personal IBKR from Personal Directshares. */
+  accountKey?: string;
+  /** Optional display label for the broker account/feed. */
+  accountLabel?: string;
 }
 
 /** Sector colour palette — keep tags, donut and value bars consistent. */
