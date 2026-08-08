@@ -51,6 +51,32 @@ test("parseIbkrFlexXml leaves symbols on other exchanges untouched", () => {
   assert.equal(gdx.exchange, "ASX");
 });
 
+test("parseIbkrFlexXml keeps BMN from ASX open positions", () => {
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U24473088" fromDate="20260807" toDate="20260807" whenGenerated="20260809;084551">
+        <OpenPositions>
+          <OpenPosition accountId="U24473088" currency="AUD" fxRateToBase="1" assetCategory="STK"
+            subCategory="COMMON" symbol="BMN" description="BANNERMAN ENERGY LTD" conid="44188438"
+            securityID="AU000000BMN9" isin="AU000000BMN9" listingExchange="ASX" reportDate="20260807"
+            position="6000" markPrice="3.39" positionValue="20340" costBasisPrice="3.4230096"
+            costBasisMoney="20538.0576" fifoPnlUnrealized="-198.0576" />
+        </OpenPositions>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`);
+  const bmn = report.openPositions.find((position) => position.symbol === "BMN");
+
+  assert.ok(bmn);
+  assert.equal(bmn.externalAccountId, "U24473088");
+  assert.equal(bmn.instrumentKey, "44188438");
+  assert.equal(bmn.description, "BANNERMAN ENERGY LTD");
+  assert.equal(bmn.exchange, "ASX");
+  assert.equal(bmn.currency, "AUD");
+  assert.equal(bmn.quantity, 6000);
+  assert.equal(bmn.marketValueAud, 20340);
+});
+
 test("the normalised LSE symbol resolves to a usable TradingView symbol", () => {
   const report = parseIbkrFlexXml(flexXml);
   const rhodium = report.openPositions.find((position) => position.conid === "89258383");
