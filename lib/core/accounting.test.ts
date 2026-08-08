@@ -187,6 +187,7 @@ test("buildDashboardModel scopes legal owners and centralises dashboard accounti
   assert.equal(dashboard.totalReturn, 1100);
   assert.equal(dashboard.totalReturnPercent, 44);
   assert.deepEqual(dashboard.performance.map((point) => point.overall), [3400, 4000]);
+  assert.deepEqual(dashboard.performance.map((point) => point.overallInvested), [3000, 3500]);
   assert.equal(dashboard.periodReturns[0].valueAud, 600);
   assert.equal(dashboard.holdings.length, 2);
   assert.equal(dashboard.accounts.length, 3);

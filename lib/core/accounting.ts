@@ -144,6 +144,8 @@ function buildSnapshotSeries(snapshots: DashboardSnapshotValue[]) {
   }
 
   return [...daily.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, item]) => {
+    const personalInvested = item.PERSONAL?.marketValue;
+    const smsfInvested = item.SMSF?.marketValue;
     const personal = item.PERSONAL ? item.PERSONAL.marketValue + item.PERSONAL.cashValue : undefined;
     const smsf = item.SMSF ? item.SMSF.marketValue + item.SMSF.cashValue : undefined;
     return {
@@ -151,6 +153,9 @@ function buildSnapshotSeries(snapshots: DashboardSnapshotValue[]) {
       overall: personal !== undefined || smsf !== undefined ? (personal ?? 0) + (smsf ?? 0) : undefined,
       personal,
       smsf,
+      overallInvested: personalInvested !== undefined || smsfInvested !== undefined ? (personalInvested ?? 0) + (smsfInvested ?? 0) : undefined,
+      personalInvested,
+      smsfInvested,
     };
   });
 }

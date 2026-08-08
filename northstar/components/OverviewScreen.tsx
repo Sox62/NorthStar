@@ -10,7 +10,15 @@ import { byComposition, byScope, bySector, fmtAud, totals } from "../lib/portfol
 import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "../lib/tradingview";
 import { COMPOSITION_OF, SECTOR_COLORS, type CompositionGroup, type Holding, type PortfolioScope, type Sector } from "../types";
 
-type PerformancePoint = { date: string; overall?: number; personal?: number; smsf?: number };
+type PerformancePoint = {
+  date: string;
+  overall?: number;
+  personal?: number;
+  smsf?: number;
+  overallInvested?: number;
+  personalInvested?: number;
+  smsfInvested?: number;
+};
 type SyncRunSummary = {
   source: string;
   trigger: string;
@@ -195,7 +203,18 @@ function fmtShortAud(value: number) {
   return fmtAud(value);
 }
 
-function valueForScope(point: PerformancePoint, scope: PortfolioScope) {
+type ChartValueMode = "shares" | "nav";
+
+function valueForScope(point: PerformancePoint, scope: PortfolioScope, mode: ChartValueMode) {
+  if (mode === "shares") {
+    if (scope === "personal") return point.personalInvested ?? point.personal;
+    if (scope === "smsf") return point.smsfInvested ?? point.smsf;
+    return point.overallInvested ?? (
+      point.personalInvested !== undefined || point.smsfInvested !== undefined
+        ? (point.personalInvested ?? 0) + (point.smsfInvested ?? 0)
+        : point.overall ?? ((point.personal ?? 0) + (point.smsf ?? 0) || undefined)
+    );
+  }
   if (scope === "personal") return point.personal;
   if (scope === "smsf") return point.smsf;
   return point.overall ?? ((point.personal ?? 0) + (point.smsf ?? 0) || undefined);
@@ -376,16 +395,18 @@ function SplitBar({ segments, total }: {
   );
 }
 
-function HistoryChart({ now, scope, performance }: { now: number; scope: PortfolioScope; performance: PerformancePoint[] }) {
+function HistoryChart({ now, investedNow, scope, performance }: { now: number; investedNow: number; scope: PortfolioScope; performance: PerformancePoint[] }) {
   const [range, setRange] = useState<"all" | "6m" | "3m">("all");
+  const [mode, setMode] = useState<ChartValueMode>("shares");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const width = 528;
   const baseline = 160;
+  const chartNow = mode === "shares" ? investedNow : now;
   const fullSeries = useMemo(
     () => performance
-      .map((point) => ({ label: point.date, value: valueForScope(point, scope) }))
+      .map((point) => ({ label: point.date, value: valueForScope(point, scope, mode) }))
       .filter((point): point is { label: string; value: number } => typeof point.value === "number" && Number.isFinite(point.value) && point.value > 0),
-    [performance, scope],
+    [mode, performance, scope],
   );
   const series = useMemo(() => {
     if (range === "all" || fullSeries.length < 2) return fullSeries;
@@ -397,11 +418,11 @@ function HistoryChart({ now, scope, performance }: { now: number; scope: Portfol
     const filtered = dated.filter((point) => Number.isFinite(point.time) && point.time >= cutoff);
     return filtered.length >= 2 ? filtered : fullSeries.slice(range === "6m" ? -183 : -92);
   }, [fullSeries, range]);
-  const values = series.length ? series.map((point) => point.value) : [now];
-  const peak = Math.max(now, ...values);
-  const floor = Math.min(...values, now);
+  const values = series.length ? series.map((point) => point.value) : [chartNow];
+  const peak = Math.max(chartNow, ...values);
+  const floor = Math.min(...values, chartNow);
   const valueRange = Math.max(1, peak - floor);
-  const points = (series.length >= 2 ? series : [{ label: "Now", value: now }, { label: "Now", value: now }]).map((point, index, all) => {
+  const points = (series.length >= 2 ? series : [{ label: "Now", value: chartNow }, { label: "Now", value: chartNow }]).map((point, index, all) => {
     const x = all.length === 1 ? width : (index / Math.max(1, all.length - 1)) * width;
     const y = 132 - ((point.value - floor) / valueRange) * 112;
     return { ...point, x, y };
@@ -425,10 +446,30 @@ function HistoryChart({ now, scope, performance }: { now: number; scope: Portfol
     <div className="nsHistoryPanel">
       <div className="nsPanelTopline">
         <div>
-          <p className="nsEyebrow">Total NAV — since inception</p>
-          <h2>Peak {fmtShortAud(peak)} · now {fmtShortAud(now)}</h2>
+          <p className="nsEyebrow">{mode === "shares" ? "Share price value — since inception" : "Total NAV — since inception"}</p>
+          <h2>Peak {fmtShortAud(peak)} · now {fmtShortAud(chartNow)}</h2>
         </div>
-        <div className="nsRangeTabs" aria-label="Chart range">
+        <div className="nsHistoryControls">
+          <div className="nsRangeTabs" aria-label="Chart value mode">
+            {[
+              ["shares", "Shares"],
+              ["nav", "NAV"],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                className={mode === key ? "isActive" : ""}
+                type="button"
+                aria-pressed={mode === key}
+                onClick={() => {
+                  setMode(key as ChartValueMode);
+                  setHoverIndex(null);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="nsRangeTabs" aria-label="Chart range">
           {[
             ["all", "All"],
             ["6m", "6M"],
@@ -447,6 +488,7 @@ function HistoryChart({ now, scope, performance }: { now: number; scope: Portfol
               {label}
             </button>
           ))}
+          </div>
         </div>
       </div>
       <div className="nsHistoryChartWrap">
@@ -1048,6 +1090,10 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
   const currencyExposure = currencyExposureByScope?.[scope] ?? currencyExposureByScope?.overall ?? [];
   const selectedUpdatedAt = lastUpdatedByScope?.[scope] ?? lastUpdatedByScope?.overall ?? null;
   const health = dataHealth(syncRuns, freshness);
+  const cashForScope = scope === "overall"
+    ? accountBreakdown.reduce((sum, account) => sum + account.cashValue, 0)
+    : accountBreakdown.find((account) => account.scope === scope)?.cashValue ?? 0;
+  const investedNow = Math.max(0, t.marketValue - cashForScope);
   const signOut = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.assign("/login");
@@ -1114,7 +1160,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
             <SplitLegend segments={groupSegments} total={t.marketValue} />
           </div>
           <div className="nsHeroChartStack">
-            <HistoryChart now={t.marketValue} scope={scope} performance={performance} />
+            <HistoryChart now={t.marketValue} investedNow={investedNow} scope={scope} performance={performance} />
             <MetalsPricePanel />
           </div>
         </section>

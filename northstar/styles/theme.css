@@ -658,6 +658,13 @@ body.northstar .nsChartTooltip strong {
   white-space:nowrap;
 }
 
+body.northstar .nsHistoryControls {
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:8px;
+}
+
 body.northstar .nsChartMonths {
   display:grid;
   grid-template-columns:repeat(auto-fit, minmax(48px, 1fr));
@@ -1725,6 +1732,10 @@ body.northstar .nsActivityRow.is-failed em {
   body.northstar .nsHeroStats,
   body.northstar .nsSplitLegend {
     gap:16px;
+  }
+
+  body.northstar .nsHistoryControls {
+    justify-content:flex-start;
   }
 
   body.northstar .nsMetalsHeader {
