@@ -6,6 +6,7 @@ import TradingViewWidget from "@/components/TradingViewWidget";
 import type { DashboardData, DashboardHolding, Scope, StoredDailyPrice } from "@/lib/storage";
 import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
+import { compareNumber, compareText, nextSort, sortIndicator, type SortState } from "@/northstar/lib/sort";
 import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
@@ -15,8 +16,7 @@ type PriceBookResponse = {
 };
 
 type HoldingsSortKey = "holding" | "owner" | "sector" | "units" | "price" | "value" | "weight" | "day" | "pnl";
-type SortDirection = "asc" | "desc";
-type HoldingsSortState = { key: HoldingsSortKey; direction: SortDirection };
+type HoldingsSortState = SortState<HoldingsSortKey>;
 
 const scopes: Array<{ key: Scope; label: string }> = [
   { key: "overall", label: "Overall" },
@@ -85,19 +85,7 @@ function tradingViewUrl(holding: DashboardHolding) {
   return tradingViewChartUrl(tradingViewSymbol(holding));
 }
 
-function nextSort(current: HoldingsSortState, key: HoldingsSortKey): HoldingsSortState {
-  if (current.key === key) return { key, direction: current.direction === "desc" ? "asc" : "desc" };
-  return { key, direction: key === "holding" || key === "owner" || key === "sector" ? "asc" : "desc" };
-}
-
-function sortIndicator(sort: HoldingsSortState, key: HoldingsSortKey) {
-  if (sort.key !== key) return "↕";
-  return sort.direction === "desc" ? "↓" : "↑";
-}
-
-function compareText(left: string | null | undefined, right: string | null | undefined) {
-  return (left ?? "").toLowerCase().localeCompare((right ?? "").toLowerCase());
-}
+const holdingsAscendingSorts: HoldingsSortKey[] = ["holding", "owner", "sector"];
 
 function sortHoldings(rows: DashboardHolding[], sort: HoldingsSortState) {
   return [...rows].sort((left, right) => {
@@ -112,7 +100,7 @@ function sortHoldings(rows: DashboardHolding[], sort: HoldingsSortState) {
     if (sort.key === "sector") {
       const sectorResult = compareText(sectorForInstrument(left), sectorForInstrument(right));
       if (sectorResult) return sort.direction === "desc" ? -sectorResult : sectorResult;
-      return right.marketValueAud - left.marketValueAud;
+      return compareNumber(left.marketValueAud, right.marketValueAud, "desc");
     }
     const valueFor = (holding: DashboardHolding) => {
       switch (sort.key) {
@@ -125,12 +113,9 @@ function sortHoldings(rows: DashboardHolding[], sort: HoldingsSortState) {
         default: return 0;
       }
     };
-    const result = valueFor(right) - valueFor(left);
-    if (result !== 0) return result * (sort.direction === "desc" ? 1 : -1);
-    return compareText(left.symbol, right.symbol);
+    return compareNumber(valueFor(left), valueFor(right), sort.direction) || compareText(left.symbol, right.symbol);
   });
 }
-
 function canonicalMarket(value: string) {
   const exchange = value.trim().toUpperCase();
   if (["CA", "CANADA", "TSX", "TSXV", "TSE", "CVE", "TSX/TSXV"].includes(exchange)) return "CA";
@@ -212,7 +197,7 @@ export default function HoldingsPage() {
   }, [selected, query, sort]);
 
   const sortButton = (key: HoldingsSortKey, label: string) => (
-    <button className={sort.key === key ? "isActive" : ""} type="button" onClick={() => setSort((current) => nextSort(current, key))} aria-sort={sort.key === key ? (sort.direction === "desc" ? "descending" : "ascending") : "none"}>
+    <button className={sort.key === key ? "isActive" : ""} type="button" onClick={() => setSort((current) => nextSort(current, key, holdingsAscendingSorts))} aria-sort={sort.key === key ? (sort.direction === "desc" ? "descending" : "ascending") : "none"}>
       <span>{label}</span>
       <em>{sortIndicator(sort, key)}</em>
     </button>

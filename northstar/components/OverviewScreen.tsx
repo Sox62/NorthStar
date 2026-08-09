@@ -7,6 +7,7 @@ import { NavRail } from "./NavRail";
 import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
 import { dataHealth, type HealthTone } from "../lib/data-health";
 import { byComposition, byScope, bySector, fmtAud, totals } from "../lib/portfolio-metrics";
+import { compareNumber, compareText, nextSort, sortIndicator, type SortState } from "../lib/sort";
 import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "../lib/tradingview";
 import { COMPOSITION_OF, SECTOR_COLORS, type CompositionGroup, type Holding, type PortfolioScope, type Sector } from "../types";
 
@@ -205,8 +206,7 @@ function fmtShortAud(value: number) {
 
 type ChartValueMode = "shares" | "nav";
 type HoldingSortKey = "holding" | "sector" | "price" | "value" | "weight" | "day" | "pnl";
-type SortDirection = "asc" | "desc";
-type HoldingSortState = { key: HoldingSortKey; direction: SortDirection };
+type HoldingSortState = SortState<HoldingSortKey>;
 
 
 function valueForScope(point: PerformancePoint, scope: PortfolioScope, mode: ChartValueMode) {
@@ -258,20 +258,10 @@ function fmtChartLabel(value: string) {
   }).format(date);
 }
 
-function nextSort(current: HoldingSortState, key: HoldingSortKey): HoldingSortState {
-  if (current.key === key) return { key, direction: current.direction === "desc" ? "asc" : "desc" };
-  return { key, direction: key === "holding" || key === "sector" ? "asc" : "desc" };
-}
-
-function sortIndicator(sort: HoldingSortState, key: HoldingSortKey) {
-  if (sort.key !== key) return "↕";
-  return sort.direction === "desc" ? "↓" : "↑";
-}
+const overviewAscendingSorts: HoldingSortKey[] = ["holding", "sector"];
 
 function sortHoldings(holdings: Holding[], sort: HoldingSortState, total: number) {
-  const direction = sort.direction === "desc" ? -1 : 1;
-  const text = (value: string | null | undefined) => value?.toLowerCase() ?? "";
-  const numberValue = (holding: Holding) => {
+  const valueFor = (holding: Holding) => {
     switch (sort.key) {
       case "price": return holding.lastPrice ?? Number.NEGATIVE_INFINITY;
       case "value": return holding.marketValueAud;
@@ -283,20 +273,17 @@ function sortHoldings(holdings: Holding[], sort: HoldingSortState, total: number
   };
   return [...holdings].sort((left, right) => {
     if (sort.key === "holding") {
-      const result = text(left.symbol).localeCompare(text(right.symbol)) || text(left.name).localeCompare(text(right.name));
-      return result * direction;
+      const result = compareText(left.symbol, right.symbol) || compareText(left.name, right.name);
+      return sort.direction === "desc" ? -result : result;
     }
     if (sort.key === "sector") {
-      const sectorResult = text(sectorShortName(left.sector)).localeCompare(text(sectorShortName(right.sector)));
-      if (sectorResult) return sectorResult * direction;
-      return right.marketValueAud - left.marketValueAud;
+      const sectorResult = compareText(sectorShortName(left.sector), sectorShortName(right.sector));
+      if (sectorResult) return sort.direction === "desc" ? -sectorResult : sectorResult;
+      return compareNumber(left.marketValueAud, right.marketValueAud, "desc");
     }
-    const result = numberValue(right) - numberValue(left);
-    if (result !== 0) return result * (sort.direction === "desc" ? 1 : -1);
-    return text(left.symbol).localeCompare(text(right.symbol));
+    return compareNumber(valueFor(left), valueFor(right), sort.direction) || compareText(left.symbol, right.symbol);
   });
 }
-
 function sectorShortName(sector: Sector) {
   return sector.replace(" miners", "").replace(" bullion", "");
 }
@@ -883,7 +870,7 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
   const showAccountGroups = !isOverall && accountGroups.length > 1;
   const scopeLabel = scope === "smsf" ? "SMSF" : scope === "personal" ? "Personal" : "Overall";
   const sortButton = (key: HoldingSortKey, label: string) => (
-    <button className={sort.key === key ? "isActive" : ""} type="button" onClick={() => setSort((current) => nextSort(current, key))} aria-sort={sort.key === key ? (sort.direction === "desc" ? "descending" : "ascending") : "none"}>
+    <button className={sort.key === key ? "isActive" : ""} type="button" onClick={() => setSort((current) => nextSort(current, key, overviewAscendingSorts))} aria-sort={sort.key === key ? (sort.direction === "desc" ? "descending" : "ascending") : "none"}>
       <span>{label}</span>
       <em>{sortIndicator(sort, key)}</em>
     </button>

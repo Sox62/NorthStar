@@ -23,6 +23,12 @@ const tradingViewOverrides: Record<string, string> = {
   "UUUU:US": "AMEX:UUUU",
 };
 
+const usTradingViewExchanges = new Set(["NYSE", "NASDAQ", "AMEX", "ARCA", "NYSEARCA", "BATS"]);
+
+function normaliseUsTradingViewExchange(exchange: string) {
+  return exchange === "ARCA" || exchange === "NYSEARCA" ? "AMEX" : exchange;
+}
+
 function configuredTradingViewChartUrl() {
   const configured = process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL?.trim();
   if (!configured) return new URL(DEFAULT_TRADINGVIEW_CHART_URL);
@@ -42,7 +48,7 @@ export function tradingViewSymbolForInstrument(instrument: TradingViewInstrument
   const key = `${symbol}:${exchange}`;
   if (tradingViewOverrides[key]) return tradingViewOverrides[key];
   if (exchange.includes("ASX")) return `ASX:${symbol}`;
-  if (["NYSE", "NASDAQ", "AMEX", "ARCA", "NYSEARCA", "BATS"].includes(exchange)) return `${exchange === "ARCA" || exchange === "NYSEARCA" ? "AMEX" : exchange}:${symbol}`;
+  if (usTradingViewExchanges.has(exchange)) return `${normaliseUsTradingViewExchange(exchange)}:${symbol}`;
   if (exchange === "US") return tradingViewOverrides[`${symbol}:US`] ?? symbol;
   if (exchange === "TSX/TSXV") return `TSX:${symbol}`;
   if (exchange.includes("TSXV") || exchange.includes("VENTURE")) return `TSXV:${symbol}`;
