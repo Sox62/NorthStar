@@ -791,23 +791,23 @@ function MetalsPricePanel() {
       </div>
       <div className="nsMetalsGrid">
         {quotes.map((quote) => (
-          <article key={quote.label} className="nsMetalTile" style={{ borderColor: `${quote.color}42` }}>
+          <a key={quote.label} className="nsMetalTile" style={{ borderColor: `${quote.color}42` }} href={tradingViewChartUrl(quote.tradingViewSymbol)} target="_blank" rel="noreferrer" aria-label={`Open ${quote.label} on TradingView`}>
             <span>
               <i style={{ background: quote.color }} />{quote.label}
-              <a href={tradingViewChartUrl(quote.tradingViewSymbol)} target="_blank" rel="noreferrer" aria-label={`Open ${quote.label} on TradingView`}>TV</a>
+              <b aria-hidden="true">TV</b>
             </span>
             <strong>{fmtMetalPrice(quote)}</strong>
             <em>{quote.value == null ? quote.source : `${quote.source} · ${fmtDate(quote.priceDate)}`}</em>
-          </article>
+          </a>
         ))}
-        <article className="nsMetalTile nsMetalRatio">
+        <a className="nsMetalTile nsMetalRatio" href={tradingViewChartUrl("TVC:GOLDSILVER")} target="_blank" rel="noreferrer" aria-label="Open GSR on TradingView">
           <span>
             <i />GSR
-            <a href={tradingViewChartUrl("TVC:GOLD/TVC:SILVER")} target="_blank" rel="noreferrer" aria-label="Open GSR on TradingView">TV</a>
+            <b aria-hidden="true">TV</b>
           </span>
           <strong>{gsr == null ? "n/a" : gsr.toFixed(1)}</strong>
           <em>{gsr == null ? "Needs gold + silver spot" : "Gold spot / silver spot"}</em>
-        </article>
+        </a>
       </div>
       {error ? <p className="nsMetalsError">{error}</p> : null}
     </section>
