@@ -153,6 +153,33 @@ test("parseIbkrFlexXml rejects non-AUD base statements before importing wrong va
   </FlexQueryResponse>`), /reporting in USD base currency/);
 });
 
+test("parseIbkrFlexXml uses IBKR Conversion Rates for USD-base AUD valuation", () => {
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U556" fromDate="20260807" toDate="20260807">
+        <CashReport>
+          <CashReportCurrency accountId="U556" currency="BASE_SUMMARY" levelOfDetail="BaseCurrency" toDate="20260807" endingCash="188862.977418729" endingSettledCash="188247.978287529" />
+          <CashReportCurrency accountId="U556" currency="AUD" levelOfDetail="Currency" toDate="20260807" endingCash="142360.91" endingSettledCash="0" />
+          <CashReportCurrency accountId="U556" currency="USD" levelOfDetail="Currency" toDate="20260807" endingCash="88247.980667129" endingSettledCash="188247.978287529" />
+        </CashReport>
+        <OpenPositions>
+          <OpenPosition accountId="U556" currency="USD" fxRateToBase="1" assetCategory="STK"
+            symbol="EU" description="ENCORE ENERGY CORP" conid="585033148" listingExchange="NASDAQ"
+            reportDate="20260807" position="10000" markPrice="1.25" positionValue="12500"
+            costBasisPrice="1.175003" costBasisMoney="11750.03" fifoPnlUnrealized="749.97" />
+        </OpenPositions>
+        <ConversionRates>
+          <ConversionRate reportDate="20260807" fromCurrency="AUD" toCurrency="USD" rate="0.70676" />
+        </ConversionRates>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`);
+
+  assert.equal(Math.round(report.cash?.balanceAud ?? 0), 267224);
+  assert.equal(Math.round(report.cashBalances.find((cash) => cash.currency === "USD")?.balanceAud ?? 0), 124863);
+  assert.equal(Math.round(report.openPositions.find((position) => position.symbol === "EU")?.marketValueAud ?? 0), 17686);
+});
+
 test("parseIbkrFlexXml reads Forex Balances when Cash Report is absent", () => {
   const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
     <FlexStatements count="1">

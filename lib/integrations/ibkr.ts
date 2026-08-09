@@ -14,21 +14,29 @@ function cashSnapshotFromRow(
   row: Record<string, unknown>,
   statementAccount: string,
   statementToDate: unknown,
+  baseCurrency = "AUD",
+  baseFxRateToAud = 1,
   inferredFxRateToAud?: number,
 ): IbkrFlexReport["cash"] {
   const currency = String(row.currency ?? "AUD").toUpperCase();
   const isBase = row.levelOfDetail === "BaseCurrency" || currency === "BASE_SUMMARY";
   const cashCurrency = isBase ? "AUD" : currency;
-  const fxRateToAud = isBase || cashCurrency === "AUD" ? 1 : numberValue(row.fxRateToBase, inferredFxRateToAud ?? 0);
+  const fxRateToAud = isBase
+    ? baseFxRateToAud
+    : cashCurrency === "AUD"
+      ? 1
+      : cashCurrency === baseCurrency
+        ? baseFxRateToAud
+        : numberValue(row.fxRateToBase, inferredFxRateToAud ?? 0) * baseFxRateToAud;
   if (!fxRateToAud) return null;
   const balance = numberValue(row.endingCash);
   const settledBalance = numberValue(row.endingSettledCash, balance);
   return {
     externalAccountId: String(row.accountId ?? statementAccount),
     currency: cashCurrency,
-    balance,
+    balance: isBase ? balance * fxRateToAud : balance,
     balanceAud: balance * fxRateToAud,
-    settledBalance,
+    settledBalance: isBase ? settledBalance * fxRateToAud : settledBalance,
     settledBalanceAud: settledBalance * fxRateToAud,
     fxRateToAud,
     asOfDate: isoDate(row.toDate ?? statementToDate),
@@ -36,27 +44,32 @@ function cashSnapshotFromRow(
   };
 }
 
-function inferredFxRatesFromBase(base: Record<string, unknown> | undefined, currencyRows: Record<string, unknown>[]) {
+function inferredFxRatesFromBase(
+  base: Record<string, unknown> | undefined,
+  currencyRows: Record<string, unknown>[],
+  baseCurrency = "AUD",
+  baseFxRateToAud = 1,
+) {
   const rates = new Map<string, number>();
   if (!base) return rates;
 
   const knownRows = currencyRows
-    .map(row => cashSnapshotFromRow(row, String(row.accountId ?? ""), row.toDate))
+    .map(row => cashSnapshotFromRow(row, String(row.accountId ?? ""), row.toDate, baseCurrency, baseFxRateToAud))
     .filter((row): row is NonNullable<IbkrFlexReport["cash"]> => Boolean(row));
   const unknownRows = currencyRows.filter((row) => {
     const currency = String(row.currency ?? "").toUpperCase();
-    return currency !== "AUD" && !numberValue(row.fxRateToBase, 0) && Math.abs(numberValue(row.endingCash)) > 0.00000001;
+    return currency !== "AUD" && currency !== baseCurrency && !numberValue(row.fxRateToBase, 0) && Math.abs(numberValue(row.endingCash)) > 0.00000001;
   });
 
   if (unknownRows.length !== 1) return rates;
   const unknown = unknownRows[0]!;
-  const baseCashAud = numberValue(base.endingCash);
+  const baseCashAud = numberValue(base.endingCash) * baseFxRateToAud;
   const knownAud = knownRows.reduce((sum, row) => row.currency === String(unknown.currency).toUpperCase() ? sum : sum + row.balanceAud, 0);
   const residualAud = baseCashAud - knownAud;
   const localBalance = numberValue(unknown.endingCash);
   if (localBalance) rates.set(String(unknown.currency).toUpperCase(), residualAud / localBalance);
 
-  const baseSettledAud = numberValue(base.endingSettledCash, baseCashAud);
+  const baseSettledAud = numberValue(base.endingSettledCash, numberValue(base.endingCash)) * baseFxRateToAud;
   const knownSettledAud = knownRows.reduce((sum, row) => row.currency === String(unknown.currency).toUpperCase() ? sum : sum + row.settledBalanceAud, 0);
   const settledResidualAud = baseSettledAud - knownSettledAud;
   const localSettled = numberValue(unknown.endingSettledCash, localBalance);
@@ -98,13 +111,15 @@ function parseCashSnapshots(
   rows: Record<string, unknown>[],
   statementAccount: string,
   statementToDate: unknown,
+  baseCurrency = "AUD",
+  baseFxRateToAud = 1,
 ): { aggregate: IbkrFlexReport["cash"]; balances: NonNullable<IbkrFlexReport["cash"]>[] } {
   const base = rows.find(row => row.levelOfDetail === "BaseCurrency" || row.currency === "BASE_SUMMARY");
   const currencyRows = rows.filter(row => row.levelOfDetail === "Currency" && row.currency !== "BASE_SUMMARY");
-  const inferredFxRates = inferredFxRatesFromBase(base, currencyRows);
-  const aggregate = base ? cashSnapshotFromRow(base, statementAccount, statementToDate) : null;
+  const inferredFxRates = inferredFxRatesFromBase(base, currencyRows, baseCurrency, baseFxRateToAud);
+  const aggregate = base ? cashSnapshotFromRow(base, statementAccount, statementToDate, baseCurrency, baseFxRateToAud) : null;
   const balances = currencyRows
-    .map(row => cashSnapshotFromRow(row, statementAccount, statementToDate, inferredFxRates.get(String(row.currency ?? "").toUpperCase())))
+    .map(row => cashSnapshotFromRow(row, statementAccount, statementToDate, baseCurrency, baseFxRateToAud, inferredFxRates.get(String(row.currency ?? "").toUpperCase())))
     .filter((row): row is NonNullable<IbkrFlexReport["cash"]> => Boolean(row))
     .filter(row => Math.abs(row.balance) > 0.00000001 || Math.abs(row.settledBalance) > 0.00000001);
 
@@ -219,6 +234,22 @@ function parseTransactions(statement: Record<string, unknown>, statementAccount:
   return output;
 }
 
+function conversionRateToAud(statement: Record<string, unknown>, currency: string) {
+  const sourceCurrency = currency.toUpperCase();
+  if (sourceCurrency === "AUD") return 1;
+
+  const rows = arr<Record<string, unknown>>((statement as { ConversionRates?: { ConversionRate?: Record<string, unknown> | Record<string, unknown>[] } }).ConversionRates?.ConversionRate);
+  for (const row of rows) {
+    const from = String(row.fromCurrency ?? "").toUpperCase();
+    const to = String(row.toCurrency ?? "").toUpperCase();
+    const rate = numberValue(row.rate);
+    if (!rate) continue;
+    if (from === sourceCurrency && to === "AUD") return rate;
+    if (from === "AUD" && to === sourceCurrency) return 1 / rate;
+  }
+  return 0;
+}
+
 function inferStatementBaseCurrency(statement: Record<string, unknown>) {
   const positions = arr<Record<string, unknown>>((statement as { OpenPositions?: { OpenPosition?: Record<string, unknown> | Record<string, unknown>[] } }).OpenPositions?.OpenPosition);
   const positionBase = positions.find((position) => String(position.currency ?? "").toUpperCase() !== "AUD" && numberValue(position.fxRateToBase) === 1);
@@ -229,7 +260,7 @@ function inferStatementBaseCurrency(statement: Record<string, unknown>) {
   return tradeBase ? String(tradeBase.currency).toUpperCase() : "AUD";
 }
 
-function parseOpenPositions(statement: Record<string, unknown>, statementAccount: string): IbkrOpenPosition[] {
+function parseOpenPositions(statement: Record<string, unknown>, statementAccount: string, baseFxRateToAud = 1): IbkrOpenPosition[] {
   const output: IbkrOpenPosition[] = [];
   const positions = arr<Record<string, unknown>>((statement as { OpenPositions?: { OpenPosition?: Record<string, unknown> | Record<string, unknown>[] } }).OpenPositions?.OpenPosition);
 
@@ -242,9 +273,9 @@ function parseOpenPositions(statement: Record<string, unknown>, statementAccount
     const isin = String(position.isin ?? position.securityID ?? "");
     const exchange = String(position.listingExchange ?? "");
     const symbol = flexSymbol(String(position.symbol ?? ""), exchange);
-    const costAud = numberValue(position.costBasisMoney) * fxRateToBase;
-    const marketValueAud = numberValue(position.positionValue) * fxRateToBase;
-    const pnlAud = numberValue(position.fifoPnlUnrealized) * fxRateToBase;
+    const costAud = numberValue(position.costBasisMoney) * fxRateToBase * baseFxRateToAud;
+    const marketValueAud = numberValue(position.positionValue) * fxRateToBase * baseFxRateToAud;
+    const pnlAud = numberValue(position.fifoPnlUnrealized) * fxRateToBase * baseFxRateToAud;
 
     output.push({
       externalAccountId: String(position.accountId ?? statementAccount),
@@ -256,7 +287,7 @@ function parseOpenPositions(statement: Record<string, unknown>, statementAccount
       quantity,
       lastPrice: numberValue(position.markPrice),
       fxRateToBase,
-      averageCostAud: numberValue(position.costBasisPrice) * fxRateToBase,
+      averageCostAud: numberValue(position.costBasisPrice) * fxRateToBase * baseFxRateToAud,
       costAud,
       marketValueAud,
       pnlAud,
@@ -299,15 +330,16 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
     whenGenerated = whenGenerated || String(statement.whenGenerated ?? "") || undefined;
 
     const baseCurrency = inferStatementBaseCurrency(statement);
-    if (baseCurrency !== "AUD") {
-      throw new Error(`IBKR Flex account ${statementAccount} is reporting in ${baseCurrency} base currency. NorthStar needs an AUD-base Flex statement or an explicit IBKR AUD valuation total before importing this account.`);
+    const baseFxRateToAud = conversionRateToAud(statement, baseCurrency);
+    if (baseCurrency !== "AUD" && !baseFxRateToAud) {
+      throw new Error(`IBKR Flex account ${statementAccount} is reporting in ${baseCurrency} base currency. Add the Conversion Rates section to the Flex query so NorthStar can value this account in AUD.`);
     }
 
     transactions.push(...parseTransactions(statement, statementAccount));
-    openPositions.push(...parseOpenPositions(statement, statementAccount));
+    openPositions.push(...parseOpenPositions(statement, statementAccount, baseFxRateToAud || 1));
 
     const cashRows = arr<Record<string, unknown>>((statement as { CashReport?: { CashReportCurrency?: Record<string, unknown> | Record<string, unknown>[] } }).CashReport?.CashReportCurrency);
-    const parsedCash = parseCashSnapshots(cashRows, statementAccount, statement.toDate);
+    const parsedCash = parseCashSnapshots(cashRows, statementAccount, statement.toDate, baseCurrency, baseFxRateToAud || 1);
     const parsedForex = parsedCash.balances.length ? { aggregate: null, balances: [] } : parseForexBalanceSnapshots(statement, statementAccount, statement.toDate);
     cash = parsedCash.aggregate ?? parsedForex.aggregate ?? cash;
     cashBalances.push(...parsedCash.balances, ...parsedForex.balances);
