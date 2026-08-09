@@ -189,7 +189,11 @@ test("buildDashboardModel scopes legal owners and centralises dashboard accounti
   assert.deepEqual(dashboard.performance.map((point) => point.overall), [3400, 4000]);
   assert.deepEqual(dashboard.performance.map((point) => point.overallInvested), [3000, 3500]);
   assert.equal(dashboard.periodReturns[0].valueAud, 600);
-  assert.equal(dashboard.holdings.length, 2);
+  assert.equal(dashboard.holdings.length, 3);
+  const cashHolding = dashboard.holdings.find((holding) => holding.symbol === "CASH");
+  assert.equal(cashHolding?.name, "Cash");
+  assert.equal(cashHolding?.assetClass, "Cash");
+  assert.equal(cashHolding?.marketValueAud, 500);
   assert.equal(dashboard.accounts.length, 3);
   assert.equal(dashboard.syncRuns.length, 1);
   assert.equal(dashboard.allocations[0].name, "Platinum bullion");

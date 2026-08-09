@@ -176,6 +176,32 @@ function normalisePositionClassification(position: StoredPosition): StoredPositi
   return assetClass === position.assetClass ? position : { ...position, assetClass };
 }
 
+function cashAccountHolding(account: CashAccount): StoredPosition {
+  return {
+    id: `cash-${account.id}`,
+    ownerType: account.ownerType,
+    broker: account.institution,
+    accountKey: account.name,
+    instrumentKey: `cash:${account.id}`,
+    symbol: "CASH",
+    name: account.name,
+    exchange: "CASH",
+    currency: account.currency,
+    assetClass: "Cash",
+    quantity: account.balance,
+    lastPrice: account.fxRateToAud,
+    averageCostAud: account.fxRateToAud,
+    costAud: account.balanceAud,
+    marketValueAud: account.balanceAud,
+    dayGainAud: 0,
+    pnlAud: 0,
+    pnlPercent: 0,
+    valuationBasis: "cost_basis",
+    asOfDate: account.asOfDate,
+    source: "Cash account",
+  };
+}
+
 function buildAccountRows(input: {
   imports: DashboardImportSummary[];
   cashAccounts: CashAccount[];
@@ -249,7 +275,7 @@ export function buildDashboardModel(input: {
     .filter((position) => position.valuationBasis === "market")
     .reduce((sum, position) => sum + position.marketValueAud, 0) + cashValue;
 
-  const holdings = [...positions]
+  const holdings = [...positions, ...cashAccounts.map(cashAccountHolding)]
     .sort((a, b) => b.marketValueAud - a.marketValueAud)
     .map((position) => ({ ...position, weight: percent(position.marketValueAud, totalValue) }));
 

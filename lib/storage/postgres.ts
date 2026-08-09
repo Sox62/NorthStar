@@ -619,7 +619,8 @@ export class PostgresStorageAdapter implements StorageAdapter {
     const snapshotRows = await getPool().query(`
       SELECT ps.captured_at::date::text AS day,p.legal_owner_type,
         (ARRAY_AGG(ps.captured_at::text ORDER BY ps.captured_at DESC))[1] AS captured_at,
-        (ARRAY_AGG((ps.market_value+ps.cash_value) ORDER BY ps.captured_at DESC))[1]::text AS value
+        (ARRAY_AGG(ps.market_value ORDER BY ps.captured_at DESC))[1]::text AS market_value,
+        (ARRAY_AGG(ps.cash_value ORDER BY ps.captured_at DESC))[1]::text AS cash_value
       FROM portfolio_snapshots ps JOIN portfolios p ON p.id=ps.portfolio_id
       WHERE 1=1 ${ownerFilter} GROUP BY ps.captured_at::date,p.legal_owner_type ORDER BY day DESC LIMIT 2000
     `, values);
@@ -650,8 +651,8 @@ export class PostgresStorageAdapter implements StorageAdapter {
       snapshots: snapshotRows.rows.map(row => ({
         ownerType: row.legal_owner_type as OwnerType,
         capturedAt: new Date(row.captured_at ?? row.day).toISOString(),
-        marketValue: numberValue(row.value),
-        cashValue: 0,
+        marketValue: numberValue(row.market_value),
+        cashValue: numberValue(row.cash_value),
       })),
       syncRuns,
       allocationTargets,

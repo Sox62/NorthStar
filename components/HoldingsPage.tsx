@@ -69,6 +69,10 @@ function pnlTone(value: number) {
   return value >= 0 ? "positive" : "negative";
 }
 
+function isCashHolding(holding: DashboardHolding) {
+  return holding.symbol === "CASH" || holding.exchange === "CASH" || sectorForInstrument(holding) === "Cash";
+}
+
 function tradingViewSymbol(holding: DashboardHolding) {
   return tradingViewSymbolForInstrument(holding);
 }
@@ -263,10 +267,12 @@ export default function HoldingsPage() {
                     <tr
                       key={holding.id}
                       className={chartHolding?.id === holding.id ? "isSelected" : undefined}
-                      tabIndex={0}
-                      onClick={() => setChartHolding(holding)}
+                      tabIndex={isCashHolding(holding) ? undefined : 0}
+                      onClick={() => {
+                        if (!isCashHolding(holding)) setChartHolding(holding);
+                      }}
                       onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
+                        if (!isCashHolding(holding) && (event.key === "Enter" || event.key === " ")) {
                           event.preventDefault();
                           setChartHolding(holding);
                         }
@@ -295,10 +301,14 @@ export default function HoldingsPage() {
                         <span>{percent(holding.pnlPercent)}</span>
                       </td>
                       <td>
-                        <div className="chartActions">
-                          <button type="button" onClick={(event) => { event.stopPropagation(); setChartHolding(holding); }}>View</button>
-                          <a href={tradingViewUrl(holding)} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>TV</a>
-                        </div>
+                        {isCashHolding(holding) ? (
+                          <span className="muted">Cash</span>
+                        ) : (
+                          <div className="chartActions">
+                            <button type="button" onClick={(event) => { event.stopPropagation(); setChartHolding(holding); }}>View</button>
+                            <a href={tradingViewUrl(holding)} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>TV</a>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
