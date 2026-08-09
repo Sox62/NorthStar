@@ -207,3 +207,9 @@ test("the normalised LSE symbol resolves to a usable TradingView symbol", () => 
   assert.ok(rhodium);
   assert.equal(tradingViewSymbolForInstrument({ symbol: rhodium.symbol, exchange: rhodium.exchange }), "LSE:XRH0");
 });
+
+test("TradingView maps URA on ARCA to the US ETF symbol", () => {
+  assert.equal(tradingViewSymbolForInstrument({ symbol: "URA", exchange: "ARCA" }), "AMEX:URA");
+  assert.equal(tradingViewSymbolForInstrument({ symbol: "URA", exchange: "NYSEARCA" }), "AMEX:URA");
+  assert.equal(tradingViewSymbolForInstrument({ symbol: "URA", exchange: "US" }), "AMEX:URA");
+});

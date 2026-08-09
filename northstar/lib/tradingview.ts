@@ -18,6 +18,8 @@ const tradingViewOverrides: Record<string, string> = {
   "SILJ:US": "AMEX:SILJ",
   "URNM:US": "AMEX:URNM",
   "URA:US": "AMEX:URA",
+  "URA:ARCA": "AMEX:URA",
+  "URA:NYSEARCA": "AMEX:URA",
   "UUUU:US": "AMEX:UUUU",
 };
 
@@ -40,11 +42,12 @@ export function tradingViewSymbolForInstrument(instrument: TradingViewInstrument
   const key = `${symbol}:${exchange}`;
   if (tradingViewOverrides[key]) return tradingViewOverrides[key];
   if (exchange.includes("ASX")) return `ASX:${symbol}`;
+  if (["NYSE", "NASDAQ", "AMEX", "ARCA", "NYSEARCA", "BATS"].includes(exchange)) return `${exchange === "ARCA" || exchange === "NYSEARCA" ? "AMEX" : exchange}:${symbol}`;
+  if (exchange === "US") return tradingViewOverrides[`${symbol}:US`] ?? symbol;
   if (exchange === "TSX/TSXV") return `TSX:${symbol}`;
   if (exchange.includes("TSXV") || exchange.includes("VENTURE")) return `TSXV:${symbol}`;
   if (exchange.includes("TSX") || exchange.includes("CA")) return `TSX:${symbol}`;
   if (exchange.includes("LSE") || exchange.includes("GB")) return `LSE:${symbol}`;
-  if (exchange === "US") return symbol;
   return exchange ? `${exchange}:${symbol}` : symbol;
 }
 
