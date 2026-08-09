@@ -10,6 +10,53 @@ const numberValue = (value: unknown, fallback = 0) => {
 const numberOrUndefined = (value: unknown) => value === "" || value == null ? undefined : Number(value);
 const isoDate = (value: unknown) => String(value ?? "").replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
 
+function parseCashSnapshot(
+  rows: Record<string, unknown>[],
+  statementAccount: string,
+  statementToDate: unknown,
+): IbkrFlexReport["cash"] {
+  const base = rows.find(row => row.levelOfDetail === "BaseCurrency" || row.currency === "BASE_SUMMARY");
+  if (base) {
+    return {
+      externalAccountId: String(base.accountId ?? statementAccount),
+      currency: "AUD",
+      balance: numberValue(base.endingCash),
+      balanceAud: numberValue(base.endingCash),
+      settledBalance: numberValue(base.endingSettledCash, numberValue(base.endingCash)),
+      fxRateToAud: 1,
+      asOfDate: isoDate(base.toDate ?? statementToDate),
+      raw: base,
+    };
+  }
+
+  const currencyRows = rows.filter(row => row.levelOfDetail === "Currency" && row.currency !== "BASE_SUMMARY");
+  if (!currencyRows.length) return null;
+
+  let balanceAud = 0;
+  let settledBalanceAud = 0;
+  let sawConvertibleBalance = false;
+  for (const row of currencyRows) {
+    const currency = String(row.currency ?? "").toUpperCase();
+    const fxRateToBase = currency === "AUD" ? 1 : numberValue(row.fxRateToBase, 0);
+    if (!fxRateToBase) continue;
+    sawConvertibleBalance = true;
+    balanceAud += numberValue(row.endingCash) * fxRateToBase;
+    settledBalanceAud += numberValue(row.endingSettledCash, numberValue(row.endingCash)) * fxRateToBase;
+  }
+  if (!sawConvertibleBalance) return null;
+
+  return {
+    externalAccountId: String(currencyRows[0]?.accountId ?? statementAccount),
+    currency: "AUD",
+    balance: balanceAud,
+    balanceAud,
+    settledBalance: settledBalanceAud,
+    fxRateToAud: 1,
+    asOfDate: isoDate(currencyRows[0]?.toDate ?? statementToDate),
+    raw: { derivedFrom: "CashReportCurrency", rows: currencyRows },
+  };
+}
+
 // Flex reports the local exchange symbol, and IBKR's LSE listings carry a trailing lowercase
 // venue letter ("XRH0l"). Every other source — the trading API, Directshares, TradingView and
 // our own sector map — uses the bare ticker, so normalise at the edge rather than teaching each
@@ -135,19 +182,7 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
     openPositions.push(...parseOpenPositions(statement, statementAccount));
 
     const cashRows = arr<Record<string, unknown>>((statement as { CashReport?: { CashReportCurrency?: Record<string, unknown> | Record<string, unknown>[] } }).CashReport?.CashReportCurrency);
-    const base = cashRows.find(row => row.levelOfDetail === "BaseCurrency" || row.currency === "BASE_SUMMARY");
-    if (base) {
-      cash = {
-        externalAccountId: String(base.accountId ?? statementAccount),
-        currency: "AUD",
-        balance: numberValue(base.endingCash),
-        balanceAud: numberValue(base.endingCash),
-        settledBalance: numberValue(base.endingSettledCash, numberValue(base.endingCash)),
-        fxRateToAud: 1,
-        asOfDate: isoDate(base.toDate ?? statement.toDate),
-        raw: base,
-      };
-    }
+    cash = parseCashSnapshot(cashRows, statementAccount, statement.toDate) ?? cash;
   }
 
   if (!transactions.length && !openPositions.length && !cash) {

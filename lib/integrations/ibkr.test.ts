@@ -77,6 +77,40 @@ test("parseIbkrFlexXml keeps BMN from ASX open positions", () => {
   assert.equal(bmn.marketValueAud, 20340);
 });
 
+test("parseIbkrFlexXml reads the base-currency Cash Report row", () => {
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U111" fromDate="20260807" toDate="20260807">
+        <CashReport>
+          <CashReportCurrency accountId="U111" currency="BASE_SUMMARY" levelOfDetail="BaseCurrency" toDate="20260807" endingCash="120942.64" endingSettledCash="141464.28" />
+          <CashReportCurrency accountId="U111" currency="AUD" levelOfDetail="Currency" toDate="20260807" endingCash="120933.63" endingSettledCash="141455.27" />
+        </CashReport>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`);
+
+  assert.equal(report.cash?.externalAccountId, "U111");
+  assert.equal(report.cash?.balanceAud, 120942.64);
+  assert.equal(report.cash?.settledBalance, 141464.28);
+});
+
+test("parseIbkrFlexXml derives AUD cash from currency rows when the base row is absent", () => {
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U222" fromDate="20260807" toDate="20260807">
+        <CashReport>
+          <CashReportCurrency accountId="U222" currency="AUD" levelOfDetail="Currency" toDate="20260807" endingCash="1000" endingSettledCash="900" />
+          <CashReportCurrency accountId="U222" currency="USD" levelOfDetail="Currency" toDate="20260807" endingCash="10" endingSettledCash="8" fxRateToBase="1.5" />
+        </CashReport>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`);
+
+  assert.equal(report.cash?.externalAccountId, "U222");
+  assert.equal(report.cash?.balanceAud, 1015);
+  assert.equal(report.cash?.settledBalance, 912);
+});
+
 test("the normalised LSE symbol resolves to a usable TradingView symbol", () => {
   const report = parseIbkrFlexXml(flexXml);
   const rhodium = report.openPositions.find((position) => position.conid === "89258383");

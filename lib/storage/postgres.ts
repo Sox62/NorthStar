@@ -141,14 +141,28 @@ async function replaceIbkrOpenPositions(client: PoolClient, report: IbkrFlexRepo
   return positions.length;
 }
 
+function ibkrCashAccountName(report: IbkrFlexReport) {
+  const account = report.cash?.externalAccountId || report.accountId;
+  return account && account !== "IBKR" ? `IBKR Cash · ${maskAccount(account)}` : "IBKR Cash";
+}
+
 async function upsertIbkrCash(client: PoolClient, report: IbkrFlexReport, portfolioId: string) {
   if (!report.cash) return;
+  const name = ibkrCashAccountName(report);
+  await client.query(`
+    UPDATE cash_accounts
+    SET name=$2
+    WHERE portfolio_id=$1 AND institution='IBKR' AND name='IBKR Cash'
+      AND NOT EXISTS (
+        SELECT 1 FROM cash_accounts WHERE portfolio_id=$1 AND institution='IBKR' AND name=$2
+      )
+  `, [portfolioId, name]);
   await client.query(`
     INSERT INTO cash_accounts (portfolio_id,institution,name,currency,balance,fx_rate_to_aud,balance_aud,as_of_date,is_active,updated_at)
-    VALUES ($1,'IBKR','IBKR Cash','AUD',$2,1,$3,$4,true,NOW())
+    VALUES ($1,'IBKR',$2,'AUD',$3,1,$4,$5,true,NOW())
     ON CONFLICT (portfolio_id,institution,name) DO UPDATE SET currency='AUD',balance=EXCLUDED.balance,
       fx_rate_to_aud=1,balance_aud=EXCLUDED.balance_aud,as_of_date=EXCLUDED.as_of_date,is_active=true,updated_at=NOW()
-  `, [portfolioId, report.cash.balance, report.cash.balanceAud, report.cash.asOfDate]);
+  `, [portfolioId, name, report.cash.balance, report.cash.balanceAud, report.cash.asOfDate]);
 }
 
 function syncRunFromRow(row: Record<string, unknown>): SyncRun {

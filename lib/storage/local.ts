@@ -128,11 +128,18 @@ function replaceIbkrOpenPositions(store: LocalStore, report: IbkrFlexReport, own
   }
 }
 
+function ibkrCashAccountName(report: IbkrFlexReport) {
+  const account = report.cash?.externalAccountId || report.accountId;
+  return account && account !== "IBKR" ? `IBKR Cash · ${maskAccount(account)}` : "IBKR Cash";
+}
+
 function upsertIbkrCash(store: LocalStore, report: IbkrFlexReport, ownerType: OwnerType) {
   if (!report.cash) return;
-  const existing = store.cashAccounts.find(account => account.ownerType === ownerType && account.institution === "IBKR" && account.name === "IBKR Cash");
+  const name = ibkrCashAccountName(report);
+  const existing = store.cashAccounts.find(account => account.ownerType === ownerType && account.institution === "IBKR" && account.name === name)
+    ?? store.cashAccounts.find(account => account.ownerType === ownerType && account.institution === "IBKR" && account.name === "IBKR Cash");
   const account: CashAccount = {
-    id: existing?.id ?? randomUUID(), ownerType, institution: "IBKR", name: "IBKR Cash",
+    id: existing?.id ?? randomUUID(), ownerType, institution: "IBKR", name,
     currency: "AUD", balance: report.cash.balance, balanceAud: report.cash.balanceAud,
     fxRateToAud: 1, asOfDate: report.cash.asOfDate, updatedAt: new Date().toISOString(),
   };
