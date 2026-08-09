@@ -372,7 +372,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
     const clauses = options.includeInactive ? [] : ["c.is_active=true"];
     if (ownerType) {
       values.push(ownerType);
-      clauses.push(`p.legal_owner_type=${values.length}`);
+      clauses.push(`p.legal_owner_type=$${values.length}`);
     }
     const filter = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
     const result = await getPool().query(`
