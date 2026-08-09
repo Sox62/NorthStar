@@ -596,6 +596,42 @@ body.northstar .nsHistoryChart {
   cursor:crosshair;
 }
 
+body.northstar .nsHistoryChartButton {
+  display:block;
+  width:100%;
+  min-height:0;
+  padding:0;
+  border:0;
+  border-radius:12px;
+  background:transparent;
+  color:inherit;
+  cursor:zoom-in;
+  font:inherit;
+  text-align:inherit;
+}
+
+body.northstar .nsHistoryChartButton .nsHistoryChartWrap {
+  margin-top:28px;
+}
+
+body.northstar .nsHistoryChartButton:hover .nsHistoryChartWrap,
+body.northstar .nsHistoryChartButton:focus-visible .nsHistoryChartWrap {
+  outline:1px solid rgba(215,181,109,0.36);
+  outline-offset:8px;
+}
+
+body.northstar .nsHistoryChartWrap.isDetailed {
+  margin-top:18px;
+  padding:18px;
+  border:1px solid rgba(122,149,178,0.16);
+  border-radius:16px;
+  background:rgba(4,12,20,0.32);
+}
+
+body.northstar .nsHistoryChartWrap.isDetailed .nsHistoryChart {
+  min-height:380px;
+}
+
 body.northstar .nsChartGridLine {
   stroke:rgba(122,149,178,0.13);
   stroke-width:1;
@@ -1219,6 +1255,99 @@ body.northstar .nsStockChartPanel .cardTitle {
   font-size:22px;
 }
 
+body.northstar .nsStockChartActions {
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:8px;
+}
+
+body.northstar .nsChartOverlay {
+  position:fixed;
+  inset:0;
+  z-index:200;
+  display:grid;
+  place-items:center;
+  padding:24px;
+}
+
+body.northstar .nsChartOverlayScrim {
+  position:absolute;
+  inset:0;
+  width:100%;
+  min-height:0;
+  padding:0;
+  border:0;
+  background:rgba(0,6,12,0.76);
+  backdrop-filter:blur(10px);
+  cursor:pointer;
+}
+
+body.northstar .nsChartOverlayPanel {
+  position:relative;
+  z-index:1;
+  width:min(1180px, calc(100vw - 48px));
+  max-height:calc(100vh - 48px);
+  overflow:auto;
+  padding:24px;
+  border:1px solid rgba(122,149,178,0.24);
+  border-radius:18px;
+  background:linear-gradient(180deg, #101d2d 0%, #07121d 100%);
+  box-shadow:0 30px 80px rgba(0,0,0,0.52);
+}
+
+body.northstar .nsChartOverlayHeader {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+}
+
+body.northstar .nsChartOverlayHeader h2 {
+  margin:8px 0 0;
+  color:#eef3f8;
+  font-family:var(--ns-serif);
+  font-size:28px;
+  font-weight:500;
+  line-height:1.08;
+}
+
+body.northstar .nsDetailedHistoryMeta {
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:10px;
+  margin-top:18px;
+}
+
+body.northstar .nsDetailedHistoryMeta > div {
+  min-width:0;
+  padding:12px 13px;
+  border:1px solid rgba(122,149,178,0.16);
+  border-radius:12px;
+  background:rgba(4,12,20,0.32);
+}
+
+body.northstar .nsDetailedHistoryMeta span,
+body.northstar .nsDetailedHistoryMeta strong {
+  display:block;
+}
+
+body.northstar .nsDetailedHistoryMeta span {
+  color:var(--muted);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+}
+
+body.northstar .nsDetailedHistoryMeta strong {
+  margin-top:6px;
+  color:#eef3f8;
+  font-family:var(--ns-serif);
+  font-size:22px;
+  font-weight:500;
+}
+
 body.northstar .nsSectorPanel {
   min-height:auto;
   display:grid;
@@ -1735,6 +1864,42 @@ body.northstar .nsActivityRow.is-failed em {
   }
 
   body.northstar .nsHistoryControls {
+    justify-content:flex-start;
+  }
+
+  body.northstar .nsChartOverlay {
+    padding:10px;
+  }
+
+  body.northstar .nsChartOverlayPanel {
+    width:calc(100vw - 20px);
+    max-height:calc(100vh - 20px);
+    padding:16px;
+    border-radius:14px;
+  }
+
+  body.northstar .nsChartOverlayHeader {
+    flex-direction:column;
+    gap:10px;
+  }
+
+  body.northstar .nsChartOverlayHeader h2 {
+    font-size:23px;
+  }
+
+  body.northstar .nsDetailedHistoryMeta {
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+  }
+
+  body.northstar .nsHistoryChartWrap.isDetailed {
+    padding:10px;
+  }
+
+  body.northstar .nsHistoryChartWrap.isDetailed .nsHistoryChart {
+    min-height:260px;
+  }
+
+  body.northstar .nsStockChartActions {
     justify-content:flex-start;
   }
 

@@ -399,6 +399,7 @@ function HistoryChart({ now, investedNow, scope, performance }: { now: number; i
   const [range, setRange] = useState<"all" | "6m" | "3m">("all");
   const [mode, setMode] = useState<ChartValueMode>("shares");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const width = 528;
   const baseline = 160;
   const chartNow = mode === "shares" ? investedNow : now;
@@ -441,6 +442,64 @@ function HistoryChart({ now, investedNow, scope, performance }: { now: number; i
     const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
     setHoverIndex(Math.round(ratio * Math.max(0, points.length - 1)));
   };
+  const clearHover = () => setHoverIndex(null);
+  const title = mode === "shares" ? "Share price value" : "Total NAV";
+
+  const chartSvg = (gradientId: string, label: string) => (
+    <svg
+      className="nsHistoryChart"
+      width={width}
+      height={172}
+      viewBox="0 0 528 172"
+      role="img"
+      aria-label={label}
+      onPointerMove={onPointerMove}
+      onPointerLeave={clearHover}
+    >
+      <defs>
+        <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#d7b56d" stopOpacity="0.42" />
+          <stop offset="100%" stopColor="#d7b56d" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {gridValues.map((value, index) => {
+        const y = 132 - ((value - floor) / valueRange) * 112;
+        return (
+          <g key={`${value}-${index}-${gradientId}`}>
+            <line className="nsChartGridLine" x1="0" x2={width} y1={y} y2={y} />
+            <text className="nsChartAxisLabel" x={width - 4} y={Math.max(10, y - 5)} textAnchor="end">{fmtShortAud(value)}</text>
+          </g>
+        );
+      })}
+      <polygon points={fill} fill={`url(#${gradientId})`} />
+      <polyline points={line} fill="none" stroke="#d7b56d" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
+      {active && (
+        <>
+          <line className="nsChartCrosshair" x1={active.x} x2={active.x} y1="16" y2={baseline} />
+          <circle className="nsChartActiveDot" cx={active.x} cy={active.y} r="5" />
+        </>
+      )}
+      {!active && last && <circle cx={last.x} cy={last.y} r="4" fill="#d7b56d" />}
+      <rect x="0" y="0" width={width} height="172" fill="transparent" />
+    </svg>
+  );
+
+  const renderTooltip = () => active ? (
+    <div
+      className={`nsChartTooltip ${active.x > width * 0.66 ? "isLeft" : ""}`}
+      style={{ left: `${(active.x / width) * 100}%`, top: `${Math.max(8, Math.min(72, (active.y / 172) * 100))}%` }}
+    >
+      <span>{fmtChartLabel(active.label)}</span>
+      <strong>{fmtAud(active.value)}</strong>
+    </div>
+  ) : null;
+
+  const openOnKeyboard = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setExpanded(true);
+    }
+  };
 
   return (
     <div className="nsHistoryPanel">
@@ -450,6 +509,7 @@ function HistoryChart({ now, investedNow, scope, performance }: { now: number; i
           <h2>Peak {fmtShortAud(peak)} · now {fmtShortAud(chartNow)}</h2>
         </div>
         <div className="nsHistoryControls">
+          <button className="nsReportButton" type="button" onClick={() => setExpanded(true)}>Expand</button>
           <div className="nsRangeTabs" aria-label="Chart value mode">
             {[
               ["shares", "Shares"],
@@ -491,56 +551,62 @@ function HistoryChart({ now, investedNow, scope, performance }: { now: number; i
           </div>
         </div>
       </div>
-      <div className="nsHistoryChartWrap">
-        <svg
-          className="nsHistoryChart"
-          width={width}
-          height={172}
-          viewBox="0 0 528 172"
-          role="img"
-          aria-label="Portfolio history chart"
-          onPointerMove={onPointerMove}
-          onPointerLeave={() => setHoverIndex(null)}
-        >
-          <defs>
-            <linearGradient id="nsHistoryFill" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#d7b56d" stopOpacity="0.42" />
-              <stop offset="100%" stopColor="#d7b56d" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          {gridValues.map((value, index) => {
-            const y = 132 - ((value - floor) / valueRange) * 112;
-            return (
-              <g key={`${value}-${index}`}>
-                <line className="nsChartGridLine" x1="0" x2={width} y1={y} y2={y} />
-                <text className="nsChartAxisLabel" x={width - 4} y={Math.max(10, y - 5)} textAnchor="end">{fmtShortAud(value)}</text>
-              </g>
-            );
-          })}
-          <polygon points={fill} fill="url(#nsHistoryFill)" />
-          <polyline points={line} fill="none" stroke="#d7b56d" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
-          {active && (
-            <>
-              <line className="nsChartCrosshair" x1={active.x} x2={active.x} y1="16" y2={baseline} />
-              <circle className="nsChartActiveDot" cx={active.x} cy={active.y} r="5" />
-            </>
-          )}
-          {!active && last && <circle cx={last.x} cy={last.y} r="4" fill="#d7b56d" />}
-          <rect x="0" y="0" width={width} height="172" fill="transparent" />
-        </svg>
-        {active ? (
-          <div
-            className={`nsChartTooltip ${active.x > width * 0.66 ? "isLeft" : ""}`}
-            style={{ left: `${(active.x / width) * 100}%`, top: `${Math.max(8, Math.min(72, (active.y / 172) * 100))}%` }}
-          >
-            <span>{fmtChartLabel(active.label)}</span>
-            <strong>{fmtAud(active.value)}</strong>
-          </div>
-        ) : null}
+      <div
+        className="nsHistoryChartButton"
+        role="button"
+        tabIndex={0}
+        onClick={() => setExpanded(true)}
+        onKeyDown={openOnKeyboard}
+        aria-label={`Open detailed ${title} chart`}
+      >
+        <div className="nsHistoryChartWrap">
+          {chartSvg("nsHistoryFill", "Portfolio history chart")}
+          {renderTooltip()}
+        </div>
       </div>
       <div className="nsChartMonths" aria-hidden="true">
-        {monthLabels.length ? monthLabels.map((point, index) => <span key={`${point.label}-${index}`}>{fmtChartLabel(point.label).replace(/ 20\d{2}$/, "")}</span>) : <span>Now</span>}
+        {monthLabels.length ? monthLabels.map((point) => <span key={`${point.label}-${point.x}`}>{fmtChartLabel(point.label).split(" ")[0]}</span>) : <span>Now</span>}
       </div>
+      {expanded ? (
+        <ChartOverlay title={`${title} · ${range.toUpperCase()}`} onClose={() => setExpanded(false)}>
+          <div className="nsDetailedHistoryMeta">
+            <div><span>Current</span><strong>{fmtAud(chartNow)}</strong></div>
+            <div><span>Peak</span><strong>{fmtAud(peak)}</strong></div>
+            <div><span>Low</span><strong>{fmtAud(floor)}</strong></div>
+            <div><span>Points</span><strong>{series.length}</strong></div>
+          </div>
+          <div className="nsHistoryChartWrap isDetailed">
+            {chartSvg("nsHistoryFillDetailed", `Detailed ${title} chart`)}
+            {renderTooltip()}
+          </div>
+        </ChartOverlay>
+      ) : null}
+    </div>
+  );
+}
+
+function ChartOverlay({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="nsChartOverlay" role="dialog" aria-modal="true" aria-label={title}>
+      <button className="nsChartOverlayScrim" type="button" aria-label="Close chart" onClick={onClose} />
+      <section className="nsChartOverlayPanel">
+        <div className="nsChartOverlayHeader">
+          <div>
+            <p className="nsEyebrow">Detailed chart</p>
+            <h2>{title}</h2>
+          </div>
+          <button className="nsReportButton" type="button" onClick={onClose}>Close</button>
+        </div>
+        {children}
+      </section>
     </div>
   );
 }
@@ -729,6 +795,7 @@ function MetricCard({ label, value, note, tone }: { label: string; value: React.
 }
 
 function OverviewStockChartPanel({ holding }: { holding: Holding }) {
+  const [expanded, setExpanded] = useState(false);
   const tvSymbol = tradingViewSymbolForInstrument(holding);
   return (
     <section className="stockChartPanel nsStockChartPanel">
@@ -738,9 +805,26 @@ function OverviewStockChartPanel({ holding }: { holding: Holding }) {
           <h3 className="cardTitle">{holding.symbol} · {holding.name}</h3>
           <p className="cardIntro">{tvSymbol} · {holding.exchange ?? "Market"} · {holding.priceCurrency ?? "Local"}</p>
         </div>
-        <a className="button" href={tradingViewChartUrl(tvSymbol)} target="_blank" rel="noreferrer">Open in TradingView</a>
+        <div className="nsStockChartActions">
+          <button className="button" type="button" onClick={() => setExpanded(true)}>Expand</button>
+          <a className="button" href={tradingViewChartUrl(tvSymbol)} target="_blank" rel="noreferrer">Open in TradingView</a>
+        </div>
       </div>
       <TradingViewWidget symbol={tvSymbol} minHeight={320} maxHeight={420} compactMinHeight={300} compactMaxHeight={380} heightRatio={0.48} compactHeightRatio={0.5} />
+      {expanded ? (
+        <ChartOverlay title={`${holding.symbol} · ${holding.name}`} onClose={() => setExpanded(false)}>
+          <p className="cardIntro">{tvSymbol} · expanded embedded chart</p>
+          <TradingViewWidget
+            symbol={tvSymbol}
+            minHeight={620}
+            maxHeight={780}
+            compactMinHeight={460}
+            compactMaxHeight={620}
+            heightRatio={0.78}
+            compactHeightRatio={0.68}
+          />
+        </ChartOverlay>
+      ) : null}
     </section>
   );
 }
