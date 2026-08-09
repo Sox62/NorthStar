@@ -133,6 +133,26 @@ test("parseIbkrFlexXml derives a missing USD FX rate from the base cash residual
   assert.equal(report.cashBalances.find((cash) => cash.currency === "USD")?.fxRateToAud, 1.5);
 });
 
+test("parseIbkrFlexXml rejects non-AUD base statements before importing wrong values", () => {
+  assert.throws(() => parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U555" fromDate="20260807" toDate="20260807">
+        <CashReport>
+          <CashReportCurrency accountId="U555" currency="BASE_SUMMARY" levelOfDetail="BaseCurrency" toDate="20260807" endingCash="188862.97" />
+          <CashReportCurrency accountId="U555" currency="AUD" levelOfDetail="Currency" toDate="20260807" endingCash="142360.91" />
+          <CashReportCurrency accountId="U555" currency="USD" levelOfDetail="Currency" toDate="20260807" endingCash="88247.98" />
+        </CashReport>
+        <OpenPositions>
+          <OpenPosition accountId="U555" currency="USD" fxRateToBase="1" assetCategory="STK"
+            symbol="EU" description="ENCORE ENERGY CORP" conid="585033148" listingExchange="NASDAQ"
+            reportDate="20260807" position="10000" markPrice="1.25" positionValue="12500"
+            costBasisPrice="1.175003" costBasisMoney="11750.03" fifoPnlUnrealized="749.97" />
+        </OpenPositions>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`), /reporting in USD base currency/);
+});
+
 test("parseIbkrFlexXml reads Forex Balances when Cash Report is absent", () => {
   const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
     <FlexStatements count="1">

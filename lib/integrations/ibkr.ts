@@ -219,6 +219,16 @@ function parseTransactions(statement: Record<string, unknown>, statementAccount:
   return output;
 }
 
+function inferStatementBaseCurrency(statement: Record<string, unknown>) {
+  const positions = arr<Record<string, unknown>>((statement as { OpenPositions?: { OpenPosition?: Record<string, unknown> | Record<string, unknown>[] } }).OpenPositions?.OpenPosition);
+  const positionBase = positions.find((position) => String(position.currency ?? "").toUpperCase() !== "AUD" && numberValue(position.fxRateToBase) === 1);
+  if (positionBase) return String(positionBase.currency).toUpperCase();
+
+  const trades = arr<Record<string, unknown>>((statement as { Trades?: { Trade?: Record<string, unknown> | Record<string, unknown>[] } }).Trades?.Trade);
+  const tradeBase = trades.find((trade) => String(trade.currency ?? "").toUpperCase() !== "AUD" && numberValue(trade.fxRateToBase) === 1);
+  return tradeBase ? String(tradeBase.currency).toUpperCase() : "AUD";
+}
+
 function parseOpenPositions(statement: Record<string, unknown>, statementAccount: string): IbkrOpenPosition[] {
   const output: IbkrOpenPosition[] = [];
   const positions = arr<Record<string, unknown>>((statement as { OpenPositions?: { OpenPosition?: Record<string, unknown> | Record<string, unknown>[] } }).OpenPositions?.OpenPosition);
@@ -287,6 +297,11 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
     fromDate = fromDate || isoDate(statement.fromDate);
     toDate = toDate || isoDate(statement.toDate);
     whenGenerated = whenGenerated || String(statement.whenGenerated ?? "") || undefined;
+
+    const baseCurrency = inferStatementBaseCurrency(statement);
+    if (baseCurrency !== "AUD") {
+      throw new Error(`IBKR Flex account ${statementAccount} is reporting in ${baseCurrency} base currency. NorthStar needs an AUD-base Flex statement or an explicit IBKR AUD valuation total before importing this account.`);
+    }
 
     transactions.push(...parseTransactions(statement, statementAccount));
     openPositions.push(...parseOpenPositions(statement, statementAccount));
