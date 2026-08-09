@@ -1,4 +1,4 @@
-const DEFAULT_TRADINGVIEW_CHART_URL = "https://www.tradingview.com/chart/";
+const DEFAULT_TRADINGVIEW_CHART_URL = "https://www.tradingview.com/chart/rps0WMxt/";
 
 export type TradingViewInstrument = {
   symbol: string;

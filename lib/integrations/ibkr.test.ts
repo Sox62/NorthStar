@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseIbkrFlexXml } from "./ibkr";
-import { tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
+import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
 
 const flexXml = `<FlexQueryResponse queryName="NorthStar" type="AF">
   <FlexStatements count="1">
@@ -212,4 +212,12 @@ test("TradingView maps URA on ARCA to the US ETF symbol", () => {
   assert.equal(tradingViewSymbolForInstrument({ symbol: "URA", exchange: "ARCA" }), "AMEX:URA");
   assert.equal(tradingViewSymbolForInstrument({ symbol: "URA", exchange: "NYSEARCA" }), "AMEX:URA");
   assert.equal(tradingViewSymbolForInstrument({ symbol: "URA", exchange: "US" }), "AMEX:URA");
+});
+
+test("TradingView chart URLs use the saved NorthStar layout", () => {
+  const url = new URL(tradingViewChartUrl("TVC:GOLDSILVER"));
+
+  assert.equal(url.origin, "https://www.tradingview.com");
+  assert.equal(url.pathname, "/chart/rps0WMxt/");
+  assert.equal(url.searchParams.get("symbol"), "TVC:GOLDSILVER");
 });
