@@ -141,24 +141,32 @@ async function replaceIbkrOpenPositions(client: PoolClient, report: IbkrFlexRepo
   return positions.length;
 }
 
-function ibkrCashAccountName(report: IbkrFlexReport, cash: NonNullable<IbkrFlexReport["cash"]>) {
+function ibkrCashAccountName(report: IbkrFlexReport, cash: NonNullable<IbkrFlexReport["cash"]>, kind: "total" | "component") {
   const account = cash.externalAccountId || report.accountId;
   const accountPart = account && account !== "IBKR" ? ` · ${maskAccount(account)}` : "";
-  return `IBKR Cash${accountPart} · ${cash.currency}`;
+  return kind === "total"
+    ? `IBKR Cash${accountPart} · Total AUD`
+    : `IBKR Cash${accountPart} · ${cash.currency}`;
+}
+
+async function writeIbkrCashAccount(client: PoolClient, portfolioId: string, name: string, cash: NonNullable<IbkrFlexReport["cash"]>, isActive: boolean) {
+  await client.query(`
+    INSERT INTO cash_accounts (portfolio_id,institution,name,currency,balance,fx_rate_to_aud,balance_aud,as_of_date,is_active,updated_at)
+    VALUES ($1,'IBKR',$2,$3,$4,$5,$6,$7,$8,NOW())
+    ON CONFLICT (portfolio_id,institution,name) DO UPDATE SET currency=EXCLUDED.currency,balance=EXCLUDED.balance,
+      fx_rate_to_aud=EXCLUDED.fx_rate_to_aud,balance_aud=EXCLUDED.balance_aud,as_of_date=EXCLUDED.as_of_date,is_active=EXCLUDED.is_active,updated_at=NOW()
+  `, [portfolioId, name, cash.currency, cash.balance, cash.fxRateToAud, cash.balanceAud, cash.asOfDate, isActive]);
 }
 
 async function upsertIbkrCash(client: PoolClient, report: IbkrFlexReport, portfolioId: string) {
-  const balances = report.cashBalances.length ? report.cashBalances : report.cash ? [report.cash] : [];
-  if (!balances.length) return;
+  const total = report.cash;
+  const components = report.cashBalances;
+  if (!total && !components.length) return;
   await client.query(`UPDATE cash_accounts SET is_active=false,updated_at=NOW() WHERE portfolio_id=$1 AND institution='IBKR'`, [portfolioId]);
-  for (const cash of balances) {
-    const name = ibkrCashAccountName(report, cash);
-    await client.query(`
-      INSERT INTO cash_accounts (portfolio_id,institution,name,currency,balance,fx_rate_to_aud,balance_aud,as_of_date,is_active,updated_at)
-      VALUES ($1,'IBKR',$2,$3,$4,$5,$6,$7,true,NOW())
-      ON CONFLICT (portfolio_id,institution,name) DO UPDATE SET currency=EXCLUDED.currency,balance=EXCLUDED.balance,
-        fx_rate_to_aud=EXCLUDED.fx_rate_to_aud,balance_aud=EXCLUDED.balance_aud,as_of_date=EXCLUDED.as_of_date,is_active=true,updated_at=NOW()
-    `, [portfolioId, name, cash.currency, cash.balance, cash.fxRateToAud, cash.balanceAud, cash.asOfDate]);
+  if (total) await writeIbkrCashAccount(client, portfolioId, ibkrCashAccountName(report, total, "total"), total, true);
+  else if (components.length === 1) await writeIbkrCashAccount(client, portfolioId, ibkrCashAccountName(report, components[0]!, "component"), components[0]!, true);
+  for (const cash of components) {
+    await writeIbkrCashAccount(client, portfolioId, ibkrCashAccountName(report, cash, "component"), cash, false);
   }
 }
 
@@ -359,19 +367,23 @@ export class PostgresStorageAdapter implements StorageAdapter {
     }));
   }
 
-  async listCashAccounts(ownerType?: OwnerType): Promise<CashAccount[]> {
+  async listCashAccounts(ownerType?: OwnerType, options: { includeInactive?: boolean } = {}): Promise<CashAccount[]> {
     const values: unknown[] = [];
-    const filter = ownerType ? "WHERE p.legal_owner_type=$1 AND c.is_active=true" : "WHERE c.is_active=true";
-    if (ownerType) values.push(ownerType);
+    const clauses = options.includeInactive ? [] : ["c.is_active=true"];
+    if (ownerType) {
+      values.push(ownerType);
+      clauses.push(`p.legal_owner_type=${values.length}`);
+    }
+    const filter = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
     const result = await getPool().query(`
       SELECT c.id, p.legal_owner_type, c.institution, c.name, c.currency, c.balance, c.balance_aud,
-        c.fx_rate_to_aud, c.as_of_date::text, c.updated_at::text
+        c.fx_rate_to_aud, c.as_of_date::text, c.updated_at::text, c.is_active
       FROM cash_accounts c JOIN portfolios p ON p.id=c.portfolio_id
       ${filter} ORDER BY c.institution, c.name
     `, values);
     return result.rows.map(row => ({ id: row.id, ownerType: row.legal_owner_type, institution: row.institution,
       name: row.name, currency: row.currency, balance: numberValue(row.balance), balanceAud: numberValue(row.balance_aud),
-      fxRateToAud: numberValue(row.fx_rate_to_aud), asOfDate: row.as_of_date, updatedAt: row.updated_at }));
+      fxRateToAud: numberValue(row.fx_rate_to_aud), asOfDate: row.as_of_date, updatedAt: row.updated_at, isActive: Boolean(row.is_active) }));
   }
 
   async upsertCashAccount(input: Omit<CashAccount, "id" | "updatedAt" | "balanceAud"> & { id?: string }): Promise<CashAccount> {

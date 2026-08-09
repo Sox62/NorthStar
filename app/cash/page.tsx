@@ -24,7 +24,7 @@ export default function CashPage() {
   const [form, setForm] = useState(blank);
   const [message, setMessage] = useState("");
 
-  const load = async () => setAccounts((await (await fetch("/api/cash", { cache: "no-store" })).json()).accounts ?? []);
+  const load = async () => setAccounts((await (await fetch("/api/cash?components=true", { cache: "no-store" })).json()).accounts ?? []);
 
   useEffect(() => {
     void load();
@@ -116,6 +116,7 @@ export default function CashPage() {
                     <StatusBadge tone={account.ownerType === "SMSF" ? "warning" : "good"}>{account.ownerType === "SMSF" ? "SMSF" : "Personal"}</StatusBadge>
                     <span className="small">{account.currency}</span>
                     <span className="small">As at {account.asOfDate}</span>
+                    {account.isActive === false ? <span className="small">Currency component</span> : null}
                   </div>
                 </div>
                 <div className="rowValue">

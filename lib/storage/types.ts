@@ -142,6 +142,11 @@ export type CashAccount = {
   fxRateToAud: number;
   asOfDate: string;
   updatedAt: string;
+  isActive?: boolean;
+};
+
+export type CashAccountListOptions = {
+  includeInactive?: boolean;
 };
 
 export type PriceableInstrument = {
@@ -321,7 +326,7 @@ export interface StorageAdapter {
   importDirectshares(positions: OpeningPosition[], ownerType: OwnerType): Promise<ImportResult>;
   importDirectsharesTransactions(transactions: ImportedTransaction[], ownerType: OwnerType, importSource?: string): Promise<ImportResult>;
   listTransactions(ownerType?: OwnerType): Promise<StoredTransaction[]>;
-  listCashAccounts(ownerType?: OwnerType): Promise<CashAccount[]>;
+  listCashAccounts(ownerType?: OwnerType, options?: CashAccountListOptions): Promise<CashAccount[]>;
   upsertCashAccount(input: Omit<CashAccount, "id" | "updatedAt" | "balanceAud"> & { id?: string }): Promise<CashAccount>;
   listManualAssets(ownerType?: OwnerType): Promise<ManualAsset[]>;
   upsertManualAsset(input: Omit<ManualAsset, "id" | "updatedAt" | "marketValueAud" | "pnlAud" | "pnlPercent" | "costAudPerKg" | "dealerSpreadAudPerKg" | "dealerSpreadPercent"> & { id?: string }): Promise<ManualAsset>;

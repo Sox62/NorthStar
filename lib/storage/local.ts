@@ -128,30 +128,33 @@ function replaceIbkrOpenPositions(store: LocalStore, report: IbkrFlexReport, own
   }
 }
 
-function ibkrCashAccountName(report: IbkrFlexReport, cash: NonNullable<IbkrFlexReport["cash"]>) {
+function ibkrCashAccountName(report: IbkrFlexReport, cash: NonNullable<IbkrFlexReport["cash"]>, kind: "total" | "component") {
   const account = cash.externalAccountId || report.accountId;
   const accountPart = account && account !== "IBKR" ? ` · ${maskAccount(account)}` : "";
-  return `IBKR Cash${accountPart} · ${cash.currency}`;
+  return kind === "total" ? `IBKR Cash${accountPart} · Total AUD` : `IBKR Cash${accountPart} · ${cash.currency}`;
+}
+
+function writeIbkrCashAccount(store: LocalStore, ownerType: OwnerType, name: string, cash: NonNullable<IbkrFlexReport["cash"]>, isActive: boolean) {
+  const existing = store.cashAccounts.find(account => account.ownerType === ownerType && account.institution === "IBKR" && account.name === name);
+  const account: CashAccount = {
+    id: existing?.id ?? randomUUID(), ownerType, institution: "IBKR", name,
+    currency: cash.currency, balance: cash.balance, balanceAud: cash.balanceAud,
+    fxRateToAud: cash.fxRateToAud, asOfDate: cash.asOfDate, updatedAt: new Date().toISOString(), isActive,
+  };
+  if (existing) Object.assign(existing, account); else store.cashAccounts.push(account);
 }
 
 function upsertIbkrCash(store: LocalStore, report: IbkrFlexReport, ownerType: OwnerType) {
-  const balances = report.cashBalances.length ? report.cashBalances : report.cash ? [report.cash] : [];
-  if (!balances.length) return;
+  const total = report.cash;
+  const components = report.cashBalances;
+  if (!total && !components.length) return;
   for (const existing of store.cashAccounts.filter(account => account.ownerType === ownerType && account.institution === "IBKR")) {
-    existing.balance = 0;
-    existing.balanceAud = 0;
+    existing.isActive = false;
     existing.updatedAt = new Date().toISOString();
   }
-  for (const cash of balances) {
-    const name = ibkrCashAccountName(report, cash);
-    const existing = store.cashAccounts.find(account => account.ownerType === ownerType && account.institution === "IBKR" && account.name === name);
-    const account: CashAccount = {
-      id: existing?.id ?? randomUUID(), ownerType, institution: "IBKR", name,
-      currency: cash.currency, balance: cash.balance, balanceAud: cash.balanceAud,
-      fxRateToAud: cash.fxRateToAud, asOfDate: cash.asOfDate, updatedAt: new Date().toISOString(),
-    };
-    if (existing) Object.assign(existing, account); else store.cashAccounts.push(account);
-  }
+  if (total) writeIbkrCashAccount(store, ownerType, ibkrCashAccountName(report, total, "total"), total, true);
+  else if (components.length === 1) writeIbkrCashAccount(store, ownerType, ibkrCashAccountName(report, components[0]!, "component"), components[0]!, true);
+  for (const cash of components) writeIbkrCashAccount(store, ownerType, ibkrCashAccountName(report, cash, "component"), cash, false);
 }
 
 function captureSnapshot(store: LocalStore, ownerType: OwnerType) {
@@ -359,9 +362,12 @@ export class LocalStorageAdapter implements StorageAdapter {
     return store.transactions.filter(transaction => !ownerType || transaction.ownerType === ownerType).sort((a, b) => a.tradeDate.localeCompare(b.tradeDate));
   }
 
-  async listCashAccounts(ownerType?: OwnerType) {
+  async listCashAccounts(ownerType?: OwnerType, options: { includeInactive?: boolean } = {}) {
     const store = await readStore();
-    return store.cashAccounts.filter(account => !ownerType || account.ownerType === ownerType).sort((a, b) => a.institution.localeCompare(b.institution));
+    return store.cashAccounts
+      .filter(account => options.includeInactive || account.isActive !== false)
+      .filter(account => !ownerType || account.ownerType === ownerType)
+      .sort((a, b) => a.institution.localeCompare(b.institution));
   }
 
   async upsertCashAccount(input: Omit<CashAccount, "id" | "updatedAt" | "balanceAud"> & { id?: string }) {

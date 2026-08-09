@@ -19,7 +19,8 @@ export async function GET(request: Request) {
   try {
     const value = new URL(request.url).searchParams.get("owner")?.toUpperCase();
     const owner = value === "PERSONAL" || value === "SMSF" ? value as OwnerType : undefined;
-    return NextResponse.json({ accounts: await getStorage().listCashAccounts(owner) });
+    const includeInactive = new URL(request.url).searchParams.get("components") === "true";
+    return NextResponse.json({ accounts: await getStorage().listCashAccounts(owner, { includeInactive }) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to load cash accounts" }, { status: 500 });
   }
