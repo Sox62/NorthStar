@@ -115,6 +115,24 @@ test("parseIbkrFlexXml derives AUD cash from currency rows when the base row is 
   assert.deepEqual(report.cashBalances.map((cash) => [cash.currency, cash.balance, cash.balanceAud]), [["AUD", 1000, 1000], ["USD", 10, 15]]);
 });
 
+test("parseIbkrFlexXml derives a missing USD FX rate from the base cash residual", () => {
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U333" fromDate="20260807" toDate="20260807">
+        <CashReport>
+          <CashReportCurrency accountId="U333" currency="BASE_SUMMARY" levelOfDetail="BaseCurrency" toDate="20260807" endingCash="1075" endingSettledCash="1030" />
+          <CashReportCurrency accountId="U333" currency="AUD" levelOfDetail="Currency" toDate="20260807" endingCash="1000" endingSettledCash="1000" />
+          <CashReportCurrency accountId="U333" currency="USD" levelOfDetail="Currency" toDate="20260807" endingCash="50" endingSettledCash="20" />
+        </CashReport>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`);
+
+  assert.equal(report.cash?.balanceAud, 1075);
+  assert.deepEqual(report.cashBalances.map((cash) => [cash.currency, cash.balance, cash.balanceAud]), [["AUD", 1000, 1000], ["USD", 50, 75]]);
+  assert.equal(report.cashBalances.find((cash) => cash.currency === "USD")?.fxRateToAud, 1.5);
+});
+
 test("the normalised LSE symbol resolves to a usable TradingView symbol", () => {
   const report = parseIbkrFlexXml(flexXml);
   const rhodium = report.openPositions.find((position) => position.conid === "89258383");

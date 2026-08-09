@@ -10,18 +10,23 @@ const numberValue = (value: unknown, fallback = 0) => {
 const numberOrUndefined = (value: unknown) => value === "" || value == null ? undefined : Number(value);
 const isoDate = (value: unknown) => String(value ?? "").replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
 
-function cashSnapshotFromRow(row: Record<string, unknown>, statementAccount: string, statementToDate: unknown): IbkrFlexReport["cash"] {
+function cashSnapshotFromRow(
+  row: Record<string, unknown>,
+  statementAccount: string,
+  statementToDate: unknown,
+  inferredFxRateToAud?: number,
+): IbkrFlexReport["cash"] {
   const currency = String(row.currency ?? "AUD").toUpperCase();
   const isBase = row.levelOfDetail === "BaseCurrency" || currency === "BASE_SUMMARY";
   const cashCurrency = isBase ? "AUD" : currency;
-  const fxRateToAud = isBase || cashCurrency === "AUD" ? 1 : numberValue(row.fxRateToBase, 0);
+  const fxRateToAud = isBase || cashCurrency === "AUD" ? 1 : numberValue(row.fxRateToBase, inferredFxRateToAud ?? 0);
   if (!fxRateToAud) return null;
   const balance = numberValue(row.endingCash);
   const settledBalance = numberValue(row.endingSettledCash, balance);
   return {
     externalAccountId: String(row.accountId ?? statementAccount),
     currency: cashCurrency,
-    balance: isBase ? balance : balance,
+    balance,
     balanceAud: balance * fxRateToAud,
     settledBalance,
     settledBalanceAud: settledBalance * fxRateToAud,
@@ -31,16 +36,45 @@ function cashSnapshotFromRow(row: Record<string, unknown>, statementAccount: str
   };
 }
 
+function inferredFxRatesFromBase(base: Record<string, unknown> | undefined, currencyRows: Record<string, unknown>[]) {
+  const rates = new Map<string, number>();
+  if (!base) return rates;
+
+  const knownRows = currencyRows
+    .map(row => cashSnapshotFromRow(row, String(row.accountId ?? ""), row.toDate))
+    .filter((row): row is NonNullable<IbkrFlexReport["cash"]> => Boolean(row));
+  const unknownRows = currencyRows.filter((row) => {
+    const currency = String(row.currency ?? "").toUpperCase();
+    return currency !== "AUD" && !numberValue(row.fxRateToBase, 0) && Math.abs(numberValue(row.endingCash)) > 0.00000001;
+  });
+
+  if (unknownRows.length !== 1) return rates;
+  const unknown = unknownRows[0]!;
+  const baseCashAud = numberValue(base.endingCash);
+  const knownAud = knownRows.reduce((sum, row) => row.currency === String(unknown.currency).toUpperCase() ? sum : sum + row.balanceAud, 0);
+  const residualAud = baseCashAud - knownAud;
+  const localBalance = numberValue(unknown.endingCash);
+  if (localBalance) rates.set(String(unknown.currency).toUpperCase(), residualAud / localBalance);
+
+  const baseSettledAud = numberValue(base.endingSettledCash, baseCashAud);
+  const knownSettledAud = knownRows.reduce((sum, row) => row.currency === String(unknown.currency).toUpperCase() ? sum : sum + row.settledBalanceAud, 0);
+  const settledResidualAud = baseSettledAud - knownSettledAud;
+  const localSettled = numberValue(unknown.endingSettledCash, localBalance);
+  if (localSettled && !rates.has(String(unknown.currency).toUpperCase())) rates.set(String(unknown.currency).toUpperCase(), settledResidualAud / localSettled);
+  return rates;
+}
+
 function parseCashSnapshots(
   rows: Record<string, unknown>[],
   statementAccount: string,
   statementToDate: unknown,
 ): { aggregate: IbkrFlexReport["cash"]; balances: NonNullable<IbkrFlexReport["cash"]>[] } {
   const base = rows.find(row => row.levelOfDetail === "BaseCurrency" || row.currency === "BASE_SUMMARY");
+  const currencyRows = rows.filter(row => row.levelOfDetail === "Currency" && row.currency !== "BASE_SUMMARY");
+  const inferredFxRates = inferredFxRatesFromBase(base, currencyRows);
   const aggregate = base ? cashSnapshotFromRow(base, statementAccount, statementToDate) : null;
-  const balances = rows
-    .filter(row => row.levelOfDetail === "Currency" && row.currency !== "BASE_SUMMARY")
-    .map(row => cashSnapshotFromRow(row, statementAccount, statementToDate))
+  const balances = currencyRows
+    .map(row => cashSnapshotFromRow(row, statementAccount, statementToDate, inferredFxRates.get(String(row.currency ?? "").toUpperCase())))
     .filter((row): row is NonNullable<IbkrFlexReport["cash"]> => Boolean(row))
     .filter(row => Math.abs(row.balance) > 0.00000001 || Math.abs(row.settledBalance) > 0.00000001);
 
