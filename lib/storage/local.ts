@@ -128,22 +128,30 @@ function replaceIbkrOpenPositions(store: LocalStore, report: IbkrFlexReport, own
   }
 }
 
-function ibkrCashAccountName(report: IbkrFlexReport) {
-  const account = report.cash?.externalAccountId || report.accountId;
-  return account && account !== "IBKR" ? `IBKR Cash · ${maskAccount(account)}` : "IBKR Cash";
+function ibkrCashAccountName(report: IbkrFlexReport, cash: NonNullable<IbkrFlexReport["cash"]>) {
+  const account = cash.externalAccountId || report.accountId;
+  const accountPart = account && account !== "IBKR" ? ` · ${maskAccount(account)}` : "";
+  return `IBKR Cash${accountPart} · ${cash.currency}`;
 }
 
 function upsertIbkrCash(store: LocalStore, report: IbkrFlexReport, ownerType: OwnerType) {
-  if (!report.cash) return;
-  const name = ibkrCashAccountName(report);
-  const existing = store.cashAccounts.find(account => account.ownerType === ownerType && account.institution === "IBKR" && account.name === name)
-    ?? store.cashAccounts.find(account => account.ownerType === ownerType && account.institution === "IBKR" && account.name === "IBKR Cash");
-  const account: CashAccount = {
-    id: existing?.id ?? randomUUID(), ownerType, institution: "IBKR", name,
-    currency: "AUD", balance: report.cash.balance, balanceAud: report.cash.balanceAud,
-    fxRateToAud: 1, asOfDate: report.cash.asOfDate, updatedAt: new Date().toISOString(),
-  };
-  if (existing) Object.assign(existing, account); else store.cashAccounts.push(account);
+  const balances = report.cashBalances.length ? report.cashBalances : report.cash ? [report.cash] : [];
+  if (!balances.length) return;
+  for (const existing of store.cashAccounts.filter(account => account.ownerType === ownerType && account.institution === "IBKR")) {
+    existing.balance = 0;
+    existing.balanceAud = 0;
+    existing.updatedAt = new Date().toISOString();
+  }
+  for (const cash of balances) {
+    const name = ibkrCashAccountName(report, cash);
+    const existing = store.cashAccounts.find(account => account.ownerType === ownerType && account.institution === "IBKR" && account.name === name);
+    const account: CashAccount = {
+      id: existing?.id ?? randomUUID(), ownerType, institution: "IBKR", name,
+      currency: cash.currency, balance: cash.balance, balanceAud: cash.balanceAud,
+      fxRateToAud: cash.fxRateToAud, asOfDate: cash.asOfDate, updatedAt: new Date().toISOString(),
+    };
+    if (existing) Object.assign(existing, account); else store.cashAccounts.push(account);
+  }
 }
 
 function captureSnapshot(store: LocalStore, ownerType: OwnerType) {

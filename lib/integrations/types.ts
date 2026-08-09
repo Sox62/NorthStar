@@ -53,11 +53,12 @@ export type IbkrOpenPosition = {
 
 export type IbkrCashSnapshot = {
   externalAccountId: string;
-  currency: "AUD";
+  currency: string;
   balance: number;
   balanceAud: number;
   settledBalance: number;
-  fxRateToAud: 1;
+  settledBalanceAud: number;
+  fxRateToAud: number;
   asOfDate: string;
   raw?: Record<string, unknown>;
 };
@@ -70,6 +71,7 @@ export type IbkrFlexReport = {
   transactions: ImportedTransaction[];
   openPositions: IbkrOpenPosition[];
   cash: IbkrCashSnapshot | null;
+  cashBalances: IbkrCashSnapshot[];
 };
 
 export type OpeningPosition = {

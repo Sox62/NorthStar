@@ -10,51 +10,64 @@ const numberValue = (value: unknown, fallback = 0) => {
 const numberOrUndefined = (value: unknown) => value === "" || value == null ? undefined : Number(value);
 const isoDate = (value: unknown) => String(value ?? "").replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
 
-function parseCashSnapshot(
+function cashSnapshotFromRow(row: Record<string, unknown>, statementAccount: string, statementToDate: unknown): IbkrFlexReport["cash"] {
+  const currency = String(row.currency ?? "AUD").toUpperCase();
+  const isBase = row.levelOfDetail === "BaseCurrency" || currency === "BASE_SUMMARY";
+  const cashCurrency = isBase ? "AUD" : currency;
+  const fxRateToAud = isBase || cashCurrency === "AUD" ? 1 : numberValue(row.fxRateToBase, 0);
+  if (!fxRateToAud) return null;
+  const balance = numberValue(row.endingCash);
+  const settledBalance = numberValue(row.endingSettledCash, balance);
+  return {
+    externalAccountId: String(row.accountId ?? statementAccount),
+    currency: cashCurrency,
+    balance: isBase ? balance : balance,
+    balanceAud: balance * fxRateToAud,
+    settledBalance,
+    settledBalanceAud: settledBalance * fxRateToAud,
+    fxRateToAud,
+    asOfDate: isoDate(row.toDate ?? statementToDate),
+    raw: row,
+  };
+}
+
+function parseCashSnapshots(
   rows: Record<string, unknown>[],
   statementAccount: string,
   statementToDate: unknown,
-): IbkrFlexReport["cash"] {
+): { aggregate: IbkrFlexReport["cash"]; balances: NonNullable<IbkrFlexReport["cash"]>[] } {
   const base = rows.find(row => row.levelOfDetail === "BaseCurrency" || row.currency === "BASE_SUMMARY");
-  if (base) {
-    return {
-      externalAccountId: String(base.accountId ?? statementAccount),
-      currency: "AUD",
-      balance: numberValue(base.endingCash),
-      balanceAud: numberValue(base.endingCash),
-      settledBalance: numberValue(base.endingSettledCash, numberValue(base.endingCash)),
-      fxRateToAud: 1,
-      asOfDate: isoDate(base.toDate ?? statementToDate),
-      raw: base,
-    };
-  }
+  const aggregate = base ? cashSnapshotFromRow(base, statementAccount, statementToDate) : null;
+  const balances = rows
+    .filter(row => row.levelOfDetail === "Currency" && row.currency !== "BASE_SUMMARY")
+    .map(row => cashSnapshotFromRow(row, statementAccount, statementToDate))
+    .filter((row): row is NonNullable<IbkrFlexReport["cash"]> => Boolean(row))
+    .filter(row => Math.abs(row.balance) > 0.00000001 || Math.abs(row.settledBalance) > 0.00000001);
 
-  const currencyRows = rows.filter(row => row.levelOfDetail === "Currency" && row.currency !== "BASE_SUMMARY");
-  if (!currencyRows.length) return null;
+  if (aggregate) return { aggregate, balances: balances.length ? balances : [aggregate] };
+  if (!balances.length) return { aggregate: null, balances: [] };
 
-  let balanceAud = 0;
-  let settledBalanceAud = 0;
-  let sawConvertibleBalance = false;
-  for (const row of currencyRows) {
-    const currency = String(row.currency ?? "").toUpperCase();
-    const fxRateToBase = currency === "AUD" ? 1 : numberValue(row.fxRateToBase, 0);
-    if (!fxRateToBase) continue;
-    sawConvertibleBalance = true;
-    balanceAud += numberValue(row.endingCash) * fxRateToBase;
-    settledBalanceAud += numberValue(row.endingSettledCash, numberValue(row.endingCash)) * fxRateToBase;
-  }
-  if (!sawConvertibleBalance) return null;
-
-  return {
-    externalAccountId: String(currencyRows[0]?.accountId ?? statementAccount),
+  const aggregateFromBalances = balances.reduce<NonNullable<IbkrFlexReport["cash"]>>((sum, row) => ({
+    externalAccountId: row.externalAccountId,
     currency: "AUD",
-    balance: balanceAud,
-    balanceAud,
-    settledBalance: settledBalanceAud,
+    balance: sum.balance + row.balanceAud,
+    balanceAud: sum.balanceAud + row.balanceAud,
+    settledBalance: sum.settledBalance + row.settledBalanceAud,
+    settledBalanceAud: sum.settledBalanceAud + row.settledBalanceAud,
     fxRateToAud: 1,
-    asOfDate: isoDate(currencyRows[0]?.toDate ?? statementToDate),
-    raw: { derivedFrom: "CashReportCurrency", rows: currencyRows },
-  };
+    asOfDate: row.asOfDate,
+    raw: { derivedFrom: "CashReportCurrency" },
+  }), {
+    externalAccountId: balances[0]?.externalAccountId ?? statementAccount,
+    currency: "AUD",
+    balance: 0,
+    balanceAud: 0,
+    settledBalance: 0,
+    settledBalanceAud: 0,
+    fxRateToAud: 1,
+    asOfDate: balances[0]?.asOfDate ?? isoDate(statementToDate),
+  });
+  return { aggregate: aggregateFromBalances, balances };
 }
 
 // Flex reports the local exchange symbol, and IBKR's LSE listings carry a trailing lowercase
@@ -166,6 +179,7 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
   const transactions: ImportedTransaction[] = [];
   const openPositions: IbkrOpenPosition[] = [];
   let cash: IbkrFlexReport["cash"] = null;
+  const cashBalances: NonNullable<IbkrFlexReport["cash"]>[] = [];
   let accountId = "IBKR";
   let fromDate = "";
   let toDate = "";
@@ -182,14 +196,16 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
     openPositions.push(...parseOpenPositions(statement, statementAccount));
 
     const cashRows = arr<Record<string, unknown>>((statement as { CashReport?: { CashReportCurrency?: Record<string, unknown> | Record<string, unknown>[] } }).CashReport?.CashReportCurrency);
-    cash = parseCashSnapshot(cashRows, statementAccount, statement.toDate) ?? cash;
+    const parsedCash = parseCashSnapshots(cashRows, statementAccount, statement.toDate);
+    cash = parsedCash.aggregate ?? cash;
+    cashBalances.push(...parsedCash.balances);
   }
 
   if (!transactions.length && !openPositions.length && !cash) {
     throw new Error("No IBKR trades, open positions or cash report were found in this Flex report.");
   }
 
-  return { accountId, fromDate, toDate, whenGenerated, transactions, openPositions, cash };
+  return { accountId, fromDate, toDate, whenGenerated, transactions, openPositions, cash, cashBalances };
 }
 
 type FlexServiceResponse = {

@@ -31,7 +31,7 @@ export async function POST(request: Request) {
         fxExecutions: fx.length,
         uniqueInstruments,
         openPositions: report.openPositions.length,
-        cashAud: report.cash?.balanceAud ?? 0,
+        cashAud: report.cash?.balanceAud ?? report.cashBalances.reduce((sum, cash) => sum + cash.balanceAud, 0),
         statementTo: report.toDate,
         owner,
         note: report.openPositions.length

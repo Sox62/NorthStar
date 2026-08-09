@@ -91,7 +91,10 @@ test("parseIbkrFlexXml reads the base-currency Cash Report row", () => {
 
   assert.equal(report.cash?.externalAccountId, "U111");
   assert.equal(report.cash?.balanceAud, 120942.64);
-  assert.equal(report.cash?.settledBalance, 141464.28);
+  assert.equal(report.cash?.settledBalanceAud, 141464.28);
+  assert.equal(report.cashBalances.length, 1);
+  assert.equal(report.cashBalances[0]?.currency, "AUD");
+  assert.equal(report.cashBalances[0]?.balance, 120933.63);
 });
 
 test("parseIbkrFlexXml derives AUD cash from currency rows when the base row is absent", () => {
@@ -108,7 +111,8 @@ test("parseIbkrFlexXml derives AUD cash from currency rows when the base row is 
 
   assert.equal(report.cash?.externalAccountId, "U222");
   assert.equal(report.cash?.balanceAud, 1015);
-  assert.equal(report.cash?.settledBalance, 912);
+  assert.equal(report.cash?.settledBalanceAud, 912);
+  assert.deepEqual(report.cashBalances.map((cash) => [cash.currency, cash.balance, cash.balanceAud]), [["AUD", 1000, 1000], ["USD", 10, 15]]);
 });
 
 test("the normalised LSE symbol resolves to a usable TradingView symbol", () => {
