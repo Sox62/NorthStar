@@ -14,6 +14,10 @@ type PriceBookResponse = {
   error?: string;
 };
 
+type HoldingsSortKey = "holding" | "owner" | "sector" | "units" | "price" | "value" | "weight" | "day" | "pnl";
+type SortDirection = "asc" | "desc";
+type HoldingsSortState = { key: HoldingsSortKey; direction: SortDirection };
+
 const scopes: Array<{ key: Scope; label: string }> = [
   { key: "overall", label: "Overall" },
   { key: "personal", label: "Personal" },
@@ -81,6 +85,52 @@ function tradingViewUrl(holding: DashboardHolding) {
   return tradingViewChartUrl(tradingViewSymbol(holding));
 }
 
+function nextSort(current: HoldingsSortState, key: HoldingsSortKey): HoldingsSortState {
+  if (current.key === key) return { key, direction: current.direction === "desc" ? "asc" : "desc" };
+  return { key, direction: key === "holding" || key === "owner" || key === "sector" ? "asc" : "desc" };
+}
+
+function sortIndicator(sort: HoldingsSortState, key: HoldingsSortKey) {
+  if (sort.key !== key) return "↕";
+  return sort.direction === "desc" ? "↓" : "↑";
+}
+
+function compareText(left: string | null | undefined, right: string | null | undefined) {
+  return (left ?? "").toLowerCase().localeCompare((right ?? "").toLowerCase());
+}
+
+function sortHoldings(rows: DashboardHolding[], sort: HoldingsSortState) {
+  return [...rows].sort((left, right) => {
+    if (sort.key === "holding") {
+      const result = compareText(left.symbol, right.symbol) || compareText(left.name, right.name);
+      return sort.direction === "desc" ? -result : result;
+    }
+    if (sort.key === "owner") {
+      const result = compareText(left.ownerType, right.ownerType) || compareText(left.symbol, right.symbol);
+      return sort.direction === "desc" ? -result : result;
+    }
+    if (sort.key === "sector") {
+      const sectorResult = compareText(sectorForInstrument(left), sectorForInstrument(right));
+      if (sectorResult) return sort.direction === "desc" ? -sectorResult : sectorResult;
+      return right.marketValueAud - left.marketValueAud;
+    }
+    const valueFor = (holding: DashboardHolding) => {
+      switch (sort.key) {
+        case "units": return holding.quantity;
+        case "price": return holding.lastPrice ?? Number.NEGATIVE_INFINITY;
+        case "value": return holding.marketValueAud;
+        case "weight": return holding.weight;
+        case "day": return holding.dayGainAud;
+        case "pnl": return holding.pnlAud;
+        default: return 0;
+      }
+    };
+    const result = valueFor(right) - valueFor(left);
+    if (result !== 0) return result * (sort.direction === "desc" ? 1 : -1);
+    return compareText(left.symbol, right.symbol);
+  });
+}
+
 function canonicalMarket(value: string) {
   const exchange = value.trim().toUpperCase();
   if (["CA", "CANADA", "TSX", "TSXV", "TSE", "CVE", "TSX/TSXV"].includes(exchange)) return "CA";
@@ -113,6 +163,7 @@ export default function HoldingsPage() {
   const [scope, setScope] = useState<Scope>("overall");
   const [query, setQuery] = useState("");
   const [chartHolding, setChartHolding] = useState<DashboardHolding | null>(null);
+  const [sort, setSort] = useState<HoldingsSortState>({ key: "value", direction: "desc" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -155,11 +206,17 @@ export default function HoldingsPage() {
   }, [dashboards.personal, dashboards.smsf]);
 
   const rows = useMemo(() => {
-    const holdings = selected?.holdings ?? [];
-    return holdings
-      .filter((holding) => !query.trim() || includesQuery(holding, query.trim()))
-      .sort((left, right) => right.marketValueAud - left.marketValueAud);
-  }, [selected, query]);
+    const visible = (selected?.holdings ?? [])
+      .filter((holding) => !query.trim() || includesQuery(holding, query.trim()));
+    return sortHoldings(visible, sort);
+  }, [selected, query, sort]);
+
+  const sortButton = (key: HoldingsSortKey, label: string) => (
+    <button className={sort.key === key ? "isActive" : ""} type="button" onClick={() => setSort((current) => nextSort(current, key))} aria-sort={sort.key === key ? (sort.direction === "desc" ? "descending" : "ascending") : "none"}>
+      <span>{label}</span>
+      <em>{sortIndicator(sort, key)}</em>
+    </button>
+  );
 
   const fallbackCount = rows.filter((holding) => holding.valuationBasis === "cost_basis").length;
   const scopeLabel = scopes.find((item) => item.key === scope)?.label ?? "Overall";
@@ -250,15 +307,15 @@ export default function HoldingsPage() {
               <table className="holdingsTable">
                 <thead>
                   <tr>
-                    <th>Holding</th>
-                    <th>Owner</th>
-                    <th>Sector</th>
-                    <th className="numeric">Units</th>
-                    <th className="numeric">Latest price (local)</th>
-                    <th className="numeric">Value (AUD)</th>
-                    <th className="numeric">Weight</th>
-                    <th className="numeric">Day P/L</th>
-                    <th className="numeric">Position P/L</th>
+                    <th>{sortButton("holding", "Holding")}</th>
+                    <th>{sortButton("owner", "Owner")}</th>
+                    <th>{sortButton("sector", "Sector")}</th>
+                    <th className="numeric">{sortButton("units", "Units")}</th>
+                    <th className="numeric">{sortButton("price", "Latest price (local)")}</th>
+                    <th className="numeric">{sortButton("value", "Value (AUD)")}</th>
+                    <th className="numeric">{sortButton("weight", "Weight")}</th>
+                    <th className="numeric">{sortButton("day", "Day P/L")}</th>
+                    <th className="numeric">{sortButton("pnl", "Position P/L")}</th>
                     <th>Chart</th>
                   </tr>
                 </thead>

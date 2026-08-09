@@ -1074,6 +1074,41 @@ body.northstar .nsHoldingsHeader span:nth-child(n + 3) {
   text-align:right;
 }
 
+body.northstar .nsHoldingsHeader button {
+  display:inline-flex;
+  max-width:100%;
+  align-items:center;
+  justify-content:inherit;
+  gap:6px;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:inherit;
+  cursor:pointer;
+  font:inherit;
+  letter-spacing:inherit;
+  text-align:inherit;
+  text-transform:inherit;
+}
+
+body.northstar .nsHoldingsHeader button:hover,
+body.northstar .nsHoldingsHeader button.isActive {
+  color:var(--gold);
+}
+
+body.northstar .nsHoldingsHeader button span {
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+body.northstar .nsHoldingsHeader button em {
+  color:currentColor;
+  font-style:normal;
+  font-weight:900;
+}
+
 body.northstar .nsHoldingsAccountGroup {
   margin-top:20px;
 }

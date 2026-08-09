@@ -204,6 +204,10 @@ function fmtShortAud(value: number) {
 }
 
 type ChartValueMode = "shares" | "nav";
+type HoldingSortKey = "holding" | "sector" | "price" | "value" | "weight" | "day" | "pnl";
+type SortDirection = "asc" | "desc";
+type HoldingSortState = { key: HoldingSortKey; direction: SortDirection };
+
 
 function valueForScope(point: PerformancePoint, scope: PortfolioScope, mode: ChartValueMode) {
   if (mode === "shares") {
@@ -252,6 +256,45 @@ function fmtChartLabel(value: string) {
     month: "short",
     year: "numeric",
   }).format(date);
+}
+
+function nextSort(current: HoldingSortState, key: HoldingSortKey): HoldingSortState {
+  if (current.key === key) return { key, direction: current.direction === "desc" ? "asc" : "desc" };
+  return { key, direction: key === "holding" || key === "sector" ? "asc" : "desc" };
+}
+
+function sortIndicator(sort: HoldingSortState, key: HoldingSortKey) {
+  if (sort.key !== key) return "↕";
+  return sort.direction === "desc" ? "↓" : "↑";
+}
+
+function sortHoldings(holdings: Holding[], sort: HoldingSortState, total: number) {
+  const direction = sort.direction === "desc" ? -1 : 1;
+  const text = (value: string | null | undefined) => value?.toLowerCase() ?? "";
+  const numberValue = (holding: Holding) => {
+    switch (sort.key) {
+      case "price": return holding.lastPrice ?? Number.NEGATIVE_INFINITY;
+      case "value": return holding.marketValueAud;
+      case "weight": return pct(holding.marketValueAud, total);
+      case "day": return holding.dayGainAud ?? 0;
+      case "pnl": return holding.pnlAud;
+      default: return 0;
+    }
+  };
+  return [...holdings].sort((left, right) => {
+    if (sort.key === "holding") {
+      const result = text(left.symbol).localeCompare(text(right.symbol)) || text(left.name).localeCompare(text(right.name));
+      return result * direction;
+    }
+    if (sort.key === "sector") {
+      const sectorResult = text(sectorShortName(left.sector)).localeCompare(text(sectorShortName(right.sector)));
+      if (sectorResult) return sectorResult * direction;
+      return right.marketValueAud - left.marketValueAud;
+    }
+    const result = numberValue(right) - numberValue(left);
+    if (result !== 0) return result * (sort.direction === "desc" ? 1 : -1);
+    return text(left.symbol).localeCompare(text(right.symbol));
+  });
 }
 
 function sectorShortName(sector: Sector) {
@@ -832,11 +875,19 @@ function OverviewStockChartPanel({ holding }: { holding: Holding }) {
 function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holding[]; total: number; scope: PortfolioScope; healthTone: HealthTone }) {
   const [showAllOverall, setShowAllOverall] = useState(false);
   const [chartHolding, setChartHolding] = useState<Holding | null>(null);
+  const [sort, setSort] = useState<HoldingSortState>({ key: "value", direction: "desc" });
   const isOverall = scope === "overall";
-  const visibleHoldings = isOverall && !showAllOverall ? holdings.slice(0, 6) : holdings;
+  const sortedHoldings = useMemo(() => sortHoldings(holdings, sort, total), [holdings, sort, total]);
+  const visibleHoldings = isOverall && !showAllOverall ? sortedHoldings.slice(0, 6) : sortedHoldings;
   const accountGroups = useMemo(() => holdingAccountGroups(visibleHoldings), [visibleHoldings]);
   const showAccountGroups = !isOverall && accountGroups.length > 1;
   const scopeLabel = scope === "smsf" ? "SMSF" : scope === "personal" ? "Personal" : "Overall";
+  const sortButton = (key: HoldingSortKey, label: string) => (
+    <button className={sort.key === key ? "isActive" : ""} type="button" onClick={() => setSort((current) => nextSort(current, key))} aria-sort={sort.key === key ? (sort.direction === "desc" ? "descending" : "ascending") : "none"}>
+      <span>{label}</span>
+      <em>{sortIndicator(sort, key)}</em>
+    </button>
+  );
 
   useEffect(() => {
     if (chartHolding && !holdings.some((holding) => holding.id === chartHolding.id)) setChartHolding(null);
@@ -897,7 +948,7 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
         </div>
         {isOverall && holdings.length > 6 ? (
           <button className="nsPositionsToggle" type="button" onClick={() => setShowAllOverall((current) => !current)}>
-            {showAllOverall ? "Show top 6" : `Show all ${holdings.length} ->`}
+            {showAllOverall ? "Show fewer" : `Show all ${holdings.length} ->`}
           </button>
         ) : (
           <span className="nsPositionsCount"><span className={`nsStatusPip is-${healthTone}`} />All {holdings.length} shown</span>
@@ -906,12 +957,12 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
       {chartHolding ? <OverviewStockChartPanel holding={chartHolding} /> : null}
       <div className="nsHoldingsTable" role="table" aria-label={`${scopeLabel} share positions`}>
         <div className="nsHoldingsHeader" role="row">
-          <span>Holding</span>
-          <span>Sector · NAV weight</span>
-          <span>Latest price (local)</span>
-          <span>Value (AUD)</span>
-          <span>Day P/L</span>
-          <span>Position P/L</span>
+          <span>{sortButton("holding", "Holding")}</span>
+          <span>{sortButton("sector", "Sector · NAV weight")}</span>
+          <span>{sortButton("price", "Latest price (local)")}</span>
+          <span>{sortButton("value", "Value (AUD)")}</span>
+          <span>{sortButton("day", "Day P/L")}</span>
+          <span>{sortButton("pnl", "Position P/L")}</span>
         </div>
         {showAccountGroups ? accountGroups.map((group) => (
           <section className="nsHoldingsAccountGroup" key={group.key} aria-label={group.label}>

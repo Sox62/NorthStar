@@ -1071,6 +1071,45 @@ button:disabled { opacity: .55; cursor: wait; }
   text-align: left;
   text-transform: uppercase;
 }
+
+.holdingsTable th button {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+}
+
+.holdingsTable th.numeric button {
+  justify-content: flex-end;
+}
+
+.holdingsTable th button:hover,
+.holdingsTable th button.isActive {
+  color: var(--accent);
+}
+
+.holdingsTable th button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.holdingsTable th button em {
+  color: currentColor;
+  font-style: normal;
+  font-weight: 900;
+}
 .holdingsTable td {
   padding: 15px 12px;
   border-bottom: 1px solid rgba(106,130,153,.14);
