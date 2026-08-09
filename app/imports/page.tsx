@@ -26,7 +26,7 @@ async function loadDashboard(): Promise<DashboardData> {
 
 export default function SyncPage() {
   const [files, setFiles] = useState<Partial<Record<ImportType, File[]>>>({});
-  const [owners, setOwners] = useState<Record<ImportType, OwnerType>>({ ibkr: "SMSF", directshares: "PERSONAL", directsharesNotes: "PERSONAL", dividends: "PERSONAL" });
+  const [owners, setOwners] = useState<Record<ImportType, OwnerType>>({ ibkr: "PERSONAL", directshares: "PERSONAL", directsharesNotes: "PERSONAL", dividends: "PERSONAL" });
   const [results, setResults] = useState<Partial<Record<ImportType, Result>>>({});
   const [busy, setBusy] = useState<ImportType | null>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -166,8 +166,8 @@ export default function SyncPage() {
           <label className="field compactOwner">
             <span>Legal owner</span>
             <select value={owners.ibkr} onChange={(event) => setOwners((value) => ({ ...value, ibkr: event.target.value as OwnerType }))}>
-              <option value="SMSF">SMSF</option>
               <option value="PERSONAL">Personal</option>
+              <option value="SMSF">SMSF</option>
             </select>
           </label>
         </div>
