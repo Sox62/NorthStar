@@ -256,7 +256,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const valuationSource = report.openPositions.length
         ? "open_positions_with_trade_overlay"
         : "trade_cost_basis";
-      return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, openPositions: report.openPositions.length, cashAud: report.cash?.balanceAud, valuationSource, storageMode: "postgresql" };
+      return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, openPositions: report.openPositions.length, cashAud: ibkrTotalCashFromComponents(report)?.balanceAud, valuationSource, storageMode: "postgresql" };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
