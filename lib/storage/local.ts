@@ -144,8 +144,33 @@ function writeIbkrCashAccount(store: LocalStore, ownerType: OwnerType, name: str
   if (existing) Object.assign(existing, account); else store.cashAccounts.push(account);
 }
 
+function ibkrTotalCashFromComponents(report: IbkrFlexReport): IbkrFlexReport["cash"] {
+  if (report.cash) return report.cash;
+  if (!report.cashBalances.length) return null;
+  return report.cashBalances.reduce<NonNullable<IbkrFlexReport["cash"]>>((sum, cash) => ({
+    externalAccountId: cash.externalAccountId,
+    currency: "AUD",
+    balance: sum.balance + cash.balanceAud,
+    balanceAud: sum.balanceAud + cash.balanceAud,
+    settledBalance: sum.settledBalance + cash.settledBalanceAud,
+    settledBalanceAud: sum.settledBalanceAud + cash.settledBalanceAud,
+    fxRateToAud: 1,
+    asOfDate: cash.asOfDate,
+    raw: { derivedFrom: "cashBalances" },
+  }), {
+    externalAccountId: report.cashBalances[0]?.externalAccountId ?? report.accountId,
+    currency: "AUD",
+    balance: 0,
+    balanceAud: 0,
+    settledBalance: 0,
+    settledBalanceAud: 0,
+    fxRateToAud: 1,
+    asOfDate: report.cashBalances[0]?.asOfDate ?? report.toDate,
+  });
+}
+
 function upsertIbkrCash(store: LocalStore, report: IbkrFlexReport, ownerType: OwnerType) {
-  const total = report.cash;
+  const total = ibkrTotalCashFromComponents(report);
   const components = report.cashBalances;
   if (!total && !components.length) return;
   for (const existing of store.cashAccounts.filter(account => account.ownerType === ownerType && account.institution === "IBKR")) {

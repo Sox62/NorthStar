@@ -133,6 +133,26 @@ test("parseIbkrFlexXml derives a missing USD FX rate from the base cash residual
   assert.equal(report.cashBalances.find((cash) => cash.currency === "USD")?.fxRateToAud, 1.5);
 });
 
+test("parseIbkrFlexXml reads Forex Balances when Cash Report is absent", () => {
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U444" fromDate="20260807" toDate="20260807">
+        <ForexBalances>
+          <ForexBalance accountId="U444" assetClass="CASH" reportDate="20260807" functionalCurrency="AUD"
+            fxCurrency="AUD" quantity="1000" value="1000" levelOfDetail="Summary" />
+          <ForexBalance accountId="U444" assetClass="CASH" reportDate="20260807" functionalCurrency="AUD"
+            fxCurrency="USD" quantity="50" value="75" levelOfDetail="Summary" />
+        </ForexBalances>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`);
+
+  assert.equal(report.cash?.externalAccountId, "U444");
+  assert.equal(report.cash?.balanceAud, 1075);
+  assert.deepEqual(report.cashBalances.map((cash) => [cash.currency, cash.balance, cash.balanceAud]), [["AUD", 1000, 1000], ["USD", 50, 75]]);
+  assert.equal(report.cashBalances.find((cash) => cash.currency === "USD")?.fxRateToAud, 1.5);
+});
+
 test("the normalised LSE symbol resolves to a usable TradingView symbol", () => {
   const report = parseIbkrFlexXml(flexXml);
   const rhodium = report.openPositions.find((position) => position.conid === "89258383");

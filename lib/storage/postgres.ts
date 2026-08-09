@@ -158,8 +158,33 @@ async function writeIbkrCashAccount(client: PoolClient, portfolioId: string, nam
   `, [portfolioId, name, cash.currency, cash.balance, cash.fxRateToAud, cash.balanceAud, cash.asOfDate, isActive]);
 }
 
+function ibkrTotalCashFromComponents(report: IbkrFlexReport): IbkrFlexReport["cash"] {
+  if (report.cash) return report.cash;
+  if (!report.cashBalances.length) return null;
+  return report.cashBalances.reduce<NonNullable<IbkrFlexReport["cash"]>>((sum, cash) => ({
+    externalAccountId: cash.externalAccountId,
+    currency: "AUD",
+    balance: sum.balance + cash.balanceAud,
+    balanceAud: sum.balanceAud + cash.balanceAud,
+    settledBalance: sum.settledBalance + cash.settledBalanceAud,
+    settledBalanceAud: sum.settledBalanceAud + cash.settledBalanceAud,
+    fxRateToAud: 1,
+    asOfDate: cash.asOfDate,
+    raw: { derivedFrom: "cashBalances" },
+  }), {
+    externalAccountId: report.cashBalances[0]?.externalAccountId ?? report.accountId,
+    currency: "AUD",
+    balance: 0,
+    balanceAud: 0,
+    settledBalance: 0,
+    settledBalanceAud: 0,
+    fxRateToAud: 1,
+    asOfDate: report.cashBalances[0]?.asOfDate ?? report.toDate,
+  });
+}
+
 async function upsertIbkrCash(client: PoolClient, report: IbkrFlexReport, portfolioId: string) {
-  const total = report.cash;
+  const total = ibkrTotalCashFromComponents(report);
   const components = report.cashBalances;
   if (!total && !components.length) return;
   await client.query(`UPDATE cash_accounts SET is_active=false,updated_at=NOW() WHERE portfolio_id=$1 AND institution='IBKR'`, [portfolioId]);
