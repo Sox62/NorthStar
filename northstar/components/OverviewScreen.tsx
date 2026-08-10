@@ -2,7 +2,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import TradingViewWidget from "@/components/TradingViewWidget";
-import type { IbkrOpenOrdersResult } from "@/lib/integrations/ibkr-open-orders";
 import { NavRail } from "./NavRail";
 import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
 import { dataHealth, type HealthTone } from "../lib/data-health";
@@ -151,15 +150,6 @@ function fmtSignedPct(value: number | null) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
-function fmtQuantity(value: number | null) {
-  if (value == null) return "n/a";
-  return value.toLocaleString("en-AU", { maximumFractionDigits: 4 });
-}
-
-function fmtOrderPrice(value: number | null, currency: string) {
-  if (value == null) return "-";
-  return `${currency ? `${currency} ` : ""}${value.toLocaleString("en-AU", { minimumFractionDigits: value >= 100 ? 2 : 3, maximumFractionDigits: value >= 100 ? 2 : 4 })}`;
-}
 
 function fmtLatestPrice(holding: Holding) {
   if (holding.lastPrice == null) return "No price";
@@ -675,80 +665,6 @@ function PeriodReturnStrip({ returns, xirr }: { returns: PeriodReturnSummary[]; 
   );
 }
 
-function IbkrOpenOrdersPanel() {
-  const [orders, setOrders] = useState<IbkrOpenOrdersResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const loadOrders = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const response = await fetch("/api/ibkr/open-orders", { cache: "no-store" });
-      const payload = await response.json() as IbkrOpenOrdersResult;
-      setOrders(payload);
-      if (!response.ok) setError(payload.message || "Unable to load IBKR open orders.");
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to load IBKR open orders.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void loadOrders();
-  }, []);
-
-  return (
-    <section className="nsPanel nsOpenOrdersPanel">
-      <div className="nsPanelTopline">
-        <div>
-          <p className="nsEyebrow">IBKR open orders</p>
-          <h2>Working orders</h2>
-        </div>
-        <button className="nsReportButton" type="button" onClick={() => void loadOrders()} disabled={loading}>
-          {loading ? "Checking..." : "Refresh"}
-        </button>
-      </div>
-
-      {loading ? <p className="nsOpenOrdersEmpty">Checking IBKR open orders...</p> : null}
-      {!loading && error ? <p className="nsOpenOrdersError">{error}</p> : null}
-      {!loading && !error && orders && !orders.configured ? (
-        <p className="nsOpenOrdersEmpty">{orders.message} Configure IBKR Client Portal/Web API to show live working orders.</p>
-      ) : null}
-      {!loading && !error && orders?.configured && !orders.orders.length ? (
-        <p className="nsOpenOrdersEmpty">{orders.message}</p>
-      ) : null}
-      {!loading && !error && orders?.orders.length ? (
-        <div className="nsOpenOrderRows">
-          {orders.orders.map((order) => (
-            <article key={order.orderId || `${order.account}-${order.symbol}-${order.description}`} className="nsOpenOrderRow">
-              <div>
-                <strong>{order.symbol || order.companyName || "Order"}</strong>
-                <span>{order.description || order.companyName}</span>
-              </div>
-              <em className={order.side === "BUY" ? "isPositive" : order.side === "SELL" ? "isNegative" : undefined}>{order.side || "n/a"}</em>
-              <div>
-                <strong>{order.orderType || "Order"}</strong>
-                <span>{order.status || "Open"} · {order.timeInForce || "TIF n/a"}</span>
-              </div>
-              <div>
-                <strong>{fmtOrderPrice(order.limitPrice, order.currency)}</strong>
-                <span>Stop {fmtOrderPrice(order.stopPrice, order.currency)}</span>
-              </div>
-              <div>
-                <strong>{fmtQuantity(order.remainingQuantity)} open</strong>
-                <span>{fmtQuantity(order.filledQuantity)} filled · {fmtQuantity(order.totalQuantity)} total</span>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : null}
-      {orders?.configured ? <p className="nsOpenOrdersMeta">Fetched {fmtDate(orders.fetchedAt)} · {orders.accountId ?? "selected IBKR account"}</p> : null}
-    </section>
-  );
-}
-
 function MetalsPricePanel() {
   const [quotes, setQuotes] = useState<MetalQuote[]>(metalQuoteShells);
   const [error, setError] = useState("");
@@ -1151,6 +1067,12 @@ function brokerShareTotals(holdings: Holding[], scope: AccountBreakdownSummary["
 function AccountBreakdownPanel({ accounts, holdings, scope, xirrByScope }: { accounts: AccountBreakdownSummary[]; holdings: Holding[]; scope: PortfolioScope; xirrByScope?: Partial<Record<PortfolioScope, XirrSummary>> }) {
   const visibleAccounts = scope === "overall" ? accounts : accounts.filter((account) => account.scope === scope);
   if (!visibleAccounts.length) return null;
+  const brokerTotals = visibleAccounts.flatMap((account) => {
+    const shareTotals = account.brokerShareTotals?.length ? account.brokerShareTotals : brokerShareTotals(holdings, account.scope);
+    return shareTotals.map((item) => ({ ...item, accountScope: account.scope, accountLabel: account.label }));
+  });
+  const totalShareValue = visibleAccounts.reduce((sum, account) => sum + (account.sharePositionValue ?? account.investedValue), 0);
+  const totalSharePositions = visibleAccounts.reduce((sum, account) => sum + account.positionCount, 0);
   return (
     <section className="nsPanel nsAccountPanel">
       <div className="nsPanelTopline">
@@ -1162,36 +1084,44 @@ function AccountBreakdownPanel({ accounts, holdings, scope, xirrByScope }: { acc
       <div className="nsAccountItems">
         {visibleAccounts.map((account) => {
           const accountXirr = xirrByScope?.[account.scope]?.valuePercent ?? null;
-          const shareTotals = account.brokerShareTotals?.length ? account.brokerShareTotals : brokerShareTotals(holdings, account.scope);
           return (
             <article key={account.scope} className="nsAccountItem">
               <div>
                 <span>{account.label}</span>
                 <strong>{fmtAud(account.netAssetValue)}</strong>
-              <em>{fmtPct(account.shareOfOverall)} of total NAV</em>
-            </div>
-            <dl>
-              <div><dt>XIRR</dt><dd className={accountXirr == null ? undefined : accountXirr >= 0 ? "isPositive" : "isNegative"}>{fmtSignedPct(accountXirr)}</dd></div>
-              <div><dt>P/L</dt><dd className={account.totalReturn >= 0 ? "isPositive" : "isNegative"}>{fmtSignedAud(account.totalReturn)} · {account.totalReturnPercent >= 0 ? "+" : ""}{account.totalReturnPercent.toFixed(1)}%</dd></div>
-              <div><dt>Share positions</dt><dd>{fmtAud(account.sharePositionValue ?? account.investedValue)}</dd></div>
-              <div><dt>Cash</dt><dd>{fmtAud(account.cashValue)}</dd></div>
-              <div><dt>Positions</dt><dd>{account.positionCount}</dd></div>
-              <div><dt>Updated</dt><dd>{fmtDate(account.lastUpdated)}</dd></div>
-            </dl>
-            <div className="nsBrokerTotals" aria-label={account.label + " broker share-position totals"}>
-              {shareTotals.length ? shareTotals.map((item) => (
-                <div key={item.broker} className="nsBrokerTotalRow">
-                  <span>{item.broker}</span>
-                  <strong>{fmtAud(item.value)}</strong>
-                  <em>{item.positionCount} position{item.positionCount === 1 ? "" : "s"}</em>
-                </div>
-              )) : (
-                <p>No share positions</p>
-              )}
-            </div>
+                <em>{fmtPct(account.shareOfOverall)} of total NAV</em>
+              </div>
+              <dl>
+                <div><dt>XIRR</dt><dd className={accountXirr == null ? undefined : accountXirr >= 0 ? "isPositive" : "isNegative"}>{fmtSignedPct(accountXirr)}</dd></div>
+                <div><dt>P/L</dt><dd className={account.totalReturn >= 0 ? "isPositive" : "isNegative"}>{fmtSignedAud(account.totalReturn)} · {account.totalReturnPercent >= 0 ? "+" : ""}{account.totalReturnPercent.toFixed(1)}%</dd></div>
+                <div><dt>Share positions</dt><dd>{fmtAud(account.sharePositionValue ?? account.investedValue)}</dd></div>
+                <div><dt>Cash</dt><dd>{fmtAud(account.cashValue)}</dd></div>
+                <div><dt>Positions</dt><dd>{account.positionCount}</dd></div>
+                <div><dt>Updated</dt><dd>{fmtDate(account.lastUpdated)}</dd></div>
+              </dl>
             </article>
           );
         })}
+      </div>
+      <div className="nsBrokerTotals" aria-label="Broker share-position totals">
+        {brokerTotals.length ? (
+          <>
+            {brokerTotals.map((item) => (
+              <div key={item.accountScope + "-" + item.broker} className="nsBrokerTotalRow">
+                <span>{item.broker}</span>
+                <strong>{fmtAud(item.value)}</strong>
+                <em>{item.accountLabel} · {item.positionCount} position{item.positionCount === 1 ? "" : "s"}</em>
+              </div>
+            ))}
+            <div className="nsBrokerTotalRow isTotal">
+              <span>Total share allocation</span>
+              <strong>{fmtAud(totalShareValue)}</strong>
+              <em>{totalSharePositions} position{totalSharePositions === 1 ? "" : "s"}</em>
+            </div>
+          </>
+        ) : (
+          <p>No share positions</p>
+        )}
       </div>
     </section>
   );
@@ -1329,8 +1259,6 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
         </section>
 
         <PeriodReturnStrip returns={periodReturns} xirr={xirr} />
-
-        <IbkrOpenOrdersPanel />
 
         <AccountBreakdownPanel accounts={accountBreakdown} holdings={holdings} scope={scope} xirrByScope={xirrByScope} />
 
