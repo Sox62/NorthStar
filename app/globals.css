@@ -610,6 +610,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .syncCard { border-color: rgba(119,169,216,.30); }
 .priceCard { border-color: rgba(215,181,109,.34); }
+.priceActions { display: grid; gap: 14px; align-content: start; }
+.manualPriceForm { display: grid; gap: 10px; min-width: min(300px, 100%); padding: 14px; border: 1px solid rgba(215,181,109,.22); border-radius: 16px; background: rgba(215,181,109,.055); }
+.manualPriceForm .field { margin-top: 0; }
+.manualPriceForm button { width: 100%; }
 .syncStatusStack {
   display: grid;
   gap: 18px;

@@ -37,6 +37,7 @@ export default function PhysicalAssetsPage() {
   const [message, setMessage] = useState("");
   const [priceMessage, setPriceMessage] = useState("Loading ABC Bullion buyback price…");
   const [refreshing, setRefreshing] = useState(false);
+  const [manualPrice, setManualPrice] = useState({ buybackAudPerKg: "", retailAudPerKg: "", priceDate: today });
 
   const loadAssets = async () => {
     const result = await (await fetch("/api/assets", { cache: "no-store" })).json();
@@ -61,6 +62,28 @@ export default function PhysicalAssetsPage() {
     void loadAssets();
     void loadPrice(true);
   }, []);
+
+  const submitManualPrice = async (event: FormEvent) => {
+    event.preventDefault();
+    setPriceMessage("Saving manual ABC Bullion price...");
+    const response = await fetch("/api/prices/platinum", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        buybackAudPerKg: manualPrice.buybackAudPerKg,
+        retailAudPerKg: manualPrice.retailAudPerKg || undefined,
+        priceDate: manualPrice.priceDate,
+      }),
+    });
+    const result = await response.json();
+    if (result.error) {
+      setPriceMessage(result.error);
+      return;
+    }
+    setPrice(result.price ?? null);
+    setPriceMessage("Manual ABC Bullion price saved and platinum positions revalued.");
+    await loadAssets();
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -145,9 +168,27 @@ export default function PhysicalAssetsPage() {
           )}
           <p className="small">{priceMessage}</p>
         </div>
-        <button type="button" onClick={() => void loadPrice(true)} disabled={refreshing}>
-          {refreshing ? "Refreshing…" : "Refresh ABC price"}
-        </button>
+        <div className="priceActions">
+          <button type="button" onClick={() => void loadPrice(true)} disabled={refreshing}>
+            {refreshing ? "Refreshing…" : "Refresh ABC price"}
+          </button>
+          <form className="manualPriceForm" onSubmit={submitManualPrice}>
+            <p className="eyebrow">Manual fallback</p>
+            <label className="field">
+              <span>ABC buyback per kg</span>
+              <input type="number" min="0" step="0.01" value={manualPrice.buybackAudPerKg} onChange={(event) => setManualPrice({ ...manualPrice, buybackAudPerKg: event.target.value })} placeholder="67036.60" required />
+            </label>
+            <label className="field">
+              <span>Retail per kg optional</span>
+              <input type="number" min="0" step="0.01" value={manualPrice.retailAudPerKg} onChange={(event) => setManualPrice({ ...manualPrice, retailAudPerKg: event.target.value })} placeholder={price ? String(price.retailAudPerKg) : ""} />
+            </label>
+            <label className="field">
+              <span>Price date</span>
+              <input type="date" value={manualPrice.priceDate} onChange={(event) => setManualPrice({ ...manualPrice, priceDate: event.target.value })} required />
+            </label>
+            <button className="primary" type="submit">Save manual ABC price</button>
+          </form>
+        </div>
       </Card>
 
       <section className="grid two equal sectionStack">
