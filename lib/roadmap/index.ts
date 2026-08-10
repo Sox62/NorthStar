@@ -89,7 +89,6 @@ export const roadmapPhases: RoadmapPhase[] = [
     items: [
       { title: "NAV history", status: "shipped", detail: "Overview chart is wired to portfolio snapshots for Overall, Personal and SMSF views." },
       { title: "Period returns", status: "shipped", detail: "Dashboard shows daily, MTD, YTD and since-inception NAV movement from snapshots." },
-      { title: "XIRR", status: "shipped", detail: "Cash-flow XIRR is live by account and consolidated, using imported transactions plus cost-basis fallback positions where history is incomplete." },
       { title: "Exposure analysis", status: "shipped", detail: "Currency, commodity and allocation drift are live; allocation targets can be edited and are used in dashboard and CSV exports." },
       { title: "Tax position", status: "shipped", detail: "FIFO realised CGT, unrealised CGT, dividend income, franking credits and withholding tax are exported for the Personal tax pack." },
     ],

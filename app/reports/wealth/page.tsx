@@ -123,7 +123,6 @@ export default function WealthReportPage() {
             <div><span>Total P/L</span><strong className={data.totalReturn >= 0 ? "positive" : "negative"}>{signedMoney(data.totalReturn)}</strong></div>
             <div><span>Return on cost</span><strong>{percent(data.totalReturnPercent)}</strong></div>
             <div><span>Daily P/L</span><strong className={data.dailyMovement >= 0 ? "positive" : "negative"}>{signedMoney(data.dailyMovement)}</strong></div>
-            <div><span>XIRR</span><strong>{percent(data.xirr.valuePercent)}</strong></div>
           </section>
 
           <section className="printReportSection">

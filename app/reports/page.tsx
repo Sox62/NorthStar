@@ -19,7 +19,7 @@ const downloads: ReportDownload[] = [
     owner: "Overall",
     href: "/api/reports/wealth-statement?scope=overall",
     reportHref: "/reports/wealth?scope=overall",
-    detail: "Accounts, holdings, allocations, drift, currency exposure, returns and XIRR.",
+    detail: "Accounts, holdings, allocations, drift, currency exposure, returns.",
     rows: "Full portfolio",
   },
   {
@@ -27,7 +27,7 @@ const downloads: ReportDownload[] = [
     owner: "Personal",
     href: "/api/reports/wealth-statement?scope=personal",
     reportHref: "/reports/wealth?scope=personal",
-    detail: "Personal holdings, exposures, allocation drift, period returns and XIRR.",
+    detail: "Personal holdings, exposures, allocation drift, period returns.",
     rows: "Personal scope",
   },
   {
@@ -35,7 +35,7 @@ const downloads: ReportDownload[] = [
     owner: "SMSF",
     href: "/api/reports/wealth-statement?scope=smsf",
     reportHref: "/reports/wealth?scope=smsf",
-    detail: "SMSF holdings, exposures, allocation drift, period returns and XIRR.",
+    detail: "SMSF holdings, exposures, allocation drift, period returns.",
     rows: "SMSF scope",
   },
   {
@@ -53,7 +53,7 @@ const downloads: ReportDownload[] = [
     title: "Estate summary",
     owner: "Ownership",
     href: "/api/reports/estate-summary",
-    detail: "Ownership-separated assets, accounts, net asset value and XIRR.",
+    detail: "Ownership-separated assets, accounts, net asset value.",
     rows: "Personal and SMSF",
   },
   {
