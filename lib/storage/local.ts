@@ -34,10 +34,11 @@ import type {
   StorageAdapter,
   SyncRun,
   StoredPosition,
+  StoredOpenOrder,
 } from "./types";
 
 const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".north-star", "data.json");
-const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), imports: [] };
+const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), imports: [] };
 
 async function readStore(): Promise<LocalStore> {
   try {
@@ -46,6 +47,7 @@ async function readStore(): Promise<LocalStore> {
       return {
         ...(parsed as unknown as LocalStore),
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
+        openOrders: (parsed.openOrders as StoredOpenOrder[] | undefined) ?? [],
         dailyPrices: (parsed.dailyPrices as StoredDailyPrice[] | undefined) ?? [],
         fxRates: (parsed.fxRates as StoredFxRate[] | undefined) ?? [],
         syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
@@ -57,6 +59,7 @@ async function readStore(): Promise<LocalStore> {
         ...(parsed as unknown as Omit<LocalStore, "version" | "dailyPrices" | "fxRates">),
         version: 6,
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
+        openOrders: (parsed.openOrders as StoredOpenOrder[] | undefined) ?? [],
         dailyPrices: [],
         fxRates: [],
         syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
@@ -68,6 +71,7 @@ async function readStore(): Promise<LocalStore> {
         ...(parsed as unknown as Omit<LocalStore, "version" | "syncRuns">),
         version: 6,
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
+        openOrders: [],
         dailyPrices: [],
         fxRates: [],
         syncRuns: [],
@@ -93,10 +97,10 @@ async function readStore(): Promise<LocalStore> {
           priceRetrievedAt: String(asset.updatedAt ?? new Date().toISOString()), updatedAt: String(asset.updatedAt ?? new Date().toISOString()),
         };
       });
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets, platinumPrices: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets() };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets, platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets() };
     }
     if (parsed.version === 2) {
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets() };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets: [], platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets() };
     }
     return structuredClone(EMPTY);
   } catch (error) {
@@ -124,6 +128,22 @@ function replaceIbkrOpenPositions(store: LocalStore, report: IbkrFlexReport, own
       costAud: position.costAud, marketValueAud: position.marketValueAud,
       dayGainAud: 0, pnlAud: position.pnlAud, pnlPercent: position.pnlPercent,
       valuationBasis: position.valuationBasis, asOfDate: position.asOfDate, source: position.source,
+    });
+  }
+}
+
+
+function replaceIbkrOpenOrders(store: LocalStore, report: IbkrFlexReport, ownerType: OwnerType, accountKey: string) {
+  store.openOrders = store.openOrders.filter(order => !(order.ownerType === ownerType && order.broker === "IBKR" && order.accountKey === accountKey && order.source === "IBKR Flex"));
+  const asOfDate = report.toDate || new Date().toISOString().slice(0, 10);
+  for (const order of report.openOrders) {
+    store.openOrders.push({
+      id: randomUUID(), ownerType, broker: "IBKR", accountKey, orderId: order.orderId, conid: order.conid ?? "",
+      symbol: order.symbol, name: order.description || order.symbol, exchange: order.exchange, currency: order.currency,
+      side: order.side, status: order.status, orderType: order.orderType, timeInForce: order.timeInForce,
+      totalQuantity: order.totalQuantity, filledQuantity: order.filledQuantity, remainingQuantity: order.remainingQuantity,
+      limitPrice: order.limitPrice, stopPrice: order.stopPrice, averagePrice: order.averagePrice,
+      description: order.description, createdAt: order.createdAt, updatedAt: order.updatedAt, asOfDate, source: "IBKR Flex", raw: order.raw,
     });
   }
 }
@@ -314,6 +334,7 @@ export class LocalStorageAdapter implements StorageAdapter {
           ),
         };
     replaceIbkrOpenPositions(store, positionReport, ownerType, accountKey);
+    replaceIbkrOpenOrders(store, report, ownerType, accountKey);
     upsertIbkrCash(store, report, ownerType);
 
     const importRecord = store.imports.find(record => record.source === "IBKR" && record.ownerType === ownerType && record.accountKey === accountKey);
@@ -327,7 +348,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     const valuationSource = report.openPositions.length
       ? "open_positions_with_trade_overlay"
       : "trade_cost_basis";
-    return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, openPositions: report.openPositions.length, cashAud: ibkrTotalCashFromComponents(report)?.balanceAud, valuationSource, storageMode: "local-file" };
+    return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, openPositions: report.openPositions.length, openOrders: report.openOrders.length, cashAud: ibkrTotalCashFromComponents(report)?.balanceAud, valuationSource, storageMode: "local-file" };
   }
 
   async importDirectshares(positions: OpeningPosition[], ownerType: OwnerType): Promise<ImportResult> {
@@ -609,6 +630,13 @@ export class LocalStorageAdapter implements StorageAdapter {
     store.syncRuns = store.syncRuns.sort((a, b) => a.finishedAt.localeCompare(b.finishedAt)).slice(-500);
     await writeStore(store);
     return run;
+  }
+
+  async listOpenOrders(ownerType?: OwnerType): Promise<StoredOpenOrder[]> {
+    const store = await readStore();
+    return store.openOrders
+      .filter(order => !ownerType || order.ownerType === ownerType)
+      .sort((a, b) => (b.updatedAt ?? b.createdAt ?? b.asOfDate).localeCompare(a.updatedAt ?? a.createdAt ?? a.asOfDate));
   }
 
   async listSyncRuns(limit = 20, ownerType?: OwnerType): Promise<SyncRun[]> {

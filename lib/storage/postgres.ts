@@ -6,7 +6,7 @@ import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northsta
 import { classifyAsset } from "./classify";
 import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
-import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, Scope, StorageAdapter, StoredPosition, StoredTransaction, SyncRun } from "./types";
+import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, Scope, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 const optionalNumber = (value: unknown) => value == null ? undefined : Number(value);
 
@@ -141,6 +141,29 @@ async function replaceIbkrOpenPositions(client: PoolClient, report: IbkrFlexRepo
   return positions.length;
 }
 
+
+async function replaceIbkrOpenOrders(client: PoolClient, report: IbkrFlexReport, portfolioId: string, accountId: string) {
+  await client.query(`DELETE FROM ibkr_open_orders WHERE account_id=$1 AND source='IBKR Flex'`, [accountId]);
+  const asOfDate = report.toDate || new Date().toISOString().slice(0, 10);
+  for (const order of report.openOrders) {
+    await client.query(`
+      INSERT INTO ibkr_open_orders (
+        portfolio_id,account_id,order_id,conid,symbol,name,exchange,currency,side,status,order_type,time_in_force,
+        total_quantity,filled_quantity,remaining_quantity,limit_price,stop_price,average_price,description,source,raw,as_of_date,created_at,updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,'IBKR Flex',$20,$21,$22::timestamptz,NOW())
+      ON CONFLICT (account_id, order_id, source) DO UPDATE SET
+        conid=EXCLUDED.conid,symbol=EXCLUDED.symbol,name=EXCLUDED.name,exchange=EXCLUDED.exchange,currency=EXCLUDED.currency,
+        side=EXCLUDED.side,status=EXCLUDED.status,order_type=EXCLUDED.order_type,time_in_force=EXCLUDED.time_in_force,
+        total_quantity=EXCLUDED.total_quantity,filled_quantity=EXCLUDED.filled_quantity,remaining_quantity=EXCLUDED.remaining_quantity,
+        limit_price=EXCLUDED.limit_price,stop_price=EXCLUDED.stop_price,average_price=EXCLUDED.average_price,description=EXCLUDED.description,
+        raw=EXCLUDED.raw,as_of_date=EXCLUDED.as_of_date,created_at=EXCLUDED.created_at,updated_at=NOW()
+    `, [portfolioId, accountId, order.orderId, order.conid ?? null, order.symbol, order.description || order.symbol, order.exchange, order.currency,
+      order.side, order.status, order.orderType, order.timeInForce, order.totalQuantity, order.filledQuantity, order.remainingQuantity,
+      order.limitPrice, order.stopPrice, order.averagePrice, order.description, order.raw ? JSON.stringify(order.raw) : null, asOfDate, order.createdAt]);
+  }
+  return report.openOrders.length;
+}
+
 function ibkrCashAccountName(report: IbkrFlexReport, cash: NonNullable<IbkrFlexReport["cash"]>, kind: "total" | "component") {
   const account = cash.externalAccountId || report.accountId;
   const accountPart = account && account !== "IBKR" ? ` · ${maskAccount(account)}` : "";
@@ -249,6 +272,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const positionCount = report.openPositions.length
         ? await replaceIbkrOpenPositions(client, report, portfolioId, accountId)
         : await rebuildIbkrPositions(client, portfolioId, accountId);
+      const openOrderCount = await replaceIbkrOpenOrders(client, report, portfolioId, accountId);
       await upsertIbkrCash(client, report, portfolioId);
       await client.query(`INSERT INTO import_runs (portfolio_id, account_id, source, record_count) VALUES ($1,$2,'IBKR',$3)`, [portfolioId, accountId, report.transactions.length]);
       await captureSnapshot(client, portfolioId);
@@ -256,7 +280,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const valuationSource = report.openPositions.length
         ? "open_positions_with_trade_overlay"
         : "trade_cost_basis";
-      return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, openPositions: report.openPositions.length, cashAud: ibkrTotalCashFromComponents(report)?.balanceAud, valuationSource, storageMode: "postgresql" };
+      return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, openPositions: report.openPositions.length, openOrders: openOrderCount, cashAud: ibkrTotalCashFromComponents(report)?.balanceAud, valuationSource, storageMode: "postgresql" };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -568,6 +592,42 @@ export class PostgresStorageAdapter implements StorageAdapter {
       input.error ?? null,
     ]);
     return syncRunFromRow(result.rows[0]);
+  }
+
+
+  async listOpenOrders(ownerType?: OwnerType): Promise<StoredOpenOrder[]> {
+    const values: unknown[] = [];
+    const ownerFilter = ownerType ? "WHERE p.legal_owner_type=$1" : "";
+    if (ownerType) values.push(ownerType);
+    const result = await getPool().query(`
+      SELECT oo.id, p.legal_owner_type, ba.broker, ba.external_account_id, oo.order_id, oo.conid,
+        oo.symbol, oo.name, oo.exchange, oo.currency, oo.side, oo.status, oo.order_type, oo.time_in_force,
+        oo.total_quantity::text, oo.filled_quantity::text, oo.remaining_quantity::text, oo.limit_price::text,
+        oo.stop_price::text, oo.average_price::text, oo.description, oo.source, oo.raw, oo.as_of_date::text,
+        oo.created_at::text, oo.updated_at::text
+      FROM ibkr_open_orders oo
+      JOIN portfolios p ON p.id=oo.portfolio_id
+      JOIN broker_accounts ba ON ba.id=oo.account_id
+      ${ownerFilter}
+      ORDER BY oo.updated_at DESC, oo.symbol ASC
+    `, values).catch((error: unknown) => {
+      if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "42P01") return null;
+      throw error;
+    });
+    if (!result) return [];
+    return result.rows.map(row => ({
+      id: row.id, ownerType: row.legal_owner_type as OwnerType, broker: row.broker, accountKey: row.external_account_id,
+      orderId: row.order_id, conid: row.conid ?? "", symbol: row.symbol, name: row.name, exchange: row.exchange, currency: row.currency,
+      side: row.side, status: row.status, orderType: row.order_type, timeInForce: row.time_in_force,
+      totalQuantity: row.total_quantity == null ? null : numberValue(row.total_quantity),
+      filledQuantity: row.filled_quantity == null ? null : numberValue(row.filled_quantity),
+      remainingQuantity: row.remaining_quantity == null ? null : numberValue(row.remaining_quantity),
+      limitPrice: row.limit_price == null ? null : numberValue(row.limit_price),
+      stopPrice: row.stop_price == null ? null : numberValue(row.stop_price),
+      averagePrice: row.average_price == null ? null : numberValue(row.average_price),
+      description: row.description, source: row.source, raw: row.raw ?? undefined, asOfDate: row.as_of_date,
+      createdAt: row.created_at ? new Date(row.created_at).toISOString() : null, updatedAt: new Date(row.updated_at).toISOString(),
+    }));
   }
 
   async listSyncRuns(limit = 20, ownerType?: OwnerType): Promise<SyncRun[]> {

@@ -96,6 +96,37 @@ export const currentPositions = pgTable("current_positions", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, table => [uniqueIndex("position_account_instrument_source_uq").on(table.accountId, table.instrumentId, table.source)]);
 
+export const ibkrOpenOrders = pgTable("ibkr_open_orders", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  portfolioId: uuid("portfolio_id").references(() => portfolios.id).notNull(),
+  accountId: uuid("account_id").references(() => brokerAccounts.id).notNull(),
+  orderId: text("order_id").notNull(),
+  conid: text("conid"),
+  symbol: text("symbol").notNull(),
+  name: text("name").notNull(),
+  exchange: text("exchange").notNull(),
+  currency: text("currency").notNull(),
+  side: text("side").notNull(),
+  status: text("status").notNull(),
+  orderType: text("order_type").notNull(),
+  timeInForce: text("time_in_force").notNull(),
+  totalQuantity: numeric("total_quantity", { precision: 28, scale: 10 }),
+  filledQuantity: numeric("filled_quantity", { precision: 28, scale: 10 }),
+  remainingQuantity: numeric("remaining_quantity", { precision: 28, scale: 10 }),
+  limitPrice: numeric("limit_price", { precision: 28, scale: 10 }),
+  stopPrice: numeric("stop_price", { precision: 28, scale: 10 }),
+  averagePrice: numeric("average_price", { precision: 28, scale: 10 }),
+  description: text("description").notNull().default(""),
+  source: text("source").notNull().default("IBKR Flex"),
+  raw: jsonb("raw"),
+  asOfDate: date("as_of_date").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  uniqueIndex("ibkr_open_order_account_order_uq").on(table.accountId, table.orderId, table.source),
+  index("ibkr_open_order_portfolio_idx").on(table.portfolioId),
+]);
+
 export const cashAccounts = pgTable("cash_accounts", {
   id: uuid("id").defaultRandom().primaryKey(),
   portfolioId: uuid("portfolio_id").references(() => portfolios.id).notNull(),

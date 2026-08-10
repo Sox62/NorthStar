@@ -102,7 +102,7 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
       recordCount: report.transactions.length,
       positionCount: result.positions,
       cashAud: result.cashAud ?? null,
-      message: `${result.positions} ${config.label} positions from Flex statement ending ${report.toDate}; cash ${report.cashBalances.length ? report.cashBalances.map((cash) => `${cash.currency} ${cash.balance.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`).join(", ") : report.cash ? `AUD ${report.cash.balanceAud.toLocaleString("en-AU", { maximumFractionDigits: 2 })}` : "not supplied by Flex"}`,
+      message: `${result.positions} ${config.label} positions from Flex statement ending ${report.toDate}; ${report.openOrders.length} open order${report.openOrders.length === 1 ? "" : "s"}; cash ${report.cashBalances.length ? report.cashBalances.map((cash) => `${cash.currency} ${cash.balance.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`).join(", ") : report.cash ? `AUD ${report.cash.balanceAud.toLocaleString("en-AU", { maximumFractionDigits: 2 })}` : "not supplied by Flex"}`,
     });
     return {
       synced: true,

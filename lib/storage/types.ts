@@ -131,6 +131,35 @@ export type StoredTransaction = ImportedTransaction & {
   accountKey: string;
 };
 
+export type StoredOpenOrder = {
+  id: string;
+  ownerType: OwnerType;
+  broker: string;
+  accountKey: string;
+  orderId: string;
+  conid: string;
+  symbol: string;
+  name: string;
+  exchange: string;
+  currency: string;
+  side: string;
+  status: string;
+  orderType: string;
+  timeInForce: string;
+  totalQuantity: number | null;
+  filledQuantity: number | null;
+  remainingQuantity: number | null;
+  limitPrice: number | null;
+  stopPrice: number | null;
+  averagePrice: number | null;
+  description: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+  asOfDate: string;
+  source: string;
+  raw?: Record<string, unknown>;
+};
+
 export type CashAccount = {
   id: string;
   ownerType: OwnerType;
@@ -263,6 +292,7 @@ export type LocalStore = {
   version: 6;
   transactions: StoredTransaction[];
   positions: StoredPosition[];
+  openOrders: StoredOpenOrder[];
   cashAccounts: CashAccount[];
   manualAssets: ManualAsset[];
   platinumPrices: PlatinumPrice[];
@@ -317,6 +347,7 @@ export type ImportResult = {
   positions: number;
   storageMode: "local-file" | "postgresql";
   openPositions?: number;
+  openOrders?: number;
   cashAud?: number;
   valuationSource?: "open_positions" | "open_positions_with_trade_overlay" | "trade_cost_basis";
 };
@@ -326,6 +357,7 @@ export interface StorageAdapter {
   importDirectshares(positions: OpeningPosition[], ownerType: OwnerType): Promise<ImportResult>;
   importDirectsharesTransactions(transactions: ImportedTransaction[], ownerType: OwnerType, importSource?: string): Promise<ImportResult>;
   listTransactions(ownerType?: OwnerType): Promise<StoredTransaction[]>;
+  listOpenOrders(ownerType?: OwnerType): Promise<StoredOpenOrder[]>;
   listCashAccounts(ownerType?: OwnerType, options?: CashAccountListOptions): Promise<CashAccount[]>;
   upsertCashAccount(input: Omit<CashAccount, "id" | "updatedAt" | "balanceAud"> & { id?: string }): Promise<CashAccount>;
   listManualAssets(ownerType?: OwnerType): Promise<ManualAsset[]>;

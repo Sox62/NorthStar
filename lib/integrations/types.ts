@@ -63,6 +63,29 @@ export type IbkrCashSnapshot = {
   raw?: Record<string, unknown>;
 };
 
+export type IbkrFlexOpenOrder = {
+  externalAccountId: string;
+  orderId: string;
+  conid?: string;
+  symbol: string;
+  description: string;
+  exchange: string;
+  currency: string;
+  side: string;
+  status: string;
+  orderType: string;
+  timeInForce: string;
+  totalQuantity: number | null;
+  filledQuantity: number | null;
+  remainingQuantity: number | null;
+  limitPrice: number | null;
+  stopPrice: number | null;
+  averagePrice: number | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  raw?: Record<string, unknown>;
+};
+
 export type IbkrFlexReport = {
   accountId: string;
   fromDate: string;
@@ -70,6 +93,7 @@ export type IbkrFlexReport = {
   whenGenerated?: string;
   transactions: ImportedTransaction[];
   openPositions: IbkrOpenPosition[];
+  openOrders: IbkrFlexOpenOrder[];
   cash: IbkrCashSnapshot | null;
   cashBalances: IbkrCashSnapshot[];
 };

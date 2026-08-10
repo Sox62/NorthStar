@@ -221,3 +221,29 @@ test("TradingView chart URLs use the saved NorthStar layout", () => {
   assert.equal(url.pathname, "/chart/rps0WMxt/");
   assert.equal(url.searchParams.get("symbol"), "TVC:GOLDSILVER");
 });
+
+test("parseIbkrFlexXml reads open orders from Flex reports", () => {
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U24473088" fromDate="20260810" toDate="20260810" whenGenerated="20260810;080000">
+        <OpenOrders>
+          <OpenOrder accountId="U24473088" orderId="1267052741" conid="12345" symbol="STO" listingExchange="ASX"
+            description="SANTOS LIMITED" currency="AUD" buySell="BUY" status="Submitted" orderType="Stop Limit"
+            tif="GTC" quantity="2500" filledQuantity="0" remainingQuantity="2500" limitPrice="8.50" stopPrice="8.40"
+            openDateTime="20260810;172616" reportDate="20260810" />
+        </OpenOrders>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`);
+
+  assert.equal(report.openOrders.length, 1);
+  assert.equal(report.openOrders[0]?.externalAccountId, "U24473088");
+  assert.equal(report.openOrders[0]?.orderId, "1267052741");
+  assert.equal(report.openOrders[0]?.symbol, "STO");
+  assert.equal(report.openOrders[0]?.side, "BUY");
+  assert.equal(report.openOrders[0]?.orderType, "Stop Limit");
+  assert.equal(report.openOrders[0]?.totalQuantity, 2500);
+  assert.equal(report.openOrders[0]?.remainingQuantity, 2500);
+  assert.equal(report.openOrders[0]?.limitPrice, 8.5);
+  assert.equal(report.openOrders[0]?.stopPrice, 8.4);
+});

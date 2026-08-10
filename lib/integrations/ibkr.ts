@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
-import type { BrokerAdapter, IbkrFlexReport, IbkrOpenPosition, ImportedTransaction } from "./types";
+import type { BrokerAdapter, IbkrFlexOpenOrder, IbkrFlexReport, IbkrOpenPosition, ImportedTransaction } from "./types";
 
 const arr = <T>(value: T | T[] | undefined): T[] => value === undefined ? [] : Array.isArray(value) ? value : [value];
 const numberValue = (value: unknown, fallback = 0) => {
@@ -105,6 +105,77 @@ function aggregateCashBalances(
     fxRateToAud: 1,
     asOfDate: balances[0]?.asOfDate ?? isoDate(statementToDate),
   });
+}
+
+
+function firstString(...values: unknown[]) {
+  for (const value of values) {
+    const text = String(value ?? "").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+function optionalNumberValue(...values: unknown[]) {
+  for (const value of values) {
+    if (value === "" || value == null) continue;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function parseFlexDateTime(value: unknown) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const compact = text.match(/^(\d{4})(\d{2})(\d{2})(?:[; T]?(\d{2})(\d{2})(\d{2})?)?/);
+  if (!compact) return text;
+  const [, y, m, d, hh = "00", mm = "00", ss = "00"] = compact;
+  return `${y}-${m}-${d}T${hh}:${mm}:${ss}`;
+}
+
+function parseOpenOrders(statement: Record<string, unknown>, statementAccount: string): IbkrFlexOpenOrder[] {
+  const rows = [
+    ...arr<Record<string, unknown>>((statement as { OpenOrders?: { OpenOrder?: Record<string, unknown> | Record<string, unknown>[] } }).OpenOrders?.OpenOrder),
+    ...arr<Record<string, unknown>>((statement as { Orders?: { Order?: Record<string, unknown> | Record<string, unknown>[] } }).Orders?.Order),
+  ];
+
+  return rows.map((row, index) => {
+    const account = firstString(row.accountId, row.acct, row.account, statementAccount);
+    const exchange = firstString(row.listingExchange, row.exchange);
+    const conid = firstString(row.conid, row.conidex);
+    const symbol = flexSymbol(firstString(row.symbol, row.ticker, row.description1), exchange);
+    const orderId = firstString(row.orderId, row.orderID, row.ibOrderId, row.permId, row.orderPermId, `${account}:${symbol}:${index}`);
+    const totalQuantity = optionalNumberValue(row.totalQuantity, row.quantity, row.totalSize, row.size);
+    const filledQuantity = optionalNumberValue(row.filledQuantity, row.filled, row.filledSize);
+    const remainingQuantity = optionalNumberValue(
+      row.remainingQuantity,
+      row.remaining,
+      totalQuantity != null && filledQuantity != null ? totalQuantity - filledQuantity : null,
+    );
+    return {
+      externalAccountId: account,
+      orderId,
+      conid: conid || undefined,
+      symbol,
+      description: firstString(row.description, row.companyName, row.description1, row.securityDescription, symbol),
+      exchange,
+      currency: firstString(row.currency, row.cashCcy),
+      side: firstString(row.buySell, row.side, row.action).toUpperCase(),
+      status: firstString(row.status, row.orderStatus, row.order_status),
+      orderType: firstString(row.orderType, row.origOrderType, row.order_type),
+      timeInForce: firstString(row.timeInForce, row.tif),
+      totalQuantity,
+      filledQuantity,
+      remainingQuantity,
+      limitPrice: optionalNumberValue(row.limitPrice, row.lmtPrice, row.price),
+      stopPrice: optionalNumberValue(row.stopPrice, row.auxPrice, row.stop),
+      averagePrice: optionalNumberValue(row.averagePrice, row.avgPrice),
+      createdAt: parseFlexDateTime(row.openDateTime ?? row.submitDateTime ?? row.dateTime),
+      updatedAt: parseFlexDateTime(row.lastExecutionTime ?? row.lastExecutionTime_r ?? row.reportDate),
+      raw: row,
+    };
+  }).filter(order => order.symbol || order.orderId);
 }
 
 function parseCashSnapshots(
@@ -315,6 +386,7 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
 
   const transactions: ImportedTransaction[] = [];
   const openPositions: IbkrOpenPosition[] = [];
+  const openOrders: IbkrFlexOpenOrder[] = [];
   let cash: IbkrFlexReport["cash"] = null;
   const cashBalances: NonNullable<IbkrFlexReport["cash"]>[] = [];
   let accountId = "IBKR";
@@ -337,6 +409,7 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
 
     transactions.push(...parseTransactions(statement, statementAccount));
     openPositions.push(...parseOpenPositions(statement, statementAccount, baseFxRateToAud || 1));
+    openOrders.push(...parseOpenOrders(statement, statementAccount));
 
     const cashRows = arr<Record<string, unknown>>((statement as { CashReport?: { CashReportCurrency?: Record<string, unknown> | Record<string, unknown>[] } }).CashReport?.CashReportCurrency);
     const parsedCash = parseCashSnapshots(cashRows, statementAccount, statement.toDate, baseCurrency, baseFxRateToAud || 1);
@@ -345,11 +418,11 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
     cashBalances.push(...parsedCash.balances, ...parsedForex.balances);
   }
 
-  if (!transactions.length && !openPositions.length && !cash) {
-    throw new Error("No IBKR trades, open positions or cash report were found in this Flex report.");
+  if (!transactions.length && !openPositions.length && !openOrders.length && !cash) {
+    throw new Error("No IBKR trades, open positions, open orders or cash report were found in this Flex report.");
   }
 
-  return { accountId, fromDate, toDate, whenGenerated, transactions, openPositions, cash, cashBalances };
+  return { accountId, fromDate, toDate, whenGenerated, transactions, openPositions, openOrders, cash, cashBalances };
 }
 
 type FlexServiceResponse = {

@@ -43,6 +43,7 @@ function report(input: Partial<IbkrFlexReport>): IbkrFlexReport {
     toDate: "2026-07-21",
     transactions: [],
     openPositions: [],
+    openOrders: [],
     cash: null,
     cashBalances: [],
     ...input,
