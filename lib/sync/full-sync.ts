@@ -58,7 +58,7 @@ export async function runFullSync(trigger: SyncTrigger, provider: QuoteProvider 
     }
     output.ibkr = ibkrResults;
     output.ibkrAccounts = ibkrResults.length
-      ? ibkrResults.map((result) => `${result.ownerType}: ${result.positions} positions, ${result.flexTrades} trades parsed (${result.imported} imported, ${result.duplicates} duplicate), Flex ${result.statementFrom} to ${result.statementTo}, cash ${result.cashAud == null ? "not supplied" : result.cashAud.toLocaleString("en-AU", { style: "currency", currency: "AUD" })}`).join("; ")
+      ? ibkrResults.map((result) => `${result.ownerType}: ${result.positions} positions, ${result.flexTrades} trades parsed${result.tradeConfirmTrades ? ` (${result.tradeConfirmTrades} from trade confirmations)` : ""} (${result.imported} imported, ${result.duplicates} duplicate), Flex ${result.statementFrom} to ${result.statementTo}, cash ${result.cashAud == null ? "not supplied" : result.cashAud.toLocaleString("en-AU", { style: "currency", currency: "AUD" })}`).join("; ")
       : "No IBKR accounts synced.";
   } else {
     await storage.recordSyncRun({

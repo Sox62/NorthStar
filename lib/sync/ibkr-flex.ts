@@ -5,6 +5,7 @@ export type IbkrFlexSyncConfig = {
   ownerType: OwnerType;
   token: string;
   queryId: string;
+  tradeConfirmQueryId?: string;
   label: string;
   source: "legacy" | "owner-specific";
 };
@@ -20,6 +21,7 @@ export type IbkrFlexSyncResult = ImportResult & {
   flexTrades: number;
   flexOpenPositions: number;
   flexOpenOrders: number;
+  tradeConfirmTrades: number;
 };
 
 function clean(value: string | undefined) {
@@ -53,6 +55,7 @@ export function configuredIbkrFlexSyncs(): IbkrFlexSyncConfig[] {
     ownerType: "PERSONAL",
     token: clean(process.env.IBKR_PERSONAL_FLEX_TOKEN) || sharedToken,
     queryId: clean(process.env.IBKR_PERSONAL_FLEX_QUERY_ID),
+    tradeConfirmQueryId: clean(process.env.IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID),
     label: "Personal IBKR",
     source: "owner-specific",
   });
@@ -61,6 +64,7 @@ export function configuredIbkrFlexSyncs(): IbkrFlexSyncConfig[] {
     ownerType: "SMSF",
     token: clean(process.env.IBKR_SMSF_FLEX_TOKEN) || sharedToken,
     queryId: clean(process.env.IBKR_SMSF_FLEX_QUERY_ID),
+    tradeConfirmQueryId: clean(process.env.IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID),
     label: "SMSF IBKR",
     source: "owner-specific",
   });
@@ -71,6 +75,7 @@ export function configuredIbkrFlexSyncs(): IbkrFlexSyncConfig[] {
       ownerType: legacyOwner,
       token: sharedToken,
       queryId: legacyQueryId,
+      tradeConfirmQueryId: clean(process.env.IBKR_TRADE_CONFIRM_FLEX_QUERY_ID),
       label: `${legacyOwner === "PERSONAL" ? "Personal" : "SMSF"} IBKR legacy`,
       source: "legacy",
     });
@@ -85,10 +90,10 @@ export function ibkrFlexConfigForOwner(ownerType: OwnerType) {
 
 export function ibkrFlexNotConfiguredMessage(ownerType?: OwnerType) {
   if (ownerType === "PERSONAL") {
-    return "Personal IBKR Flex is not configured. Set IBKR_PERSONAL_FLEX_QUERY_ID plus IBKR_FLEX_TOKEN or IBKR_PERSONAL_FLEX_TOKEN.";
+    return "Personal IBKR Flex is not configured. Set IBKR_PERSONAL_FLEX_QUERY_ID plus IBKR_FLEX_TOKEN or IBKR_PERSONAL_FLEX_TOKEN. Optional intraday trades use IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID.";
   }
   if (ownerType === "SMSF") {
-    return "SMSF IBKR Flex is not configured. Set IBKR_SMSF_FLEX_QUERY_ID plus IBKR_FLEX_TOKEN or IBKR_SMSF_FLEX_TOKEN, or keep using IBKR_FLEX_QUERY_ID with IBKR_FLEX_OWNER=SMSF.";
+    return "SMSF IBKR Flex is not configured. Set IBKR_SMSF_FLEX_QUERY_ID plus IBKR_FLEX_TOKEN or IBKR_SMSF_FLEX_TOKEN, or keep using IBKR_FLEX_QUERY_ID with IBKR_FLEX_OWNER=SMSF. Optional intraday trades use IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID.";
   }
   return "No IBKR Flex queries are configured. Set IBKR_FLEX_TOKEN plus IBKR_FLEX_QUERY_ID, or owner-specific IBKR_PERSONAL_FLEX_QUERY_ID / IBKR_SMSF_FLEX_QUERY_ID.";
 }
@@ -97,6 +102,16 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
   const startedAt = new Date().toISOString();
   try {
     const report = await fetchIbkrFlexReport(config.token, config.queryId);
+    let tradeConfirmTrades = 0;
+    if (config.tradeConfirmQueryId) {
+      const tradeReport = await fetchIbkrFlexReport(config.token, config.tradeConfirmQueryId);
+      const existingIds = new Set(report.transactions.map((transaction) => transaction.externalId));
+      const additionalTrades = tradeReport.transactions.filter((transaction) => !existingIds.has(transaction.externalId));
+      report.transactions.push(...additionalTrades);
+      tradeConfirmTrades = additionalTrades.filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL").length;
+      if (tradeReport.toDate > report.toDate) report.toDate = tradeReport.toDate;
+      if (!report.whenGenerated || (tradeReport.whenGenerated && tradeReport.whenGenerated > report.whenGenerated)) report.whenGenerated = tradeReport.whenGenerated;
+    }
     const result = await storage.importIbkr(report, config.ownerType);
     const flexTrades = report.transactions.filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL").length;
     const cashMessage = report.cashBalances.length
@@ -113,7 +128,7 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
       recordCount: report.transactions.length,
       positionCount: result.positions,
       cashAud: result.cashAud ?? null,
-      message: `${result.positions} ${config.label} positions from Flex ${report.fromDate} to ${report.toDate}; ${flexTrades} trade${flexTrades === 1 ? "" : "s"} parsed, ${result.imported} imported, ${result.duplicates} duplicate${result.duplicates === 1 ? "" : "s"}; ${report.openOrders.length} open order${report.openOrders.length === 1 ? "" : "s"}; cash ${cashMessage}`,
+      message: `${result.positions} ${config.label} positions from Flex ${report.fromDate} to ${report.toDate}; ${flexTrades} trade${flexTrades === 1 ? "" : "s"} parsed${tradeConfirmTrades ? ` (${tradeConfirmTrades} from trade confirmations)` : ""}, ${result.imported} imported, ${result.duplicates} duplicate${result.duplicates === 1 ? "" : "s"}; ${report.openOrders.length} open order${report.openOrders.length === 1 ? "" : "s"}; cash ${cashMessage}`,
     });
     return {
       synced: true,
@@ -126,6 +141,7 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
       flexTrades,
       flexOpenPositions: report.openPositions.length,
       flexOpenOrders: report.openOrders.length,
+      tradeConfirmTrades,
       ...result,
     };
   } catch (error) {

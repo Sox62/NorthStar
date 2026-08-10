@@ -10,6 +10,9 @@ const keys = [
   "IBKR_PERSONAL_FLEX_QUERY_ID",
   "IBKR_SMSF_FLEX_TOKEN",
   "IBKR_SMSF_FLEX_QUERY_ID",
+  "IBKR_TRADE_CONFIRM_FLEX_QUERY_ID",
+  "IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID",
+  "IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID",
 ];
 
 const original = new Map<string, string | undefined>();
@@ -86,3 +89,14 @@ test("owner-specific SMSF query takes priority over legacy SMSF query", () => {
 function configsLength() {
   return configuredIbkrFlexSyncs().length;
 }
+
+test("owner-specific IBKR Flex supports optional trade confirmation query", () => {
+  process.env.IBKR_FLEX_TOKEN = "shared-token";
+  process.env.IBKR_SMSF_FLEX_QUERY_ID = "activity-query";
+  process.env.IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID = "trade-query";
+
+  const config = ibkrFlexConfigForOwner("SMSF");
+
+  assert.equal(config?.queryId, "activity-query");
+  assert.equal(config?.tradeConfirmQueryId, "trade-query");
+});
