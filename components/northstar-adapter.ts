@@ -11,6 +11,8 @@ export type AccountSummary = {
   totalReturn: number;
   totalReturnPercent: number;
   positionCount: number;
+  sharePositionValue: number;
+  brokerShareTotals: Array<{ broker: string; value: number; positionCount: number }>;
   shareOfOverall: number;
   lastUpdated: string | null;
 };
@@ -41,8 +43,33 @@ export function dashboardToNorthstarHoldings(data: DashboardData): Holding[] {
   return holdings;
 }
 
+function brokerDisplayName(broker: string) {
+  const normalized = broker.trim();
+  if (normalized.toLowerCase() === "ibkr") return "IBKR";
+  if (normalized.toLowerCase() === "directshares") return "Directshares";
+  return normalized || "Unknown";
+}
+
+function isSharePosition(position: DashboardData["holdings"][number]) {
+  return position.symbol !== "CASH" && position.assetClass !== "Cash" && position.broker !== "Physical";
+}
+
+function brokerShareTotals(data: DashboardData) {
+  const totals = new Map<string, { broker: string; value: number; positionCount: number }>();
+  for (const position of data.holdings) {
+    if (!isSharePosition(position)) continue;
+    const broker = brokerDisplayName(position.broker);
+    const current = totals.get(broker) ?? { broker, value: 0, positionCount: 0 };
+    current.value += position.marketValueAud;
+    current.positionCount += 1;
+    totals.set(broker, current);
+  }
+  return [...totals.values()].sort((a, b) => b.value - a.value || a.broker.localeCompare(b.broker));
+}
+
 export function dashboardToAccountSummary(data: DashboardData, overallValue: number): AccountSummary | null {
   if (data.scope === "overall") return null;
+  const shareTotals = brokerShareTotals(data);
   return {
     scope: data.scope,
     label: data.scope === "smsf" ? "SMSF" : "Personal",
@@ -51,7 +78,9 @@ export function dashboardToAccountSummary(data: DashboardData, overallValue: num
     cashValue: data.cashValue,
     totalReturn: data.totalReturn,
     totalReturnPercent: data.totalReturnPercent,
-    positionCount: data.holdings.length,
+    positionCount: data.holdings.filter(isSharePosition).length,
+    sharePositionValue: shareTotals.reduce((sum, item) => sum + item.value, 0),
+    brokerShareTotals: shareTotals,
     shareOfOverall: overallValue ? data.totalValue / overallValue * 100 : 0,
     lastUpdated: data.lastUpdated,
   };

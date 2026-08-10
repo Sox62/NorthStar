@@ -63,6 +63,12 @@ type CurrencyExposureSummary = {
   cashValueAud: number;
   positionCount: number;
 };
+type BrokerShareTotal = {
+  broker: string;
+  value: number;
+  positionCount: number;
+};
+
 type AccountBreakdownSummary = {
   scope: "personal" | "smsf";
   label: string;
@@ -72,6 +78,8 @@ type AccountBreakdownSummary = {
   totalReturn: number;
   totalReturnPercent: number;
   positionCount: number;
+  sharePositionValue: number;
+  brokerShareTotals: BrokerShareTotal[];
   shareOfOverall: number;
   lastUpdated: string | null;
 };
@@ -1126,7 +1134,21 @@ function IncomeFrankingPanel({ income }: { income?: IncomeSummary }) {
   );
 }
 
-function AccountBreakdownPanel({ accounts, scope, xirrByScope }: { accounts: AccountBreakdownSummary[]; scope: PortfolioScope; xirrByScope?: Partial<Record<PortfolioScope, XirrSummary>> }) {
+function brokerShareTotals(holdings: Holding[], scope: AccountBreakdownSummary["scope"]): BrokerShareTotal[] {
+  const owner = scope === "smsf" ? "SMSF" : "PERSONAL";
+  const totalsByBroker = new Map<string, BrokerShareTotal>();
+  for (const holding of holdings) {
+    if (holding.ownerType !== owner || !isShareLike(holding)) continue;
+    const broker = brokerDisplayName(holding.broker);
+    const current = totalsByBroker.get(broker) ?? { broker, value: 0, positionCount: 0 };
+    current.value += holding.marketValueAud;
+    current.positionCount += 1;
+    totalsByBroker.set(broker, current);
+  }
+  return [...totalsByBroker.values()].sort((a, b) => b.value - a.value || a.broker.localeCompare(b.broker));
+}
+
+function AccountBreakdownPanel({ accounts, holdings, scope, xirrByScope }: { accounts: AccountBreakdownSummary[]; holdings: Holding[]; scope: PortfolioScope; xirrByScope?: Partial<Record<PortfolioScope, XirrSummary>> }) {
   const visibleAccounts = scope === "overall" ? accounts : accounts.filter((account) => account.scope === scope);
   if (!visibleAccounts.length) return null;
   return (
@@ -1140,6 +1162,7 @@ function AccountBreakdownPanel({ accounts, scope, xirrByScope }: { accounts: Acc
       <div className="nsAccountItems">
         {visibleAccounts.map((account) => {
           const accountXirr = xirrByScope?.[account.scope]?.valuePercent ?? null;
+          const shareTotals = account.brokerShareTotals?.length ? account.brokerShareTotals : brokerShareTotals(holdings, account.scope);
           return (
             <article key={account.scope} className="nsAccountItem">
               <div>
@@ -1150,11 +1173,22 @@ function AccountBreakdownPanel({ accounts, scope, xirrByScope }: { accounts: Acc
             <dl>
               <div><dt>XIRR</dt><dd className={accountXirr == null ? undefined : accountXirr >= 0 ? "isPositive" : "isNegative"}>{fmtSignedPct(accountXirr)}</dd></div>
               <div><dt>P/L</dt><dd className={account.totalReturn >= 0 ? "isPositive" : "isNegative"}>{fmtSignedAud(account.totalReturn)} · {account.totalReturnPercent >= 0 ? "+" : ""}{account.totalReturnPercent.toFixed(1)}%</dd></div>
-              <div><dt>Invested</dt><dd>{fmtAud(account.investedValue)}</dd></div>
+              <div><dt>Share positions</dt><dd>{fmtAud(account.sharePositionValue ?? account.investedValue)}</dd></div>
               <div><dt>Cash</dt><dd>{fmtAud(account.cashValue)}</dd></div>
-                <div><dt>Positions</dt><dd>{account.positionCount}</dd></div>
-                <div><dt>Updated</dt><dd>{fmtDate(account.lastUpdated)}</dd></div>
-              </dl>
+              <div><dt>Positions</dt><dd>{account.positionCount}</dd></div>
+              <div><dt>Updated</dt><dd>{fmtDate(account.lastUpdated)}</dd></div>
+            </dl>
+            <div className="nsBrokerTotals" aria-label={account.label + " broker share-position totals"}>
+              {shareTotals.length ? shareTotals.map((item) => (
+                <div key={item.broker} className="nsBrokerTotalRow">
+                  <span>{item.broker}</span>
+                  <strong>{fmtAud(item.value)}</strong>
+                  <em>{item.positionCount} position{item.positionCount === 1 ? "" : "s"}</em>
+                </div>
+              )) : (
+                <p>No share positions</p>
+              )}
+            </div>
             </article>
           );
         })}
@@ -1298,7 +1332,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
 
         <IbkrOpenOrdersPanel />
 
-        <AccountBreakdownPanel accounts={accountBreakdown} scope={scope} xirrByScope={xirrByScope} />
+        <AccountBreakdownPanel accounts={accountBreakdown} holdings={holdings} scope={scope} xirrByScope={xirrByScope} />
 
         <div className="nsLowerGrid">
           <HoldingsTable holdings={shareHoldings} total={t.marketValue} scope={scope} healthTone={health.tone} />
