@@ -202,6 +202,24 @@ function upsertIbkrCash(store: LocalStore, report: IbkrFlexReport, ownerType: Ow
   for (const cash of components) writeIbkrCashAccount(store, ownerType, ibkrCashAccountName(report, cash, "component"), cash, false);
 }
 
+
+function replaceIbkrNavSnapshots(store: LocalStore, report: IbkrFlexReport, ownerType: OwnerType) {
+  if (!report.navSnapshots.length) return;
+  const days = new Set(report.navSnapshots.map((snapshot) => snapshot.date));
+  store.snapshots = store.snapshots.filter((snapshot) => !(snapshot.ownerType === ownerType && days.has(snapshot.capturedAt.slice(0, 10))));
+  for (const snapshot of report.navSnapshots) {
+    store.snapshots.push({
+      id: randomUUID(),
+      ownerType,
+      capturedAt: `${snapshot.date}T12:00:00.000Z`,
+      marketValue: snapshot.stockValueAud,
+      cashValue: snapshot.cashValueAud,
+      netContributions: 0,
+    });
+  }
+  if (store.snapshots.length > 5000) store.snapshots = store.snapshots.slice(-5000);
+}
+
 function captureSnapshot(store: LocalStore, ownerType: OwnerType) {
   const positions = store.positions.filter(position => position.ownerType === ownerType);
   const manualAssets = store.manualAssets.filter(asset => asset.ownerType === ownerType);
@@ -335,6 +353,7 @@ export class LocalStorageAdapter implements StorageAdapter {
         };
     replaceIbkrOpenPositions(store, positionReport, ownerType, accountKey);
     replaceIbkrOpenOrders(store, report, ownerType, accountKey);
+    replaceIbkrNavSnapshots(store, report, ownerType);
     upsertIbkrCash(store, report, ownerType);
 
     const importRecord = store.imports.find(record => record.source === "IBKR" && record.ownerType === ownerType && record.accountKey === accountKey);

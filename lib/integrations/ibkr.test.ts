@@ -247,3 +247,22 @@ test("parseIbkrFlexXml reads open orders from Flex reports", () => {
   assert.equal(report.openOrders[0]?.limitPrice, 8.5);
   assert.equal(report.openOrders[0]?.stopPrice, 8.4);
 });
+
+test("parseIbkrFlexXml reads IBKR daily NAV history", () => {
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U24473088" fromDate="20260804" toDate="20260805">
+        <EquitySummaryInBase>
+          <EquitySummaryByReportDateInBase accountId="U24473088" reportDate="20260804" cash="61236.087997732" stock="281200.84832" total="342713.816621732" />
+          <EquitySummaryByReportDateInBase accountId="U24473088" reportDate="20260805" cash="141480.714287732" stock="310807.7866" total="452308.020887732" />
+        </EquitySummaryInBase>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`);
+
+  assert.equal(report.navSnapshots.length, 2);
+  assert.equal(report.navSnapshots[0]?.date, "2026-08-04");
+  assert.equal(report.navSnapshots[0]?.cashValueAud, 61236.087997732);
+  assert.equal(report.navSnapshots[0]?.stockValueAud, 281200.84832);
+  assert.equal(report.navSnapshots[1]?.totalValueAud, 452308.020887732);
+});

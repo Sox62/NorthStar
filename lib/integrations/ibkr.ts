@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
-import type { BrokerAdapter, IbkrFlexOpenOrder, IbkrFlexReport, IbkrOpenPosition, ImportedTransaction } from "./types";
+import type { BrokerAdapter, IbkrFlexOpenOrder, IbkrFlexReport, IbkrNavSnapshot, IbkrOpenPosition, ImportedTransaction } from "./types";
 
 const arr = <T>(value: T | T[] | undefined): T[] => value === undefined ? [] : Array.isArray(value) ? value : [value];
 const numberValue = (value: unknown, fallback = 0) => {
@@ -132,6 +132,24 @@ function parseFlexDateTime(value: unknown) {
   if (!compact) return text;
   const [, y, m, d, hh = "00", mm = "00", ss = "00"] = compact;
   return `${y}-${m}-${d}T${hh}:${mm}:${ss}`;
+}
+
+
+function parseNavSnapshots(statement: Record<string, unknown>, statementAccount: string): IbkrNavSnapshot[] {
+  const rows = arr<Record<string, unknown>>((statement as { EquitySummaryInBase?: { EquitySummaryByReportDateInBase?: Record<string, unknown> | Record<string, unknown>[] } }).EquitySummaryInBase?.EquitySummaryByReportDateInBase);
+  return rows.map((row) => {
+    const cashValueAud = numberValue(row.cash);
+    const stockValueAud = numberValue(row.stock);
+    const totalValueAud = numberValue(row.total, cashValueAud + stockValueAud);
+    return {
+      externalAccountId: String(row.accountId ?? statementAccount),
+      date: isoDate(row.reportDate),
+      stockValueAud,
+      cashValueAud,
+      totalValueAud,
+      raw: row,
+    };
+  }).filter((snapshot) => Boolean(snapshot.date) && Number.isFinite(snapshot.totalValueAud) && snapshot.totalValueAud > 0);
 }
 
 function parseOpenOrders(statement: Record<string, unknown>, statementAccount: string): IbkrFlexOpenOrder[] {
@@ -387,6 +405,7 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
   const transactions: ImportedTransaction[] = [];
   const openPositions: IbkrOpenPosition[] = [];
   const openOrders: IbkrFlexOpenOrder[] = [];
+  const navSnapshots: IbkrNavSnapshot[] = [];
   let cash: IbkrFlexReport["cash"] = null;
   const cashBalances: NonNullable<IbkrFlexReport["cash"]>[] = [];
   let accountId = "IBKR";
@@ -410,6 +429,7 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
     transactions.push(...parseTransactions(statement, statementAccount));
     openPositions.push(...parseOpenPositions(statement, statementAccount, baseFxRateToAud || 1));
     openOrders.push(...parseOpenOrders(statement, statementAccount));
+    navSnapshots.push(...parseNavSnapshots(statement, statementAccount));
 
     const cashRows = arr<Record<string, unknown>>((statement as { CashReport?: { CashReportCurrency?: Record<string, unknown> | Record<string, unknown>[] } }).CashReport?.CashReportCurrency);
     const parsedCash = parseCashSnapshots(cashRows, statementAccount, statement.toDate, baseCurrency, baseFxRateToAud || 1);
@@ -418,11 +438,11 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
     cashBalances.push(...parsedCash.balances, ...parsedForex.balances);
   }
 
-  if (!transactions.length && !openPositions.length && !openOrders.length && !cash) {
-    throw new Error("No IBKR trades, open positions, open orders or cash report were found in this Flex report.");
+  if (!transactions.length && !openPositions.length && !openOrders.length && !navSnapshots.length && !cash) {
+    throw new Error("No IBKR trades, open positions, open orders, NAV history or cash report were found in this Flex report.");
   }
 
-  return { accountId, fromDate, toDate, whenGenerated, transactions, openPositions, openOrders, cash, cashBalances };
+  return { accountId, fromDate, toDate, whenGenerated, transactions, openPositions, openOrders, navSnapshots, cash, cashBalances };
 }
 
 type FlexServiceResponse = {

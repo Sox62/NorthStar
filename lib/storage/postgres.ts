@@ -75,6 +75,19 @@ function transactionInstrumentCurrency(transaction: ImportedTransaction) {
     : transaction.currency;
 }
 
+
+async function replaceIbkrNavSnapshots(client: PoolClient, report: IbkrFlexReport, portfolioId: string) {
+  if (!report.navSnapshots.length) return;
+  const days = report.navSnapshots.map((snapshot) => snapshot.date);
+  await client.query(`DELETE FROM portfolio_snapshots WHERE portfolio_id=$1 AND captured_at::date = ANY($2::date[])`, [portfolioId, days]);
+  for (const snapshot of report.navSnapshots) {
+    await client.query(`
+      INSERT INTO portfolio_snapshots (portfolio_id, captured_at, market_value, cash_value, net_contributions)
+      VALUES ($1, $2::timestamptz, $3, $4, 0)
+    `, [portfolioId, `${snapshot.date}T12:00:00.000Z`, snapshot.stockValueAud, snapshot.cashValueAud]);
+  }
+}
+
 async function captureSnapshot(client: PoolClient, portfolioId: string) {
   const totals = await client.query<{ market_value: string; cash_value: string }>(`
     SELECT
@@ -273,6 +286,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
         ? await replaceIbkrOpenPositions(client, report, portfolioId, accountId)
         : await rebuildIbkrPositions(client, portfolioId, accountId);
       const openOrderCount = await replaceIbkrOpenOrders(client, report, portfolioId, accountId);
+      await replaceIbkrNavSnapshots(client, report, portfolioId);
       await upsertIbkrCash(client, report, portfolioId);
       await client.query(`INSERT INTO import_runs (portfolio_id, account_id, source, record_count) VALUES ($1,$2,'IBKR',$3)`, [portfolioId, accountId, report.transactions.length]);
       await captureSnapshot(client, portfolioId);

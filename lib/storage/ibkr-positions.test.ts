@@ -44,6 +44,7 @@ function report(input: Partial<IbkrFlexReport>): IbkrFlexReport {
     transactions: [],
     openPositions: [],
     openOrders: [],
+    navSnapshots: [],
     cash: null,
     cashBalances: [],
     ...input,
