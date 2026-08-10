@@ -76,7 +76,7 @@ export default function SyncPage() {
       const response = await fetch(`/api/import/${endpoint}?commit=${commit ? 1 : 0}&owner=${owners[type]}`, init);
       const payload = await response.json();
       setResults((current) => ({ ...current, [type]: payload }));
-      if (commit) void refreshDashboard();
+      if (commit) await refreshDashboard();
     } finally {
       setBusy(null);
     }
@@ -88,7 +88,7 @@ export default function SyncPage() {
     try {
       const response = await fetch("/api/sync/all", { method: "POST" });
       setAllSyncResult(await response.json());
-      void refreshDashboard();
+      await refreshDashboard();
     } finally {
       setAllSyncing(false);
     }
@@ -100,7 +100,7 @@ export default function SyncPage() {
     try {
       const response = await fetch(`/api/sync/ibkr?owner=${owners.ibkr}`, { method: "POST" });
       setSyncResult(await response.json());
-      void refreshDashboard();
+      await refreshDashboard();
     } finally {
       setSyncing(false);
     }
@@ -112,7 +112,7 @@ export default function SyncPage() {
     try {
       const response = await fetch(`/api/sync/directshares?owner=${owners.directsharesNotes}`, { method: "POST" });
       setDirectsharesSyncResult(await response.json());
-      void refreshDashboard();
+      await refreshDashboard();
     } finally {
       setDirectsharesSyncing(false);
     }
@@ -124,7 +124,7 @@ export default function SyncPage() {
     try {
       const response = await fetch(`/api/sync/dividends?owner=${owners.dividends}`, { method: "POST" });
       setDividendSyncResult(await response.json());
-      void refreshDashboard();
+      await refreshDashboard();
     } finally {
       setDividendSyncing(false);
     }

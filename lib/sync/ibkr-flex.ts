@@ -13,8 +13,13 @@ export type IbkrFlexSyncResult = ImportResult & {
   synced: true;
   label: string;
   querySource: IbkrFlexSyncConfig["source"];
+  statementFrom: string;
   statementTo: string;
   generatedAt: string | null;
+  flexTransactions: number;
+  flexTrades: number;
+  flexOpenPositions: number;
+  flexOpenOrders: number;
 };
 
 function clean(value: string | undefined) {
@@ -93,6 +98,12 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
   try {
     const report = await fetchIbkrFlexReport(config.token, config.queryId);
     const result = await storage.importIbkr(report, config.ownerType);
+    const flexTrades = report.transactions.filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL").length;
+    const cashMessage = report.cashBalances.length
+      ? report.cashBalances.map((cash) => `${cash.currency} ${cash.balance.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`).join(", ")
+      : report.cash
+        ? `AUD ${report.cash.balanceAud.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`
+        : "not supplied by Flex";
     await storage.recordSyncRun({
       source: "IBKR",
       ownerType: config.ownerType,
@@ -102,14 +113,19 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
       recordCount: report.transactions.length,
       positionCount: result.positions,
       cashAud: result.cashAud ?? null,
-      message: `${result.positions} ${config.label} positions from Flex statement ending ${report.toDate}; ${report.openOrders.length} open order${report.openOrders.length === 1 ? "" : "s"}; cash ${report.cashBalances.length ? report.cashBalances.map((cash) => `${cash.currency} ${cash.balance.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`).join(", ") : report.cash ? `AUD ${report.cash.balanceAud.toLocaleString("en-AU", { maximumFractionDigits: 2 })}` : "not supplied by Flex"}`,
+      message: `${result.positions} ${config.label} positions from Flex ${report.fromDate} to ${report.toDate}; ${flexTrades} trade${flexTrades === 1 ? "" : "s"} parsed, ${result.imported} imported, ${result.duplicates} duplicate${result.duplicates === 1 ? "" : "s"}; ${report.openOrders.length} open order${report.openOrders.length === 1 ? "" : "s"}; cash ${cashMessage}`,
     });
     return {
       synced: true,
       label: config.label,
       querySource: config.source,
+      statementFrom: report.fromDate,
       statementTo: report.toDate,
       generatedAt: report.whenGenerated ?? null,
+      flexTransactions: report.transactions.length,
+      flexTrades,
+      flexOpenPositions: report.openPositions.length,
+      flexOpenOrders: report.openOrders.length,
       ...result,
     };
   } catch (error) {
