@@ -176,6 +176,34 @@ function normalisePositionClassification(position: StoredPosition): StoredPositi
   return assetClass === position.assetClass ? position : { ...position, assetClass };
 }
 
+
+function activeCashAccounts(accounts: CashAccount[]) {
+  return accounts.filter((account) => account.isActive !== false);
+}
+
+function isIbkrCashComponent(account: CashAccount) {
+  return account.institution === "IBKR" && account.isActive === false;
+}
+
+function ibkrComponentGroupKey(account: CashAccount) {
+  const match = account.name.match(/^IBKR Cash(?: · ([^·]+))? · [A-Z]{3}$/);
+  return `${account.ownerType}:IBKR:${match?.[1]?.trim() || "IBKR"}`;
+}
+
+function ibkrTotalGroupKey(account: CashAccount) {
+  const match = account.name.match(/^IBKR Cash(?: · ([^·]+))? · Total AUD$/);
+  return `${account.ownerType}:IBKR:${match?.[1]?.trim() || "IBKR"}`;
+}
+
+function cashAccountsForCurrencyExposure(accounts: CashAccount[]) {
+  const componentGroups = new Set(accounts.filter(isIbkrCashComponent).map(ibkrComponentGroupKey));
+  return accounts.filter((account) => {
+    if (isIbkrCashComponent(account)) return true;
+    if (account.institution === "IBKR" && account.isActive !== false && componentGroups.has(ibkrTotalGroupKey(account))) return false;
+    return account.isActive !== false;
+  });
+}
+
 function cashAccountHolding(account: CashAccount): StoredPosition {
   return {
     id: `cash-${account.id}`,
@@ -253,13 +281,15 @@ export function buildDashboardModel(input: {
   const importedPositions = input.positions.filter((position) => !ownerType || position.ownerType === ownerType);
   const manualAssets = input.manualAssets.filter((asset) => !ownerType || asset.ownerType === ownerType);
   const cashAccounts = input.cashAccounts.filter((account) => !ownerType || account.ownerType === ownerType);
+  const navCashAccounts = activeCashAccounts(cashAccounts);
+  const currencyCashAccounts = cashAccountsForCurrencyExposure(cashAccounts);
   const transactions = input.transactions.filter((transaction) => !ownerType || transaction.ownerType === ownerType);
   const imports = input.imports.filter((record) => !ownerType || record.ownerType === ownerType);
   const snapshots = input.snapshots.filter((snapshot) => !ownerType || snapshot.ownerType === ownerType);
   const manualPositions = manualAssets.map(manualAssetPosition);
   const positions = [...importedPositions, ...manualPositions].map(normalisePositionClassification);
   const investedValue = positions.reduce((sum, position) => sum + position.marketValueAud, 0);
-  const cashValue = cashAccounts.reduce((sum, account) => sum + account.balanceAud, 0);
+  const cashValue = navCashAccounts.reduce((sum, account) => sum + account.balanceAud, 0);
   const totalValue = investedValue + cashValue;
   const dailyMovement = positions.reduce((sum, position) => sum + position.dayGainAud, 0);
   const unrealised = positions.reduce((sum, position) => sum + position.pnlAud, 0);
@@ -275,7 +305,7 @@ export function buildDashboardModel(input: {
     .filter((position) => position.valuationBasis === "market")
     .reduce((sum, position) => sum + position.marketValueAud, 0) + cashValue;
 
-  const holdings = [...positions, ...cashAccounts.map(cashAccountHolding)]
+  const holdings = [...positions, ...navCashAccounts.map(cashAccountHolding)]
     .sort((a, b) => b.marketValueAud - a.marketValueAud)
     .map((position) => ({ ...position, weight: percent(position.marketValueAud, totalValue) }));
 
@@ -291,7 +321,7 @@ export function buildDashboardModel(input: {
   const performance = buildSnapshotSeries(snapshots);
   const updatedValues = [
     ...imports.map((record) => record.importedAt),
-    ...cashAccounts.map((account) => account.updatedAt),
+    ...navCashAccounts.map((account) => account.updatedAt),
     ...manualAssets.map((asset) => asset.updatedAt),
   ].sort();
   const lastUpdated = updatedValues.at(-1) ?? null;
@@ -317,16 +347,16 @@ export function buildDashboardModel(input: {
     xirr: buildXirrSummary({
       scope: input.scope,
       positions,
-      cashAccounts,
+      cashAccounts: navCashAccounts,
       transactions,
       asOfDate: lastUpdated,
     }),
     income: buildIncomeSummary(transactions, totalValue),
     allocationTargets: normaliseAllocationTargets(input.allocationTargets),
-    currencyExposure: buildCurrencyExposure(positions, cashAccounts, totalValue),
+    currencyExposure: buildCurrencyExposure(positions, currencyCashAccounts, totalValue),
     accounts: buildAccountRows({ imports, cashAccounts, manualAssets }),
     syncRuns,
-    freshness: buildValuationFreshness({ positions, cashAccounts, manualAssets, syncRuns }),
+    freshness: buildValuationFreshness({ positions, cashAccounts: navCashAccounts, manualAssets, syncRuns }),
     provisionalValue,
     currentValue,
     lastUpdated,

@@ -223,7 +223,7 @@ function replaceIbkrNavSnapshots(store: LocalStore, report: IbkrFlexReport, owne
 function captureSnapshot(store: LocalStore, ownerType: OwnerType) {
   const positions = store.positions.filter(position => position.ownerType === ownerType);
   const manualAssets = store.manualAssets.filter(asset => asset.ownerType === ownerType);
-  const cash = store.cashAccounts.filter(account => account.ownerType === ownerType);
+  const cash = store.cashAccounts.filter(account => account.ownerType === ownerType && account.isActive !== false);
   const snapshot: Snapshot = {
     id: randomUUID(), ownerType, capturedAt: new Date().toISOString(),
     marketValue: positions.reduce((sum, position) => sum + position.marketValueAud, 0) + manualAssets.reduce((sum, asset) => sum + asset.marketValueAud, 0),

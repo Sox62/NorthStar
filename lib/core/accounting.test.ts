@@ -200,6 +200,32 @@ test("buildDashboardModel scopes legal owners and centralises dashboard accounti
   assert.equal(dashboard.currencyExposure[0].currency, "AUD");
 });
 
+test("buildDashboardModel displays IBKR cash components without double-counting NAV", () => {
+  const dashboard = buildDashboardModel({
+    scope: "personal",
+    storageMode: "local-file",
+    positions: [],
+    manualAssets: [],
+    cashAccounts: [
+      cash({ id: "ibkr-total", institution: "IBKR", name: "IBKR Cash · U2••••123 · Total AUD", currency: "AUD", balance: 253251.72, balanceAud: 253251.72, isActive: true }),
+      cash({ id: "ibkr-aud", institution: "IBKR", name: "IBKR Cash · U2••••123 · AUD", currency: "AUD", balance: 234120.42, balanceAud: 234120.42, isActive: false }),
+      cash({ id: "ibkr-usd", institution: "IBKR", name: "IBKR Cash · U2••••123 · USD", currency: "USD", balance: 88245.99, balanceAud: 124858.93, fxRateToAud: 1.415, isActive: false }),
+    ],
+    transactions: [],
+    imports: [],
+    snapshots: [],
+    syncRuns: [],
+    allocationTargets: [],
+  });
+
+  assert.equal(Math.round(dashboard.cashValue), 253252);
+  assert.equal(Math.round(dashboard.totalValue), 253252);
+  assert.equal(dashboard.holdings.length, 1, "only active cash total is included as a holding");
+  assert.equal(dashboard.accounts.filter((account) => account.name.startsWith("IBKR · IBKR Cash")).length, 3);
+  assert.equal(Math.round(dashboard.currencyExposure.find((item) => item.currency === "USD")?.cashValueAud ?? 0), 124859);
+  assert.equal(Math.round(dashboard.currencyExposure.find((item) => item.currency === "AUD")?.cashValueAud ?? 0), 234120);
+});
+
 test("buildDashboardModel reclassifies stale stored asset classes before allocations", () => {
   const dashboard = buildDashboardModel({
     scope: "personal",

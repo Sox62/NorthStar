@@ -721,7 +721,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
     }));
 
     const manualAssets = await this.listManualAssets(ownerType);
-    const cashAccounts = await this.listCashAccounts(ownerType);
+    const cashAccounts = await this.listCashAccounts(ownerType, { includeInactive: true });
     const transactions = await this.listTransactions(ownerType);
 
     const snapshotRows = await getPool().query(`
