@@ -6,6 +6,16 @@ import { syncDirectsharesDividends } from "@/lib/sync/directshares-dividends";
 import { syncDirectsharesEmail } from "@/lib/sync/directshares-email";
 import { syncMarketData } from "@/lib/sync/market-data";
 
+function isSydneyToday(date: string) {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  return date === today;
+}
+
 export type FullSyncResult = {
   ok: boolean;
   syncedAt: string;
@@ -122,15 +132,18 @@ export async function runFullSync(trigger: SyncTrigger, provider: QuoteProvider 
     const message = error instanceof Error ? error.message : "Unknown price error";
     const fallback = await storage.getLatestPlatinumPrice().catch(() => null);
     if (fallback) {
+      const currentFallback = isSydneyToday(fallback.priceDate);
       output.platinum = fallback;
       await storage.recordSyncRun({
         source: "ABC Bullion",
         ownerType: null,
         trigger,
-        status: "skipped",
+        status: currentFallback ? "success" : "skipped",
         startedAt: platinumStartedAt,
         recordCount: 0,
-        message: `Live ABC Bullion refresh failed (${message}); using saved platinum buyback ${fallback.buybackAudPerKg.toLocaleString("en-AU", { style: "currency", currency: "AUD" })} per kg from ${fallback.priceDate}.`,
+        message: currentFallback
+          ? `ABC buyback current at ${fallback.buybackAudPerKg.toLocaleString("en-AU", { style: "currency", currency: "AUD" })} per kg from saved ABC price dated ${fallback.priceDate}; live refresh failed (${message}).`
+          : `Live ABC Bullion refresh failed (${message}); using saved platinum buyback ${fallback.buybackAudPerKg.toLocaleString("en-AU", { style: "currency", currency: "AUD" })} per kg from ${fallback.priceDate}.`,
       }).catch(() => {});
     } else {
       errors.push(`ABC Bullion: ${message}`);

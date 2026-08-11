@@ -11,6 +11,16 @@ const manualPriceSchema = z.object({
   priceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
+function isSydneyToday(date: string) {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  return date === today;
+}
+
 function sydneyToday() {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Australia/Sydney",
@@ -44,15 +54,18 @@ export async function GET(request: Request) {
     const storage = getStorage();
     const fallback = await storage.getLatestPlatinumPrice().catch(() => null);
     const message = error instanceof Error ? error.message : "Unable to refresh ABC Bullion platinum price";
+    const currentFallback = fallback ? isSydneyToday(fallback.priceDate) : false;
     await storage.recordSyncRun({
       source: "ABC Bullion",
       ownerType: null,
       trigger: refresh ? "manual" : "system",
-      status: fallback ? "skipped" : "failed",
+      status: fallback ? currentFallback ? "success" : "skipped" : "failed",
       startedAt,
       recordCount: fallback ? 0 : null,
       message: fallback
-        ? `Live ABC Bullion refresh failed (${message}); using saved platinum buyback ${fallback.buybackAudPerKg.toLocaleString("en-AU", { style: "currency", currency: "AUD" })} per kg from ${fallback.priceDate}.`
+        ? currentFallback
+          ? `ABC buyback current at ${fallback.buybackAudPerKg.toLocaleString("en-AU", { style: "currency", currency: "AUD" })} per kg from saved ABC price dated ${fallback.priceDate}; live refresh failed (${message}).`
+          : `Live ABC Bullion refresh failed (${message}); using saved platinum buyback ${fallback.buybackAudPerKg.toLocaleString("en-AU", { style: "currency", currency: "AUD" })} per kg from ${fallback.priceDate}.`
         : null,
       error: fallback ? null : message,
     }).catch(() => {});
