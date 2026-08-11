@@ -28,6 +28,16 @@ function clean(value: string | undefined) {
   return value?.trim() ?? "";
 }
 
+export function ibkrFlexRequestDelayMs() {
+  const parsed = Number(process.env.IBKR_FLEX_REQUEST_DELAY_MS ?? "8000");
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 8000;
+}
+
+export function waitForIbkrFlexSlot() {
+  const delay = ibkrFlexRequestDelayMs();
+  return delay > 0 ? new Promise<void>((resolve) => setTimeout(resolve, delay)) : Promise.resolve();
+}
+
 function ownerFromEnv(value: string | undefined, fallback: OwnerType): OwnerType {
   return clean(value).toUpperCase() === "PERSONAL" ? "PERSONAL" : fallback;
 }
@@ -104,6 +114,7 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
     const report = await fetchIbkrFlexReport(config.token, config.queryId);
     let tradeConfirmTrades = 0;
     if (config.tradeConfirmQueryId) {
+      await waitForIbkrFlexSlot();
       const tradeReport = await fetchIbkrFlexReport(config.token, config.tradeConfirmQueryId);
       const existingIds = new Set(report.transactions.map((transaction) => transaction.externalId));
       const additionalTrades = tradeReport.transactions.filter((transaction) => !existingIds.has(transaction.externalId));

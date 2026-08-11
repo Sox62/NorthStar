@@ -1,7 +1,7 @@
 import { fetchAbcPlatinumPrice } from "@/lib/integrations/abc-bullion";
 import type { QuoteProvider } from "@/lib/integrations/market-data";
 import { getStorage, type SyncTrigger } from "@/lib/storage";
-import { configuredIbkrFlexSyncs, ibkrFlexNotConfiguredMessage, legacyIbkrFlexOwner, syncIbkrFlexConfig } from "@/lib/sync/ibkr-flex";
+import { configuredIbkrFlexSyncs, ibkrFlexNotConfiguredMessage, legacyIbkrFlexOwner, syncIbkrFlexConfig, waitForIbkrFlexSlot } from "@/lib/sync/ibkr-flex";
 import { syncDirectsharesDividends } from "@/lib/sync/directshares-dividends";
 import { syncDirectsharesEmail } from "@/lib/sync/directshares-email";
 import { syncMarketData } from "@/lib/sync/market-data";
@@ -47,8 +47,9 @@ export async function runFullSync(trigger: SyncTrigger, provider: QuoteProvider 
 
   if (ibkrConfigs.length) {
     const ibkrResults = [];
-    for (const config of ibkrConfigs) {
+    for (const [index, config] of ibkrConfigs.entries()) {
       try {
+        if (index > 0) await waitForIbkrFlexSlot();
         const result = await syncIbkrFlexConfig(storage, config, trigger);
         ibkrResults.push(result);
       } catch (error) {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
-import { configuredIbkrFlexSyncs, ibkrFlexConfigForOwner } from "./ibkr-flex";
+import { configuredIbkrFlexSyncs, ibkrFlexConfigForOwner, ibkrFlexRequestDelayMs } from "./ibkr-flex";
 
 const keys = [
   "IBKR_FLEX_TOKEN",
@@ -13,6 +13,7 @@ const keys = [
   "IBKR_TRADE_CONFIRM_FLEX_QUERY_ID",
   "IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID",
   "IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID",
+  "IBKR_FLEX_REQUEST_DELAY_MS",
 ];
 
 const original = new Map<string, string | undefined>();
@@ -99,4 +100,9 @@ test("owner-specific IBKR Flex supports optional trade confirmation query", () =
 
   assert.equal(config?.queryId, "activity-query");
   assert.equal(config?.tradeConfirmQueryId, "trade-query");
+});
+
+test("IBKR Flex request delay is configurable", () => {
+  process.env.IBKR_FLEX_REQUEST_DELAY_MS = "1234";
+  assert.equal(ibkrFlexRequestDelayMs(), 1234);
 });
