@@ -2037,3 +2037,277 @@ body.northstar .nsActivityRow.is-failed em {
     padding:13px 0;
   }
 }
+
+/* NAV detail panel — the expanded Total NAV / Share price overlay. */
+body.northstar .nsNavDetail {
+  margin-top:18px;
+}
+
+body.northstar .nsNavDetailControls {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:12px;
+}
+
+body.northstar .nsNavDetailCoverage {
+  margin:0;
+  font-size:12px;
+  color:var(--text-muted);
+}
+
+body.northstar .nsNavDetailTabSets {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:10px;
+}
+
+body.northstar .nsNavDetailTabs {
+  display:flex;
+  gap:4px;
+  padding:3px;
+  background:var(--surface-control);
+  border:1px solid var(--border-default);
+  border-radius:999px;
+}
+
+body.northstar .nsNavDetailTab {
+  padding:6px 13px;
+  border:0;
+  border-radius:999px;
+  background:transparent;
+  color:var(--text-muted);
+  font:inherit;
+  font-size:12px;
+  cursor:pointer;
+}
+
+body.northstar .nsNavDetailTab:hover {
+  color:var(--text-secondary);
+}
+
+body.northstar .nsNavDetailTab.isActive {
+  background:var(--accent);
+  color:var(--text-on-accent);
+}
+
+body.northstar .nsNavDetailGrid {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 316px;
+  gap:20px;
+  margin-top:18px;
+}
+
+body.northstar .nsNavDetailMain {
+  min-width:0;
+}
+
+body.northstar .nsNavDetailChartCard {
+  position:relative;
+  background:var(--surface-sunken);
+  border:1px solid var(--border-default);
+  border-radius:14px;
+  padding:12px 12px 6px;
+}
+
+body.northstar .nsNavDetailChartCard.isCash {
+  margin-top:12px;
+  padding:12px 14px 10px;
+}
+
+body.northstar .nsNavDetailChart {
+  display:block;
+  width:100%;
+  height:300px;
+  touch-action:none;
+  cursor:crosshair;
+}
+
+body.northstar .nsNavDetailCashChart {
+  display:block;
+  width:100%;
+  height:74px;
+  margin-top:8px;
+  touch-action:none;
+  cursor:crosshair;
+}
+
+body.northstar .nsNavDetailAxis {
+  display:flex;
+  justify-content:space-between;
+  padding:2px 2px 4px;
+  font-size:11px;
+  color:var(--text-muted);
+}
+
+body.northstar .nsNavDetailTip {
+  position:absolute;
+  top:14px;
+  min-width:132px;
+  padding:8px 10px;
+  background:var(--ns-navy-800);
+  border:1px solid var(--border-default);
+  border-radius:10px;
+  box-shadow:0 12px 30px rgba(0,0,0,.35);
+  pointer-events:none;
+}
+
+body.northstar .nsNavDetailTip span {
+  display:block;
+  font-size:11px;
+  color:var(--text-muted);
+}
+
+body.northstar .nsNavDetailTip strong {
+  display:block;
+  margin-top:2px;
+  font-size:16px;
+}
+
+body.northstar .nsNavDetailTip em {
+  display:block;
+  margin-top:3px;
+  font-size:11px;
+  font-style:normal;
+}
+
+body.northstar .nsNavDetailSide {
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  min-width:0;
+}
+
+body.northstar .nsNavDetailCard {
+  background:var(--surface-sunken);
+  border:1px solid var(--border-default);
+  border-radius:12px;
+  padding:14px;
+}
+
+body.northstar .nsNavDetailCardHead {
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:8px;
+}
+
+body.northstar .nsNavDetailCardHead span {
+  font-size:11px;
+  color:var(--text-muted);
+}
+
+body.northstar .nsNavDetailCard .nsEyebrow {
+  margin:0 0 10px;
+}
+
+body.northstar .nsNavDetailCardHead .nsEyebrow {
+  margin:0;
+}
+
+body.northstar .nsNavDetailReadout {
+  display:block;
+  margin-top:6px;
+  font-size:27px;
+  font-weight:700;
+  letter-spacing:-.01em;
+}
+
+body.northstar .nsNavDetailReadoutMeta {
+  display:flex;
+  gap:14px;
+  margin-top:8px;
+  font-size:12px;
+  color:var(--text-muted);
+}
+
+body.northstar .nsNavDetailSplit {
+  display:flex;
+  height:8px;
+  border-radius:999px;
+  overflow:hidden;
+  background:var(--ns-navy-800);
+}
+
+body.northstar .nsNavDetailRows {
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-top:12px;
+}
+
+body.northstar .nsNavDetailCard .nsNavDetailRows:first-of-type {
+  margin-top:0;
+}
+
+body.northstar .nsNavDetailRow {
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:8px;
+  font-size:13px;
+}
+
+body.northstar .nsNavDetailRowLabel {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  color:var(--text-secondary);
+}
+
+body.northstar .nsNavDetailRowValue {
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+}
+
+body.northstar .nsNavDetailRowValue strong {
+  font-size:13px;
+}
+
+body.northstar .nsNavDetailRowValue em {
+  min-width:42px;
+  font-size:12px;
+  font-style:normal;
+  color:var(--text-muted);
+  text-align:right;
+}
+
+body.northstar .nsNavDetailSwatch {
+  width:8px;
+  height:8px;
+  border-radius:2px;
+}
+
+body.northstar .nsNavDetailFootnote {
+  margin:0;
+  font-size:11px;
+  line-height:1.5;
+  color:var(--text-muted);
+}
+
+body.northstar .nsNavDetailEmpty {
+  margin:24px 0 0;
+  font-size:13px;
+  color:var(--text-muted);
+}
+
+body.northstar .nsNavDetail .is-positive { color:var(--status-positive); }
+body.northstar .nsNavDetail .is-negative { color:var(--status-negative); }
+
+@media (max-width:980px) {
+  body.northstar .nsNavDetailGrid {
+    grid-template-columns:1fr;
+  }
+
+  body.northstar .nsNavDetailChart {
+    height:240px;
+  }
+
+  body.northstar .nsNavDetailControls {
+    align-items:flex-start;
+    flex-direction:column;
+  }
+}

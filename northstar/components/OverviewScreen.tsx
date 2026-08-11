@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import TradingViewWidget from "@/components/TradingViewWidget";
 import { NavRail } from "./NavRail";
+import { NavDetailPanel } from "./NavDetailPanel";
+import { valueForScope, type ChartValueMode, type PerformancePoint } from "../lib/nav-series";
 import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
 import { dataHealth, type HealthTone } from "../lib/data-health";
 import { byComposition, byScope, bySector, fmtAud, totals } from "../lib/portfolio-metrics";
@@ -10,15 +12,6 @@ import { compareNumber, compareText, nextSort, sortIndicator, type SortState } f
 import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "../lib/tradingview";
 import { COMPOSITION_OF, SECTOR_COLORS, type CompositionGroup, type Holding, type PortfolioScope, type Sector } from "../types";
 
-type PerformancePoint = {
-  date: string;
-  overall?: number;
-  personal?: number;
-  smsf?: number;
-  overallInvested?: number;
-  personalInvested?: number;
-  smsfInvested?: number;
-};
 type SyncRunSummary = {
   source: string;
   trigger: string;
@@ -193,25 +186,9 @@ function fmtShortAud(value: number) {
   return fmtAud(value);
 }
 
-type ChartValueMode = "shares" | "nav";
 type HoldingSortKey = "holding" | "sector" | "price" | "value" | "weight" | "day" | "pnl";
 type HoldingSortState = SortState<HoldingSortKey>;
 
-
-function valueForScope(point: PerformancePoint, scope: PortfolioScope, mode: ChartValueMode) {
-  if (mode === "shares") {
-    if (scope === "personal") return point.personalInvested ?? point.personal;
-    if (scope === "smsf") return point.smsfInvested ?? point.smsf;
-    return point.overallInvested ?? (
-      point.personalInvested !== undefined || point.smsfInvested !== undefined
-        ? (point.personalInvested ?? 0) + (point.smsfInvested ?? 0)
-        : point.overall ?? ((point.personal ?? 0) + (point.smsf ?? 0) || undefined)
-    );
-  }
-  if (scope === "personal") return point.personal;
-  if (scope === "smsf") return point.smsf;
-  return point.overall ?? ((point.personal ?? 0) + (point.smsf ?? 0) || undefined);
-}
 
 function fmtDate(value: string | null) {
   if (!value) return "No date";
@@ -587,17 +564,8 @@ function HistoryChart({ now, investedNow, scope, performance }: { now: number; i
         {monthLabels.length ? monthLabels.map((point) => <span key={`${point.label}-${point.x}`}>{fmtChartLabel(point.label).split(" ")[0]}</span>) : <span>Now</span>}
       </div>
       {expanded ? (
-        <ChartOverlay title={`${title} · ${range.toUpperCase()}`} onClose={() => setExpanded(false)}>
-          <div className="nsDetailedHistoryMeta">
-            <div><span>Current</span><strong>{fmtAud(chartNow)}</strong></div>
-            <div><span>Peak</span><strong>{fmtAud(peak)}</strong></div>
-            <div><span>Low</span><strong>{fmtAud(floor)}</strong></div>
-            <div><span>Points</span><strong>{series.length}</strong></div>
-          </div>
-          <div className="nsHistoryChartWrap isDetailed">
-            {chartSvg("nsHistoryFillDetailed", `Detailed ${title} chart`)}
-            {renderTooltip()}
-          </div>
+        <ChartOverlay title={title} onClose={() => setExpanded(false)}>
+          <NavDetailPanel performance={performance} scope={scope} mode={mode} />
         </ChartOverlay>
       ) : null}
     </div>
