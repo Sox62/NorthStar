@@ -5,7 +5,9 @@ export type IbkrFlexSyncConfig = {
   ownerType: OwnerType;
   token: string;
   queryId: string;
+  queryEnvKey: string;
   tradeConfirmQueryId?: string;
+  tradeConfirmQueryEnvKey?: string;
   label: string;
   source: "legacy" | "owner-specific";
 };
@@ -22,10 +24,22 @@ export type IbkrFlexSyncResult = ImportResult & {
   flexOpenPositions: number;
   flexOpenOrders: number;
   tradeConfirmTrades: number;
+  queryEnvKey: string;
+  queryIdTail: string;
+  tradeConfirmQueryEnvKey?: string;
+  tradeConfirmQueryIdTail?: string;
 };
 
 function clean(value: string | undefined) {
   return value?.trim() ?? "";
+}
+
+function queryIdTail(queryId: string) {
+  return queryId.length <= 4 ? queryId : queryId.slice(-4);
+}
+
+function selectedQueryLabel(config: IbkrFlexSyncConfig) {
+  return `${config.queryEnvKey} ending ${queryIdTail(config.queryId)}`;
 }
 
 export function ibkrFlexRequestDelayMs() {
@@ -65,7 +79,9 @@ export function configuredIbkrFlexSyncs(): IbkrFlexSyncConfig[] {
     ownerType: "PERSONAL",
     token: clean(process.env.IBKR_PERSONAL_FLEX_TOKEN) || sharedToken,
     queryId: clean(process.env.IBKR_PERSONAL_FLEX_QUERY_ID),
+    queryEnvKey: "IBKR_PERSONAL_FLEX_QUERY_ID",
     tradeConfirmQueryId: clean(process.env.IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID),
+    tradeConfirmQueryEnvKey: "IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID",
     label: "Personal IBKR",
     source: "owner-specific",
   });
@@ -74,7 +90,9 @@ export function configuredIbkrFlexSyncs(): IbkrFlexSyncConfig[] {
     ownerType: "SMSF",
     token: clean(process.env.IBKR_SMSF_FLEX_TOKEN) || sharedToken,
     queryId: clean(process.env.IBKR_SMSF_FLEX_QUERY_ID),
+    queryEnvKey: "IBKR_SMSF_FLEX_QUERY_ID",
     tradeConfirmQueryId: clean(process.env.IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID),
+    tradeConfirmQueryEnvKey: "IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID",
     label: "SMSF IBKR",
     source: "owner-specific",
   });
@@ -85,7 +103,9 @@ export function configuredIbkrFlexSyncs(): IbkrFlexSyncConfig[] {
       ownerType: legacyOwner,
       token: sharedToken,
       queryId: legacyQueryId,
+      queryEnvKey: "IBKR_FLEX_QUERY_ID",
       tradeConfirmQueryId: clean(process.env.IBKR_TRADE_CONFIRM_FLEX_QUERY_ID),
+      tradeConfirmQueryEnvKey: "IBKR_TRADE_CONFIRM_FLEX_QUERY_ID",
       label: `${legacyOwner === "PERSONAL" ? "Personal" : "SMSF"} IBKR legacy`,
       source: "legacy",
     });
@@ -148,6 +168,10 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
       statementFrom: report.fromDate,
       statementTo: report.toDate,
       generatedAt: report.whenGenerated ?? null,
+      queryEnvKey: config.queryEnvKey,
+      queryIdTail: queryIdTail(config.queryId),
+      tradeConfirmQueryEnvKey: config.tradeConfirmQueryId ? config.tradeConfirmQueryEnvKey : undefined,
+      tradeConfirmQueryIdTail: config.tradeConfirmQueryId ? queryIdTail(config.tradeConfirmQueryId) : undefined,
       flexTransactions: report.transactions.length,
       flexTrades,
       flexOpenPositions: report.openPositions.length,
@@ -165,6 +189,6 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
       startedAt,
       error: `${config.label}: ${message}`,
     }).catch(() => {});
-    throw new Error(`${config.label}: ${message}`);
+    throw new Error(`${config.label} (${selectedQueryLabel(config)}): ${message}`);
   }
 }

@@ -45,6 +45,7 @@ test("configuredIbkrFlexSyncs keeps the legacy single-query SMSF setup working",
   assert.equal(config.ownerType, "SMSF");
   assert.equal(config.token, "shared-token");
   assert.equal(config.queryId, "legacy-query");
+  assert.equal(config.queryEnvKey, "IBKR_FLEX_QUERY_ID");
   assert.equal(config.source, "legacy");
 });
 
@@ -59,6 +60,7 @@ test("configuredIbkrFlexSyncs supports legacy SMSF plus Personal query", () => {
   assert.equal(configs.length, 2);
   assert.equal(ibkrFlexConfigForOwner("SMSF")?.queryId, "smsf-query");
   assert.equal(ibkrFlexConfigForOwner("PERSONAL")?.queryId, "personal-query");
+  assert.equal(ibkrFlexConfigForOwner("PERSONAL")?.queryEnvKey, "IBKR_PERSONAL_FLEX_QUERY_ID");
   assert.equal(ibkrFlexConfigForOwner("PERSONAL")?.token, "shared-token");
 });
 
@@ -84,6 +86,7 @@ test("owner-specific SMSF query takes priority over legacy SMSF query", () => {
   assert.equal(configs.length, 1);
   assert.equal(configs[0]?.ownerType, "SMSF");
   assert.equal(configs[0]?.queryId, "specific-smsf-query");
+  assert.equal(configs[0]?.queryEnvKey, "IBKR_SMSF_FLEX_QUERY_ID");
   assert.equal(configs[0]?.source, "owner-specific");
 });
 
@@ -99,7 +102,9 @@ test("owner-specific IBKR Flex supports optional trade confirmation query", () =
   const config = ibkrFlexConfigForOwner("SMSF");
 
   assert.equal(config?.queryId, "activity-query");
+  assert.equal(config?.queryEnvKey, "IBKR_SMSF_FLEX_QUERY_ID");
   assert.equal(config?.tradeConfirmQueryId, "trade-query");
+  assert.equal(config?.tradeConfirmQueryEnvKey, "IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID");
 });
 
 test("IBKR Flex request delay is configurable", () => {
