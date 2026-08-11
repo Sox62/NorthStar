@@ -77,6 +77,17 @@ test("parseIbkrFlexXml keeps BMN from ASX open positions", () => {
   assert.equal(bmn.marketValueAud, 20340);
 });
 
+
+test("parseIbkrFlexXml reports detected sections when a Flex report has no importable data", () => {
+  assert.throws(() => parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar Trade Confirmations" type="AF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U24473088" fromDate="20260810" toDate="20260810">
+        <AccountInformation accountId="U24473088" currency="AUD" />
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`), /Detected query NorthStar Trade Confirmations; type AF; statement 1 U24473088 2026-08-10 to 2026-08-10 sections: AccountInformation/);
+});
+
 test("parseIbkrFlexXml reads the base-currency Cash Report row", () => {
   const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
     <FlexStatements count="1">

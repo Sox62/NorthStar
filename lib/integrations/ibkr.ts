@@ -393,11 +393,35 @@ function parseOpenPositions(statement: Record<string, unknown>, statementAccount
   return output;
 }
 
+function flexReportShape(root: Record<string, unknown>) {
+  const response = root.FlexQueryResponse as Record<string, unknown> | undefined;
+  const statements = arr<Record<string, unknown>>((response?.FlexStatements as { FlexStatement?: Record<string, unknown> | Record<string, unknown>[] } | undefined)?.FlexStatement);
+  const queryName = firstString(response?.queryName);
+  const queryType = firstString(response?.type);
+  const responseKeys = response ? Object.keys(response).filter(key => !["FlexStatements", "queryName", "type"].includes(key)) : Object.keys(root);
+  const statementShapes = statements.slice(0, 3).map((statement, index) => {
+    const sections = Object.entries(statement)
+      .filter(([, value]) => value && typeof value === "object")
+      .map(([key]) => key);
+    return `statement ${index + 1}${statement.accountId ? ` ${String(statement.accountId)}` : ""}${statement.fromDate || statement.toDate ? ` ${isoDate(statement.fromDate)} to ${isoDate(statement.toDate)}` : ""} sections: ${sections.join(", ") || "none"}`;
+  });
+
+  return [
+    queryName ? `query ${queryName}` : "",
+    queryType ? `type ${queryType}` : "",
+    responseKeys.length ? `response keys: ${responseKeys.join(", ")}` : "",
+    ...statementShapes,
+  ].filter(Boolean).join("; ");
+}
+
 export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "", parseAttributeValue: false });
   const root = parser.parse(xml);
   const statements = arr<Record<string, unknown>>(root?.FlexQueryResponse?.FlexStatements?.FlexStatement);
-  if (!statements.length) throw new Error("No IBKR Flex statement was found in this XML file.");
+  if (!statements.length) {
+    const shape = flexReportShape(root);
+    throw new Error(`No IBKR Flex statement was found in this XML file.${shape ? ` Detected ${shape}.` : ""}`);
+  }
 
   const accountIds = new Set(statements.map(statement => String(statement.accountId ?? "")).filter(Boolean));
   if (accountIds.size > 1) throw new Error("This build supports one IBKR account per uploaded Flex report.");
@@ -439,7 +463,8 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
   }
 
   if (!transactions.length && !openPositions.length && !openOrders.length && !navSnapshots.length && !cash) {
-    throw new Error("No IBKR trades, Open Positions, open orders, NAV history or Cash Report were found in this Flex report. Check that IBKR_SMSF_FLEX_QUERY_ID / IBKR_PERSONAL_FLEX_QUERY_ID points to an Activity Statement Flex query with Open Positions, Trades, Cash Report, Forex Balances, Conversion Rates and NAV sections. Trade Confirmation query IDs must be set only in IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID / IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID.");
+    const shape = flexReportShape(root);
+    throw new Error(`No IBKR trades, Open Positions, open orders, NAV history or Cash Report were found in this Flex report.${shape ? ` Detected ${shape}.` : ""} Check that IBKR_SMSF_FLEX_QUERY_ID / IBKR_PERSONAL_FLEX_QUERY_ID points to an Activity Statement Flex query with Open Positions, Trades, Cash Report, Forex Balances, Conversion Rates and NAV sections. Trade Confirmation query IDs must be set only in IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID / IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID.`);
   }
 
   return { accountId, fromDate, toDate, whenGenerated, transactions, openPositions, openOrders, navSnapshots, cash, cashBalances };
