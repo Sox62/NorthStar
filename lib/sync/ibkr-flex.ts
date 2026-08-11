@@ -135,7 +135,7 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
     let tradeConfirmTrades = 0;
     if (config.tradeConfirmQueryId) {
       await waitForIbkrFlexSlot();
-      const tradeReport = await fetchIbkrFlexReport(config.token, config.tradeConfirmQueryId);
+      const tradeReport = await fetchIbkrFlexReport(config.token, config.tradeConfirmQueryId, { allowTradeConfirmOnly: true });
       const existingIds = new Set(report.transactions.map((transaction) => transaction.externalId));
       const additionalTrades = tradeReport.transactions.filter((transaction) => !existingIds.has(transaction.externalId));
       report.transactions.push(...additionalTrades);

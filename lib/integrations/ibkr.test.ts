@@ -88,6 +88,38 @@ test("parseIbkrFlexXml reports detected sections when a Flex report has no impor
   </FlexQueryResponse>`), /Detected query NorthStar Trade Confirmations; type AF; statement 1 U24473088 2026-08-10 to 2026-08-10 sections: AccountInformation/);
 });
 
+
+test("parseIbkrFlexXml rejects Trade Confirmation reports as the main Activity feed", () => {
+  assert.throws(() => parseIbkrFlexXml(`<FlexQueryResponse queryName="IBKR SMSF trade confirmations" type="TCF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U24473088" fromDate="20260810" toDate="20260810">
+        <TradeConfirms>
+          <TradeConfirm accountId="U24473088" transactionID="tc-1" tradeDate="20260810" buySell="BUY" symbol="BMN" listingExchange="ASX" description="BANNERMAN ENERGY LTD" currency="AUD" quantity="6000" tradePrice="3.39" />
+        </TradeConfirms>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`), /Trade Confirmation Flex report, not an Activity Flex report/);
+});
+
+test("parseIbkrFlexXml can parse Trade Confirmation reports when explicitly allowed", () => {
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="IBKR SMSF trade confirmations" type="TCF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U24473088" fromDate="20260810" toDate="20260810">
+        <TradeConfirms>
+          <TradeConfirm accountId="U24473088" transactionID="tc-1" tradeDate="20260810" buySell="BUY" symbol="BMN" listingExchange="ASX" description="BANNERMAN ENERGY LTD" currency="AUD" quantity="6000" tradePrice="3.39" />
+        </TradeConfirms>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`, { allowTradeConfirmOnly: true });
+
+  assert.equal(report.transactions.length, 1);
+  assert.equal(report.transactions[0]?.source, "IBKR Trade Confirmation Flex");
+  assert.equal(report.transactions[0]?.symbol, "BMN");
+  assert.equal(report.transactions[0]?.type, "BUY");
+  assert.equal(report.transactions[0]?.quantity, 6000);
+  assert.equal(report.transactions[0]?.price, 3.39);
+});
+
 test("parseIbkrFlexXml reads the base-currency Cash Report row", () => {
   const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
     <FlexStatements count="1">

@@ -323,6 +323,43 @@ function parseTransactions(statement: Record<string, unknown>, statementAccount:
   return output;
 }
 
+function parseTradeConfirms(statement: Record<string, unknown>, statementAccount: string): ImportedTransaction[] {
+  const confirms = arr<Record<string, unknown>>((statement as { TradeConfirms?: { TradeConfirm?: Record<string, unknown> | Record<string, unknown>[] } }).TradeConfirms?.TradeConfirm);
+
+  return confirms.map((trade, index) => {
+    const exchange = firstString(trade.listingExchange, trade.exchange, trade.primaryExchange);
+    const symbol = flexSymbol(firstString(trade.symbol, trade.ticker, trade.underlyingSymbol), exchange);
+    const conid = firstString(trade.conid, trade.underlyingConid);
+    const isin = firstString(trade.isin, trade.securityID);
+    const side = firstString(trade.buySell, trade.side, trade.action).toUpperCase();
+    const fallbackId = `${statementAccount}:${symbol}:${String(trade.tradeDate ?? trade.dateTime ?? index)}`;
+    return {
+      externalId: firstString(trade.transactionID, trade.transactionId, trade.tradeID, trade.tradeId, trade.ibExecID, trade.execID, trade.executionId, fallbackId),
+      externalAccountId: firstString(trade.accountId, statementAccount),
+      tradeDate: isoDate(trade.tradeDate ?? trade.dateTime ?? trade.reportDate),
+      settleDate: isoDate(trade.settleDateTarget ?? trade.settleDate),
+      symbol,
+      exchange,
+      description: firstString(trade.description, trade.companyName, trade.securityDescription, symbol),
+      instrumentKey: conid || isin || `${symbol}:${exchange}`,
+      isin: isin || undefined,
+      conid: conid || undefined,
+      assetCategory: firstString(trade.assetCategory),
+      subCategory: firstString(trade.subCategory),
+      type: side === "SELL" ? "SELL" as const : "BUY" as const,
+      quantity: optionalNumberValue(trade.quantity, trade.shares) ?? undefined,
+      price: optionalNumberValue(trade.tradePrice, trade.price) ?? undefined,
+      cost: optionalNumberValue(trade.cost, trade.proceeds) ?? undefined,
+      currency: firstString(trade.currency, "AUD"),
+      fees: Math.abs(optionalNumberValue(trade.ibCommission, trade.commission) ?? 0),
+      taxes: Math.abs(optionalNumberValue(trade.taxes, trade.tax) ?? 0),
+      netCash: optionalNumberValue(trade.netCash, trade.netAmount) ?? undefined,
+      fxRateToBase: optionalNumberValue(trade.fxRateToBase) ?? undefined,
+      source: "IBKR Trade Confirmation Flex",
+      raw: trade,
+    };
+  }).filter(transaction => transaction.symbol && transaction.tradeDate);
+}
 function conversionRateToAud(statement: Record<string, unknown>, currency: string) {
   const sourceCurrency = currency.toUpperCase();
   if (sourceCurrency === "AUD") return 1;
@@ -414,7 +451,7 @@ function flexReportShape(root: Record<string, unknown>) {
   ].filter(Boolean).join("; ");
 }
 
-export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
+export function parseIbkrFlexXml(xml: string, options: { allowTradeConfirmOnly?: boolean } = {}): IbkrFlexReport {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "", parseAttributeValue: false });
   const root = parser.parse(xml);
   const statements = arr<Record<string, unknown>>(root?.FlexQueryResponse?.FlexStatements?.FlexStatement);
@@ -451,6 +488,7 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
     }
 
     transactions.push(...parseTransactions(statement, statementAccount));
+    if (options.allowTradeConfirmOnly) transactions.push(...parseTradeConfirms(statement, statementAccount));
     openPositions.push(...parseOpenPositions(statement, statementAccount, baseFxRateToAud || 1));
     openOrders.push(...parseOpenOrders(statement, statementAccount));
     navSnapshots.push(...parseNavSnapshots(statement, statementAccount));
@@ -464,6 +502,10 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
 
   if (!transactions.length && !openPositions.length && !openOrders.length && !navSnapshots.length && !cash) {
     const shape = flexReportShape(root);
+    const response = root.FlexQueryResponse as Record<string, unknown> | undefined;
+    if (String(response?.type ?? "").toUpperCase() === "TCF") {
+      throw new Error(`This is a Trade Confirmation Flex report, not an Activity Flex report.${shape ? ` Detected ${shape}.` : ""} Put this query ID in IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID / IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID, and use an Activity Flex Query ID for IBKR_SMSF_FLEX_QUERY_ID / IBKR_PERSONAL_FLEX_QUERY_ID.`);
+    }
     throw new Error(`No IBKR trades, Open Positions, open orders, NAV history or Cash Report were found in this Flex report.${shape ? ` Detected ${shape}.` : ""} Check that IBKR_SMSF_FLEX_QUERY_ID / IBKR_PERSONAL_FLEX_QUERY_ID points to an Activity Statement Flex query with Open Positions, Trades, Cash Report, Forex Balances, Conversion Rates and NAV sections. Trade Confirmation query IDs must be set only in IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID / IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID.`);
   }
 
@@ -543,8 +585,8 @@ export async function fetchIbkrFlexXml(token = process.env.IBKR_FLEX_TOKEN, quer
   throw new Error("IBKR took too long to generate the Flex report. Try Sync IBKR again shortly.");
 }
 
-export async function fetchIbkrFlexReport(token?: string, queryId?: string): Promise<IbkrFlexReport> {
-  return parseIbkrFlexXml(await fetchIbkrFlexXml(token, queryId));
+export async function fetchIbkrFlexReport(token?: string, queryId?: string, options: { allowTradeConfirmOnly?: boolean } = {}): Promise<IbkrFlexReport> {
+  return parseIbkrFlexXml(await fetchIbkrFlexXml(token, queryId), options);
 }
 
 export class IbkrFlexAdapter implements BrokerAdapter {
