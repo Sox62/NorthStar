@@ -439,7 +439,7 @@ export function parseIbkrFlexXml(xml: string): IbkrFlexReport {
   }
 
   if (!transactions.length && !openPositions.length && !openOrders.length && !navSnapshots.length && !cash) {
-    throw new Error("No IBKR trades, open positions, open orders, NAV history or cash report were found in this Flex report.");
+    throw new Error("No IBKR trades, Open Positions, open orders, NAV history or Cash Report were found in this Flex report. Check that IBKR_SMSF_FLEX_QUERY_ID / IBKR_PERSONAL_FLEX_QUERY_ID points to an Activity Statement Flex query with Open Positions, Trades, Cash Report, Forex Balances, Conversion Rates and NAV sections. Trade Confirmation query IDs must be set only in IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID / IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID.");
   }
 
   return { accountId, fromDate, toDate, whenGenerated, transactions, openPositions, openOrders, navSnapshots, cash, cashBalances };
