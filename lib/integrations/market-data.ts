@@ -148,17 +148,6 @@ function normaliseExchange(value: string) {
   return value.trim().toUpperCase();
 }
 
-const MARKET_SYMBOL_ALIASES: Record<string, string> = {
-  "SHELL:US": "SHEL",
-  "SHELL:NYSE": "SHEL",
-};
-
-function marketSymbol(instrument: PriceableInstrument) {
-  const symbol = normaliseSymbol(instrument.symbol);
-  const exchange = normaliseExchange(instrument.exchange || "US");
-  return MARKET_SYMBOL_ALIASES[`${symbol}:${exchange}`] ?? symbol;
-}
-
 function unique(values: Array<string | null | undefined>) {
   return [...new Set(values.filter(Boolean).map((value) => value!.trim()).filter(Boolean))];
 }
@@ -174,7 +163,6 @@ function eodhdExchangeSuffixes(exchange: string) {
   if (["TSXV", "TSXVENTURE", "VENTURE", "V"].includes(value)) return ["V", "TO"];
   if (["TSX", "TSE", "TO", "CA", "CANADA", "TSX/TSXV"].includes(value)) return ["TO", "V", "CN"];
   if (["CSE", "CN"].includes(value)) return ["CN", "TO", "V"];
-  if (["OSL", "OSE", "OSLO", "OL", "NO", "NORWAY"].includes(value)) return ["OL"];
   if (["NYSE", "NASDAQ", "AMEX", "ARCA", "BATS", "US", "NYSEARCA"].includes(value)) return ["US"];
   if (["LSE", "LON", "LN", "GB", "UK"].includes(value)) return ["LSE"];
   if (exchangeIncludes(value, /TSXV|VENTURE/)) return ["V", "TO"];
@@ -188,7 +176,6 @@ function yahooSuffixes(exchange: string) {
   if (["TSXV", "TSXVENTURE", "VENTURE", "V"].includes(value)) return ["V", "TO"];
   if (["TSX", "TSE", "TO", "CA", "CANADA", "TSX/TSXV"].includes(value)) return ["TO", "V", "CN"];
   if (["CSE", "CN"].includes(value)) return ["CN", "TO", "V"];
-  if (["OSL", "OSE", "OSLO", "OL", "NO", "NORWAY"].includes(value)) return ["OL"];
   if (["NYSE", "NASDAQ", "AMEX", "ARCA", "BATS", "US", "NYSEARCA"].includes(value)) return [""];
   if (["LSE", "LON", "LN", "GB", "UK"].includes(value)) return ["L"];
   if (exchangeIncludes(value, /TSXV|VENTURE/)) return ["V", "TO"];
@@ -215,14 +202,14 @@ function providerOverride(instrument: PriceableInstrument, envName: string) {
 function eodhdSymbols(instrument: PriceableInstrument) {
   const override = providerOverride(instrument, "MARKETDATA_EODHD_SYMBOL_OVERRIDES") ?? providerOverride(instrument, "MARKETDATA_SYMBOL_OVERRIDES");
   if (override) return [override];
-  const symbol = marketSymbol(instrument);
+  const symbol = normaliseSymbol(instrument.symbol);
   return unique(eodhdExchangeSuffixes(instrument.exchange).map((suffix) => `${symbol}.${suffix}`));
 }
 
 function yahooSymbols(instrument: PriceableInstrument) {
   const override = providerOverride(instrument, "MARKETDATA_YAHOO_SYMBOL_OVERRIDES");
   if (override) return [override];
-  const symbol = marketSymbol(instrument);
+  const symbol = normaliseSymbol(instrument.symbol);
   return unique(yahooSuffixes(instrument.exchange).map((suffix) => suffix ? `${symbol}.${suffix}` : symbol));
 }
 

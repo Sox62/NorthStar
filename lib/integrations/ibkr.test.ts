@@ -257,13 +257,6 @@ test("TradingView maps URA on ARCA to the US ETF symbol", () => {
   assert.equal(tradingViewSymbolForInstrument({ symbol: "URA", exchange: "US" }), "AMEX:URA");
 });
 
-test("TradingView maps oil watchlist symbols to primary chart symbols", () => {
-  assert.equal(tradingViewSymbolForInstrument({ symbol: "AKRBP", exchange: "OSE" }), "OSL:AKRBP");
-  assert.equal(tradingViewSymbolForInstrument({ symbol: "SHELL", exchange: "US" }), "NYSE:SHEL");
-  assert.equal(tradingViewSymbolForInstrument({ symbol: "OBE", exchange: "US" }), "AMEX:OBE");
-  assert.equal(tradingViewSymbolForInstrument({ symbol: "XOP", exchange: "US" }), "AMEX:XOP");
-});
-
 test("TradingView chart URLs use the saved NorthStar layout", () => {
   const url = new URL(tradingViewChartUrl("TVC:GOLDSILVER"));
 
