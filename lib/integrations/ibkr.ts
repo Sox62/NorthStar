@@ -279,7 +279,24 @@ function flexSymbol(symbol: string, exchange: string) {
   return /^[A-Z0-9]{2,}[a-z]$/.test(symbol) ? symbol.slice(0, -1) : symbol;
 }
 
-function parseTransactions(statement: Record<string, unknown>, statementAccount: string): ImportedTransaction[] {
+function transactionFxRateToAud(row: Record<string, unknown>, currency: string, baseCurrency = "AUD", baseFxRateToAud = 1) {
+  const localCurrency = currency.toUpperCase();
+  if (localCurrency === "AUD") return 1;
+  const fxRateToBase = optionalNumberValue(row.fxRateToBase);
+  if (localCurrency === baseCurrency.toUpperCase()) return baseFxRateToAud || undefined;
+  return fxRateToBase != null ? fxRateToBase * baseFxRateToAud : undefined;
+}
+
+function tradeConfirmFxRateToAud(row: Record<string, unknown>, currency: string, fallbackFxRates: Map<string, number>) {
+  const localCurrency = currency.toUpperCase();
+  if (localCurrency === "AUD") return 1;
+  const fallback = fallbackFxRates.get(localCurrency);
+  if (fallback) return fallback;
+  const fxRateToBase = optionalNumberValue(row.fxRateToBase);
+  return fxRateToBase != null && fxRateToBase !== 1 ? fxRateToBase : undefined;
+}
+
+function parseTransactions(statement: Record<string, unknown>, statementAccount: string, baseCurrency = "AUD", baseFxRateToAud = 1): ImportedTransaction[] {
   const output: ImportedTransaction[] = [];
   const trades = arr<Record<string, unknown>>((statement as { Trades?: { Trade?: Record<string, unknown> | Record<string, unknown>[] } }).Trades?.Trade);
 
@@ -291,6 +308,7 @@ function parseTransactions(statement: Record<string, unknown>, statementAccount:
     const exchange = String(trade.listingExchange ?? trade.exchange ?? "");
     const symbol = flexSymbol(String(trade.symbol ?? ""), exchange);
 
+    const currency = String(trade.currency ?? "AUD").toUpperCase();
     output.push({
       externalId: String(trade.transactionID ?? trade.tradeID ?? trade.ibExecID),
       externalAccountId: String(trade.accountId ?? statementAccount),
@@ -309,11 +327,11 @@ function parseTransactions(statement: Record<string, unknown>, statementAccount:
       price: numberOrUndefined(trade.tradePrice),
       closePrice: numberOrUndefined(trade.closePrice),
       cost: numberOrUndefined(trade.cost),
-      currency: String(trade.currency ?? "AUD"),
+      currency,
       fees: Math.abs(numberOrUndefined(trade.ibCommission) ?? 0),
       taxes: Math.abs(numberOrUndefined(trade.taxes) ?? 0),
       netCash: numberOrUndefined(trade.netCash),
-      fxRateToBase: numberOrUndefined(trade.fxRateToBase),
+      fxRateToBase: transactionFxRateToAud(trade, currency, baseCurrency, baseFxRateToAud),
       realisedPnl: numberOrUndefined(trade.fifoPnlRealized),
       source: "IBKR Flex",
       raw: trade,
@@ -323,7 +341,7 @@ function parseTransactions(statement: Record<string, unknown>, statementAccount:
   return output;
 }
 
-function parseTradeConfirms(statement: Record<string, unknown>, statementAccount: string): ImportedTransaction[] {
+function parseTradeConfirms(statement: Record<string, unknown>, statementAccount: string, fallbackFxRates = new Map<string, number>()): ImportedTransaction[] {
   const confirms = arr<Record<string, unknown>>((statement as { TradeConfirms?: { TradeConfirm?: Record<string, unknown> | Record<string, unknown>[] } }).TradeConfirms?.TradeConfirm);
 
   return confirms.map((trade, index) => {
@@ -333,6 +351,8 @@ function parseTradeConfirms(statement: Record<string, unknown>, statementAccount
     const isin = firstString(trade.isin, trade.securityID);
     const side = firstString(trade.buySell, trade.side, trade.action).toUpperCase();
     const fallbackId = `${statementAccount}:${symbol}:${String(trade.tradeDate ?? trade.dateTime ?? index)}`;
+    const currency = firstString(trade.currency, "AUD").toUpperCase();
+    const fxRateToAud = tradeConfirmFxRateToAud(trade, currency, fallbackFxRates);
     return {
       externalId: firstString(trade.transactionID, trade.transactionId, trade.tradeID, trade.tradeId, trade.ibExecID, trade.execID, trade.executionId, fallbackId),
       externalAccountId: firstString(trade.accountId, statementAccount),
@@ -350,11 +370,11 @@ function parseTradeConfirms(statement: Record<string, unknown>, statementAccount
       quantity: optionalNumberValue(trade.quantity, trade.shares) ?? undefined,
       price: optionalNumberValue(trade.tradePrice, trade.price) ?? undefined,
       cost: optionalNumberValue(trade.cost, trade.proceeds) ?? undefined,
-      currency: firstString(trade.currency, "AUD"),
+      currency,
       fees: Math.abs(optionalNumberValue(trade.ibCommission, trade.commission) ?? 0),
       taxes: Math.abs(optionalNumberValue(trade.taxes, trade.tax) ?? 0),
       netCash: optionalNumberValue(trade.netCash, trade.netAmount) ?? undefined,
-      fxRateToBase: optionalNumberValue(trade.fxRateToBase) ?? undefined,
+      fxRateToBase: currency === "AUD" ? 1 : fxRateToAud,
       source: "IBKR Trade Confirmation Flex",
       raw: trade,
     };
@@ -394,13 +414,14 @@ function parseOpenPositions(statement: Record<string, unknown>, statementAccount
     const quantity = numberValue(position.position);
     if (Math.abs(quantity) < 0.00000001) continue;
 
-    const fxRateToBase = numberValue(position.fxRateToBase, 1) || 1;
+    const rawFxRateToBase = numberValue(position.fxRateToBase, 1) || 1;
+    const fxRateToAud = rawFxRateToBase * baseFxRateToAud;
     const conid = String(position.conid ?? "");
     const isin = String(position.isin ?? position.securityID ?? "");
     const exchange = String(position.listingExchange ?? "");
     const symbol = flexSymbol(String(position.symbol ?? ""), exchange);
-    const costAud = Math.abs(numberValue(position.costBasisMoney) * fxRateToBase * baseFxRateToAud);
-    const marketValueAud = numberValue(position.positionValue) * fxRateToBase * baseFxRateToAud;
+    const costAud = Math.abs(numberValue(position.costBasisMoney) * fxRateToAud);
+    const marketValueAud = numberValue(position.positionValue) * fxRateToAud;
     const pnlAud = marketValueAud - costAud;
 
     output.push({
@@ -412,8 +433,8 @@ function parseOpenPositions(statement: Record<string, unknown>, statementAccount
       currency: String(position.currency ?? "AUD"),
       quantity,
       lastPrice: numberValue(position.markPrice),
-      fxRateToBase,
-      averageCostAud: numberValue(position.costBasisPrice) * fxRateToBase * baseFxRateToAud,
+      fxRateToBase: fxRateToAud,
+      averageCostAud: numberValue(position.costBasisPrice) * fxRateToAud,
       costAud,
       marketValueAud,
       pnlAud,
@@ -487,7 +508,7 @@ export function parseIbkrFlexXml(xml: string, options: { allowTradeConfirmOnly?:
       throw new Error(`IBKR Flex account ${statementAccount} is reporting in ${baseCurrency} base currency. Add the Conversion Rates section to the Flex query so NorthStar can value this account in AUD.`);
     }
 
-    transactions.push(...parseTransactions(statement, statementAccount));
+    transactions.push(...parseTransactions(statement, statementAccount, baseCurrency, baseFxRateToAud || 1));
     if (options.allowTradeConfirmOnly) transactions.push(...parseTradeConfirms(statement, statementAccount));
     openPositions.push(...parseOpenPositions(statement, statementAccount, baseFxRateToAud || 1));
     openOrders.push(...parseOpenOrders(statement, statementAccount));

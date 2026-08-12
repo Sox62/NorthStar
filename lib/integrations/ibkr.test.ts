@@ -168,6 +168,23 @@ test("parseIbkrFlexXml can parse Trade Confirmation reports when explicitly allo
   assert.equal(report.transactions[0]?.price, 3.39);
 });
 
+
+test("parseIbkrFlexXml does not treat USD-base trade confirmation FX of 1 as AUD conversion", () => {
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="IBKR personal trade confirmations" type="TCF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U555" fromDate="20260812" toDate="20260812">
+        <TradeConfirms>
+          <TradeConfirm accountId="U555" transactionID="tc-xle" tradeDate="20260812" buySell="BUY" symbol="XLE" listingExchange="ARCA" description="ENERGY SELECT SECTOR SPDR FUND" currency="USD" quantity="800" tradePrice="60.2" cost="48160" fxRateToBase="1" />
+        </TradeConfirms>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`, { allowTradeConfirmOnly: true });
+
+  assert.equal(report.transactions.length, 1);
+  assert.equal(report.transactions[0]?.currency, "USD");
+  assert.equal(report.transactions[0]?.fxRateToBase, undefined);
+});
+
 test("parseIbkrFlexXml reads the base-currency Cash Report row", () => {
   const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
     <FlexStatements count="1">
@@ -268,7 +285,9 @@ test("parseIbkrFlexXml uses IBKR Conversion Rates for USD-base AUD valuation", (
 
   assert.equal(Math.round(report.cash?.balanceAud ?? 0), 267224);
   assert.equal(Math.round(report.cashBalances.find((cash) => cash.currency === "USD")?.balanceAud ?? 0), 124863);
-  assert.equal(Math.round(report.openPositions.find((position) => position.symbol === "EU")?.marketValueAud ?? 0), 17686);
+  const eu = report.openPositions.find((position) => position.symbol === "EU");
+  assert.equal(Math.round(eu?.marketValueAud ?? 0), 17686);
+  assert.equal(Number(eu?.fxRateToBase.toFixed(6)), Number((1 / 0.70676).toFixed(6)), "positions expose AUD conversion, not raw USD-base conversion");
 });
 
 test("parseIbkrFlexXml reads Forex Balances when Cash Report is absent", () => {

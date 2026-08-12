@@ -166,3 +166,37 @@ test("resolveIbkrCurrentPositions keeps open-position AUD cost when foreign trad
   assert.equal(positions[0].pnlAud, 690.96);
   assert.equal(positions[0].pnlPercent, 0.9274630872483221);
 });
+
+test("resolveIbkrCurrentPositions uses activity fallback FX on same-day foreign trade confirms", () => {
+  const positions = resolveIbkrCurrentPositions(report({
+    openPositions: [openPosition({
+      instrumentKey: "XLE",
+      symbol: "XLE",
+      quantity: 800,
+      lastPrice: 61.03,
+      fxRateToBase: 1.54,
+      costAud: 74_500,
+      averageCostAud: 93.125,
+      marketValueAud: 75_190.96,
+      pnlAud: 690.96,
+      pnlPercent: 0.9274630872483221,
+      asOfDate: "2026-08-12",
+    })],
+    transactions: [trade({
+      externalId: "xle-confirm-fallback-fx",
+      symbol: "XLE",
+      type: "BUY",
+      quantity: 800,
+      price: 60.2,
+      cost: 48_160,
+      fxRateToBase: 1.54,
+      tradeDate: "2026-08-12",
+      source: "IBKR Trade Confirmation Flex",
+    })],
+  }));
+
+  assert.equal(positions.length, 1);
+  assert.equal(Number(positions[0].costAud.toFixed(2)), 74_166.4);
+  assert.equal(Number(positions[0].pnlAud.toFixed(2)), 1024.56);
+  assert.equal(Number(positions[0].pnlPercent.toFixed(4)), 1.3814);
+});

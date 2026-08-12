@@ -136,6 +136,16 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
     if (config.tradeConfirmQueryId) {
       await waitForIbkrFlexSlot();
       const tradeReport = await fetchIbkrFlexReport(config.token, config.tradeConfirmQueryId, { allowTradeConfirmOnly: true });
+      const fallbackFxRates = new Map<string, number>();
+      for (const position of report.openPositions) {
+        if (position.currency !== "AUD" && position.fxRateToBase) fallbackFxRates.set(position.currency, position.fxRateToBase);
+      }
+      for (const cash of report.cashBalances) {
+        if (cash.currency !== "AUD" && cash.fxRateToAud) fallbackFxRates.set(cash.currency, cash.fxRateToAud);
+      }
+      for (const transaction of tradeReport.transactions) {
+        if (transaction.currency !== "AUD" && !transaction.fxRateToBase) transaction.fxRateToBase = fallbackFxRates.get(transaction.currency);
+      }
       const existingIds = new Set(report.transactions.map((transaction) => transaction.externalId));
       const additionalTrades = tradeReport.transactions.filter((transaction) => !existingIds.has(transaction.externalId));
       report.transactions.push(...additionalTrades);
