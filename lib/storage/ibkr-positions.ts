@@ -27,6 +27,10 @@ function tradeQuantityDelta(transaction: ImportedTransaction) {
   return transaction.type === "SELL" ? -quantity : quantity;
 }
 
+function hasReliableAudCost(transaction: ImportedTransaction) {
+  return transaction.currency.toUpperCase() === "AUD" || transaction.fxRateToBase != null;
+}
+
 function tradeCostAud(transaction: ImportedTransaction) {
   const grossCost = transaction.cost != null
     ? Math.abs(asAud(transaction.cost, transaction.fxRateToBase))
@@ -43,11 +47,13 @@ function tradeValueAud(transaction: ImportedTransaction, quantity: number, fallb
 type CostLot = {
   quantity: number;
   costAud: number;
+  reliable: boolean;
 };
 
 type TransactionCostBasis = {
   quantity: number;
   costAud: number;
+  reliable: boolean;
 };
 
 function transactionCostBasis(transactions: ImportedTransaction[], snapshotDate: string) {
@@ -59,7 +65,7 @@ function transactionCostBasis(transactions: ImportedTransaction[], snapshotDate:
     if (Math.abs(delta) <= tolerance) continue;
     const lots = lotsByInstrument.get(key) ?? [];
     if (delta > 0) {
-      lots.push({ quantity: delta, costAud: tradeCostAud(transaction) });
+      lots.push({ quantity: delta, costAud: tradeCostAud(transaction), reliable: hasReliableAudCost(transaction) });
       lotsByInstrument.set(key, lots);
       continue;
     }
@@ -81,13 +87,14 @@ function transactionCostBasis(transactions: ImportedTransaction[], snapshotDate:
   for (const [key, lots] of lotsByInstrument.entries()) {
     const quantity = lots.reduce((sum, lot) => sum + lot.quantity, 0);
     const costAud = lots.reduce((sum, lot) => sum + lot.costAud, 0);
-    if (quantity > tolerance) basisByInstrument.set(key, { quantity, costAud });
+    const reliable = lots.every((lot) => lot.reliable);
+    if (quantity > tolerance) basisByInstrument.set(key, { quantity, costAud, reliable });
   }
   return basisByInstrument;
 }
 
 function applyTransactionCostBasis(position: ResolvedIbkrPosition, basis: TransactionCostBasis | undefined) {
-  if (!basis || Math.abs(basis.quantity - position.quantity) > tolerance) return;
+  if (!basis || !basis.reliable || Math.abs(basis.quantity - position.quantity) > tolerance) return;
   position.costAud = basis.costAud;
   position.averageCostAud = position.quantity ? basis.costAud / position.quantity : 0;
   position.pnlAud = position.marketValueAud - position.costAud;

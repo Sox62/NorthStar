@@ -131,3 +131,38 @@ test("resolveIbkrCurrentPositions does not override open-position cost when Flex
   assert.equal(positions[0].costAud, 315);
   assert.equal(positions[0].pnlAud, -15);
 });
+
+
+test("resolveIbkrCurrentPositions keeps open-position AUD cost when foreign trade confirms lack FX", () => {
+  const positions = resolveIbkrCurrentPositions(report({
+    openPositions: [openPosition({
+      instrumentKey: "XLE",
+      symbol: "XLE",
+      quantity: 800,
+      lastPrice: 61.03,
+      fxRateToBase: 1.54,
+      costAud: 74_500,
+      averageCostAud: 93.125,
+      marketValueAud: 75_190.96,
+      pnlAud: 690.96,
+      pnlPercent: 0.9274630872483221,
+      asOfDate: "2026-08-12",
+    })],
+    transactions: [trade({
+      externalId: "xle-confirm-no-fx",
+      symbol: "XLE",
+      type: "BUY",
+      quantity: 800,
+      price: 60.2,
+      cost: 48_160,
+      fxRateToBase: undefined,
+      tradeDate: "2026-08-12",
+      source: "IBKR Trade Confirmation Flex",
+    })],
+  }));
+
+  assert.equal(positions.length, 1);
+  assert.equal(positions[0].costAud, 74_500);
+  assert.equal(positions[0].pnlAud, 690.96);
+  assert.equal(positions[0].pnlPercent, 0.9274630872483221);
+});
