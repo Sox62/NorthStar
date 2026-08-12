@@ -101,6 +101,31 @@ test("parseIbkrFlexXml calculates open-position P/L from AUD value minus AUD cos
 });
 
 
+test("parseIbkrFlexXml handles GBP-denominated XRH0 P/L through the same AUD calculation", () => {
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U24473088" fromDate="20260807" toDate="20260807">
+        <OpenPositions>
+          <OpenPosition accountId="U24473088" currency="GBP" fxRateToBase="2" assetCategory="STK"
+            symbol="XRH0l" description="X PH RHODIUM ETC" conid="456" listingExchange="LSE"
+            reportDate="20260807" position="10" markPrice="110" positionValue="1100"
+            costBasisPrice="100" costBasisMoney="1000" fifoPnlUnrealized="999" />
+        </OpenPositions>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`);
+  const xrh0 = report.openPositions.find((position) => position.symbol === "XRH0");
+
+  assert.ok(xrh0);
+  assert.equal(xrh0.currency, "GBP");
+  assert.equal(xrh0.exchange, "LSE");
+  assert.equal(xrh0.costAud, 2000);
+  assert.equal(xrh0.marketValueAud, 2200);
+  assert.equal(xrh0.pnlAud, 200);
+  assert.equal(xrh0.pnlPercent, 10);
+});
+
+
 test("parseIbkrFlexXml reports detected sections when a Flex report has no importable data", () => {
   assert.throws(() => parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar Trade Confirmations" type="AF">
     <FlexStatements count="1">
