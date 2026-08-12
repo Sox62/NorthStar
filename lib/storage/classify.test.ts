@@ -23,3 +23,9 @@ test("classifyAsset maps known NorthStar resource holdings and unknown broad ass
   assert.equal(classifyAsset("EU", "enCore Energy Corp"), "Uranium miners");
   assert.equal(classifyAsset("EU", "Encore Energy"), "Uranium miners");
 });
+
+test("classifyAsset maps tracked oil and gas symbols explicitly", () => {
+  for (const symbol of ["PBR", "AKRBP", "BP", "CVE", "EC", "EQNR", "OBE", "OXY", "PDS", "RIG", "SD", "AR", "SHEL", "SHELL", "XOP"]) {
+    assert.equal(classifyAsset(symbol, symbol), "Oil", symbol);
+  }
+});

@@ -6,9 +6,27 @@ export type TradingViewInstrument = {
 };
 
 const tradingViewOverrides: Record<string, string> = {
+  "AKRBP:NO": "OSL:AKRBP",
+  "AKRBP:OL": "OSL:AKRBP",
+  "AKRBP:OSE": "OSL:AKRBP",
+  "AKRBP:OSL": "OSL:AKRBP",
+  "AKRBP:OSLO": "OSL:AKRBP",
+  "AR:US": "NYSE:AR",
+  "BP:US": "NYSE:BP",
   "CDE:US": "NYSE:CDE",
-  "XOM:US": "NYSE:XOM",
+  "CVE:US": "NYSE:CVE",
   "EC:US": "NYSE:EC",
+  "EQNR:US": "NYSE:EQNR",
+  "OBE:US": "AMEX:OBE",
+  "OXY:US": "NYSE:OXY",
+  "PBR:US": "NYSE:PBR",
+  "PDS:US": "NYSE:PDS",
+  "RIG:US": "NYSE:RIG",
+  "SD:US": "NYSE:SD",
+  "SHEL:US": "NYSE:SHEL",
+  "SHELL:US": "NYSE:SHEL",
+  "XOM:US": "NYSE:XOM",
+  "XOP:US": "AMEX:XOP",
   "HL:US": "NYSE:HL",
   "AG:US": "NYSE:AG",
   "NEM:US": "NYSE:NEM",
@@ -53,6 +71,7 @@ export function tradingViewSymbolForInstrument(instrument: TradingViewInstrument
   if (exchange === "TSX/TSXV") return `TSX:${symbol}`;
   if (exchange.includes("TSXV") || exchange.includes("VENTURE")) return `TSXV:${symbol}`;
   if (exchange.includes("TSX") || exchange.includes("CA")) return `TSX:${symbol}`;
+  if (["OSL", "OSE", "OSLO", "OL", "NO"].includes(exchange)) return `OSL:${symbol}`;
   if (exchange.includes("LSE") || exchange.includes("GB")) return `LSE:${symbol}`;
   return exchange ? `${exchange}:${symbol}` : symbol;
 }

@@ -41,8 +41,22 @@ const SYMBOL_SECTORS: Record<string, Sector> = {
 
   VELO: "Technology",
 
+  AKRBP: "Oil",
+  AR: "Oil",
+  BP: "Oil",
+  CVE: "Oil",
   EC: "Oil",
+  EQNR: "Oil",
+  OBE: "Oil",
+  OXY: "Oil",
+  PBR: "Oil",
+  PDS: "Oil",
+  RIG: "Oil",
+  SD: "Oil",
+  SHEL: "Oil",
+  SHELL: "Oil",
   XOM: "Oil",
+  XOP: "Oil",
 
   DBA: "Broad equities",
 
