@@ -399,9 +399,9 @@ function parseOpenPositions(statement: Record<string, unknown>, statementAccount
     const isin = String(position.isin ?? position.securityID ?? "");
     const exchange = String(position.listingExchange ?? "");
     const symbol = flexSymbol(String(position.symbol ?? ""), exchange);
-    const costAud = numberValue(position.costBasisMoney) * fxRateToBase * baseFxRateToAud;
+    const costAud = Math.abs(numberValue(position.costBasisMoney) * fxRateToBase * baseFxRateToAud);
     const marketValueAud = numberValue(position.positionValue) * fxRateToBase * baseFxRateToAud;
-    const pnlAud = numberValue(position.fifoPnlUnrealized) * fxRateToBase * baseFxRateToAud;
+    const pnlAud = marketValueAud - costAud;
 
     output.push({
       externalAccountId: String(position.accountId ?? statementAccount),

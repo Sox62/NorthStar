@@ -78,6 +78,29 @@ test("parseIbkrFlexXml keeps BMN from ASX open positions", () => {
 });
 
 
+test("parseIbkrFlexXml calculates open-position P/L from AUD value minus AUD cost", () => {
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U24473088" fromDate="20260807" toDate="20260807">
+        <OpenPositions>
+          <OpenPosition accountId="U24473088" currency="USD" fxRateToBase="1.5" assetCategory="STK"
+            symbol="XLE" description="ENERGY SELECT SECTOR SPDR FUND" conid="123" listingExchange="ARCA"
+            reportDate="20260807" position="100" markPrice="10" positionValue="1000"
+            costBasisPrice="11" costBasisMoney="1100" fifoPnlUnrealized="999" />
+        </OpenPositions>
+      </FlexStatement>
+    </FlexStatements>
+  </FlexQueryResponse>`);
+  const xle = report.openPositions.find((position) => position.symbol === "XLE");
+
+  assert.ok(xle);
+  assert.equal(xle.costAud, 1650);
+  assert.equal(xle.marketValueAud, 1500);
+  assert.equal(xle.pnlAud, -150);
+  assert.equal(xle.pnlPercent, -9.090909090909092);
+});
+
+
 test("parseIbkrFlexXml reports detected sections when a Flex report has no importable data", () => {
   assert.throws(() => parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar Trade Confirmations" type="AF">
     <FlexStatements count="1">

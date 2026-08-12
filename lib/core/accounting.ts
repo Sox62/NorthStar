@@ -92,12 +92,14 @@ export function buildPositionPriceValuation(input: {
   fxRateToAud: number;
   costAud: number;
   previousClose?: number | null;
+  previousFxRateToAud?: number | null;
   previousMarketValueAud?: number;
 }): PositionPriceValuation {
   const marketValueAud = input.quantity * input.close * input.fxRateToAud;
-  const dayGainAud = input.previousClose == null
-    ? marketValueAud - (input.previousMarketValueAud ?? 0)
-    : input.quantity * (input.close - input.previousClose) * input.fxRateToAud;
+  const previousValueAud = input.previousClose == null
+    ? input.previousMarketValueAud ?? 0
+    : input.quantity * input.previousClose * (input.previousFxRateToAud ?? input.fxRateToAud);
+  const dayGainAud = marketValueAud - previousValueAud;
   const pnlAud = marketValueAud - input.costAud;
   return {
     marketValueAud,

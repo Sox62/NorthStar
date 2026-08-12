@@ -176,14 +176,15 @@ export async function recordDailyPricesPostgres(prices: DailyPriceInput[], fxRat
           result.errors.push(`${instrument.ticker}:${instrument.exchange} expects ${instrument.currency}, not ${currency}.`);
           continue;
         }
-        const previousPrice = await client.query<{ close: string }>(`
-          SELECT close::text
+        const previousPrice = await client.query<{ close: string; price_date: string }>(`
+          SELECT close::text,price_date::text
           FROM daily_prices
           WHERE instrument_id=$1 AND price_date < $2
           ORDER BY price_date DESC,retrieved_at DESC
           LIMIT 1
         `, [instrument.id, input.priceDate]);
         const previousClose = previousPrice.rows[0]?.close ?? null;
+        const previousFxRateToAud = currency === "AUD" ? 1 : previousPrice.rows[0]?.price_date ? await latestFxRate(client, currency, previousPrice.rows[0].price_date) : null;
         await client.query(`
           INSERT INTO daily_prices (instrument_id,price_date,close,currency,source,retrieved_at)
           VALUES ($1,$2,$3,$4,$5,NOW())
@@ -204,7 +205,7 @@ export async function recordDailyPricesPostgres(prices: DailyPriceInput[], fxRat
             market_value_aud=ROUND((quantity*$2*$3)::numeric,2),
             day_gain_aud=CASE
               WHEN $5::numeric IS NULL THEN ROUND(((quantity*$2*$3)-market_value_aud)::numeric,2)
-              ELSE ROUND((quantity*($2-$5::numeric)*$3)::numeric,2)
+              ELSE ROUND(((quantity*$2*$3)-(quantity*$5::numeric*$6::numeric))::numeric,2)
             END,
             pnl_aud=ROUND(((quantity*$2*$3)-cost_aud)::numeric,2),
             pnl_percent=CASE WHEN cost_aud <> 0 THEN (((quantity*$2*$3)-cost_aud)/cost_aud*100) ELSE 0 END,
@@ -213,7 +214,7 @@ export async function recordDailyPricesPostgres(prices: DailyPriceInput[], fxRat
             updated_at=NOW()
           WHERE instrument_id=$1
           RETURNING portfolio_id
-        `, [instrument.id, input.close, rateToAud, input.priceDate, previousClose]);
+        `, [instrument.id, input.close, rateToAud, input.priceDate, previousClose, previousFxRateToAud ?? rateToAud]);
         result.updatedPositions += updated.rowCount ?? 0;
         for (const row of updated.rows) touchedPortfolios.add(row.portfolio_id);
       }

@@ -582,6 +582,7 @@ export class LocalStorageAdapter implements StorageAdapter {
         result.errors.push(`${symbol}${exchange ? `:${exchange}` : ""} was stored but not applied because ${currency}/AUD FX is missing.`);
         continue;
       }
+      const previousFxRateToAud = currency === "AUD" ? 1 : previousPrice ? latestFxRate(store, currency, previousPrice.priceDate) : null;
       for (const position of validMatches) {
         const valuation = buildPositionPriceValuation({
           quantity: position.quantity,
@@ -589,6 +590,7 @@ export class LocalStorageAdapter implements StorageAdapter {
           fxRateToAud: rateToAud,
           costAud: position.costAud,
           previousClose: previousPrice?.close ?? null,
+          previousFxRateToAud,
           previousMarketValueAud: position.marketValueAud,
         });
         position.dayGainAud = valuation.dayGainAud;

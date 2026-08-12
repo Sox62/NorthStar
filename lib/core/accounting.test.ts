@@ -144,6 +144,70 @@ test("buildPositionPriceValuation uses previous close for daily P/L", () => {
   assert.equal(valuation.pnlPercent, 80);
 });
 
+test("buildPositionPriceValuation keeps unchanged foreign price and FX flat", () => {
+  const valuation = buildPositionPriceValuation({
+    quantity: 100,
+    close: 10,
+    fxRateToAud: 1.5,
+    costAud: 1500,
+    previousClose: 10,
+    previousFxRateToAud: 1.5,
+  });
+
+  assert.equal(valuation.marketValueAud, 1500);
+  assert.equal(valuation.dayGainAud, 0);
+  assert.equal(valuation.pnlAud, 0);
+  assert.equal(valuation.pnlPercent, 0);
+});
+
+test("buildPositionPriceValuation captures FX-only moves for foreign holdings", () => {
+  const valuation = buildPositionPriceValuation({
+    quantity: 100,
+    close: 10,
+    fxRateToAud: 1.6,
+    costAud: 1500,
+    previousClose: 10,
+    previousFxRateToAud: 1.5,
+  });
+
+  assert.equal(valuation.marketValueAud, 1600);
+  assert.equal(valuation.dayGainAud, 100);
+  assert.equal(valuation.pnlAud, 100);
+  assert.equal(valuation.pnlPercent, 6.666666666666667);
+});
+
+test("buildPositionPriceValuation captures price-only moves for foreign holdings", () => {
+  const valuation = buildPositionPriceValuation({
+    quantity: 100,
+    close: 11,
+    fxRateToAud: 1.5,
+    costAud: 1500,
+    previousClose: 10,
+    previousFxRateToAud: 1.5,
+  });
+
+  assert.equal(valuation.marketValueAud, 1650);
+  assert.equal(valuation.dayGainAud, 150);
+  assert.equal(valuation.pnlAud, 150);
+  assert.equal(valuation.pnlPercent, 10);
+});
+
+test("buildPositionPriceValuation leaves AUD holdings on the AUD path", () => {
+  const valuation = buildPositionPriceValuation({
+    quantity: 100,
+    close: 12,
+    fxRateToAud: 1,
+    costAud: 1000,
+    previousClose: 10,
+    previousFxRateToAud: 1,
+  });
+
+  assert.equal(valuation.marketValueAud, 1200);
+  assert.equal(valuation.dayGainAud, 200);
+  assert.equal(valuation.pnlAud, 200);
+  assert.equal(valuation.pnlPercent, 20);
+});
+
 test("buildDashboardModel scopes legal owners and centralises dashboard accounting", () => {
   const dashboard = buildDashboardModel({
     scope: "personal",

@@ -88,3 +88,46 @@ test("resolveIbkrCurrentPositions ignores older trades already reflected in open
   assert.equal(positions[0].quantity, 100);
   assert.equal(positions[0].source, "IBKR Open Positions");
 });
+
+
+test("resolveIbkrCurrentPositions uses transaction-date FX cost basis when trades reconcile to the open quantity", () => {
+  const positions = resolveIbkrCurrentPositions(report({
+    openPositions: [openPosition({
+      instrumentKey: "XLE",
+      symbol: "XLE",
+      quantity: 20,
+      lastPrice: 10,
+      fxRateToBase: 1.5,
+      costAud: 315,
+      marketValueAud: 300,
+      pnlAud: 999,
+      pnlPercent: 999,
+      asOfDate: "2026-07-21",
+    })],
+    transactions: [
+      trade({ externalId: "xle-buy-1", symbol: "XLE", type: "BUY", quantity: 10, price: 10, cost: 100, fxRateToBase: 1.4, tradeDate: "2026-07-10" }),
+      trade({ externalId: "xle-buy-2", symbol: "XLE", type: "BUY", quantity: 10, price: 10, cost: 100, fxRateToBase: 1.6, tradeDate: "2026-07-20" }),
+    ],
+  }));
+
+  assert.equal(positions.length, 1);
+  assert.equal(positions[0].symbol, "XLE");
+  assert.equal(positions[0].quantity, 20);
+  assert.equal(positions[0].costAud, 300);
+  assert.equal(positions[0].averageCostAud, 15);
+  assert.equal(positions[0].marketValueAud, 300);
+  assert.equal(positions[0].pnlAud, 0);
+  assert.equal(positions[0].pnlPercent, 0);
+});
+
+test("resolveIbkrCurrentPositions does not override open-position cost when Flex trade history is incomplete", () => {
+  const positions = resolveIbkrCurrentPositions(report({
+    openPositions: [openPosition({ instrumentKey: "CAD", symbol: "CAD", quantity: 20, costAud: 315, marketValueAud: 300, pnlAud: -15, asOfDate: "2026-07-21" })],
+    transactions: [trade({ externalId: "partial-buy", symbol: "CAD", type: "BUY", quantity: 10, price: 10, cost: 100, fxRateToBase: 1.4, tradeDate: "2026-07-20" })],
+  }));
+
+  assert.equal(positions.length, 1);
+  assert.equal(positions[0].quantity, 20);
+  assert.equal(positions[0].costAud, 315);
+  assert.equal(positions[0].pnlAud, -15);
+});

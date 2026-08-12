@@ -40,6 +40,60 @@ function tradeValueAud(transaction: ImportedTransaction, quantity: number, fallb
   return Math.abs(quantity * price * (transaction.fxRateToBase || 1));
 }
 
+type CostLot = {
+  quantity: number;
+  costAud: number;
+};
+
+type TransactionCostBasis = {
+  quantity: number;
+  costAud: number;
+};
+
+function transactionCostBasis(transactions: ImportedTransaction[], snapshotDate: string) {
+  const lotsByInstrument = new Map<string, CostLot[]>();
+  for (const transaction of transactions) {
+    if (snapshotDate && transaction.tradeDate > snapshotDate) continue;
+    const key = instrumentKey(transaction);
+    const delta = tradeQuantityDelta(transaction);
+    if (Math.abs(delta) <= tolerance) continue;
+    const lots = lotsByInstrument.get(key) ?? [];
+    if (delta > 0) {
+      lots.push({ quantity: delta, costAud: tradeCostAud(transaction) });
+      lotsByInstrument.set(key, lots);
+      continue;
+    }
+
+    let remainingSale = Math.abs(delta);
+    while (remainingSale > tolerance && lots.length) {
+      const lot = lots[0];
+      const consumed = Math.min(lot.quantity, remainingSale);
+      const ratio = lot.quantity ? consumed / lot.quantity : 0;
+      lot.quantity -= consumed;
+      lot.costAud -= lot.costAud * ratio;
+      remainingSale -= consumed;
+      if (lot.quantity <= tolerance) lots.shift();
+    }
+    lotsByInstrument.set(key, lots);
+  }
+
+  const basisByInstrument = new Map<string, TransactionCostBasis>();
+  for (const [key, lots] of lotsByInstrument.entries()) {
+    const quantity = lots.reduce((sum, lot) => sum + lot.quantity, 0);
+    const costAud = lots.reduce((sum, lot) => sum + lot.costAud, 0);
+    if (quantity > tolerance) basisByInstrument.set(key, { quantity, costAud });
+  }
+  return basisByInstrument;
+}
+
+function applyTransactionCostBasis(position: ResolvedIbkrPosition, basis: TransactionCostBasis | undefined) {
+  if (!basis || Math.abs(basis.quantity - position.quantity) > tolerance) return;
+  position.costAud = basis.costAud;
+  position.averageCostAud = position.quantity ? basis.costAud / position.quantity : 0;
+  position.pnlAud = position.marketValueAud - position.costAud;
+  position.pnlPercent = position.costAud ? position.pnlAud / position.costAud * 100 : 0;
+}
+
 function positionFromTrade(transaction: ImportedTransaction, delta: number): ResolvedIbkrPosition | null {
   if (delta <= tolerance) return null;
   const costAud = tradeCostAud(transaction);
@@ -137,6 +191,9 @@ export function resolveIbkrCurrentPositions(report: IbkrFlexReport): ResolvedIbk
   const trades = [...report.transactions]
     .filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL")
     .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || a.externalId.localeCompare(b.externalId));
+
+  const basisByInstrument = hasOpenSnapshot ? transactionCostBasis(trades, openSnapshotDate) : new Map<string, TransactionCostBasis>();
+  for (const position of positions.values()) applyTransactionCostBasis(position, basisByInstrument.get(position.instrumentKey));
 
   for (const transaction of trades) {
     const key = instrumentKey(transaction);
