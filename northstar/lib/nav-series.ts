@@ -10,7 +10,7 @@ export type PerformancePoint = {
   smsfInvested?: number;
 };
 
-export type ChartValueMode = "shares" | "nav";
+export type ChartValueMode = "performance" | "shares" | "nav";
 export type NavRange = "1m" | "3m" | "6m" | "1y" | "itd";
 
 export const NAV_RANGES: Array<{ id: NavRange; label: string; days: number | null }> = [
@@ -43,7 +43,29 @@ export function investedForScope(point: PerformancePoint, scope: PortfolioScope)
 }
 
 export function valueForScope(point: PerformancePoint, scope: PortfolioScope, mode: ChartValueMode) {
-  return mode === "shares" ? investedForScope(point, scope) : navForScope(point, scope);
+  if (mode === "shares" || mode === "performance") return investedForScope(point, scope);
+  return navForScope(point, scope);
+}
+
+function performanceIndex(points: NavSeriesPoint[]) {
+  if (!points.length) return points;
+  let indexValue = 100;
+  let previous = points[0];
+  const indexed: NavSeriesPoint[] = [{ ...previous, value: indexValue }];
+
+  for (const point of points.slice(1)) {
+    const rawReturn = previous.invested ? (point.invested - previous.invested) / previous.invested : 0;
+    const navReturn = previous.nav ? (point.nav - previous.nav) / previous.nav : rawReturn;
+    const cashShift = previous.nav ? Math.abs(point.cash - previous.cash) / previous.nav : 0;
+    const investedBaseShift = previous.invested ? Math.abs(point.invested - previous.invested) / previous.invested : 0;
+    const looksLikeExternalFlow = cashShift > 0.05 || (investedBaseShift > 0.15 && Math.sign(point.invested - previous.invested) !== Math.sign(point.nav - previous.nav));
+    const dailyReturn = looksLikeExternalFlow ? 0 : Math.max(-0.5, Math.min(0.5, rawReturn));
+    indexValue *= 1 + dailyReturn;
+    indexed.push({ ...point, value: indexValue });
+    previous = point;
+  }
+
+  return indexed;
 }
 
 export type NavSeriesPoint = {
@@ -109,7 +131,7 @@ export function buildNavSeries(input: {
     .map((point) => toPoint(point, input.scope, input.mode))
     .filter((point): point is NavSeriesPoint => point !== null)
     .sort((left, right) => left.time - right.time);
-  return filterByRange(all, input.range);
+  return filterByRange(input.mode === "performance" ? performanceIndex(all) : all, input.range);
 }
 
 export function navSeriesStats(points: NavSeriesPoint[]): NavSeriesStats | null {

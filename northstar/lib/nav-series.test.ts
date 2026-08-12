@@ -81,3 +81,23 @@ test("series is sorted by date even when snapshots arrive out of order", () => {
 
   assert.deepEqual(series.map((point) => point.date), ["2026-07-01", "2026-07-02", "2026-07-03"]);
 });
+
+
+test("performance mode rebases to an index instead of additive NAV dollars", () => {
+  const series = buildNavSeries({ performance, scope: "overall", mode: "performance", range: "itd" });
+
+  assert.equal(series[0].value, 100);
+  assert.equal(Number(series[1].value.toFixed(4)), Number(((500_000 + 250_000) / (480_000 + 240_000) * 100).toFixed(4)));
+});
+
+test("performance mode mutes large external cash-flow jumps that distort NAV", () => {
+  const deposit = [
+    day("2026-07-01", 500_000, 480_000, 300_000, 240_000),
+    day("2026-07-02", 800_000, 480_000, 300_000, 240_000),
+  ];
+  const navSeries = buildNavSeries({ performance: deposit, scope: "overall", mode: "nav", range: "itd" });
+  const performanceSeries = buildNavSeries({ performance: deposit, scope: "overall", mode: "performance", range: "itd" });
+
+  assert.equal(navSeries[1].value, 1_100_000, "NAV still shows the new cash in the account");
+  assert.equal(performanceSeries[1].value, 100, "performance stays flat because invested value did not move");
+});

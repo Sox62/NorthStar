@@ -20,6 +20,7 @@ const SCOPES: Array<{ id: PortfolioScope; label: string }> = [
 ];
 
 const MODES: Array<{ id: ChartValueMode; label: string }> = [
+  { id: "performance", label: "Performance" },
   { id: "nav", label: "NAV" },
   { id: "shares", label: "Shares" },
 ];
@@ -33,6 +34,8 @@ const shortAud = (value: number) => Math.abs(value) >= 1e6
   : Math.abs(value) >= 1000 ? `$${Math.round(value / 1000)}k` : aud(value);
 const signedAud = (value: number) => `${value >= 0 ? "+" : "−"}${aud(Math.abs(value))}`;
 const signedPct = (value: number) => `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(2)}%`;
+const indexValue = (value: number) => value.toFixed(2);
+const signedIndex = (value: number) => `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(2)}`;
 const shareOf = (value: number, total: number) => `${(total ? (value / total) * 100 : 0).toFixed(2)}%`;
 const fmtDay = (iso: string, options: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat("en-AU", { timeZone: "UTC", ...options }).format(new Date(`${iso}T12:00:00Z`));
@@ -135,10 +138,13 @@ export function NavDetailPanel({ performance, scope: initialScope, mode: initial
   const cashY = (value: number) => 64 - ((value - cashLow) / Math.max(0.5, cashHigh - cashLow)) * 56;
   const cashLine = cashPercents.map((value, position) => `${x(position).toFixed(1)},${cashY(value).toFixed(1)}`).join(" ");
 
+  const valueLabel = (value: number) => mode === "performance" ? indexValue(value) : shortAud(value);
+  const readoutLabel = (value: number) => mode === "performance" ? indexValue(value) : aud(value);
+  const deltaLabel = (value: number) => mode === "performance" ? signedIndex(value) : signedAud(value);
   const gridLines = Array.from({ length: 4 }, (_, position) => {
     const value = high - (position / 3) * heightSpan;
     const lineY = y(value);
-    return { key: position, y: lineY, labelY: Math.max(11, lineY - 5), label: shortAud(value) };
+    return { key: position, y: lineY, labelY: Math.max(11, lineY - 5), label: valueLabel(value) };
   });
   const axisLabels = Array.from({ length: 6 }, (_, position) => {
     const item = series[Math.round((position / 5) * (series.length - 1))];
@@ -182,7 +188,7 @@ export function NavDetailPanel({ performance, scope: initialScope, mode: initial
               viewBox="0 0 900 300"
               preserveAspectRatio="none"
               role="img"
-              aria-label={`${mode === "shares" ? "Invested value" : "Net asset value"} over ${rangeCaption}`}
+              aria-label={`${mode === "performance" ? "Performance index" : mode === "shares" ? "Invested value" : "Net asset value"} over ${rangeCaption}`}
               onPointerMove={onPointerMove}
               onPointerLeave={clearHover}
             >
@@ -224,9 +230,9 @@ export function NavDetailPanel({ performance, scope: initialScope, mode: initial
                 style={{ left: `${(x(index) / 900) * 100}%`, transform: x(index) > 620 ? "translateX(calc(-100% - 14px))" : "translateX(14px)" }}
               >
                 <span>{fmtDay(point.date, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</span>
-                <strong>{aud(point.value)}</strong>
+                <strong>{readoutLabel(point.value)}</strong>
                 <em className={dayDelta >= 0 ? "is-positive" : "is-negative"}>
-                  {signedAud(dayDelta)} ({signedPct(previous.value ? (dayDelta / previous.value) * 100 : 0)}) on prior close
+                  {deltaLabel(dayDelta)} ({signedPct(previous.value ? (dayDelta / previous.value) * 100 : 0)}) on prior close
                 </em>
               </div>
             ) : null}
@@ -264,10 +270,10 @@ export function NavDetailPanel({ performance, scope: initialScope, mode: initial
               <p className="nsEyebrow">{hover == null ? "Latest snapshot" : "Scanned snapshot"}</p>
               <span>{fmtDay(point.date, { day: "numeric", month: "short", year: "numeric" })}</span>
             </div>
-            <strong className="nsNavDetailReadout">{aud(point.value)}</strong>
+            <strong className="nsNavDetailReadout">{readoutLabel(point.value)}</strong>
             <div className="nsNavDetailReadoutMeta">
               <span className={rangeDelta >= 0 ? "is-positive" : "is-negative"}>
-                {signedAud(rangeDelta)} · {signedPct(first.value ? (rangeDelta / first.value) * 100 : 0)}
+                {deltaLabel(rangeDelta)} · {signedPct(first.value ? (rangeDelta / first.value) * 100 : 0)}
               </span>
               <span>{rangeCaption}</span>
             </div>

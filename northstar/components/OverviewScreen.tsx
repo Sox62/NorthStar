@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import TradingViewWidget from "@/components/TradingViewWidget";
 import { NavRail } from "./NavRail";
 import { NavDetailPanel } from "./NavDetailPanel";
-import { valueForScope, type ChartValueMode, type PerformancePoint } from "../lib/nav-series";
+import { buildNavSeries, valueForScope, type ChartValueMode, type PerformancePoint } from "../lib/nav-series";
 import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
 import { dataHealth, type HealthTone } from "../lib/data-health";
 import { byComposition, byScope, bySector, fmtAud, totals } from "../lib/portfolio-metrics";
@@ -393,16 +393,14 @@ function SplitBar({ segments, total }: {
 
 function HistoryChart({ now, investedNow, scope, performance }: { now: number; investedNow: number; scope: PortfolioScope; performance: PerformancePoint[] }) {
   const [range, setRange] = useState<"all" | "6m" | "3m">("all");
-  const [mode, setMode] = useState<ChartValueMode>("shares");
+  const [mode, setMode] = useState<ChartValueMode>("performance");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
   const width = 528;
   const baseline = 160;
-  const chartNow = mode === "shares" ? investedNow : now;
+  const chartNow = mode === "performance" ? 100 : mode === "shares" ? investedNow : now;
   const fullSeries = useMemo(
-    () => performance
-      .map((point) => ({ label: point.date, value: valueForScope(point, scope, mode) }))
-      .filter((point): point is { label: string; value: number } => typeof point.value === "number" && Number.isFinite(point.value) && point.value > 0),
+    () => buildNavSeries({ performance, scope, mode, range: "itd" }).map((point) => ({ label: point.date, value: point.value })),
     [mode, performance, scope],
   );
   const series = useMemo(() => {
@@ -439,7 +437,9 @@ function HistoryChart({ now, investedNow, scope, performance }: { now: number; i
     setHoverIndex(Math.round(ratio * Math.max(0, points.length - 1)));
   };
   const clearHover = () => setHoverIndex(null);
-  const title = mode === "shares" ? "Share price value" : "Total NAV";
+  const title = mode === "performance" ? "Performance index" : mode === "shares" ? "Share price value" : "Total NAV";
+  const formatChartValue = (value: number) => mode === "performance" ? `${value.toFixed(1)}` : fmtShortAud(value);
+  const formatTooltipValue = (value: number) => mode === "performance" ? `${value.toFixed(2)} index · ${fmtPct(value - 100)}` : fmtAud(value);
 
   const chartSvg = (gradientId: string, label: string) => (
     <svg
@@ -463,7 +463,7 @@ function HistoryChart({ now, investedNow, scope, performance }: { now: number; i
         return (
           <g key={`${value}-${index}-${gradientId}`}>
             <line className="nsChartGridLine" x1="0" x2={width} y1={y} y2={y} />
-            <text className="nsChartAxisLabel" x={width - 4} y={Math.max(10, y - 5)} textAnchor="end">{fmtShortAud(value)}</text>
+            <text className="nsChartAxisLabel" x={width - 4} y={Math.max(10, y - 5)} textAnchor="end">{formatChartValue(value)}</text>
           </g>
         );
       })}
@@ -486,7 +486,7 @@ function HistoryChart({ now, investedNow, scope, performance }: { now: number; i
       style={{ left: `${(active.x / width) * 100}%`, top: `${Math.max(8, Math.min(72, (active.y / 172) * 100))}%` }}
     >
       <span>{fmtChartLabel(active.label)}</span>
-      <strong>{fmtAud(active.value)}</strong>
+      <strong>{formatTooltipValue(active.value)}</strong>
     </div>
   ) : null;
 
@@ -501,15 +501,16 @@ function HistoryChart({ now, investedNow, scope, performance }: { now: number; i
     <div className="nsHistoryPanel">
       <div className="nsPanelTopline">
         <div>
-          <p className="nsEyebrow">{mode === "shares" ? "Share price value — since inception" : "Total NAV — since inception"}</p>
-          <h2>Peak {fmtShortAud(peak)} · now {fmtShortAud(chartNow)}</h2>
+          <p className="nsEyebrow">{mode === "performance" ? "Performance — since inception" : mode === "shares" ? "Share price value — since inception" : "Total NAV — since inception"}</p>
+          <h2>Peak {formatChartValue(peak)} · now {formatChartValue(chartNow)}</h2>
         </div>
         <div className="nsHistoryControls">
           <button className="nsReportButton" type="button" onClick={() => setExpanded(true)}>Expand</button>
           <div className="nsRangeTabs" aria-label="Chart value mode">
             {[
-              ["shares", "Shares"],
+              ["performance", "Performance"],
               ["nav", "NAV"],
+              ["shares", "Shares"],
             ].map(([key, label]) => (
               <button
                 key={key}
