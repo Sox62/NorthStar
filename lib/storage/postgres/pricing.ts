@@ -35,7 +35,7 @@ async function captureSnapshot(client: PoolClient, portfolioId: string) {
 }
 
 export async function listPriceBookPostgres(limit = 80): Promise<PriceBook> {
-  const safeLimit = Math.max(1, Math.min(2000, limit));
+  const safeLimit = Math.max(1, Math.min(20000, limit));
   const [instrumentRows, priceRows, fxRows] = await Promise.all([
     getPool().query<{
       ticker: string; exchange: string; name: string; currency: string; asset_class: string;

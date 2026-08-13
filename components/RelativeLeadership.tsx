@@ -62,7 +62,7 @@ async function loadDashboard(scope: Scope): Promise<DashboardData> {
 }
 
 async function loadStoredPrices(): Promise<StoredDailyPrice[]> {
-  const response = await fetch("/api/prices/daily?limit=2000", { cache: "no-store" });
+  const response = await fetch("/api/prices/daily?limit=12000", { cache: "no-store" });
   const payload = await response.json() as PriceBookResponse;
   if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load stored prices");
   return payload.prices ?? [];
@@ -88,18 +88,38 @@ function historyForHolding(prices: StoredDailyPrice[], holding: DashboardHolding
     const current = byDate.get(row.priceDate);
     if (!current || current.retrievedAt < row.retrievedAt) byDate.set(row.priceDate, row);
   }
+  if (holding.lastPrice != null && holding.lastPrice > 0 && holding.asOfDate) {
+    const livePoint: StoredDailyPrice = {
+      id: `current-${holding.id}`,
+      instrumentId: holding.instrumentKey,
+      symbol: holding.symbol,
+      exchange: holding.exchange,
+      name: holding.name,
+      currency: holding.currency,
+      close: holding.lastPrice,
+      priceDate: holding.asOfDate,
+      source: holding.source || "Current position",
+      retrievedAt: new Date().toISOString(),
+    };
+    const current = byDate.get(holding.asOfDate);
+    if (!current || current.retrievedAt < livePoint.retrievedAt) byDate.set(holding.asOfDate, livePoint);
+  }
   return [...byDate.values()].sort((left, right) => left.priceDate.localeCompare(right.priceDate));
 }
 
 function buildRatioSeries(leftHistory: StoredDailyPrice[], rightHistory: StoredDailyPrice[]) {
+  const leftByDate = new Map(leftHistory.map((row) => [row.priceDate, row]));
   const rightByDate = new Map(rightHistory.map((row) => [row.priceDate, row]));
-  const joined = leftHistory
-    .map((left) => {
-      const right = rightByDate.get(left.priceDate);
-      if (!right || !right.close) return null;
-      return { date: left.priceDate, left: left.close, right: right.close };
-    })
-    .filter((row): row is { date: string; left: number; right: number } => Boolean(row));
+  const dates = [...new Set([...leftByDate.keys(), ...rightByDate.keys()])].sort();
+  const joined: Array<{ date: string; left: number; right: number }> = [];
+  let latestLeft: StoredDailyPrice | undefined;
+  let latestRight: StoredDailyPrice | undefined;
+  for (const date of dates) {
+    latestLeft = leftByDate.get(date) ?? latestLeft;
+    latestRight = rightByDate.get(date) ?? latestRight;
+    if (!latestLeft || !latestRight || !latestRight.close) continue;
+    joined.push({ date, left: latestLeft.close, right: latestRight.close });
+  }
   const first = joined[0];
   if (!first) return [];
   return joined.map((row) => ({
@@ -221,6 +241,8 @@ export default function RelativeLeadership() {
   const [mode, setMode] = useState<RatioMode>("ratio");
   const [range, setRange] = useState<RangeKey>("all");
   const [loading, setLoading] = useState(true);
+  const [backfillBusy, setBackfillBusy] = useState(false);
+  const [operationMessage, setOperationMessage] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -277,6 +299,37 @@ export default function RelativeLeadership() {
   const leftTv = left ? tradingViewChartUrl(tradingViewSymbolForInstrument(left)) : "";
   const rightTv = right ? tradingViewChartUrl(tradingViewSymbolForInstrument(right)) : "";
 
+  const backfillSelected = async () => {
+    if (!left || !right) return;
+    setBackfillBusy(true);
+    setOperationMessage("");
+    setError("");
+    try {
+      const response = await fetch("/api/prices/backfill", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ range: "1y", symbols: [left.symbol, right.symbol] }),
+      });
+      const payload = await response.json();
+      if (!response.ok && payload.error) throw new Error(payload.error);
+      const [overall, personal, smsf, storedPrices] = await Promise.all([
+        loadDashboard("overall"),
+        loadDashboard("personal"),
+        loadDashboard("smsf"),
+        loadStoredPrices(),
+      ]);
+      setDashboards({ overall, personal, smsf });
+      setPrices(storedPrices);
+      const warnings = Array.isArray(payload.errors) && payload.errors.length ? ` with warnings: ${payload.errors.slice(0, 2).join("; ")}` : "";
+      setOperationMessage(`Backfilled ${payload.imported ?? 0} historical closes${warnings}.`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Historical backfill failed");
+    } finally {
+      setBackfillBusy(false);
+    }
+  };
+
+
   return (
     <main className="shell">
       <PageHeader
@@ -303,10 +356,13 @@ export default function RelativeLeadership() {
               <p className="cardIntro">{series.length} shared close{series.length === 1 ? "" : "s"} · {series.length ? `${dateLabel(series[0].date)} to ${dateLabel(series.at(-1)!.date)}` : "No overlapping price history yet"}</p>
             </div>
             <div className="relativeActions">
+              <button className="button" type="button" onClick={backfillSelected} disabled={backfillBusy}>{backfillBusy ? "Backfilling..." : "Backfill 1Y"}</button>
               {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer">{left.symbol} TV</a> : null}
               {rightTv ? <a className="button" href={rightTv} target="_blank" rel="noreferrer">{right.symbol} TV</a> : null}
             </div>
           </div>
+
+          {operationMessage ? <p className="relativeMessage">{operationMessage}</p> : null}
 
           <div className="relativeControls">
             <div className="scopeSwitch" role="tablist" aria-label="Comparison scope">
@@ -362,7 +418,7 @@ export default function RelativeLeadership() {
           ) : (
             <div className="relativeEmpty">
               <strong>No overlapping stored closes</strong>
-              <span>Run market pricing or add daily closes for both holdings to build a comparison chart.</span>
+              <span>NorthStar has fewer than two usable comparison dates. Use Backfill 1Y or choose another pair.</span>
             </div>
           )}
         </Card>

@@ -59,7 +59,7 @@ async function loadDashboard(scope: Scope): Promise<DashboardData> {
 }
 
 async function loadStoredPrices(): Promise<StoredDailyPrice[]> {
-  const response = await fetch("/api/prices/daily?limit=2000", { cache: "no-store" });
+  const response = await fetch("/api/prices/daily?limit=12000", { cache: "no-store" });
   const payload = await response.json() as PriceBookResponse;
   if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load stored prices");
   return payload.prices ?? [];

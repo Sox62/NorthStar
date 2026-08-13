@@ -28,6 +28,12 @@ export type QuoteRefreshResult = {
 
 export type QuoteProvider = "auto" | "eodhd" | "globalx" | "yahoo" | "stooq";
 
+export type HistoricalPriceResult = {
+  prices: DailyPriceInput[];
+  fxRates: FxRateInput[];
+  failures: QuoteFailure[];
+};
+
 type EodhdResponse = {
   code?: string;
   timestamp?: number;
@@ -459,6 +465,46 @@ async function fetchYahooQuote(instrument: PriceableInstrument): Promise<MarketQ
   });
 }
 
+async function fetchYahooHistory(instrument: PriceableInstrument, range = "1y"): Promise<DailyPriceInput[]> {
+  const errors: string[] = [];
+  for (const providerSymbol of yahooSymbols(instrument)) {
+    try {
+      const url = `${YAHOO_CHART_BASE_URL}/${encodeURIComponent(providerSymbol)}?range=${encodeURIComponent(range)}&interval=1d&includePrePost=false`;
+      const payload = await fetchYahooJson(url);
+      if (payload.chart?.error) throw new Error(payload.chart.error.description ?? payload.chart.error.code ?? "Yahoo chart error");
+      const result = payload.chart?.result?.[0];
+      if (!result) {
+        errors.push(`${providerSymbol} returned no chart result`);
+        continue;
+      }
+      const closes = result.indicators?.quote?.[0]?.close ?? [];
+      const timestamps = result.timestamp ?? [];
+      const timezone = result.meta?.exchangeTimezoneName;
+      const byDate = new Map<string, DailyPriceInput>();
+      for (let index = 0; index < closes.length; index += 1) {
+        const close = numberValue(closes[index]);
+        const timestamp = timestamps[index];
+        if (!close || !timestamp) continue;
+        const adjusted = yahooCurrencyAndClose(close, result.meta?.currency, instrument.currency);
+        const priceDate = dateFromUnixSeconds(timestamp, timezone);
+        byDate.set(priceDate, {
+          symbol: instrument.symbol,
+          exchange: instrument.exchange,
+          close: adjusted.close,
+          currency: adjusted.currency,
+          priceDate,
+          source: "Yahoo Finance historical chart",
+        });
+      }
+      if (byDate.size) return [...byDate.values()].sort((left, right) => left.priceDate.localeCompare(right.priceDate));
+      errors.push(`${providerSymbol} returned no historical closes`);
+    } catch (error) {
+      errors.push(`${providerSymbol} ${error instanceof Error ? error.message : "failed"}`);
+    }
+  }
+  throw new Error(`Yahoo Finance ${errors.join("; ")}`);
+}
+
 async function fetchGlobalXQuote(instrument: PriceableInstrument): Promise<MarketQuote | null> {
   const fund = GLOBAL_X_FUNDS[normaliseSymbol(instrument.symbol)];
   if (!fund) return null;
@@ -637,4 +683,34 @@ export async function refreshMarketQuotes(instruments: PriceableInstrument[], pr
     providerConfigured: provider === "eodhd" ? providers.eodhdConfigured : true,
     providers,
   };
+}
+
+export async function fetchHistoricalMarketPrices(instruments: PriceableInstrument[], range = "1y"): Promise<HistoricalPriceResult> {
+  const prices: DailyPriceInput[] = [];
+  const fxRates = new Map<string, FxRateInput>();
+  const failures: QuoteFailure[] = [];
+
+  for (const instrument of instruments) {
+    try {
+      const rows = await fetchYahooHistory(instrument, range);
+      prices.push(...rows);
+      if (instrument.currency.toUpperCase() !== "AUD") {
+        const months = [...new Set(rows.map((row) => row.priceDate.slice(0, 7)))];
+        for (const month of months) {
+          const rateDate = rows.findLast((row) => row.priceDate.startsWith(month))?.priceDate;
+          if (!rateDate) continue;
+          const rate = await fetchFrankfurterFx(instrument.currency, rateDate).catch(() => null);
+          if (rate) fxRates.set(`${rate.currency}:${rate.rateDate}:${rate.source}`, rate);
+        }
+      }
+    } catch (error) {
+      failures.push({
+        symbol: instrument.symbol,
+        exchange: instrument.exchange,
+        message: error instanceof Error ? error.message : "Historical price backfill failed.",
+      });
+    }
+  }
+
+  return { prices, fxRates: [...fxRates.values()], failures };
 }
