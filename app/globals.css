@@ -2191,3 +2191,37 @@ button:disabled { opacity: .55; cursor: wait; }
     padding: 5px 6px;
   }
 }
+
+.armedHero { margin-bottom: 20px; }
+.armedSummaryCard { display: grid; gap: 18px; }
+.armedTopline { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.compactTabs { display: inline-flex; gap: 6px; padding: 4px; border: 1px solid rgba(106,130,153,.28); border-radius: 999px; background: rgba(8,18,28,.72); }
+.compactTabs button { border: 0; border-radius: 999px; padding: 7px 13px; color: var(--muted); background: transparent; font-size: 13px; font-weight: 800; cursor: pointer; }
+.compactTabs button.isActive { color: #111820; background: var(--accent); }
+.armedStats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.armedStats div { padding: 14px; border: 1px solid rgba(106,130,153,.20); border-radius: 14px; background: rgba(8,18,28,.44); }
+.armedStats span { display: block; color: var(--muted); font-size: 12px; }
+.armedStats strong { display: block; margin-top: 5px; font-family: var(--display); font-size: 28px; font-weight: 500; color: var(--text); }
+.armedGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 16px; margin-bottom: 26px; }
+.armedCandidateCard { display: grid; gap: 14px; }
+.armedCandidateHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.armedCandidateHead strong { display: block; font-family: var(--display); font-size: 24px; font-weight: 500; color: var(--text); }
+.armedCandidateHead span { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; text-transform: uppercase; }
+.armedCandidateHead em { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-style: normal; }
+.armedSignalList { display: flex; flex-wrap: wrap; gap: 7px; }
+.armedSignalList span { padding: 5px 8px; border: 1px solid rgba(215,181,109,.28); border-radius: 999px; color: var(--accent); background: rgba(215,181,109,.08); font-size: 11px; font-weight: 800; }
+.armedCandidateMetrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; margin: 0; }
+.armedCandidateMetrics div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid rgba(106,130,153,.16); }
+.armedCandidateMetrics dt { color: var(--muted); font-size: 12px; }
+.armedCandidateMetrics dd { margin: 0; color: var(--text); font-weight: 800; text-align: right; }
+.armedCardFooter { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.armedCardFooter span { width: 10px; height: 10px; border-radius: 4px; }
+.targetEditorSection { margin-top: 8px; }
+
+@media (max-width: 760px) {
+  .armedTopline { flex-direction: column; }
+  .compactTabs { width: 100%; }
+  .compactTabs button { flex: 1; }
+  .armedStats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .armedCandidateMetrics { grid-template-columns: 1fr; }
+}
