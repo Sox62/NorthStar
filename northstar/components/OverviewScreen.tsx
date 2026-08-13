@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import TradingViewWidget from "@/components/TradingViewWidget";
 import { NavDetailPanel } from "./NavDetailPanel";
+import { ScopeTabs } from "./ScopeTabs";
 import { StateOfPlayCards } from "./StateOfPlayCards";
 import { buildNavSeries, valueForScope, type ChartValueMode, type PerformancePoint } from "../lib/nav-series";
 import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
@@ -92,7 +93,6 @@ type CommodityExposureSummary = {
   color: string;
 };
 
-const scopeOptions: PortfolioScope[] = ["overall", "personal", "smsf"];
 const commodityBySector: Record<Sector, { name: string; color: string }> = {
   "Silver miners": { name: "Silver", color: "#b9c4d0" },
   "Silver bullion": { name: "Silver", color: "#e3e9f0" },
@@ -344,18 +344,6 @@ function makeDonut(sectors: Array<{ sector: Sector; value: number }>, total: num
     return stop;
   });
   return `conic-gradient(${stops.join(", ")})`;
-}
-
-function ScopeTabs({ value, onChange }: { value: PortfolioScope; onChange: (scope: PortfolioScope) => void }) {
-  return (
-    <div className="nsScopeTabs" aria-label="Portfolio scope">
-      {scopeOptions.map((scope) => (
-        <button key={scope} type="button" className={scope === value ? "isActive" : ""} onClick={() => onChange(scope)}>
-          {scope === "smsf" ? "SMSF" : scope[0].toUpperCase() + scope.slice(1)}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 function HistoryChart({ now, investedNow, scope, performance }: { now: number; investedNow: number; scope: PortfolioScope; performance: PerformancePoint[] }) {
