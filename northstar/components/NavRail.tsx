@@ -2,44 +2,55 @@
 import React from "react";
 import MobileMenu from "@/components/MobileMenu";
 
-const sections = [
+type RailItem = {
+  key: string;
+  label: string;
+  href: string;
+  icon: string;
+  aliases?: string[];
+};
+
+const sections: Array<{ label: string; items: RailItem[] }> = [
   {
     label: "Layer 1 — state of play",
-    items: [{ key: "overview", label: "State of play", href: "/" }],
+    items: [{ key: "overview", label: "State of play", href: "/", icon: "overview" }],
   },
   {
     label: "Capital",
     items: [
-      { key: "holdings", label: "Capital", href: "/holdings" },
-      { key: "cash", label: "External cash", href: "/cash" },
-      { key: "targets", label: "Armed list", href: "/targets" },
+      { key: "holdings", label: "Capital", href: "/holdings", icon: "holdings" },
+      { key: "accounts-mandates", label: "Accounts & mandates", href: "/roadmap", icon: "reports" },
+      { key: "cash", label: "External cash", href: "/cash", icon: "cash" },
+      { key: "targets", label: "Armed list", href: "/targets", icon: "targets" },
     ],
   },
   {
     label: "Discipline",
     items: [
-      { key: "sectors", label: "Positions & strategy", href: "/sectors" },
-      { key: "reports", label: "Harvest plan", href: "/reports" },
-      { key: "tax", label: "Tax", href: "/tax" },
+      { key: "sectors", label: "Positions & strategy", href: "/sectors", icon: "sectors" },
+      { key: "position-sizer", label: "Position sizer", href: "/roadmap", icon: "targets" },
+      { key: "reports", label: "Harvest plan", href: "/reports", icon: "reports" },
     ],
   },
   {
-    label: "Layers 2-4 — analysis",
+    label: "Layers 2–4 — analysis",
     items: [
-      { key: "prices", label: "Chart workbench", href: "/prices" },
-      { key: "security", label: "Security", href: "/security" },
+      { key: "relative-leadership", label: "Relative leadership", href: "/roadmap", icon: "prices" },
+      { key: "prices", label: "Chart workbench", href: "/prices", icon: "prices" },
+      { key: "relative-calculator", label: "Relative calculator", href: "/roadmap", icon: "targets" },
+      { key: "fundamentals-risk", label: "Fundamentals & risk", href: "/roadmap", icon: "security", aliases: ["security", "tax"] },
     ],
   },
   {
     label: "Existing modules",
     items: [
-      { key: "sync", label: "Imports", href: "/sync" },
-      { key: "bullion", label: "Physical platinum", href: "/assets" },
+      { key: "cash-accounts", label: "Cash accounts", href: "/cash", icon: "cash" },
+      { key: "bullion", label: "Physical platinum", href: "/assets", icon: "bullion" },
+      { key: "sync", label: "Imports", href: "/sync", icon: "sync" },
     ],
   },
 ];
 
-const items = sections.flatMap((section) => section.items);
 
 const icons: Record<string, React.ReactNode> = {
   overview: <><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></>,
@@ -91,11 +102,11 @@ export function NavRail({ active = "overview", logoSrc, owner = "Stephen", onNav
             <div className="nsRailSection" key={section.label}>
               <p>{section.label}</p>
               {section.items.map((it) => {
-                const on = it.key === active;
+                const on = it.key === active || it.aliases?.includes(active);
                 return (
                   <a key={it.key} href={it.href} onClick={(e) => { if (onNavigate) { e.preventDefault(); onNavigate(it.key); } }}
                     className={on ? "isActive" : undefined}>
-                    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8}>{icons[it.key]}</svg>
+                    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8}>{icons[it.icon] ?? icons.overview}</svg>
                     {it.label}
                   </a>
                 );

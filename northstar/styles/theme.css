@@ -2697,3 +2697,39 @@ body.northstar .nsRailSection p {
 body.northstar .nsRailSection a {
   min-height:38px;
 }
+
+/* Template rail alignment */
+body.northstar .nsRail {
+  gap:24px;
+}
+
+body.northstar .nsRailNav {
+  gap:4px;
+}
+
+body.northstar .nsRailSection {
+  gap:4px;
+  margin-top:6px;
+}
+
+body.northstar .nsRailSection p {
+  margin:8px 10px 4px;
+  color:var(--muted-dim);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+}
+
+body.northstar .nsRailSection a,
+body.northstar .nsRailNav a {
+  min-height:34px;
+  padding:7px 10px;
+  border-radius:8px;
+  font-size:14px;
+}
+
+body.northstar .nsRailSection a svg {
+  width:16px;
+  height:16px;
+}
