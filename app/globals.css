@@ -2225,3 +2225,28 @@ button:disabled { opacity: .55; cursor: wait; }
   .armedStats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .armedCandidateMetrics { grid-template-columns: 1fr; }
 }
+
+.capitalSummary { display: grid; gap: 18px; margin-bottom: 18px; }
+.capitalSummaryHero { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); gap: 22px; align-items: end; }
+.capitalSummaryTotals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.capitalSummaryTotals div { padding: 14px; border: 1px solid rgba(106,130,153,.20); border-radius: 14px; background: rgba(8,18,28,.44); }
+.capitalSummaryTotals span { display: block; color: var(--muted); font-size: 12px; }
+.capitalSummaryTotals strong { display: block; margin-top: 5px; color: var(--text); font-family: var(--display); font-size: 26px; font-weight: 500; }
+.capitalSummaryTotals em { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; font-style: normal; }
+.capitalAccountGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.capitalBrokerCard { margin-top: 0; }
+.capitalBrokerRows { display: grid; gap: 0; margin-top: 14px; }
+.capitalBrokerRow { display: grid; grid-template-columns: minmax(170px, .9fr) minmax(180px, 1fr) minmax(130px, auto); gap: 16px; align-items: center; min-height: 52px; padding: 12px 0; border-top: 1px solid rgba(106,130,153,.16); }
+.capitalBrokerRow div strong { display: block; color: var(--text); }
+.capitalBrokerRow div span { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
+.capitalBrokerRow > span { display: block; height: 8px; border-radius: 999px; background: rgba(106,130,153,.18); overflow: hidden; }
+.capitalBrokerRow > span i { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+.capitalBrokerRow > strong { color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.capitalBrokerRow.isTotal > span i { background: linear-gradient(90deg, var(--accent), #9fb4c9); }
+
+@media (max-width: 920px) {
+  .capitalSummaryHero,
+  .capitalAccountGrid,
+  .capitalBrokerRow { grid-template-columns: 1fr; }
+  .capitalBrokerRow > strong { text-align: left; }
+}

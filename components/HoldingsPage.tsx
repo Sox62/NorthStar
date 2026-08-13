@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import CapitalSummary from "@/components/CapitalSummary";
 import PageHeader from "@/components/PageHeader";
 import TradingViewWidget from "@/components/TradingViewWidget";
 import type { DashboardData, DashboardHolding, Scope, StoredDailyPrice } from "@/lib/storage";
-import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
+import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
 import { compareNumber, compareText, nextSort, sortIndicator, type SortState } from "@/northstar/lib/sort";
 import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
@@ -213,10 +214,10 @@ export default function HoldingsPage() {
   return (
     <main className="shell">
       <PageHeader
-        title="Holdings"
-        description="Review the full live position book by legal owner, valuation basis, weight and unrealised return."
+        title="Capital"
+        description="Legal books, broker share allocation and the full live position book by owner, valuation basis and return."
         links={[
-          { href: "/", label: "Dashboard" },
+          { href: "/", label: "State of play" },
           { href: "/sync", label: "Sync" },
           { href: "/tax", label: "Tax lots" },
           { href: "/reports", label: "Reports" },
@@ -230,34 +231,13 @@ export default function HoldingsPage() {
         <Notice tone="error" title="Unable to load holdings">{error}</Notice>
       ) : selected ? (
         <>
-          <section className="holdingsAccounts">
-            {accountRows.map((account) => (
-              <Card className="accountSnapshot" key={account.scope}>
-                <div className="panelHeader">
-                  <div>
-                    <p className="eyebrow">{account.scope === "smsf" ? "SMSF" : "Personal"}</p>
-                    <h2 className="cardTitle">{money(account.totalValue)}</h2>
-                  </div>
-                  <StatusBadge tone={account.scope === "smsf" ? "warning" : "good"}>{account.holdings.length} positions</StatusBadge>
-                </div>
-                <SummaryGrid
-                  entries={[
-                    ["P/L", money(account.totalReturn)],
-                    ["Day P/L", signedMoney(account.dailyMovement), pnlTone(account.dailyMovement)],
-                    ["Return", percent(account.totalReturnPercent)],
-                    ["Cash", money(account.cashValue)],
-                    ["Updated", dateLabel(account.lastUpdated)],
-                  ]}
-                />
-              </Card>
-            ))}
-          </section>
+          <CapitalSummary accounts={accountRows} />
 
           <Card className="holdingsBook">
             <div className="panelHeader holdingsHeader">
               <div>
                 <p className="eyebrow">Position book</p>
-                <h2 className="cardTitle">{scopeLabel} holdings</h2>
+                <h2 className="cardTitle">{scopeLabel} share positions</h2>
               </div>
               <span className="panelCount">{rows.length} of {selected.holdings.length}</span>
             </div>
