@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "@/northstar/styles/tokens.css";
 import "./globals.css";
 import "@/northstar/styles/theme.css";
+import NorthStarShell from "@/components/NorthStarShell";
 
 export const metadata: Metadata = {
   title: "NorthStar",
@@ -18,5 +19,5 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body className="northstar">{children}</body></html>;
+  return <html lang="en"><body className="northstar"><NorthStarShell>{children}</NorthStarShell></body></html>;
 }

@@ -2733,3 +2733,35 @@ body.northstar .nsRailSection a svg {
   width:16px;
   height:16px;
 }
+
+/* Persistent app shell */
+body.northstar .nsPersistentShell {
+  grid-template-columns:264px minmax(0, 1fr);
+}
+
+body.northstar .nsShellContent {
+  min-width:0;
+}
+
+body.northstar .nsShellContent > .shell {
+  margin:0;
+  padding:34px 40px 56px;
+  width:100%;
+  max-width:1342px;
+}
+
+body.northstar .nsShellContent > .nsScreenMain {
+  min-height:100vh;
+}
+
+@media (max-width: 1180px) {
+  body.northstar .nsShellContent > .shell {
+    padding:28px 26px 44px;
+  }
+}
+
+@media (max-width: 760px) {
+  body.northstar .nsShellContent > .shell {
+    padding:18px 16px 34px;
+  }
+}

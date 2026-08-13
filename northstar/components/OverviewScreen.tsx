@@ -2,7 +2,6 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import TradingViewWidget from "@/components/TradingViewWidget";
-import { NavRail } from "./NavRail";
 import { NavDetailPanel } from "./NavDetailPanel";
 import { buildNavSeries, valueForScope, type ChartValueMode, type PerformancePoint } from "../lib/nav-series";
 import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
@@ -1223,9 +1222,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
   };
 
   return (
-    <div className="nsScreen">
-      <NavRail active="overview" logoSrc={logoSrc} />
-      <main className="nsScreenMain nsOverview">
+    <main className="nsScreenMain nsOverview">
         <header className="nsOverviewHeader">
           <div>
             <h1>State of play</h1>
@@ -1266,7 +1263,6 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
           <IncomeFrankingPanel income={income} />
           <AllocationDriftPanel drift={allocationDrift} />
         </div>
-      </main>
-    </div>
+    </main>
   );
 }

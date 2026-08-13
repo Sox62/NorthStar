@@ -1,6 +1,5 @@
 "use client";
 import React from "react";
-import { NavRail } from "./NavRail";
 import { SplitBar } from "./SplitBar";
 import { byScope, totals, bySector, byComposition, fmtAud } from "../lib/portfolio-metrics";
 import { SECTOR_COLORS, COMPOSITION_OF, type Holding, type CompositionGroup, type Sector } from "../types";
@@ -26,9 +25,7 @@ export function SectorsScreen({ holdings, logoSrc }: { holdings: Holding[]; logo
   const holdingsIn = (sec: Sector) => all.filter((h) => h.sector === sec).sort((a, b) => b.marketValueAud - a.marketValueAud);
 
   return (
-    <div className="nsScreen">
-      <NavRail active="sectors" logoSrc={logoSrc} />
-      <main className="nsScreenMain">
+    <main className="nsScreenMain">
         <div style={{ marginBottom: 24 }}>
           <h1 style={{ fontFamily: serif, fontSize: 30, fontWeight: 400, margin: 0 }}>Sectors</h1>
           <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 5 }}>How the {fmtAud(grand)} portfolio splits across metals, miners and cash</div>
@@ -81,7 +78,6 @@ export function SectorsScreen({ holdings, logoSrc }: { holdings: Holding[]; logo
             </div>
           );
         })}
-      </main>
-    </div>
+    </main>
   );
 }
