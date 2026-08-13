@@ -1180,12 +1180,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
     () => view.filter(isShareLike).sort((a, b) => b.marketValueAud - a.marketValueAud),
     [view],
   );
-  const commodityExposure = useMemo(() => commodityExposureFor(view), [view]);
-  const allocationDrift = useMemo(() => allocationDriftForSectors(sectors, t.marketValue, allocationTargets), [sectors, t.marketValue, allocationTargets]);
   const freshness = freshnessByScope?.[scope] ?? freshnessByScope?.overall ?? [];
-  const periodReturns = periodReturnsByScope?.[scope] ?? periodReturnsByScope?.overall ?? [];
-  const income = incomeByScope?.[scope] ?? incomeByScope?.overall;
-  const currencyExposure = currencyExposureByScope?.[scope] ?? currencyExposureByScope?.overall ?? [];
   const selectedUpdatedAt = lastUpdatedByScope?.[scope] ?? lastUpdatedByScope?.overall ?? null;
   const health = dataHealth(syncRuns, freshness);
   const cashForScope = scope === "overall"
@@ -1252,17 +1247,6 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
 
         <HoldingsTable holdings={shareHoldings} total={t.marketValue} scope={scope} healthTone={health.tone} />
 
-        <MetalsPricePanel />
-
-        <AccountBreakdownPanel accounts={accountBreakdown} holdings={holdings} scope={scope} />
-
-        <PeriodReturnStrip returns={periodReturns} />
-        <div className="nsAnalyticsGrid">
-          <CommodityExposurePanel exposures={commodityExposure} total={t.marketValue} />
-          <CurrencyExposurePanel exposures={currencyExposure} />
-          <IncomeFrankingPanel income={income} />
-          <AllocationDriftPanel drift={allocationDrift} />
-        </div>
     </main>
   );
 }
