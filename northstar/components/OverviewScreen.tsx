@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import TradingViewWidget from "@/components/TradingViewWidget";
 import { NavDetailPanel } from "./NavDetailPanel";
+import { StateOfPlayCards } from "./StateOfPlayCards";
 import { buildNavSeries, valueForScope, type ChartValueMode, type PerformancePoint } from "../lib/nav-series";
 import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
 import { dataHealth, type HealthTone } from "../lib/data-health";
@@ -167,31 +168,6 @@ const metalQuoteShells: MetalQuote[] = [
 function fmtMetalPrice(quote: MetalQuote) {
   if (quote.value == null) return "n/a";
   return `USD ${quote.value.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/oz`;
-}
-
-function useGoldSpot() {
-  const [gold, setGold] = useState<MetalSpotApiQuote | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    async function loadGold() {
-      try {
-        const response = await fetch("/api/prices/metals", { cache: "no-store" });
-        const payload = await response.json() as { quotes?: MetalSpotApiQuote[] };
-        const quote = (payload.quotes ?? []).find((item) => item.metal === "gold") ?? null;
-        if (!cancelled) setGold(quote);
-      } catch {
-        if (!cancelled) setGold(null);
-      }
-    }
-    void loadGold();
-    return () => { cancelled = true; };
-  }, []);
-  return gold;
-}
-
-function fmtGoldOz(navAud: number, gold?: MetalSpotApiQuote | null) {
-  if (!gold?.price) return "Gold numeraire pending";
-  return `${(navAud / gold.price).toLocaleString("en-AU", { maximumFractionDigits: 1 })} oz of gold · ${fmtAud(gold.price)}/oz`;
 }
 
 function dayGainPercent(holding: Holding) {
@@ -1024,72 +1000,6 @@ function brokerShareTotals(holdings: Holding[], scope: AccountBreakdownSummary["
     totalsByBroker.set(broker, current);
   }
   return [...totalsByBroker.values()].sort((a, b) => b.value - a.value || a.broker.localeCompare(b.broker));
-}
-
-function StateValueRow({ label, value, note, tone }: { label: string; value: React.ReactNode; note?: React.ReactNode; tone?: "positive" | "negative" }) {
-  return (
-    <div className="nsStateValueRow">
-      <span>{label}</span>
-      <strong className={tone === "positive" ? "isPositive" : tone === "negative" ? "isNegative" : undefined}>{value}</strong>
-      {note ? <em>{note}</em> : null}
-    </div>
-  );
-}
-
-function StateOfPlayCards({ total, dailyPnl, accounts, holdings, scope }: {
-  total: ReturnType<typeof totals>;
-  dailyPnl: number;
-  accounts: AccountBreakdownSummary[];
-  holdings: Holding[];
-  scope: PortfolioScope;
-}) {
-  const gold = useGoldSpot();
-  const visibleAccounts = scope === "overall" ? accounts : accounts.filter((account) => account.scope === scope);
-  const personal = accounts.find((account) => account.scope === "personal");
-  const smsf = accounts.find((account) => account.scope === "smsf");
-  const brokerCash = visibleAccounts.reduce((sum, account) => sum + account.cashValue, 0);
-  const shareValue = visibleAccounts.reduce((sum, account) => sum + (account.sharePositionValue ?? account.investedValue), 0);
-  const owner = scope === "smsf" ? "SMSF" : scope === "personal" ? "PERSONAL" : null;
-  const platinum = holdings
-    .filter((holding) => holding.sector === "Platinum bullion" && (!owner || holding.ownerType === owner))
-    .reduce((sum, holding) => sum + holding.marketValueAud, 0);
-  const cashAndReserve = Math.max(0, total.marketValue - shareValue);
-  const previousValue = total.marketValue - dailyPnl;
-  const dailyPercent = previousValue ? (dailyPnl / previousValue) * 100 : 0;
-
-  return (
-    <section className="nsStateGrid" aria-label="State of play summary">
-      <article className="nsPanel nsStateCard nsStateNavCard">
-        <p className="nsEyebrow">Total NAV — {scope === "overall" ? "Overall" : scope === "smsf" ? "SMSF" : "Personal"}</p>
-        <div className="nsStateNavValue">{fmtAud(total.marketValue)}</div>
-        <p className="nsStateGoldLine">{fmtGoldOz(total.marketValue, gold)}</p>
-        <div className="nsStateTwoStats">
-          <StateValueRow label="Day P/L" value={fmtSignedAud(dailyPnl)} note={`${fmtSignedPct(dailyPercent)} of NAV`} tone={dailyPnl >= 0 ? "positive" : "negative"} />
-          <StateValueRow label="Total open P/L" value={fmtSignedAud(total.pnl)} note="FX-aware · AUD basis" tone={total.pnl >= 0 ? "positive" : "negative"} />
-        </div>
-      </article>
-
-      <article className="nsPanel nsStateCard">
-        <p className="nsEyebrow">Portfolio split</p>
-        <div className="nsStateRows">
-          <StateValueRow label="Personal" value={fmtAud(personal?.netAssetValue ?? 0)} />
-          <StateValueRow label="SMSF" value={fmtAud(smsf?.netAssetValue ?? 0)} />
-          <StateValueRow label="Invested" value={fmtAud(shareValue)} />
-          <StateValueRow label="Cash and reserve" value={fmtAud(cashAndReserve)} />
-        </div>
-      </article>
-
-      <article className="nsPanel nsStateCard">
-        <p className="nsEyebrow">Cash and strategic reserve</p>
-        <div className="nsStateRows">
-          <StateValueRow label="Broker cash" value={fmtAud(brokerCash)} note="IBKR, Directshares and cash accounts" />
-          <StateValueRow label="External cash" value="—" note="Not configured" />
-          <StateValueRow label="Physical platinum" value={platinum ? fmtAud(platinum) : "—"} note={platinum ? "Strategic metal holding · separate from cash" : "Not configured"} />
-          <StateValueRow label="Gold reserve" value="—" note="Not configured · NAV in gold is a numeraire" />
-        </div>
-      </article>
-    </section>
-  );
 }
 
 function AccountBreakdownPanel({ accounts, holdings, scope }: { accounts: AccountBreakdownSummary[]; holdings: Holding[]; scope: PortfolioScope }) {
