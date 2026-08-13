@@ -2765,3 +2765,132 @@ body.northstar .nsShellContent > .nsScreenMain {
     padding:18px 16px 34px;
   }
 }
+
+/* Mobile State of play fix */
+@media (max-width: 760px) {
+  body.northstar .nsPersistentShell,
+  body.northstar .nsScreen {
+    display:block;
+    grid-template-columns:1fr;
+    width:100%;
+    min-width:0;
+  }
+
+  body.northstar .nsShellContent,
+  body.northstar .nsScreenMain,
+  body.northstar .nsOverview {
+    width:100%;
+    min-width:0;
+    max-width:none;
+  }
+
+  body.northstar .nsScreenMain {
+    padding:18px 14px 34px;
+  }
+
+  body.northstar .nsOverviewHeader {
+    gap:18px;
+  }
+
+  body.northstar .nsOverviewHeader h1 {
+    max-width:100%;
+    font-size:38px;
+    line-height:0.98;
+  }
+
+  body.northstar .nsOverviewHeader > div:first-child,
+  body.northstar .nsOverviewHeader > div:first-child p {
+    max-width:100%;
+  }
+
+  body.northstar .nsOverviewHeader > div:first-child p {
+    font-size:15px;
+    line-height:1.28;
+  }
+
+  body.northstar .nsHeaderControls,
+  body.northstar .nsReportLinks {
+    width:100%;
+    align-items:stretch;
+  }
+
+  body.northstar .nsScopeTabs {
+    width:100%;
+    display:grid;
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+  }
+
+  body.northstar .nsScopeTabs button {
+    min-width:0;
+    padding:8px 6px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  body.northstar .nsHeaderControls p {
+    width:100%;
+    align-items:flex-start;
+    line-height:1.3;
+  }
+
+  body.northstar .nsReportLinks {
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+    gap:8px;
+  }
+
+  body.northstar .nsReportLink,
+  body.northstar .nsReportButton {
+    display:flex;
+    min-height:38px;
+    align-items:center;
+    justify-content:center;
+    padding:8px 9px;
+    text-align:center;
+    line-height:1.1;
+  }
+
+  body.northstar .nsStateGrid,
+  body.northstar .nsStateChartGrid {
+    grid-template-columns:minmax(0, 1fr);
+    gap:16px;
+  }
+
+  body.northstar .nsStateCard,
+  body.northstar .nsPanel {
+    min-width:0;
+  }
+
+  body.northstar .nsStateCard {
+    min-height:0;
+    padding:22px 18px;
+  }
+
+  body.northstar .nsStateNavValue {
+    font-size:42px;
+    overflow-wrap:anywhere;
+  }
+
+  body.northstar .nsStateGoldLine {
+    max-width:100%;
+    overflow-wrap:anywhere;
+  }
+
+  body.northstar .nsStateTwoStats {
+    grid-template-columns:1fr;
+    gap:18px;
+  }
+
+  body.northstar .nsStateChartGrid .nsSectorPanel {
+    grid-template-columns:1fr;
+  }
+
+  body.northstar .nsOverview > .nsPositionsPanel .nsTableNote {
+    text-align:left;
+  }
+
+  body.northstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader,
+  body.northstar .nsOverview > .nsPositionsPanel .nsHoldingRow {
+    grid-template-columns:1fr;
+  }
+}
