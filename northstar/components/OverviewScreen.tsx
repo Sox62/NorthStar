@@ -7,10 +7,10 @@ import { NavDetailPanel } from "./NavDetailPanel";
 import { buildNavSeries, valueForScope, type ChartValueMode, type PerformancePoint } from "../lib/nav-series";
 import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
 import { dataHealth, type HealthTone } from "../lib/data-health";
-import { byComposition, byScope, bySector, fmtAud, totals } from "../lib/portfolio-metrics";
+import { byScope, bySector, fmtAud, totals } from "../lib/portfolio-metrics";
 import { compareNumber, compareText, nextSort, sortIndicator, type SortState } from "../lib/sort";
 import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "../lib/tradingview";
-import { COMPOSITION_OF, SECTOR_COLORS, type CompositionGroup, type Holding, type PortfolioScope, type Sector } from "../types";
+import { SECTOR_COLORS, type Holding, type PortfolioScope, type Sector } from "../types";
 
 type SyncRunSummary = {
   source: string;
@@ -93,16 +93,6 @@ type CommodityExposureSummary = {
 };
 
 const scopeOptions: PortfolioScope[] = ["overall", "personal", "smsf"];
-const groupLabel: Record<CompositionGroup, string> = {
-  miners: "Miners",
-  metals: "Metals & bullion",
-  other: "Other",
-};
-const groupColor: Record<CompositionGroup, string> = {
-  miners: "#d7b56d",
-  metals: "#9fb4ca",
-  other: "#647587",
-};
 const commodityBySector: Record<Sector, { name: string; color: string }> = {
   "Silver miners": { name: "Silver", color: "#b9c4d0" },
   "Silver bullion": { name: "Silver", color: "#e3e9f0" },
@@ -178,6 +168,31 @@ const metalQuoteShells: MetalQuote[] = [
 function fmtMetalPrice(quote: MetalQuote) {
   if (quote.value == null) return "n/a";
   return `USD ${quote.value.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/oz`;
+}
+
+function useGoldSpot() {
+  const [gold, setGold] = useState<MetalSpotApiQuote | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    async function loadGold() {
+      try {
+        const response = await fetch("/api/prices/metals", { cache: "no-store" });
+        const payload = await response.json() as { quotes?: MetalSpotApiQuote[] };
+        const quote = (payload.quotes ?? []).find((item) => item.metal === "gold") ?? null;
+        if (!cancelled) setGold(quote);
+      } catch {
+        if (!cancelled) setGold(null);
+      }
+    }
+    void loadGold();
+    return () => { cancelled = true; };
+  }, []);
+  return gold;
+}
+
+function fmtGoldOz(navAud: number, gold?: MetalSpotApiQuote | null) {
+  if (!gold?.price) return "Gold numeraire pending";
+  return `${(navAud / gold.price).toLocaleString("en-AU", { maximumFractionDigits: 1 })} oz of gold · ${fmtAud(gold.price)}/oz`;
 }
 
 function dayGainPercent(holding: Holding) {
@@ -363,35 +378,6 @@ function ScopeTabs({ value, onChange }: { value: PortfolioScope; onChange: (scop
         <button key={scope} type="button" className={scope === value ? "isActive" : ""} onClick={() => onChange(scope)}>
           {scope === "smsf" ? "SMSF" : scope[0].toUpperCase() + scope.slice(1)}
         </button>
-      ))}
-    </div>
-  );
-}
-
-function SplitLegend({ segments, total }: {
-  segments: Array<{ key: string; label: string; value: number; color: string }>;
-  total: number;
-}) {
-  return (
-    <div className="nsSplitLegend">
-      {segments.map((segment) => (
-        <div key={segment.key}>
-          <span style={{ background: segment.color }} />
-          {segment.label} <strong>{fmtAud(segment.value)}</strong> <em>{fmtPct(pct(segment.value, total))}</em>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SplitBar({ segments, total }: {
-  segments: Array<{ key: string; value: number; color: string }>;
-  total: number;
-}) {
-  return (
-    <div className="nsHeroSplitBar" aria-hidden="true">
-      {segments.map((segment) => (
-        <span key={segment.key} style={{ width: `${pct(segment.value, total)}%`, background: segment.color }} />
       ))}
     </div>
   );
@@ -693,16 +679,6 @@ function MetalsPricePanel() {
         </a>
       </div>
       {error ? <p className="nsMetalsError">{error}</p> : null}
-    </section>
-  );
-}
-
-function MetricCard({ label, value, note, tone }: { label: string; value: React.ReactNode; note: React.ReactNode; tone?: "positive" }) {
-  return (
-    <section className="nsMetricCard">
-      <p className="nsEyebrow">{label}</p>
-      <strong className={tone === "positive" ? "isPositive" : undefined}>{value}</strong>
-      <span>{note}</span>
     </section>
   );
 }
@@ -1051,6 +1027,72 @@ function brokerShareTotals(holdings: Holding[], scope: AccountBreakdownSummary["
   return [...totalsByBroker.values()].sort((a, b) => b.value - a.value || a.broker.localeCompare(b.broker));
 }
 
+function StateValueRow({ label, value, note, tone }: { label: string; value: React.ReactNode; note?: React.ReactNode; tone?: "positive" | "negative" }) {
+  return (
+    <div className="nsStateValueRow">
+      <span>{label}</span>
+      <strong className={tone === "positive" ? "isPositive" : tone === "negative" ? "isNegative" : undefined}>{value}</strong>
+      {note ? <em>{note}</em> : null}
+    </div>
+  );
+}
+
+function StateOfPlayCards({ total, dailyPnl, accounts, holdings, scope }: {
+  total: ReturnType<typeof totals>;
+  dailyPnl: number;
+  accounts: AccountBreakdownSummary[];
+  holdings: Holding[];
+  scope: PortfolioScope;
+}) {
+  const gold = useGoldSpot();
+  const visibleAccounts = scope === "overall" ? accounts : accounts.filter((account) => account.scope === scope);
+  const personal = accounts.find((account) => account.scope === "personal");
+  const smsf = accounts.find((account) => account.scope === "smsf");
+  const brokerCash = visibleAccounts.reduce((sum, account) => sum + account.cashValue, 0);
+  const shareValue = visibleAccounts.reduce((sum, account) => sum + (account.sharePositionValue ?? account.investedValue), 0);
+  const owner = scope === "smsf" ? "SMSF" : scope === "personal" ? "PERSONAL" : null;
+  const platinum = holdings
+    .filter((holding) => holding.sector === "Platinum bullion" && (!owner || holding.ownerType === owner))
+    .reduce((sum, holding) => sum + holding.marketValueAud, 0);
+  const cashAndReserve = Math.max(0, total.marketValue - shareValue);
+  const previousValue = total.marketValue - dailyPnl;
+  const dailyPercent = previousValue ? (dailyPnl / previousValue) * 100 : 0;
+
+  return (
+    <section className="nsStateGrid" aria-label="State of play summary">
+      <article className="nsPanel nsStateCard nsStateNavCard">
+        <p className="nsEyebrow">Total NAV — {scope === "overall" ? "Overall" : scope === "smsf" ? "SMSF" : "Personal"}</p>
+        <div className="nsStateNavValue">{fmtAud(total.marketValue)}</div>
+        <p className="nsStateGoldLine">{fmtGoldOz(total.marketValue, gold)}</p>
+        <div className="nsStateTwoStats">
+          <StateValueRow label="Day P/L" value={fmtSignedAud(dailyPnl)} note={`${fmtSignedPct(dailyPercent)} of NAV`} tone={dailyPnl >= 0 ? "positive" : "negative"} />
+          <StateValueRow label="Total open P/L" value={fmtSignedAud(total.pnl)} note="FX-aware · AUD basis" tone={total.pnl >= 0 ? "positive" : "negative"} />
+        </div>
+      </article>
+
+      <article className="nsPanel nsStateCard">
+        <p className="nsEyebrow">Portfolio split</p>
+        <div className="nsStateRows">
+          <StateValueRow label="Personal" value={fmtAud(personal?.netAssetValue ?? 0)} />
+          <StateValueRow label="SMSF" value={fmtAud(smsf?.netAssetValue ?? 0)} />
+          <StateValueRow label="Invested" value={fmtAud(shareValue)} />
+          <StateValueRow label="Cash and reserve" value={fmtAud(cashAndReserve)} />
+        </div>
+      </article>
+
+      <article className="nsPanel nsStateCard">
+        <p className="nsEyebrow">Cash and strategic reserve</p>
+        <div className="nsStateRows">
+          <StateValueRow label="Broker cash" value={fmtAud(brokerCash)} note="IBKR, Directshares and cash accounts" />
+          <StateValueRow label="External cash" value="—" note="Not configured" />
+          <StateValueRow label="Physical platinum" value={platinum ? fmtAud(platinum) : "—"} note={platinum ? "Strategic metal holding · not accounting cash" : "Not configured"} />
+          <StateValueRow label="Gold reserve" value="—" note="Not configured · NAV in gold is a numeraire" />
+        </div>
+      </article>
+    </section>
+  );
+}
+
 function AccountBreakdownPanel({ accounts, holdings, scope }: { accounts: AccountBreakdownSummary[]; holdings: Holding[]; scope: PortfolioScope }) {
   const visibleAccounts = scope === "overall" ? accounts : accounts.filter((account) => account.scope === scope);
   if (!visibleAccounts.length) return null;
@@ -1134,7 +1176,6 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
   const view = byScope(holdings, scope);
   const t = totals(view);
   const dailyPnl = view.reduce((sum, holding) => sum + (holding.dayGainAud ?? 0), 0);
-  const comp = byComposition(view);
   const sectors = bySector(view);
   const shareHoldings = useMemo(
     () => view.filter(isShareLike).sort((a, b) => b.marketValueAud - a.marketValueAud),
@@ -1142,17 +1183,6 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
   );
   const commodityExposure = useMemo(() => commodityExposureFor(view), [view]);
   const allocationDrift = useMemo(() => allocationDriftForSectors(sectors, t.marketValue, allocationTargets), [sectors, t.marketValue, allocationTargets]);
-  const largestSector = sectors[0];
-  const bestPerformer = shareHoldings.reduce<Holding | undefined>(
-    (best, holding) => (!best || holding.pnlPercent > best.pnlPercent ? holding : best),
-    undefined,
-  );
-  const groupSegments = (["miners", "metals", "other"] as CompositionGroup[]).map((group) => ({
-    key: group,
-    label: groupLabel[group],
-    value: comp[group],
-    color: groupColor[group],
-  }));
   const freshness = freshnessByScope?.[scope] ?? freshnessByScope?.overall ?? [];
   const periodReturns = periodReturnsByScope?.[scope] ?? periodReturnsByScope?.overall ?? [];
   const income = incomeByScope?.[scope] ?? incomeByScope?.overall;
@@ -1198,8 +1228,8 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
       <main className="nsScreenMain nsOverview">
         <header className="nsOverviewHeader">
           <div>
-            <h1>Good morning, Stephen</h1>
-            <p>Live portfolio — stocks, bullion &amp; cash</p>
+            <h1>State of play</h1>
+            <p>Where the portfolio is right now. Nominal AUD and gold-relative wealth, allocation, holdings and open orders — no ratios, RSI or chart stacks on this screen.</p>
           </div>
           <div className="nsHeaderControls">
             <ScopeTabs value={scope} onChange={setScope} />
@@ -1216,40 +1246,20 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
           </div>
         </header>
 
-        <section className="nsHeroPanel">
-          <div className="nsHeroSummary">
-            <p className="nsEyebrow">{scope === "overall" ? "Total net asset value" : scope === "smsf" ? "SMSF net asset value" : "Personal net asset value"}</p>
-            <div className="nsHeroValue">{fmtAud(t.marketValue)}</div>
-            <div className="nsHeroStats">
-              <div><span>Daily P/L</span><strong className={dailyPnl >= 0 ? "isPositive" : "isNegative"}>{fmtSignedAud(dailyPnl)}</strong></div>
-              <div><span>Profit / loss</span><strong className={t.pnl >= 0 ? "isPositive" : "isNegative"}>{fmtSignedAud(t.pnl)}</strong></div>
-              <div><span>Return on cost</span><strong className={t.pnl >= 0 ? "isPositive" : "isNegative"}>{t.pnlPercent >= 0 ? "+" : ""}{t.pnlPercent.toFixed(1)}%</strong></div>
-            </div>
-            <SplitBar segments={groupSegments} total={t.marketValue} />
-            <SplitLegend segments={groupSegments} total={t.marketValue} />
-          </div>
-          <div className="nsHeroChartStack">
-            <HistoryChart now={t.marketValue} investedNow={investedNow} scope={scope} performance={performance} />
-            <MetalsPricePanel />
-          </div>
-        </section>
+        <StateOfPlayCards total={t} dailyPnl={dailyPnl} accounts={accountBreakdown} holdings={holdings} scope={scope} />
 
-        <section className="nsMetricGrid" aria-label="Portfolio summary cards">
-          <MetricCard label="Profit / loss" value={fmtSignedAud(t.pnl)} note={`${t.pnlPercent >= 0 ? "+" : ""}${t.pnlPercent.toFixed(1)}% on cost`} tone={t.pnl >= 0 ? "positive" : undefined} />
-          <MetricCard label="Positions" value={t.count} note="stocks, ETFs & bullion" />
-          <MetricCard label="Largest sector" value={largestSector?.sector ?? "No sector"} note={largestSector ? `${fmtPct(pct(largestSector.value, t.marketValue))} · ${fmtAud(largestSector.value)}` : "No holdings yet"} />
-          <MetricCard label="Best performer" value={bestPerformer?.name.replace(" Metals", "") ?? "No performer"} note={bestPerformer ? `${bestPerformer.pnlPercent >= 0 ? "+" : ""}${bestPerformer.pnlPercent.toFixed(1)}% · ${bestPerformer.symbol}` : "No holdings yet"} />
-        </section>
-
-        <PeriodReturnStrip returns={periodReturns} />
-
-        <AccountBreakdownPanel accounts={accountBreakdown} holdings={holdings} scope={scope} />
-
-        <div className="nsLowerGrid">
-          <HoldingsTable holdings={shareHoldings} total={t.marketValue} scope={scope} healthTone={health.tone} />
+        <div className="nsStateChartGrid">
+          <HistoryChart now={t.marketValue} investedNow={investedNow} scope={scope} performance={performance} />
           <SectorDonut sectors={sectors} total={t.marketValue} />
         </div>
 
+        <HoldingsTable holdings={shareHoldings} total={t.marketValue} scope={scope} healthTone={health.tone} />
+
+        <MetalsPricePanel />
+
+        <AccountBreakdownPanel accounts={accountBreakdown} holdings={holdings} scope={scope} />
+
+        <PeriodReturnStrip returns={periodReturns} />
         <div className="nsAnalyticsGrid">
           <CommodityExposurePanel exposures={commodityExposure} total={t.marketValue} />
           <CurrencyExposurePanel exposures={currencyExposure} />

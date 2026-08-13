@@ -2,19 +2,44 @@
 import React from "react";
 import MobileMenu from "@/components/MobileMenu";
 
-const items = [
-  { key: "overview", label: "Overview", href: "/" },
-  { key: "holdings", label: "Holdings", href: "/holdings" },
-  { key: "prices", label: "Pricing", href: "/prices" },
-  { key: "sync", label: "Sync", href: "/sync" },
-  { key: "sectors", label: "Sectors", href: "/sectors" },
-  { key: "targets", label: "Targets", href: "/targets" },
-  { key: "reports", label: "Reports", href: "/reports" },
-  { key: "tax", label: "Tax", href: "/tax" },
-  { key: "security", label: "Security", href: "/security" },
-  { key: "bullion", label: "Bullion", href: "/assets" },
-  { key: "cash", label: "Cash", href: "/cash" },
+const sections = [
+  {
+    label: "Layer 1 — state of play",
+    items: [{ key: "overview", label: "State of play", href: "/" }],
+  },
+  {
+    label: "Capital",
+    items: [
+      { key: "holdings", label: "Capital", href: "/holdings" },
+      { key: "cash", label: "External cash", href: "/cash" },
+      { key: "targets", label: "Armed list", href: "/targets" },
+    ],
+  },
+  {
+    label: "Discipline",
+    items: [
+      { key: "sectors", label: "Positions & strategy", href: "/sectors" },
+      { key: "reports", label: "Harvest plan", href: "/reports" },
+      { key: "tax", label: "Tax", href: "/tax" },
+    ],
+  },
+  {
+    label: "Layers 2-4 — analysis",
+    items: [
+      { key: "prices", label: "Chart workbench", href: "/prices" },
+      { key: "security", label: "Security", href: "/security" },
+    ],
+  },
+  {
+    label: "Existing modules",
+    items: [
+      { key: "sync", label: "Imports", href: "/sync" },
+      { key: "bullion", label: "Physical platinum", href: "/assets" },
+    ],
+  },
 ];
+
+const items = sections.flatMap((section) => section.items);
 
 const icons: Record<string, React.ReactNode> = {
   overview: <><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></>,
@@ -62,20 +87,25 @@ export function NavRail({ active = "overview", logoSrc, owner = "Stephen", onNav
           </div>
         </div>
         <nav className="nsRailNav">
-          {items.map((it) => {
-            const on = it.key === active;
-            return (
-              <a key={it.key} href={it.href} onClick={(e) => { if (onNavigate) { e.preventDefault(); onNavigate(it.key); } }}
-                className={on ? "isActive" : undefined}>
-                <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8}>{icons[it.key]}</svg>
-                {it.label}
-              </a>
-            );
-          })}
+          {sections.map((section) => (
+            <div className="nsRailSection" key={section.label}>
+              <p>{section.label}</p>
+              {section.items.map((it) => {
+                const on = it.key === active;
+                return (
+                  <a key={it.key} href={it.href} onClick={(e) => { if (onNavigate) { e.preventDefault(); onNavigate(it.key); } }}
+                    className={on ? "isActive" : undefined}>
+                    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8}>{icons[it.key]}</svg>
+                    {it.label}
+                  </a>
+                );
+              })}
+            </div>
+          ))}
         </nav>
         <div className="nsRailFooter">
           <div><b>{owner}</b> · Trustee</div>
-          <div>Inception late May 2025.</div>
+          <div>Layers 1-4 · amended brief</div>
         </div>
       </aside>
     </>

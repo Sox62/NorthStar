@@ -2410,3 +2410,290 @@ body.northstar .nsNavDetail .is-negative { color:var(--status-negative); }
     flex-direction:column;
   }
 }
+
+/* State of play template alignment */
+body.northstar .nsOverviewHeader h1 {
+  font-family:var(--ns-sans);
+  font-size:32px;
+  font-weight:800;
+  letter-spacing:0;
+}
+
+body.northstar .nsOverviewHeader > div:first-child {
+  max-width:720px;
+}
+
+body.northstar .nsOverviewHeader > div:first-child p {
+  max-width:650px;
+  margin-top:8px;
+  line-height:1.25;
+}
+
+body.northstar .nsStateGrid {
+  display:grid;
+  grid-template-columns:minmax(360px, 1.28fr) minmax(280px, 0.98fr) minmax(300px, 1fr);
+  gap:22px;
+  align-items:stretch;
+}
+
+body.northstar .nsStateCard {
+  min-height:224px;
+  padding:25px 24px;
+}
+
+body.northstar .nsStateNavValue {
+  margin-top:18px;
+  color:#f1f4f8;
+  font-family:var(--ns-serif);
+  font-size:46px;
+  font-weight:500;
+  line-height:1;
+  font-variant-numeric:tabular-nums;
+}
+
+body.northstar .nsStateGoldLine {
+  margin:10px 0 0;
+  color:var(--gold);
+  font-size:13px;
+  font-weight:800;
+}
+
+body.northstar .nsStateTwoStats {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:24px;
+  margin-top:24px;
+}
+
+body.northstar .nsStateRows {
+  display:grid;
+  gap:0;
+  margin-top:20px;
+}
+
+body.northstar .nsStateValueRow {
+  min-width:0;
+  min-height:38px;
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) auto;
+  gap:6px 14px;
+  align-items:baseline;
+  padding:9px 0;
+  border-bottom:1px solid rgba(122,149,178,0.12);
+}
+
+body.northstar .nsStateTwoStats .nsStateValueRow {
+  display:block;
+  min-height:0;
+  padding:0;
+  border-bottom:0;
+}
+
+body.northstar .nsStateValueRow span,
+body.northstar .nsStateValueRow em {
+  min-width:0;
+  color:var(--muted);
+  font-size:13px;
+  font-style:normal;
+  line-height:1.25;
+}
+
+body.northstar .nsStateTwoStats .nsStateValueRow span,
+body.northstar .nsStateTwoStats .nsStateValueRow em {
+  display:block;
+}
+
+body.northstar .nsStateValueRow strong {
+  color:#eaf1f8;
+  font-size:16px;
+  font-weight:800;
+  text-align:right;
+  white-space:nowrap;
+}
+
+body.northstar .nsStateTwoStats .nsStateValueRow strong {
+  display:block;
+  margin:8px 0 4px;
+  font-size:22px;
+  text-align:left;
+}
+
+body.northstar .nsStateValueRow em {
+  grid-column:1 / -1;
+  color:var(--muted-dim);
+  font-size:12px;
+}
+
+body.northstar .nsStateChartGrid {
+  display:grid;
+  grid-template-columns:minmax(520px, 1.2fr) minmax(360px, 0.8fr);
+  gap:22px;
+  align-items:stretch;
+}
+
+body.northstar .nsStateChartGrid .nsHistoryPanel,
+body.northstar .nsStateChartGrid .nsSectorPanel {
+  border:1px solid rgba(122,149,178,0.20);
+  border-radius:18px;
+  background:rgba(18,30,45,0.78);
+  box-shadow:0 20px 60px rgba(0,0,0,0.20), inset 0 1px 0 rgba(255,255,255,0.025);
+}
+
+body.northstar .nsStateChartGrid .nsHistoryPanel .nsEyebrow::after {
+  content:" — 3 years, weekly";
+}
+
+body.northstar .nsStateChartGrid .nsHistoryPanel h2 {
+  display:none;
+}
+
+body.northstar .nsStateChartGrid .nsHistoryControls .nsRangeTabs:first-of-type {
+  display:none;
+}
+
+body.northstar .nsStateChartGrid .nsSectorPanel {
+  min-height:300px;
+  grid-template-columns:minmax(170px, 0.86fr) minmax(0, 1.14fr);
+}
+
+body.northstar .nsStateChartGrid .nsSectorPanel > .nsEyebrow::after {
+  content:" allocation";
+}
+
+body.northstar .nsStateChartGrid .nsDonut {
+  width:150px;
+  height:150px;
+}
+
+body.northstar .nsStateChartGrid .nsDonut::after {
+  inset:28px;
+}
+
+body.northstar .nsStateChartGrid .nsDonut div span {
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+}
+
+body.northstar .nsStateChartGrid .nsSectorList div {
+  min-height:34px;
+}
+
+body.northstar > .nsMetalsPanel,
+body.northstar .nsOverview > .nsMetalsPanel {
+  border:1px solid rgba(122,149,178,0.20);
+  border-radius:18px;
+  background:rgba(18,30,45,0.78);
+  box-shadow:0 20px 60px rgba(0,0,0,0.20), inset 0 1px 0 rgba(255,255,255,0.025);
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsPanelTopline h2 {
+  font-family:var(--ns-sans);
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:0.16em;
+  text-transform:uppercase;
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsPanelTopline h2::after {
+  content:"";
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsEyebrow {
+  display:none;
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsTableNote {
+  margin-top:-4px;
+  text-align:right;
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader,
+body.northstar .nsOverview > .nsPositionsPanel .nsHoldingRow {
+  grid-template-columns:minmax(150px, 1fr) minmax(150px, 0.9fr) minmax(72px, 0.42fr) minmax(126px, 0.72fr) minmax(96px, 0.54fr) minmax(132px, 0.72fr);
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader span:nth-child(2)::before {
+  content:"Class / theme";
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader span:nth-child(2) button {
+  font-size:0;
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader span:nth-child(2) button::before {
+  content:"Class / theme";
+  font-size:11px;
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader span:nth-child(3) button span {
+  font-size:0;
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader span:nth-child(3) button span::before {
+  content:"Price (local)";
+  font-size:11px;
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader span:nth-child(4) button span {
+  font-size:0;
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader span:nth-child(4) button span::before {
+  content:"Value A$";
+  font-size:11px;
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader span:nth-child(6) button span {
+  font-size:0;
+}
+
+body.northstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader span:nth-child(6) button span::before {
+  content:"Total P/L A$";
+  font-size:11px;
+}
+
+@media (max-width: 1180px) {
+  body.northstar .nsStateGrid,
+  body.northstar .nsStateChartGrid {
+    grid-template-columns:1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  body.northstar .nsStateNavValue {
+    font-size:38px;
+  }
+
+  body.northstar .nsStateTwoStats,
+  body.northstar .nsStateValueRow {
+    grid-template-columns:1fr;
+  }
+
+  body.northstar .nsStateValueRow strong {
+    text-align:left;
+  }
+}
+
+body.northstar .nsRailSection {
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin-top:7px;
+}
+
+body.northstar .nsRailSection:first-child {
+  margin-top:0;
+}
+
+body.northstar .nsRailSection p {
+  margin:10px 10px 4px;
+  color:var(--muted-dim);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+}
+
+body.northstar .nsRailSection a {
+  min-height:38px;
+}
