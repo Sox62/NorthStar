@@ -19,7 +19,7 @@ const sections: Array<{ label: string; items: RailItem[] }> = [
     label: "Capital",
     items: [
       { key: "holdings", label: "Capital", href: "/holdings", icon: "holdings" },
-      { key: "accounts-mandates", label: "Accounts & mandates", href: "/roadmap", icon: "reports" },
+      { key: "accounts-mandates", label: "Accounts & mandates", href: "/accounts", icon: "reports" },
       { key: "cash", label: "External cash", href: "/cash", icon: "cash" },
       { key: "targets", label: "Armed list", href: "/targets", icon: "targets" },
     ],

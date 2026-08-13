@@ -6,7 +6,8 @@ import { useState } from "react";
 
 const navItems = [
   { href: "/", label: "Overview", detail: "Portfolio dashboard" },
-  { href: "/holdings", label: "Holdings", detail: "All positions" },
+  { href: "/holdings", label: "Capital", detail: "Share allocation" },
+  { href: "/accounts", label: "Accounts & mandates", detail: "Legal books" },
   { href: "/prices", label: "Pricing", detail: "Market closes" },
   { href: "/sectors", label: "Sectors", detail: "Exposure breakdown" },
   { href: "/targets", label: "Targets", detail: "Allocation drift" },

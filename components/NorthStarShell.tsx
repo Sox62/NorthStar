@@ -6,6 +6,7 @@ import { NavRail } from "@/northstar/components/NavRail";
 
 function activeForPath(pathname: string) {
   if (pathname === "/") return "overview";
+  if (pathname.startsWith("/accounts")) return "accounts-mandates";
   if (pathname.startsWith("/holdings")) return "holdings";
   if (pathname.startsWith("/prices")) return "prices";
   if (pathname.startsWith("/sync") || pathname.startsWith("/imports")) return "sync";
