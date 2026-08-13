@@ -1084,7 +1084,7 @@ function StateOfPlayCards({ total, dailyPnl, accounts, holdings, scope }: {
         <div className="nsStateRows">
           <StateValueRow label="Broker cash" value={fmtAud(brokerCash)} note="IBKR, Directshares and cash accounts" />
           <StateValueRow label="External cash" value="—" note="Not configured" />
-          <StateValueRow label="Physical platinum" value={platinum ? fmtAud(platinum) : "—"} note={platinum ? "Strategic metal holding · not accounting cash" : "Not configured"} />
+          <StateValueRow label="Physical platinum" value={platinum ? fmtAud(platinum) : "—"} note={platinum ? "Strategic metal holding · separate from cash" : "Not configured"} />
           <StateValueRow label="Gold reserve" value="—" note="Not configured · NAV in gold is a numeraire" />
         </div>
       </article>
@@ -1221,7 +1221,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], periodRetu
         <header className="nsOverviewHeader">
           <div>
             <h1>State of play</h1>
-            <p>Where the portfolio is right now. Nominal AUD and gold-relative wealth, allocation, holdings and open orders — no ratios, RSI or chart stacks on this screen.</p>
+            <p>Where the portfolio is right now. Nominal AUD and gold-relative wealth, allocation and holdings — no ratios, RSI or chart stacks on this screen.</p>
           </div>
           <div className="nsHeaderControls">
             <ScopeTabs value={scope} onChange={setScope} />
