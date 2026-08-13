@@ -15,6 +15,7 @@ function activeForPath(pathname: string) {
   if (pathname.startsWith("/reports")) return "reports";
   if (pathname.startsWith("/tax")) return "tax";
   if (pathname.startsWith("/security")) return "security";
+  if (pathname.startsWith("/fundamentals")) return "fundamentals-risk";
   if (pathname.startsWith("/assets")) return "bullion";
   if (pathname.startsWith("/cash")) return "cash";
   return "overview";
