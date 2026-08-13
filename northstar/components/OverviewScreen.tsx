@@ -506,7 +506,6 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], accountBre
         <header className="nsOverviewHeader">
           <div>
             <h1>State of play</h1>
-            <p>Where the portfolio is right now. Nominal AUD and gold-relative wealth, allocation and holdings — no ratios, RSI or chart stacks on this screen.</p>
           </div>
           <div className="nsHeaderControls">
             <ScopeTabs value={scope} onChange={setScope} />
