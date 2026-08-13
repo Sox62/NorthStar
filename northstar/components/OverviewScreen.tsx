@@ -5,8 +5,7 @@ import TradingViewWidget from "@/components/TradingViewWidget";
 import { ChartOverlay, HistoryChart } from "./HistoryChart";
 import { ScopeTabs } from "./ScopeTabs";
 import { StateOfPlayCards } from "./StateOfPlayCards";
-import { valueForScope, type PerformancePoint } from "../lib/nav-series";
-import { allocationDriftForSectors, type AllocationDriftSummary, type AllocationTarget } from "../lib/allocation-drift";
+import type { PerformancePoint } from "../lib/nav-series";
 import { dataHealth, type HealthTone } from "../lib/data-health";
 import { byScope, bySector, fmtAud, totals } from "../lib/portfolio-metrics";
 import { compareNumber, compareText, nextSort, sortIndicator, type SortState } from "../lib/sort";
@@ -30,23 +29,6 @@ type ValuationFreshnessSummary = {
   staleAfterDays: number | null;
   detail: string;
 };
-type PeriodReturnSummary = {
-  key: "daily" | "mtd" | "ytd" | "since_inception";
-  label: string;
-  valueAud: number | null;
-  valuePercent: number | null;
-  startDate: string | null;
-  endDate: string | null;
-  note: string;
-};
-type CurrencyExposureSummary = {
-  currency: string;
-  amountAud: number;
-  valuePercent: number;
-  positionValueAud: number;
-  cashValueAud: number;
-  positionCount: number;
-};
 type BrokerShareTotal = {
   broker: string;
   value: number;
@@ -66,45 +48,6 @@ type AccountBreakdownSummary = {
   brokerShareTotals: BrokerShareTotal[];
   shareOfOverall: number;
   lastUpdated: string | null;
-};
-type IncomeSummary = {
-  periodStart: string;
-  periodEnd: string;
-  dividendCount: number;
-  netCashAud: number;
-  taxWithheldAud: number;
-  frankingCreditsAud: number;
-  grossIncomeAud: number;
-  grossedUpYieldPercent: number | null;
-  symbols: Array<{
-    symbol: string;
-    payments: number;
-    netCashAud: number;
-    taxWithheldAud: number;
-    frankingCreditsAud: number;
-    grossIncomeAud: number;
-  }>;
-  note: string;
-};
-type CommodityExposureSummary = {
-  name: string;
-  value: number;
-  positionCount: number;
-  color: string;
-};
-
-const commodityBySector: Record<Sector, { name: string; color: string }> = {
-  "Silver miners": { name: "Silver", color: "#b9c4d0" },
-  "Silver bullion": { name: "Silver", color: "#e3e9f0" },
-  "Gold miners": { name: "Gold", color: "#d7b56d" },
-  "Uranium miners": { name: "Uranium", color: "#8dc6a0" },
-  "Uranium explorers": { name: "Uranium", color: "#5fbf8f" },
-  Technology: { name: "Technology", color: "#77a9d8" },
-  "Broad equities": { name: "Broad equities", color: "#9aa9ba" },
-  "Platinum bullion": { name: "Physical platinum", color: "#8fa6bf" },
-  "Rhodium metal": { name: "Rhodium", color: "#c78db8" },
-  Oil: { name: "Oil", color: "#dd8b6f" },
-  Cash: { name: "Cash", color: "#5d6f81" },
 };
 
 function pct(value: number, total: number) {
@@ -139,35 +82,6 @@ function foreignCurrencyAuditHoldings(holdings: Holding[]) {
   return holdings
     .filter((holding) => (holding.priceCurrency ?? "AUD") !== "AUD" && isShareLike(holding))
     .sort((a, b) => Math.abs(b.marketValueAud) - Math.abs(a.marketValueAud));
-}
-
-type MetalQuote = {
-  metal: "gold" | "silver" | "platinum";
-  label: string;
-  value: number | null;
-  priceDate: string | null;
-  source: string;
-  color: string;
-  tradingViewSymbol: string;
-};
-
-type MetalSpotApiQuote = {
-  metal: "gold" | "silver" | "platinum";
-  label: string;
-  price: number;
-  priceDate: string;
-  source: string;
-};
-
-const metalQuoteShells: MetalQuote[] = [
-  { metal: "gold", label: "Gold spot", value: null, priceDate: null, source: "Loading", color: SECTOR_COLORS["Gold miners"], tradingViewSymbol: "TVC:GOLD" },
-  { metal: "silver", label: "Silver spot", value: null, priceDate: null, source: "Loading", color: SECTOR_COLORS["Silver bullion"], tradingViewSymbol: "TVC:SILVER" },
-  { metal: "platinum", label: "Platinum spot", value: null, priceDate: null, source: "Loading", color: SECTOR_COLORS["Platinum bullion"], tradingViewSymbol: "TVC:PLATINUM" },
-];
-
-function fmtMetalPrice(quote: MetalQuote) {
-  if (quote.value == null) return "n/a";
-  return `USD ${quote.value.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/oz`;
 }
 
 function dayGainPercent(holding: Holding) {
@@ -322,18 +236,6 @@ function holdingAccountGroups(holdings: Holding[]): HoldingAccountGroup[] {
     .sort((a, b) => b.value - a.value);
 }
 
-function commodityExposureFor(holdings: Holding[]): CommodityExposureSummary[] {
-  const buckets = new Map<string, CommodityExposureSummary>();
-  for (const holding of holdings) {
-    const meta = commodityBySector[holding.sector];
-    const bucket = buckets.get(meta.name) ?? { name: meta.name, value: 0, positionCount: 0, color: meta.color };
-    bucket.value += holding.marketValueAud;
-    bucket.positionCount += 1;
-    buckets.set(meta.name, bucket);
-  }
-  return [...buckets.values()].sort((a, b) => b.value - a.value);
-}
-
 function makeDonut(sectors: Array<{ sector: Sector; value: number }>, total: number) {
   if (!total) return "conic-gradient(rgba(122,149,178,0.18) 0 100%)";
   let start = 0;
@@ -344,98 +246,6 @@ function makeDonut(sectors: Array<{ sector: Sector; value: number }>, total: num
     return stop;
   });
   return `conic-gradient(${stops.join(", ")})`;
-}
-
-function PeriodReturnStrip({ returns }: { returns: PeriodReturnSummary[] }) {
-  if (!returns.length) return null;
-  return (
-    <section className="nsReturnStrip" aria-label="Return analytics">
-      {returns.map((item) => {
-        const hasValue = item.valueAud != null && item.valuePercent != null;
-        const positive = (item.valueAud ?? 0) >= 0;
-        return (
-          <article key={item.key} className="nsReturnItem">
-            <span>{item.label}</span>
-            <strong className={hasValue ? positive ? "isPositive" : "isNegative" : undefined}>{fmtSignedPct(item.valuePercent)}</strong>
-            <em className={hasValue ? positive ? "isPositive" : "isNegative" : undefined}>{hasValue ? `${fmtSignedAud(item.valueAud ?? 0)} NAV` : item.note}</em>
-          </article>
-        );
-      })}
-    </section>
-  );
-}
-
-function MetalsPricePanel() {
-  const [quotes, setQuotes] = useState<MetalQuote[]>(metalQuoteShells);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    async function loadMetals() {
-      try {
-        const response = await fetch("/api/prices/metals", { cache: "no-store" });
-        const payload = await response.json() as { quotes?: MetalSpotApiQuote[]; errors?: string[] };
-        const byMetal = new Map((payload.quotes ?? []).map((quote) => [quote.metal, quote]));
-        const nextQuotes = metalQuoteShells.map((shell) => {
-          const quote = byMetal.get(shell.metal);
-          return quote ? {
-            ...shell,
-            label: quote.label,
-            value: quote.price,
-            priceDate: quote.priceDate,
-            source: quote.source.replace(" spot mid", ""),
-          } : { ...shell, source: "No spot quote" };
-        });
-        if (!cancelled) {
-          setQuotes(nextQuotes);
-          setError((payload.errors ?? []).join("; "));
-        }
-      } catch (reason) {
-        if (!cancelled) {
-          setQuotes(metalQuoteShells.map((quote) => ({ ...quote, source: "No spot quote" })));
-          setError(reason instanceof Error ? reason.message : "Unable to load metals spot prices.");
-        }
-      }
-    }
-    void loadMetals();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const gold = quotes.find((quote) => quote.metal === "gold");
-  const silver = quotes.find((quote) => quote.metal === "silver");
-  const gsr = gold?.value && silver?.value ? gold.value / silver.value : null;
-
-  return (
-    <section className="nsMetalsPanel" aria-label="Metals prices">
-      <div className="nsMetalsHeader">
-        <p className="nsEyebrow">Metals prices</p>
-        <strong>Gold is a numeraire/hurdle here, not a configured holding unless gold appears in allocations.</strong>
-      </div>
-      <div className="nsMetalsGrid">
-        {quotes.map((quote) => (
-          <a key={quote.label} className="nsMetalTile" style={{ borderColor: `${quote.color}42` }} href={tradingViewChartUrl(quote.tradingViewSymbol)} target="_blank" rel="noreferrer" aria-label={`Open ${quote.label} on TradingView`}>
-            <span>
-              <i style={{ background: quote.color }} />{quote.label}
-              <b aria-hidden="true">TV</b>
-            </span>
-            <strong>{fmtMetalPrice(quote)}</strong>
-            <em>{quote.value == null ? quote.source : `${quote.source} · ${fmtDate(quote.priceDate)}`}</em>
-          </a>
-        ))}
-        <a className="nsMetalTile nsMetalRatio" href={tradingViewChartUrl("TVC:GOLDSILVER")} target="_blank" rel="noreferrer" aria-label="Open GSR on TradingView">
-          <span>
-            <i />GSR
-            <b aria-hidden="true">TV</b>
-          </span>
-          <strong>{gsr == null ? "n/a" : gsr.toFixed(1)}</strong>
-          <em>{gsr == null ? "Needs gold + silver spot" : "Gold numeraire ratio"}</em>
-        </a>
-      </div>
-      {error ? <p className="nsMetalsError">{error}</p> : null}
-    </section>
-  );
 }
 
 function OverviewStockChartPanel({ holding }: { holding: Holding }) {
@@ -632,151 +442,11 @@ function SectorDonut({ sectors, total }: { sectors: Array<{ sector: Sector; valu
   );
 }
 
-function CurrencyExposurePanel({ exposures }: { exposures: CurrencyExposureSummary[] }) {
-  if (!exposures.length) return null;
-  const max = Math.max(...exposures.map((item) => item.valuePercent), 1);
-  return (
-    <section className="nsPanel nsExposurePanel">
-      <div className="nsPanelTopline">
-        <div>
-          <p className="nsEyebrow">Currency exposure</p>
-          <h2>Market value by currency</h2>
-        </div>
-      </div>
-      <div className="nsExposureRows">
-        {exposures.map((item) => (
-          <div key={item.currency} className="nsExposureRow">
-            <div>
-              <strong>{item.currency}</strong>
-              <span>{item.positionCount} instruments{item.cashValueAud > 0 ? " + cash" : ""}</span>
-            </div>
-            <span className="nsExposureBar"><i style={{ width: `${Math.max(3, (item.valuePercent / max) * 100)}%` }} /></span>
-            <strong>{fmtAud(item.amountAud)} <em>{fmtPct(item.valuePercent)}</em></strong>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function AllocationDriftPanel({ drift }: { drift: AllocationDriftSummary[] }) {
-  if (!drift.length) return null;
-  return (
-    <section className="nsPanel nsDriftPanel">
-      <div className="nsPanelTopline">
-        <div>
-          <p className="nsEyebrow">Allocation drift</p>
-          <h2>Current vs draft target</h2>
-        </div>
-      </div>
-      <div className="nsDriftRows">
-        {drift.slice(0, 6).map((item) => {
-          const underTarget = item.valueToTarget > 0;
-          return (
-            <article key={item.sector} className="nsDriftRow">
-              <div>
-                <strong>{item.sector}</strong>
-                <span>{fmtPct(item.currentPercent)} now · {fmtPct(item.targetPercent)} target</span>
-              </div>
-              <div className="nsDriftBars" aria-hidden="true">
-                <span><i style={{ width: `${Math.min(100, Math.max(0, item.currentPercent))}%`, background: item.color }} /></span>
-                <span><i style={{ width: `${Math.min(100, Math.max(0, item.targetPercent))}%` }} /></span>
-              </div>
-              <strong className={underTarget ? "isUnder" : "isOver"}>
-                {underTarget ? "Add" : "Trim"} {fmtAud(Math.abs(item.valueToTarget))}
-                <em>{item.driftPercent >= 0 ? "+" : ""}{item.driftPercent.toFixed(1)} pts</em>
-              </strong>
-            </article>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function CommodityExposurePanel({ exposures, total }: { exposures: CommodityExposureSummary[]; total: number }) {
-  if (!exposures.length) return null;
-  const max = Math.max(...exposures.map((item) => item.value), 1);
-  return (
-    <section className="nsPanel nsExposurePanel">
-      <div className="nsPanelTopline">
-        <div>
-          <p className="nsEyebrow">Commodity exposure</p>
-          <h2>Economic exposure</h2>
-        </div>
-      </div>
-      <div className="nsExposureRows">
-        {exposures.map((item) => (
-          <div key={item.name} className="nsExposureRow">
-            <div>
-              <strong>{item.name}</strong>
-              <span>{item.positionCount} positions</span>
-            </div>
-            <span className="nsExposureBar"><i style={{ width: `${Math.max(3, (item.value / max) * 100)}%`, background: item.color }} /></span>
-            <strong>{fmtAud(item.value)} <em>{fmtPct(pct(item.value, total))}</em></strong>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function IncomeFrankingPanel({ income }: { income?: IncomeSummary }) {
-  if (!income) return null;
-  return (
-    <section className="nsPanel nsIncomePanel">
-      <div className="nsPanelTopline">
-        <div>
-          <p className="nsEyebrow">Income / franking</p>
-          <h2>Trailing 12-month income</h2>
-        </div>
-      </div>
-      <div className="nsIncomeSummary">
-        <div>
-          <span>Net income</span>
-          <strong>{fmtAud(income.netCashAud)}</strong>
-        </div>
-        <div>
-          <span>Franking credits</span>
-          <strong>{fmtAud(income.frankingCreditsAud)}</strong>
-        </div>
-        <div>
-          <span>Gross-up yield</span>
-          <strong>{income.grossedUpYieldPercent == null ? "n/a" : fmtPct(income.grossedUpYieldPercent)}</strong>
-        </div>
-        <div>
-          <span>Tax withheld</span>
-          <strong>{fmtAud(income.taxWithheldAud)}</strong>
-        </div>
-      </div>
-      <div className="nsIncomeRows">
-        {income.symbols.length ? income.symbols.map((item) => (
-          <article key={item.symbol} className="nsIncomeRow">
-            <div>
-              <strong>{item.symbol}</strong>
-              <span>{item.payments} payment{item.payments === 1 ? "" : "s"}</span>
-            </div>
-            <span>{fmtAud(item.netCashAud)} net</span>
-            <em>{item.frankingCreditsAud ? `${fmtAud(item.frankingCreditsAud)} franking` : `${fmtAud(item.taxWithheldAud)} withheld`}</em>
-          </article>
-        )) : (
-          <p className="nsIncomeEmpty">{income.note}</p>
-        )}
-      </div>
-      <p className="nsIncomeNote">{fmtChartLabel(income.periodStart)} to {fmtChartLabel(income.periodEnd)} · {income.dividendCount} payment{income.dividendCount === 1 ? "" : "s"}</p>
-    </section>
-  );
-}
-
 /** Full redesigned overview dashboard matching the screenshot reference. */
-export function OverviewScreen({ holdings, logoSrc, performance = [], periodReturnsByScope, incomeByScope, currencyExposureByScope, allocationTargets = [], accountBreakdown = [], syncRuns = [], freshnessByScope, lastUpdatedByScope, onRefresh }: {
+export function OverviewScreen({ holdings, logoSrc, performance = [], accountBreakdown = [], syncRuns = [], freshnessByScope, lastUpdatedByScope, onRefresh }: {
   holdings: Holding[];
   logoSrc?: string;
   performance?: PerformancePoint[];
-  periodReturnsByScope?: Partial<Record<PortfolioScope, PeriodReturnSummary[]>>;
-  incomeByScope?: Partial<Record<PortfolioScope, IncomeSummary>>;
-  currencyExposureByScope?: Partial<Record<PortfolioScope, CurrencyExposureSummary[]>>;
-  allocationTargets?: AllocationTarget[];
   accountBreakdown?: AccountBreakdownSummary[];
   syncRuns?: SyncRunSummary[];
   freshnessByScope?: Partial<Record<PortfolioScope, ValuationFreshnessSummary[]>>;
