@@ -111,7 +111,7 @@ const commodityBySector: Record<Sector, { name: string; color: string }> = {
   "Uranium explorers": { name: "Uranium", color: "#5fbf8f" },
   Technology: { name: "Technology", color: "#77a9d8" },
   "Broad equities": { name: "Broad equities", color: "#9aa9ba" },
-  "Platinum bullion": { name: "Platinum", color: "#8fa6bf" },
+  "Platinum bullion": { name: "Physical platinum", color: "#8fa6bf" },
   "Rhodium metal": { name: "Rhodium", color: "#c78db8" },
   Oil: { name: "Oil", color: "#dd8b6f" },
   Cash: { name: "Cash", color: "#5d6f81" },
@@ -145,6 +145,12 @@ function fmtLatestPrice(holding: Holding) {
   return `${currency} ${value}`;
 }
 
+function foreignCurrencyAuditHoldings(holdings: Holding[]) {
+  return holdings
+    .filter((holding) => (holding.priceCurrency ?? "AUD") !== "AUD" && isShareLike(holding))
+    .sort((a, b) => Math.abs(b.marketValueAud) - Math.abs(a.marketValueAud));
+}
+
 type MetalQuote = {
   metal: "gold" | "silver" | "platinum";
   label: string;
@@ -166,7 +172,7 @@ type MetalSpotApiQuote = {
 const metalQuoteShells: MetalQuote[] = [
   { metal: "gold", label: "Gold spot", value: null, priceDate: null, source: "Loading", color: SECTOR_COLORS["Gold miners"], tradingViewSymbol: "TVC:GOLD" },
   { metal: "silver", label: "Silver spot", value: null, priceDate: null, source: "Loading", color: SECTOR_COLORS["Silver bullion"], tradingViewSymbol: "TVC:SILVER" },
-  { metal: "platinum", label: "Plat spot", value: null, priceDate: null, source: "Loading", color: SECTOR_COLORS["Platinum bullion"], tradingViewSymbol: "TVC:PLATINUM" },
+  { metal: "platinum", label: "Platinum spot", value: null, priceDate: null, source: "Loading", color: SECTOR_COLORS["Platinum bullion"], tradingViewSymbol: "TVC:PLATINUM" },
 ];
 
 function fmtMetalPrice(quote: MetalQuote) {
@@ -664,7 +670,7 @@ function MetalsPricePanel() {
     <section className="nsMetalsPanel" aria-label="Metals prices">
       <div className="nsMetalsHeader">
         <p className="nsEyebrow">Metals prices</p>
-        <strong>Gold spot USD/oz · Silver spot USD/oz · Plat USD/oz · GSR</strong>
+        <strong>Gold is a numeraire/hurdle here, not a configured holding unless gold appears in allocations.</strong>
       </div>
       <div className="nsMetalsGrid">
         {quotes.map((quote) => (
@@ -683,7 +689,7 @@ function MetalsPricePanel() {
             <b aria-hidden="true">TV</b>
           </span>
           <strong>{gsr == null ? "n/a" : gsr.toFixed(1)}</strong>
-          <em>{gsr == null ? "Needs gold + silver spot" : "Gold spot / silver spot"}</em>
+          <em>{gsr == null ? "Needs gold + silver spot" : "Gold numeraire ratio"}</em>
         </a>
       </div>
       {error ? <p className="nsMetalsError">{error}</p> : null}
@@ -739,12 +745,14 @@ function OverviewStockChartPanel({ holding }: { holding: Holding }) {
 function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holding[]; total: number; scope: PortfolioScope; healthTone: HealthTone }) {
   const [showAllOverall, setShowAllOverall] = useState(false);
   const [chartHolding, setChartHolding] = useState<Holding | null>(null);
+  const [showFxAudit, setShowFxAudit] = useState(false);
   const [sort, setSort] = useState<HoldingSortState>({ key: "value", direction: "desc" });
   const isOverall = scope === "overall";
   const sortedHoldings = useMemo(() => sortHoldings(holdings, sort, total), [holdings, sort, total]);
   const visibleHoldings = isOverall && !showAllOverall ? sortedHoldings.slice(0, 6) : sortedHoldings;
   const accountGroups = useMemo(() => holdingAccountGroups(visibleHoldings), [visibleHoldings]);
   const showAccountGroups = !isOverall && accountGroups.length > 1;
+  const fxAuditHoldings = useMemo(() => foreignCurrencyAuditHoldings(holdings), [holdings]);
   const scopeLabel = scope === "smsf" ? "SMSF" : scope === "personal" ? "Personal" : "Overall";
   const sortButton = (key: HoldingSortKey, label: string) => (
     <button className={sort.key === key ? "isActive" : ""} type="button" onClick={() => setSort((current) => nextSort(current, key, overviewAscendingSorts))} aria-sort={sort.key === key ? (sort.direction === "desc" ? "descending" : "ascending") : "none"}>
@@ -810,15 +818,41 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
           <p className="nsEyebrow">{isOverall ? "Largest positions" : showAccountGroups ? `${scopeLabel} shares by account` : `All ${scopeLabel} shares`}</p>
           <h2>{isOverall ? "Allocation of shares" : showAccountGroups ? `${scopeLabel} account allocation` : `${scopeLabel} share allocation`}</h2>
         </div>
-        {isOverall && holdings.length > 6 ? (
-          <button className="nsPositionsToggle" type="button" onClick={() => setShowAllOverall((current) => !current)}>
-            {showAllOverall ? "Show fewer" : `Show all ${holdings.length} ->`}
-          </button>
-        ) : (
-          <span className="nsPositionsCount"><span className={`nsStatusPip is-${healthTone}`} />All {holdings.length} shown</span>
-        )}
+        <div className="nsPositionsActions">
+          {fxAuditHoldings.length ? (
+            <button className="nsPositionsToggle" type="button" onClick={() => setShowFxAudit((current) => !current)}>
+              {showFxAudit ? "Hide FX audit" : "FX audit"}
+            </button>
+          ) : null}
+          {isOverall && holdings.length > 6 ? (
+            <button className="nsPositionsToggle" type="button" onClick={() => setShowAllOverall((current) => !current)}>
+              {showAllOverall ? "Show fewer" : `Show all ${holdings.length} ->`}
+            </button>
+          ) : (
+            <span className="nsPositionsCount"><span className={`nsStatusPip is-${healthTone}`} />All {holdings.length} shown</span>
+          )}
+        </div>
       </div>
       {chartHolding ? <OverviewStockChartPanel holding={chartHolding} /> : null}
+      {showFxAudit ? (
+        <section className="nsFxAuditPanel" aria-label="Foreign-currency P/L audit">
+          <div>
+            <p className="nsEyebrow">FX audit</p>
+            <h3>Foreign-currency P/L basis</h3>
+            <p>Position P/L is measured in AUD: current local price and current FX set market value, while historical AUD cost comes from each trade date FX rate when the IBKR feed provides it.</p>
+          </div>
+          <div className="nsFxAuditRows">
+            {fxAuditHoldings.slice(0, 5).map((holding) => (
+              <article key={holding.id}>
+                <strong>{holding.symbol}</strong>
+                <span>{holding.priceCurrency ?? "Local"} price · {fmtLatestPrice(holding)}</span>
+                <em className={holding.pnlAud >= 0 ? "isPositive" : "isNegative"}>{fmtSignedAud(holding.pnlAud)} · {fmtSignedPct(holding.pnlPercent)}</em>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      <p className="nsTableNote">Values and P/L are in AUD. Foreign holdings keep local price, trade-date AUD cost basis and current AUD market value separate.</p>
       <div className="nsHoldingsTable" role="table" aria-label={`${scopeLabel} share positions`}>
         <div className="nsHoldingsHeader" role="row">
           <span>{sortButton("holding", "Holding")}</span>
