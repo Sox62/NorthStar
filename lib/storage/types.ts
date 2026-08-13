@@ -288,6 +288,34 @@ export type Snapshot = {
   netContributions: number;
 };
 
+export type MinerFundamentals = {
+  symbol: string;
+  name: string | null;
+  primaryMetal: string | null;
+  jurisdiction: string | null;
+  projectStage: string | null;
+  productionOz: number | null;
+  aiscUsdPerOz: number | null;
+  resourceMoz: number | null;
+  reserveMoz: number | null;
+  cashAud: number | null;
+  debtAud: number | null;
+  marketCapAud: number | null;
+  npvAud: number | null;
+  capexAud: number | null;
+  irrPercent: number | null;
+  jurisdictionScore: number | null;
+  balanceSheetScore: number | null;
+  dilutionScore: number | null;
+  managementScore: number | null;
+  notes: string | null;
+  sourceUrl: string | null;
+  asOfDate: string | null;
+  updatedAt: string;
+};
+
+export type MinerFundamentalsInput = Omit<MinerFundamentals, "updatedAt">;
+
 export type LocalStore = {
   version: 6;
   transactions: StoredTransaction[];
@@ -301,6 +329,7 @@ export type LocalStore = {
   snapshots: Snapshot[];
   syncRuns: SyncRun[];
   allocationTargets: AllocationTarget[];
+  minerFundamentals: MinerFundamentals[];
   imports: Array<{
     id: string;
     source: string;
@@ -371,5 +400,7 @@ export interface StorageAdapter {
   listSyncRuns(limit?: number, ownerType?: OwnerType): Promise<SyncRun[]>;
   listAllocationTargets(): Promise<AllocationTarget[]>;
   upsertAllocationTargets(targets: Array<Omit<AllocationTarget, "updatedAt">>): Promise<AllocationTarget[]>;
+  listMinerFundamentals(symbols?: string[]): Promise<MinerFundamentals[]>;
+  upsertMinerFundamentals(input: MinerFundamentalsInput): Promise<MinerFundamentals>;
   dashboard(scope: Scope): Promise<DashboardData>;
 }

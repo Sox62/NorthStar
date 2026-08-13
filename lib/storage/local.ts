@@ -20,6 +20,8 @@ import type {
   ImportResult,
   LocalStore,
   ManualAsset,
+  MinerFundamentals,
+  MinerFundamentalsInput,
   NewSyncRun,
   OwnerType,
   DailyPriceInput,
@@ -38,7 +40,7 @@ import type {
 } from "./types";
 
 const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".north-star", "data.json");
-const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), imports: [] };
+const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), minerFundamentals: [], imports: [] };
 
 async function readStore(): Promise<LocalStore> {
   try {
@@ -52,6 +54,7 @@ async function readStore(): Promise<LocalStore> {
         fxRates: (parsed.fxRates as StoredFxRate[] | undefined) ?? [],
         syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
         allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
+        minerFundamentals: (parsed.minerFundamentals as MinerFundamentals[] | undefined) ?? [],
       };
     }
     if (parsed.version === 5) {
@@ -64,6 +67,7 @@ async function readStore(): Promise<LocalStore> {
         fxRates: [],
         syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
         allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
+        minerFundamentals: (parsed.minerFundamentals as MinerFundamentals[] | undefined) ?? [],
       };
     }
     if (parsed.version === 4) {
@@ -76,6 +80,7 @@ async function readStore(): Promise<LocalStore> {
         fxRates: [],
         syncRuns: [],
         allocationTargets: defaultAllocationTargets(),
+        minerFundamentals: [],
       };
     }
     if (parsed.version === 3) {
@@ -97,10 +102,10 @@ async function readStore(): Promise<LocalStore> {
           priceRetrievedAt: String(asset.updatedAt ?? new Date().toISOString()), updatedAt: String(asset.updatedAt ?? new Date().toISOString()),
         };
       });
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets, platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets() };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets, platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), minerFundamentals: [] };
     }
     if (parsed.version === 2) {
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets: [], platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets() };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets: [], platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), minerFundamentals: [] };
     }
     return structuredClone(EMPTY);
   } catch (error) {
@@ -679,6 +684,24 @@ export class LocalStorageAdapter implements StorageAdapter {
     store.allocationTargets = normaliseAllocationTargets(targets.map((target) => ({ ...target, updatedAt: now })));
     await writeStore(store);
     return store.allocationTargets;
+  }
+
+  async listMinerFundamentals(symbols?: string[]): Promise<MinerFundamentals[]> {
+    const store = await readStore();
+    const requested = symbols?.map(normaliseSymbol);
+    return [...store.minerFundamentals]
+      .filter((item) => !requested?.length || requested.includes(normaliseSymbol(item.symbol)))
+      .sort((a, b) => normaliseSymbol(a.symbol).localeCompare(normaliseSymbol(b.symbol)));
+  }
+
+  async upsertMinerFundamentals(input: MinerFundamentalsInput): Promise<MinerFundamentals> {
+    const store = await readStore();
+    const now = new Date().toISOString();
+    const record: MinerFundamentals = { ...input, symbol: normaliseSymbol(input.symbol), updatedAt: now };
+    const existing = store.minerFundamentals.find((item) => normaliseSymbol(item.symbol) === record.symbol);
+    if (existing) Object.assign(existing, record); else store.minerFundamentals.push(record);
+    await writeStore(store);
+    return record;
   }
 
   async dashboard(scope: Scope) { return dashboardFromStore(await readStore(), scope); }

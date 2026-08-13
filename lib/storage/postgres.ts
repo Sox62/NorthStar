@@ -6,7 +6,7 @@ import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northsta
 import { classifyAsset } from "./classify";
 import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
-import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, Scope, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
+import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, MinerFundamentals, MinerFundamentalsInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, Scope, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 const optionalNumber = (value: unknown) => value == null ? undefined : Number(value);
 
@@ -229,6 +229,34 @@ async function upsertIbkrCash(client: PoolClient, report: IbkrFlexReport, portfo
   for (const cash of components) {
     await writeIbkrCashAccount(client, portfolioId, ibkrCashAccountName(report, cash, "component"), cash, false);
   }
+}
+
+function minerFundamentalsFromRow(row: Record<string, unknown>): MinerFundamentals {
+  return {
+    symbol: String(row.symbol),
+    name: row.name == null ? null : String(row.name),
+    primaryMetal: row.primary_metal == null ? null : String(row.primary_metal),
+    jurisdiction: row.jurisdiction == null ? null : String(row.jurisdiction),
+    projectStage: row.project_stage == null ? null : String(row.project_stage),
+    productionOz: row.production_oz == null ? null : numberValue(row.production_oz),
+    aiscUsdPerOz: row.aisc_usd_per_oz == null ? null : numberValue(row.aisc_usd_per_oz),
+    resourceMoz: row.resource_moz == null ? null : numberValue(row.resource_moz),
+    reserveMoz: row.reserve_moz == null ? null : numberValue(row.reserve_moz),
+    cashAud: row.cash_aud == null ? null : numberValue(row.cash_aud),
+    debtAud: row.debt_aud == null ? null : numberValue(row.debt_aud),
+    marketCapAud: row.market_cap_aud == null ? null : numberValue(row.market_cap_aud),
+    npvAud: row.npv_aud == null ? null : numberValue(row.npv_aud),
+    capexAud: row.capex_aud == null ? null : numberValue(row.capex_aud),
+    irrPercent: row.irr_percent == null ? null : numberValue(row.irr_percent),
+    jurisdictionScore: row.jurisdiction_score == null ? null : numberValue(row.jurisdiction_score),
+    balanceSheetScore: row.balance_sheet_score == null ? null : numberValue(row.balance_sheet_score),
+    dilutionScore: row.dilution_score == null ? null : numberValue(row.dilution_score),
+    managementScore: row.management_score == null ? null : numberValue(row.management_score),
+    notes: row.notes == null ? null : String(row.notes),
+    sourceUrl: row.source_url == null ? null : String(row.source_url),
+    asOfDate: row.as_of_date == null ? null : String(row.as_of_date),
+    updatedAt: new Date(String(row.updated_at)).toISOString(),
+  };
 }
 
 function syncRunFromRow(row: Record<string, unknown>): SyncRun {
@@ -694,6 +722,52 @@ export class PostgresStorageAdapter implements StorageAdapter {
       await client.query("ROLLBACK");
       throw error;
     } finally { client.release(); }
+  }
+
+  async listMinerFundamentals(symbols?: string[]): Promise<MinerFundamentals[]> {
+    const requested = symbols?.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean) ?? [];
+    const result = await getPool().query(`
+      SELECT symbol,name,primary_metal,jurisdiction,project_stage,production_oz,aisc_usd_per_oz,
+        resource_moz,reserve_moz,cash_aud,debt_aud,market_cap_aud,npv_aud,capex_aud,irr_percent,
+        jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,
+        as_of_date::text,updated_at::text
+      FROM miner_fundamentals
+      WHERE $1::text[] = '{}'::text[] OR symbol = ANY($1::text[])
+      ORDER BY symbol
+    `, [requested]).catch((error: unknown) => {
+      if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "42P01") return null;
+      throw error;
+    });
+    return result ? result.rows.map(minerFundamentalsFromRow) : [];
+  }
+
+  async upsertMinerFundamentals(input: MinerFundamentalsInput): Promise<MinerFundamentals> {
+    const result = await getPool().query(`
+      INSERT INTO miner_fundamentals (
+        symbol,name,primary_metal,jurisdiction,project_stage,production_oz,aisc_usd_per_oz,
+        resource_moz,reserve_moz,cash_aud,debt_aud,market_cap_aud,npv_aud,capex_aud,irr_percent,
+        jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,as_of_date,updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW())
+      ON CONFLICT (symbol) DO UPDATE SET
+        name=EXCLUDED.name,primary_metal=EXCLUDED.primary_metal,jurisdiction=EXCLUDED.jurisdiction,
+        project_stage=EXCLUDED.project_stage,production_oz=EXCLUDED.production_oz,aisc_usd_per_oz=EXCLUDED.aisc_usd_per_oz,
+        resource_moz=EXCLUDED.resource_moz,reserve_moz=EXCLUDED.reserve_moz,cash_aud=EXCLUDED.cash_aud,
+        debt_aud=EXCLUDED.debt_aud,market_cap_aud=EXCLUDED.market_cap_aud,npv_aud=EXCLUDED.npv_aud,
+        capex_aud=EXCLUDED.capex_aud,irr_percent=EXCLUDED.irr_percent,jurisdiction_score=EXCLUDED.jurisdiction_score,
+        balance_sheet_score=EXCLUDED.balance_sheet_score,dilution_score=EXCLUDED.dilution_score,
+        management_score=EXCLUDED.management_score,notes=EXCLUDED.notes,source_url=EXCLUDED.source_url,
+        as_of_date=EXCLUDED.as_of_date,updated_at=NOW()
+      RETURNING symbol,name,primary_metal,jurisdiction,project_stage,production_oz,aisc_usd_per_oz,
+        resource_moz,reserve_moz,cash_aud,debt_aud,market_cap_aud,npv_aud,capex_aud,irr_percent,
+        jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,
+        as_of_date::text,updated_at::text
+    `, [
+      input.symbol.trim().toUpperCase(), input.name, input.primaryMetal, input.jurisdiction, input.projectStage,
+      input.productionOz, input.aiscUsdPerOz, input.resourceMoz, input.reserveMoz, input.cashAud, input.debtAud,
+      input.marketCapAud, input.npvAud, input.capexAud, input.irrPercent, input.jurisdictionScore,
+      input.balanceSheetScore, input.dilutionScore, input.managementScore, input.notes, input.sourceUrl, input.asOfDate,
+    ]);
+    return minerFundamentalsFromRow(result.rows[0]);
   }
 
   async dashboard(scope: Scope): Promise<DashboardData> {

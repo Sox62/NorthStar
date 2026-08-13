@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
-import type { DashboardData } from "@/lib/storage";
+import type { DashboardData, MinerFundamentals } from "@/lib/storage";
 import { Card, Notice, SectorTag, StatusBadge, SummaryGrid } from "@/northstar/components";
 import type { Holding, Sector } from "@/northstar/types";
 import { SECTOR_COLORS } from "@/northstar/types";
@@ -10,8 +10,14 @@ import { dashboardToNorthstarHoldings } from "./northstar-adapter";
 
 type FundamentalsState = {
   holdings: Holding[];
+  fundamentals: MinerFundamentals[];
   loading: boolean;
   error: string;
+};
+
+type FundamentalsResponse = {
+  fundamentals?: MinerFundamentals[];
+  error?: string;
 };
 
 type MetricDefinition = {
@@ -55,6 +61,14 @@ async function loadDashboard(scope: "personal" | "smsf"): Promise<DashboardData>
   return payload as DashboardData;
 }
 
+async function loadFundamentals(symbols: string[]): Promise<MinerFundamentals[]> {
+  if (!symbols.length) return [];
+  const response = await fetch(`/api/fundamentals?symbols=${encodeURIComponent(symbols.join(","))}`, { cache: "no-store" });
+  const payload = await response.json() as FundamentalsResponse;
+  if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load fundamentals ledger");
+  return payload.fundamentals ?? [];
+}
+
 function isMinerHolding(holding: Holding) {
   return minerSectors.includes(holding.sector);
 }
@@ -74,8 +88,27 @@ function topRisk(holdings: Holding[]) {
   return sorted[0] ?? null;
 }
 
+function averageScore(fundamentals: MinerFundamentals | undefined) {
+  if (!fundamentals) return null;
+  const scores = [fundamentals.jurisdictionScore, fundamentals.balanceSheetScore, fundamentals.dilutionScore, fundamentals.managementScore]
+    .filter((value): value is number => value != null);
+  return scores.length ? scores.reduce((sum, value) => sum + value, 0) / scores.length : null;
+}
+
+function numberOrDash(value: number | null | undefined, suffix = "") {
+  return value == null ? "-" : `${value.toLocaleString("en-AU", { maximumFractionDigits: 2 })}${suffix}`;
+}
+
+function moneyOrDash(value: number | null | undefined) {
+  return value == null ? "-" : money(value);
+}
+
+function dateOrDash(value: string | null | undefined) {
+  return value ? new Date(value).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" }) : "-";
+}
+
 export default function FundamentalsRisk() {
-  const [{ holdings, loading, error }, setState] = useState<FundamentalsState>({ holdings: [], loading: true, error: "" });
+  const [{ holdings, fundamentals, loading, error }, setState] = useState<FundamentalsState>({ holdings: [], fundamentals: [], loading: true, error: "" });
 
   useEffect(() => {
     let cancelled = false;
@@ -85,9 +118,11 @@ export default function FundamentalsRisk() {
       try {
         const [personal, smsf] = await Promise.all([loadDashboard("personal"), loadDashboard("smsf")]);
         const nextHoldings = [...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)].filter(isMinerHolding);
-        if (!cancelled) setState({ holdings: nextHoldings, loading: false, error: "" });
+        const symbols = [...new Set(nextHoldings.map((holding) => holding.symbol.toUpperCase()))];
+        const nextFundamentals = await loadFundamentals(symbols);
+        if (!cancelled) setState({ holdings: nextHoldings, fundamentals: nextFundamentals, loading: false, error: "" });
       } catch (reason) {
-        if (!cancelled) setState({ holdings: [], loading: false, error: reason instanceof Error ? reason.message : "Unable to load fundamentals" });
+        if (!cancelled) setState({ holdings: [], fundamentals: [], loading: false, error: reason instanceof Error ? reason.message : "Unable to load fundamentals" });
       }
     }
 
@@ -105,6 +140,7 @@ export default function FundamentalsRisk() {
     for (const holding of sortedHoldings) totals.set(holding.sector, (totals.get(holding.sector) ?? 0) + holding.marketValueAud);
     return [...totals.entries()].sort((a, b) => b[1] - a[1]);
   }, [sortedHoldings]);
+  const fundamentalsBySymbol = useMemo(() => new Map(fundamentals.map((item) => [item.symbol.toUpperCase(), item])), [fundamentals]);
 
   return (
     <main className="shell">
@@ -130,7 +166,7 @@ export default function FundamentalsRisk() {
               ["Miner positions", loading ? "..." : String(sortedHoldings.length)],
               ["Largest position", largest ? `${largest.symbol} · ${money(largest.marketValueAud)}` : "n/a"],
               ["Largest sector", sectors[0] ? `${sectors[0][0]} · ${money(sectors[0][1])}` : "n/a"],
-              ["Data mode", "Manual ledger next"],
+              ["Saved records", loading ? "..." : String(fundamentals.length)],
             ]}
           />
         </Card>
@@ -161,7 +197,7 @@ export default function FundamentalsRisk() {
             <p className="eyebrow">Current candidates</p>
             <h2 className="cardTitle">Miner fundamentals queue</h2>
           </div>
-          <StatusBadge tone={"warning"}>
+          <StatusBadge tone="warning">
             {loading ? "Loading" : `${sortedHoldings.length} miners`}
           </StatusBadge>
         </div>
@@ -176,12 +212,15 @@ export default function FundamentalsRisk() {
                 <th className="numeric">Value A$</th>
                 <th className="numeric">Total P/L</th>
                 <th>Fundamental status</th>
-                <th>Next data</th>
+                <th>Core inputs</th>
+                <th>Risk notes</th>
               </tr>
             </thead>
             <tbody>
               {sortedHoldings.map((holding) => {
-                const status = scoreStatus(holding);
+                const saved = fundamentalsBySymbol.get(holding.symbol.toUpperCase());
+                const status = saved ? { label: "Research saved", tone: "good" as const } : scoreStatus(holding);
+                const score = averageScore(saved);
                 return (
                   <tr key={holding.id}>
                     <td>
@@ -193,10 +232,14 @@ export default function FundamentalsRisk() {
                     <td><SectorTag label={holding.sector} color={SECTOR_COLORS[holding.sector]} /></td>
                     <td className="numeric">{money(holding.marketValueAud)}<small>{holding.marketValueAud && value ? `${(holding.marketValueAud / value * 100).toFixed(1)}% miner book` : "0.0% miner book"}</small></td>
                     <td className={`numeric ${holding.pnlAud >= 0 ? "positive" : "negative"}`}>{money(holding.pnlAud)}<small>{percent(holding.pnlPercent)}</small></td>
-                    <td><StatusBadge tone={status.tone}>{status.label}</StatusBadge></td>
+                    <td><StatusBadge tone={status.tone}>{status.label}</StatusBadge><small>{score == null ? "No risk score" : `${score.toFixed(1)} / 5 avg score`}</small></td>
                     <td>
-                      <span>Production, AISC, resource oz</span>
-                      <small>Then market cap, debt, NPV and jurisdiction notes.</small>
+                      <span>AISC {numberOrDash(saved?.aiscUsdPerOz, " USD/oz")} · Resource {numberOrDash(saved?.resourceMoz, " Moz")}</span>
+                      <small>Cash {moneyOrDash(saved?.cashAud)} · Debt {moneyOrDash(saved?.debtAud)} · NPV {moneyOrDash(saved?.npvAud)}</small>
+                    </td>
+                    <td>
+                      <span>{saved?.jurisdiction ?? "Jurisdiction needed"}{saved?.primaryMetal ? ` · ${saved.primaryMetal}` : ""}</span>
+                      <small>{saved?.asOfDate ? `As of ${dateOrDash(saved.asOfDate)}` : "Production, AISC, resource oz and source date needed."}</small>
                     </td>
                   </tr>
                 );

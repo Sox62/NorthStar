@@ -209,6 +209,32 @@ export const allocationTargets = pgTable("allocation_targets", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const minerFundamentals = pgTable("miner_fundamentals", {
+  symbol: text("symbol").primaryKey(),
+  name: text("name"),
+  primaryMetal: text("primary_metal"),
+  jurisdiction: text("jurisdiction"),
+  projectStage: text("project_stage"),
+  productionOz: numeric("production_oz", { precision: 28, scale: 4 }),
+  aiscUsdPerOz: numeric("aisc_usd_per_oz", { precision: 28, scale: 4 }),
+  resourceMoz: numeric("resource_moz", { precision: 28, scale: 6 }),
+  reserveMoz: numeric("reserve_moz", { precision: 28, scale: 6 }),
+  cashAud: numeric("cash_aud", { precision: 28, scale: 2 }),
+  debtAud: numeric("debt_aud", { precision: 28, scale: 2 }),
+  marketCapAud: numeric("market_cap_aud", { precision: 28, scale: 2 }),
+  npvAud: numeric("npv_aud", { precision: 28, scale: 2 }),
+  capexAud: numeric("capex_aud", { precision: 28, scale: 2 }),
+  irrPercent: numeric("irr_percent", { precision: 18, scale: 6 }),
+  jurisdictionScore: integer("jurisdiction_score"),
+  balanceSheetScore: integer("balance_sheet_score"),
+  dilutionScore: integer("dilution_score"),
+  managementScore: integer("management_score"),
+  notes: text("notes"),
+  sourceUrl: text("source_url"),
+  asOfDate: date("as_of_date"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [index("miner_fundamentals_metal_idx").on(table.primaryMetal)]);
+
 export const authUsers = pgTable("auth_users", {
   id: uuid("id").defaultRandom().primaryKey(),
   username: text("username").notNull(),
