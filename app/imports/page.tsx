@@ -9,6 +9,13 @@ import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
 type ImportType = "ibkr" | "directshares" | "directsharesNotes" | "dividends";
 type OwnerType = "PERSONAL" | "SMSF";
 type Result = Record<string, unknown> & { error?: string; preview?: boolean; synced?: boolean; ok?: boolean };
+type IbkrConfigStatus = {
+  configured: boolean;
+  label: string | null;
+  source: string | null;
+  activity: { envKey: string; queryIdTail: string | null; token: string } | null;
+  tradeConfirmation: { envKey: string | undefined; queryIdTail: string | null } | null;
+};
 type SyncRun = DashboardData["syncRuns"][number];
 type FreshnessCheck = DashboardData["freshness"][number];
 
@@ -34,6 +41,7 @@ export default function SyncPage() {
   const [dashboardError, setDashboardError] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<Result | undefined>();
+  const [ibkrConfig, setIbkrConfig] = useState<IbkrConfigStatus | null>(null);
   const [directsharesSyncing, setDirectsharesSyncing] = useState(false);
   const [directsharesSyncResult, setDirectsharesSyncResult] = useState<Result | undefined>();
   const [dividendSyncing, setDividendSyncing] = useState(false);
@@ -56,6 +64,17 @@ export default function SyncPage() {
   useEffect(() => {
     void refreshDashboard();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadIbkrConfig() {
+      const response = await fetch(`/api/sync/ibkr/config?owner=${owners.ibkr}`, { cache: "no-store" });
+      const payload = await response.json();
+      if (!cancelled) setIbkrConfig(payload);
+    }
+    void loadIbkrConfig().catch(() => { if (!cancelled) setIbkrConfig(null); });
+    return () => { cancelled = true; };
+  }, [owners.ibkr]);
 
   const send = async (type: ImportType, commit: boolean) => {
     const selectedFiles = files[type] ?? [];
@@ -170,6 +189,7 @@ export default function SyncPage() {
               <option value="SMSF">SMSF</option>
             </select>
           </label>
+          <IbkrConfigPanel config={ibkrConfig} />
         </div>
         <div>
           <button className="primary" type="button" onClick={syncIbkr} disabled={syncing}>
@@ -300,6 +320,27 @@ export default function SyncPage() {
         onRefresh={() => void refreshDashboard()}
       />
     </main>
+  );
+}
+
+function IbkrConfigPanel({ config }: { config: IbkrConfigStatus | null }) {
+  if (!config) return <p className="ibkrConfigHint">Checking Railway Flex variables...</p>;
+  if (!config.configured) return <Notice tone="error" title="IBKR Flex not configured">No Activity Flex query is configured for this owner.</Notice>;
+  const sameTail = config.activity?.queryIdTail && config.activity.queryIdTail === config.tradeConfirmation?.queryIdTail;
+  return (
+    <div className={`ibkrConfigPanel${sameTail ? " hasWarning" : ""}`}>
+      <div>
+        <span>Activity Flex</span>
+        <strong>{config.activity?.envKey ?? "Missing"}</strong>
+        <em>{config.activity?.queryIdTail ? `ending ${config.activity.queryIdTail}` : "No query ID"} · token {config.activity?.token ?? "missing"}</em>
+      </div>
+      <div>
+        <span>Trade confirmations</span>
+        <strong>{config.tradeConfirmation?.envKey ?? "Optional"}</strong>
+        <em>{config.tradeConfirmation?.queryIdTail ? `ending ${config.tradeConfirmation.queryIdTail}` : "No trade-confirm query"}</em>
+      </div>
+      {sameTail ? <p>Activity and Trade Confirmation query IDs appear to be the same. Activity must be the Activity Statement query, not the TCF query.</p> : null}
+    </div>
   );
 }
 

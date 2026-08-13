@@ -2281,3 +2281,16 @@ button:disabled { opacity: .55; cursor: wait; }
   .mandateRow strong,
   .mandateSource > em { max-width: none; text-align: left; }
 }
+
+.ibkrConfigHint { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+.ibkrConfigPanel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.ibkrConfigPanel div { padding: 10px; border: 1px solid rgba(106,130,153,.20); border-radius: 12px; background: rgba(8,18,28,.42); }
+.ibkrConfigPanel span,
+.ibkrConfigPanel em { display: block; color: var(--muted); font-size: 11px; font-style: normal; }
+.ibkrConfigPanel strong { display: block; margin: 4px 0; color: var(--text); font-size: 12px; }
+.ibkrConfigPanel.hasWarning div { border-color: rgba(243,195,107,.38); }
+.ibkrConfigPanel p { grid-column: 1 / -1; margin: 0; color: var(--status-warning); font-size: 12px; }
+
+@media (max-width: 760px) {
+  .ibkrConfigPanel { grid-template-columns: 1fr; }
+}
