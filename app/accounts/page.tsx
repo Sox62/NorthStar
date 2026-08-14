@@ -9,20 +9,24 @@ async function loadAccount(scope: "personal" | "smsf") {
 }
 
 export default async function AccountsPage() {
-  const accounts = await Promise.all([loadAccount("personal"), loadAccount("smsf")]);
+  const storage = getStorage();
+  const [accounts, openOrders] = await Promise.all([
+    Promise.all([loadAccount("personal"), loadAccount("smsf")]),
+    storage.listOpenOrders(),
+  ]);
 
   return (
     <main className="shell">
       <PageHeader
         title="Accounts & mandates"
-        description="Read-only legal-book boundaries, broker books and feed responsibilities for Personal and SMSF capital."
+        description="Legal-book boundaries, broker books, feed responsibilities and deployable-capital policy for Personal and SMSF capital."
         links={[
           { href: "/holdings", label: "Capital" },
           { href: "/cash", label: "External cash" },
           { href: "/sync", label: "Imports" },
         ]}
       />
-      <AccountsMandates accounts={accounts} />
+      <AccountsMandates accounts={accounts} openOrders={openOrders} />
     </main>
   );
 }

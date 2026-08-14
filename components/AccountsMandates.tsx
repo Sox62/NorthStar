@@ -1,4 +1,5 @@
-import type { DashboardData, DashboardHolding, SyncRun, ValuationFreshness } from "@/lib/storage";
+import { buildCapitalPolicySummary } from "@/lib/capital-policy";
+import type { DashboardData, DashboardHolding, StoredOpenOrder, SyncRun, ValuationFreshness } from "@/lib/storage";
 import { Card, StatusBadge } from "@/northstar/components";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
 
@@ -76,7 +77,7 @@ function sourceStatus(account: MandateAccount, source: string) {
   return { label, detail, asOf };
 }
 
-export default function AccountsMandates({ accounts }: { accounts: MandateAccount[] }) {
+export default function AccountsMandates({ accounts, openOrders }: { accounts: MandateAccount[]; openOrders: StoredOpenOrder[] }) {
   return (
     <section className="mandatesGrid" aria-label="Accounts and mandates">
       {accounts.map((account) => {
@@ -84,6 +85,10 @@ export default function AccountsMandates({ accounts }: { accounts: MandateAccoun
         const ibkr = sourceStatus(account, "ibkr");
         const directshares = sourceStatus(account, "directshares");
         const market = sourceStatus(account, "market");
+        const policy = buildCapitalPolicySummary(account, openOrders);
+        const foreignOrderNote = policy.foreignOpenBuyCount
+          ? `${policy.foreignOpenBuyCount} foreign order${policy.foreignOpenBuyCount === 1 ? "" : "s"} flagged separately pending explicit FX`
+          : "AUD-denominated open buys only";
         return (
           <Card className="mandateCard" key={account.scope}>
             <div className="mandateHeader">
@@ -101,6 +106,29 @@ export default function AccountsMandates({ accounts }: { accounts: MandateAccoun
               <div><dt>Cash</dt><dd>{money(account.cashValue)}</dd></div>
               <div><dt>Updated</dt><dd>{dateLabel(account.lastUpdated)}</dd></div>
             </dl>
+
+            <div className="mandateSection">
+              <h3>Capital policy</h3>
+              <div className="mandateSource">
+                <div>
+                  <strong>{policy.role}</strong>
+                  <span>{policy.mandate}</span>
+                </div>
+                <em className={policy.status === "deployable" ? "is-good" : "is-warning"}>{policy.status === "deployable" ? "deployable" : "floor active"}</em>
+              </div>
+              <div className="mandateRow">
+                <span>Liquidity floor<em>{policy.protectedCapitalNote}</em></span>
+                <strong>{money(policy.liquidityFloorAud)}</strong>
+              </div>
+              <div className="mandateRow">
+                <span>Open buy commitments<em>{foreignOrderNote}</em></span>
+                <strong>{money(policy.openBuyCommitmentAud)}</strong>
+              </div>
+              <div className="mandateRow">
+                <span>Deployable cash<em>{policy.deploymentPriority}</em></span>
+                <strong>{money(policy.deployableCashAud)}</strong>
+              </div>
+            </div>
 
             <div className="mandateSection">
               <h3>Broker books</h3>
