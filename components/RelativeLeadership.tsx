@@ -574,8 +574,6 @@ export default function RelativeLeadership() {
           </div>
 
           {operationMessage ? <p className="relativeMessage">{operationMessage}</p> : null}
-          {ratioTvExpression ? <p className="relativeMessage">TV ratio expression: {ratioTvExpression}. TradingView may reject some formula symbols; use the individual TV buttons if it opens a search or unknown symbol.</p> : null}
-
           <div className="relativeControls">
             <div className="scopeSwitch" role="tablist" aria-label="Comparison scope">
               {scopes.map((item) => (
