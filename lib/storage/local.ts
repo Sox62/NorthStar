@@ -22,6 +22,8 @@ import type {
   ManualAsset,
   MinerFundamentals,
   MinerFundamentalsInput,
+  StructuralLevel,
+  StructuralLevelInput,
   NewSyncRun,
   OwnerType,
   DailyPriceInput,
@@ -40,7 +42,7 @@ import type {
 } from "./types";
 
 const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".north-star", "data.json");
-const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), minerFundamentals: [], imports: [] };
+const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), minerFundamentals: [], structuralLevels: [], imports: [] };
 
 function normalisePhysicalMetalType(value: unknown) {
   return value === "GOLD" || value === "SILVER" || value === "PLATINUM" || value === "PALLADIUM" ? value : "PLATINUM";
@@ -59,6 +61,7 @@ async function readStore(): Promise<LocalStore> {
         syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
         allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
         minerFundamentals: (parsed.minerFundamentals as MinerFundamentals[] | undefined) ?? [],
+        structuralLevels: (parsed.structuralLevels as StructuralLevel[] | undefined) ?? [],
       };
     }
     if (parsed.version === 5) {
@@ -72,6 +75,7 @@ async function readStore(): Promise<LocalStore> {
         syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
         allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
         minerFundamentals: (parsed.minerFundamentals as MinerFundamentals[] | undefined) ?? [],
+        structuralLevels: (parsed.structuralLevels as StructuralLevel[] | undefined) ?? [],
       };
     }
     if (parsed.version === 4) {
@@ -85,6 +89,7 @@ async function readStore(): Promise<LocalStore> {
         syncRuns: [],
         allocationTargets: defaultAllocationTargets(),
         minerFundamentals: [],
+        structuralLevels: [],
       };
     }
     if (parsed.version === 3) {
@@ -106,10 +111,10 @@ async function readStore(): Promise<LocalStore> {
           priceRetrievedAt: String(asset.updatedAt ?? new Date().toISOString()), updatedAt: String(asset.updatedAt ?? new Date().toISOString()),
         };
       });
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets, platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), minerFundamentals: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets, platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), minerFundamentals: [], structuralLevels: [] };
     }
     if (parsed.version === 2) {
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets: [], platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), minerFundamentals: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets: [], platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), minerFundamentals: [], structuralLevels: [] };
     }
     return structuredClone(EMPTY);
   } catch (error) {
@@ -707,6 +712,36 @@ export class LocalStorageAdapter implements StorageAdapter {
     if (existing) Object.assign(existing, record); else store.minerFundamentals.push(record);
     await writeStore(store);
     return record;
+  }
+
+  async listStructuralLevels(symbols?: string[]): Promise<StructuralLevel[]> {
+    const store = await readStore();
+    const requested = symbols?.map(normaliseSymbol).filter(Boolean) ?? [];
+    return [...store.structuralLevels]
+      .filter((item) => !requested.length || requested.includes(normaliseSymbol(item.symbol)) || requested.includes(normaliseSymbol(item.comparisonSymbol)))
+      .sort((a, b) => normaliseSymbol(a.symbol).localeCompare(normaliseSymbol(b.symbol)) || a.timeframe.localeCompare(b.timeframe) || a.level - b.level);
+  }
+
+  async upsertStructuralLevel(input: StructuralLevelInput): Promise<StructuralLevel> {
+    const store = await readStore();
+    const now = new Date().toISOString();
+    const record: StructuralLevel = {
+      ...input,
+      id: input.id ?? randomUUID(),
+      symbol: normaliseSymbol(input.symbol),
+      comparisonSymbol: normaliseSymbol(input.comparisonSymbol),
+      updatedAt: now,
+    };
+    const existing = store.structuralLevels.find((item) => item.id === record.id);
+    if (existing) Object.assign(existing, record); else store.structuralLevels.push(record);
+    await writeStore(store);
+    return record;
+  }
+
+  async deleteStructuralLevel(id: string): Promise<void> {
+    const store = await readStore();
+    store.structuralLevels = store.structuralLevels.filter((item) => item.id !== id);
+    await writeStore(store);
   }
 
   async dashboard(scope: Scope) { return dashboardFromStore(await readStore(), scope); }

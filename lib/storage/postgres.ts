@@ -6,7 +6,7 @@ import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northsta
 import { classifyAsset } from "./classify";
 import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
-import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, MinerFundamentals, MinerFundamentalsInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, Scope, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
+import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, Scope, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 const optionalNumber = (value: unknown) => value == null ? undefined : Number(value);
 
@@ -229,6 +229,23 @@ async function upsertIbkrCash(client: PoolClient, report: IbkrFlexReport, portfo
   for (const cash of components) {
     await writeIbkrCashAccount(client, portfolioId, ibkrCashAccountName(report, cash, "component"), cash, false);
   }
+}
+
+function structuralLevelFromRow(row: Record<string, unknown>): StructuralLevel {
+  return {
+    id: String(row.id),
+    symbol: String(row.symbol),
+    comparisonSymbol: String(row.comparison_symbol),
+    label: String(row.label),
+    timeframe: String(row.timeframe) as StructuralLevel["timeframe"],
+    direction: String(row.direction) as StructuralLevel["direction"],
+    level: numberValue(row.level),
+    status: String(row.status) as StructuralLevel["status"],
+    source: row.source == null ? null : String(row.source),
+    notes: row.notes == null ? null : String(row.notes),
+    asOfDate: row.as_of_date == null ? null : String(row.as_of_date),
+    updatedAt: new Date(String(row.updated_at)).toISOString(),
+  };
 }
 
 function minerFundamentalsFromRow(row: Record<string, unknown>): MinerFundamentals {
@@ -768,6 +785,40 @@ export class PostgresStorageAdapter implements StorageAdapter {
       input.balanceSheetScore, input.dilutionScore, input.managementScore, input.notes, input.sourceUrl, input.asOfDate,
     ]);
     return minerFundamentalsFromRow(result.rows[0]);
+  }
+
+  async listStructuralLevels(symbols?: string[]): Promise<StructuralLevel[]> {
+    const requested = symbols?.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean) ?? [];
+    const result = await getPool().query(`
+      SELECT id::text,symbol,comparison_symbol,label,timeframe,direction,level,status,source,notes,as_of_date::text,updated_at::text
+      FROM structural_levels
+      WHERE $1::text[] = '{}'::text[] OR symbol = ANY($1::text[]) OR comparison_symbol = ANY($1::text[])
+      ORDER BY symbol,timeframe,level
+    `, [requested]).catch((error: unknown) => {
+      if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "42P01") return null;
+      throw error;
+    });
+    return result ? result.rows.map(structuralLevelFromRow) : [];
+  }
+
+  async upsertStructuralLevel(input: StructuralLevelInput): Promise<StructuralLevel> {
+    const result = await getPool().query(`
+      INSERT INTO structural_levels (id,symbol,comparison_symbol,label,timeframe,direction,level,status,source,notes,as_of_date,updated_at)
+      VALUES (COALESCE($1::uuid, gen_random_uuid()),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        symbol=EXCLUDED.symbol,comparison_symbol=EXCLUDED.comparison_symbol,label=EXCLUDED.label,
+        timeframe=EXCLUDED.timeframe,direction=EXCLUDED.direction,level=EXCLUDED.level,status=EXCLUDED.status,
+        source=EXCLUDED.source,notes=EXCLUDED.notes,as_of_date=EXCLUDED.as_of_date,updated_at=NOW()
+      RETURNING id::text,symbol,comparison_symbol,label,timeframe,direction,level,status,source,notes,as_of_date::text,updated_at::text
+    `, [
+      input.id ?? null, input.symbol.trim().toUpperCase(), input.comparisonSymbol.trim().toUpperCase(), input.label.trim(),
+      input.timeframe, input.direction, input.level, input.status, input.source, input.notes, input.asOfDate,
+    ]);
+    return structuralLevelFromRow(result.rows[0]);
+  }
+
+  async deleteStructuralLevel(id: string): Promise<void> {
+    await getPool().query(`DELETE FROM structural_levels WHERE id=$1`, [id]);
   }
 
   async dashboard(scope: Scope): Promise<DashboardData> {

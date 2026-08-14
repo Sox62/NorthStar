@@ -90,6 +90,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "NAV history", status: "shipped", detail: "Overview chart is wired to portfolio snapshots for Overall, Personal and SMSF views." },
       { title: "Period returns", status: "shipped", detail: "Dashboard shows daily, MTD, YTD and since-inception NAV movement from snapshots." },
       { title: "Exposure analysis", status: "shipped", detail: "Currency, commodity and allocation drift are live; allocation targets can be edited and are used in dashboard and CSV exports." },
+      { title: "Structural memory", status: "shipped", detail: "Relative leadership can store manual support/resistance levels with timeframe, status, source and notes for each ratio pair." },
       { title: "Tax position", status: "shipped", detail: "FIFO realised CGT, unrealised CGT, dividend income, franking credits and withholding tax are exported for the Personal tax pack." },
     ],
   },

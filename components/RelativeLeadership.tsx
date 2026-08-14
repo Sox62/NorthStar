@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/PageHeader";
-import type { DashboardData, DashboardHolding, OwnerType, Scope, StoredDailyPrice, StoredFxRate } from "@/lib/storage";
+import type { DashboardData, DashboardHolding, OwnerType, Scope, StoredDailyPrice, StoredFxRate, StructuralLevel } from "@/lib/storage";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
 import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, RATIO_RANGES, type RatioPoint, type RatioRangeKey } from "@/northstar/lib/ratio-engine";
@@ -14,6 +14,20 @@ type PriceBookResponse = {
   prices?: StoredDailyPrice[];
   fxRates?: StoredFxRate[];
   error?: string;
+};
+type StructuralLevelsResponse = { levels?: StructuralLevel[]; error?: string };
+type StructuralLevelForm = {
+  id: string;
+  symbol: string;
+  comparisonSymbol: string;
+  label: string;
+  timeframe: StructuralLevel["timeframe"];
+  direction: StructuralLevel["direction"];
+  level: string;
+  status: StructuralLevel["status"];
+  source: string;
+  notes: string;
+  asOfDate: string;
 };
 type RatioMode = "ratio" | "indexed";
 type RangeKey = Extract<RatioRangeKey, "all" | "6m" | "3m" | "1m">;
@@ -30,6 +44,19 @@ const money = (value: number) =>
   new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value);
 
 const BENCHMARK_OWNER: OwnerType = "PERSONAL";
+const structuralBlank: StructuralLevelForm = {
+  id: "",
+  symbol: "",
+  comparisonSymbol: "GOLD",
+  label: "Major structural level",
+  timeframe: "monthly",
+  direction: "resistance",
+  level: "",
+  status: "watching",
+  source: "",
+  notes: "",
+  asOfDate: "",
+};
 
 const localPrice = (value: number, currency: string) =>
   `${currency} ${value.toLocaleString("en-AU", {
@@ -58,6 +85,14 @@ async function loadStoredPrices(): Promise<{ prices: StoredDailyPrice[]; fxRates
   const payload = await response.json() as PriceBookResponse;
   if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load stored prices");
   return { prices: payload.prices ?? [], fxRates: payload.fxRates ?? [] };
+}
+
+async function loadStructuralLevels(symbols: string[]): Promise<StructuralLevel[]> {
+  const query = symbols.filter(Boolean).map((symbol) => symbol.toUpperCase()).join(",");
+  const response = await fetch("/api/structural-levels" + (query ? "?symbols=" + encodeURIComponent(query) : ""), { cache: "no-store" });
+  const payload = await response.json() as StructuralLevelsResponse;
+  if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load structural levels");
+  return payload.levels ?? [];
 }
 
 function historyForHolding(prices: StoredDailyPrice[], fxRates: StoredFxRate[], holding: DashboardHolding) {
@@ -254,6 +289,9 @@ export default function RelativeLeadership() {
   const [backfillBusy, setBackfillBusy] = useState(false);
   const [operationMessage, setOperationMessage] = useState("");
   const [copiedRatio, setCopiedRatio] = useState(false);
+  const [structuralLevels, setStructuralLevels] = useState<StructuralLevel[]>([]);
+  const [structuralForm, setStructuralForm] = useState<StructuralLevelForm>(structuralBlank);
+  const [structuralBusy, setStructuralBusy] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -318,6 +356,93 @@ export default function RelativeLeadership() {
   const rightTv = rightTvSymbol ? tradingViewChartUrl(rightTvSymbol) : "";
   const ratioTvExpression = leftTvSymbol && rightTvSymbol ? tradingViewRatioExpression(leftTvSymbol, rightTvSymbol) : "";
   const ratioTv = ratioTvExpression ? tradingViewRatioChartUrl(leftTvSymbol, rightTvSymbol) : "";
+  const currentPairSymbols = [left?.symbol, right?.symbol].filter(Boolean) as string[];
+  const pairStructuralLevels = structuralLevels.filter((level) => currentPairSymbols.includes(level.symbol) || currentPairSymbols.includes(level.comparisonSymbol));
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadLevelsForPair() {
+      if (!left || !right) return;
+      try {
+        const levels = await loadStructuralLevels([left.symbol, right.symbol]);
+        if (!cancelled) setStructuralLevels(levels);
+      } catch (reason) {
+        if (!cancelled) setOperationMessage(reason instanceof Error ? reason.message : "Unable to load structural memory");
+      }
+    }
+    void loadLevelsForPair();
+    return () => { cancelled = true; };
+  }, [left?.symbol, right?.symbol]);
+
+  const useCurrentPairForStructuralLevel = () => {
+    if (!left || !right) return;
+    setStructuralForm({ ...structuralBlank, symbol: left.symbol, comparisonSymbol: right.symbol, label: `${left.symbol}/${right.symbol} structural level` });
+  };
+
+  const saveStructuralLevel = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!left || !right) return;
+    setStructuralBusy(true);
+    setOperationMessage("");
+    try {
+      const response = await fetch("/api/structural-levels", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...structuralForm,
+          id: structuralForm.id || undefined,
+          symbol: (structuralForm.symbol || left.symbol).toUpperCase(),
+          comparisonSymbol: (structuralForm.comparisonSymbol || right.symbol).toUpperCase(),
+          level: Number(structuralForm.level),
+          source: structuralForm.source || null,
+          notes: structuralForm.notes || null,
+          asOfDate: structuralForm.asOfDate || null,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok || payload.error) throw new Error(payload.error || "Unable to save structural level");
+      setStructuralLevels(await loadStructuralLevels([left.symbol, right.symbol]));
+      setStructuralForm(structuralBlank);
+      setOperationMessage("Structural level saved.");
+    } catch (reason) {
+      setOperationMessage(reason instanceof Error ? reason.message : "Unable to save structural level");
+    } finally {
+      setStructuralBusy(false);
+    }
+  };
+
+  const editStructuralLevel = (level: StructuralLevel) => {
+    setStructuralForm({
+      id: level.id,
+      symbol: level.symbol,
+      comparisonSymbol: level.comparisonSymbol,
+      label: level.label,
+      timeframe: level.timeframe,
+      direction: level.direction,
+      level: String(level.level),
+      status: level.status,
+      source: level.source ?? "",
+      notes: level.notes ?? "",
+      asOfDate: level.asOfDate ?? "",
+    });
+  };
+
+  const deleteStructuralLevel = async (level: StructuralLevel) => {
+    if (!window.confirm(`Delete structural level ${level.label}?`)) return;
+    setStructuralBusy(true);
+    try {
+      const response = await fetch(`/api/structural-levels?id=${encodeURIComponent(level.id)}`, { method: "DELETE" });
+      const payload = await response.json();
+      if (!response.ok || payload.error) throw new Error(payload.error || "Unable to delete structural level");
+      if (left && right) setStructuralLevels(await loadStructuralLevels([left.symbol, right.symbol]));
+      if (structuralForm.id === level.id) setStructuralForm(structuralBlank);
+      setOperationMessage("Structural level deleted.");
+    } catch (reason) {
+      setOperationMessage(reason instanceof Error ? reason.message : "Unable to delete structural level");
+    } finally {
+      setStructuralBusy(false);
+    }
+  };
 
   const copyRatioExpression = async () => {
     if (!ratioTvExpression) return;
@@ -491,6 +616,52 @@ export default function RelativeLeadership() {
               <span>NorthStar has fewer than two usable comparison dates. Use Backfill 1Y or choose another pair.</span>
             </div>
           )}
+
+          <div className="relativeStructurePanel">
+            <div className="relativeStructureHeader">
+              <div>
+                <p className="eyebrow">Structural memory</p>
+                <h3>{left.symbol}/{right.symbol} levels</h3>
+              </div>
+              <button className="button" type="button" onClick={useCurrentPairForStructuralLevel}>Use current pair</button>
+            </div>
+            {pairStructuralLevels.length ? (
+              <div className="relativeStructureList">
+                {pairStructuralLevels.map((level) => (
+                  <div className="relativeStructureRow" key={level.id}>
+                    <div>
+                      <strong>{level.label}</strong>
+                      <span>{level.symbol}/{level.comparisonSymbol} · {level.timeframe} · {level.direction} · {level.status.replace("_", " ")}</span>
+                      {level.notes ? <em>{level.notes}</em> : null}
+                    </div>
+                    <div>
+                      <strong>{level.level.toLocaleString("en-AU", { maximumFractionDigits: 4 })}</strong>
+                      <button type="button" onClick={() => editStructuralLevel(level)}>Edit</button>
+                      <button type="button" onClick={() => void deleteStructuralLevel(level)} disabled={structuralBusy}>Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="relativeMessage">No stored structural levels for this pair yet.</p>
+            )}
+            <form className="relativeStructureForm" onSubmit={saveStructuralLevel}>
+              <label><span>Symbol</span><input value={structuralForm.symbol} onChange={(event) => setStructuralForm({ ...structuralForm, symbol: event.target.value.toUpperCase() })} placeholder={left.symbol} /></label>
+              <label><span>Versus</span><input value={structuralForm.comparisonSymbol} onChange={(event) => setStructuralForm({ ...structuralForm, comparisonSymbol: event.target.value.toUpperCase() })} placeholder={right.symbol} /></label>
+              <label><span>Label</span><input value={structuralForm.label} onChange={(event) => setStructuralForm({ ...structuralForm, label: event.target.value })} required /></label>
+              <label><span>Level</span><input type="number" min="0" step="0.0001" value={structuralForm.level} onChange={(event) => setStructuralForm({ ...structuralForm, level: event.target.value })} required /></label>
+              <label><span>Timeframe</span><select value={structuralForm.timeframe} onChange={(event) => setStructuralForm({ ...structuralForm, timeframe: event.target.value as StructuralLevel["timeframe"] })}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="secular">Secular</option></select></label>
+              <label><span>Type</span><select value={structuralForm.direction} onChange={(event) => setStructuralForm({ ...structuralForm, direction: event.target.value as StructuralLevel["direction"] })}><option value="resistance">Resistance</option><option value="support">Support</option></select></label>
+              <label><span>Status</span><select value={structuralForm.status} onChange={(event) => setStructuralForm({ ...structuralForm, status: event.target.value as StructuralLevel["status"] })}><option value="watching">Watching</option><option value="broken">Broken</option><option value="retest_held">Retest held</option><option value="failed">Failed</option><option value="invalidated">Invalidated</option></select></label>
+              <label><span>As of</span><input type="date" value={structuralForm.asOfDate} onChange={(event) => setStructuralForm({ ...structuralForm, asOfDate: event.target.value })} /></label>
+              <label className="isWide"><span>Source</span><input value={structuralForm.source} onChange={(event) => setStructuralForm({ ...structuralForm, source: event.target.value })} placeholder="Chart note, newsletter, manual level" /></label>
+              <label className="isWide"><span>Notes</span><textarea value={structuralForm.notes} onChange={(event) => setStructuralForm({ ...structuralForm, notes: event.target.value })} rows={3} /></label>
+              <div className="buttonRow">
+                <button className="primary" type="submit" disabled={structuralBusy}>{structuralForm.id ? "Update level" : "Save level"}</button>
+                {structuralForm.id ? <button type="button" onClick={() => setStructuralForm(structuralBlank)}>Cancel</button> : null}
+              </div>
+            </form>
+          </div>
         </Card>
       ) : (
         <Card><p className="empty">No chartable holdings are available.</p></Card>

@@ -2715,3 +2715,101 @@ button:disabled { opacity: .55; cursor: wait; }
     grid-template-columns: 1fr;
   }
 }
+
+.relativeStructurePanel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.relativeStructureHeader,
+.relativeStructureRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.relativeStructureHeader h3 {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-size: 18px;
+}
+.relativeStructureList {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+.relativeStructureRow {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(2, 9, 18, 0.34);
+}
+.relativeStructureRow > div:first-child,
+.relativeStructureRow > div:last-child {
+  display: grid;
+  gap: 5px;
+}
+.relativeStructureRow span,
+.relativeStructureRow em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+.relativeStructureRow > div:last-child {
+  justify-items: end;
+  min-width: 150px;
+}
+.relativeStructureRow button {
+  min-height: 28px;
+  padding: 5px 10px;
+}
+.relativeStructureForm {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.relativeStructureForm label {
+  display: grid;
+  gap: 5px;
+}
+.relativeStructureForm label span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.relativeStructureForm input,
+.relativeStructureForm select,
+.relativeStructureForm textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(2, 9, 18, 0.52);
+  color: var(--text);
+  padding: 10px 11px;
+}
+.relativeStructureForm textarea {
+  resize: vertical;
+}
+.relativeStructureForm .isWide,
+.relativeStructureForm .buttonRow {
+  grid-column: span 2;
+}
+@media (max-width: 900px) {
+  .relativeStructureHeader,
+  .relativeStructureRow {
+    display: grid;
+  }
+  .relativeStructureRow > div:last-child {
+    justify-items: start;
+  }
+  .relativeStructureForm {
+    grid-template-columns: 1fr;
+  }
+  .relativeStructureForm .isWide,
+  .relativeStructureForm .buttonRow {
+    grid-column: auto;
+  }
+}

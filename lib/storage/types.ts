@@ -318,6 +318,27 @@ export type MinerFundamentals = {
 
 export type MinerFundamentalsInput = Omit<MinerFundamentals, "updatedAt">;
 
+export type StructuralLevelStatus = "watching" | "broken" | "retest_held" | "failed" | "invalidated";
+export type StructuralLevelDirection = "support" | "resistance";
+export type StructuralLevelTimeframe = "daily" | "weekly" | "monthly" | "secular";
+
+export type StructuralLevel = {
+  id: string;
+  symbol: string;
+  comparisonSymbol: string;
+  label: string;
+  timeframe: StructuralLevelTimeframe;
+  direction: StructuralLevelDirection;
+  level: number;
+  status: StructuralLevelStatus;
+  source: string | null;
+  notes: string | null;
+  asOfDate: string | null;
+  updatedAt: string;
+};
+
+export type StructuralLevelInput = Omit<StructuralLevel, "id" | "updatedAt"> & { id?: string };
+
 export type LocalStore = {
   version: 6;
   transactions: StoredTransaction[];
@@ -332,6 +353,7 @@ export type LocalStore = {
   syncRuns: SyncRun[];
   allocationTargets: AllocationTarget[];
   minerFundamentals: MinerFundamentals[];
+  structuralLevels: StructuralLevel[];
   imports: Array<{
     id: string;
     source: string;
@@ -404,5 +426,8 @@ export interface StorageAdapter {
   upsertAllocationTargets(targets: Array<Omit<AllocationTarget, "updatedAt">>): Promise<AllocationTarget[]>;
   listMinerFundamentals(symbols?: string[]): Promise<MinerFundamentals[]>;
   upsertMinerFundamentals(input: MinerFundamentalsInput): Promise<MinerFundamentals>;
+  listStructuralLevels(symbols?: string[]): Promise<StructuralLevel[]>;
+  upsertStructuralLevel(input: StructuralLevelInput): Promise<StructuralLevel>;
+  deleteStructuralLevel(id: string): Promise<void>;
   dashboard(scope: Scope): Promise<DashboardData>;
 }

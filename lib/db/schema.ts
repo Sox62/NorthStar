@@ -235,6 +235,24 @@ export const minerFundamentals = pgTable("miner_fundamentals", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, table => [index("miner_fundamentals_metal_idx").on(table.primaryMetal)]);
 
+export const structuralLevels = pgTable("structural_levels", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  symbol: text("symbol").notNull(),
+  comparisonSymbol: text("comparison_symbol").notNull(),
+  label: text("label").notNull(),
+  timeframe: text("timeframe").notNull(),
+  direction: text("direction").notNull(),
+  level: numeric("level", { precision: 28, scale: 10 }).notNull(),
+  status: text("status").notNull(),
+  source: text("source"),
+  notes: text("notes"),
+  asOfDate: date("as_of_date"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  index("structural_levels_symbol_idx").on(table.symbol),
+  index("structural_levels_pair_idx").on(table.symbol, table.comparisonSymbol),
+]);
+
 export const authUsers = pgTable("auth_users", {
   id: uuid("id").defaultRandom().primaryKey(),
   username: text("username").notNull(),
