@@ -5,7 +5,7 @@ import PageHeader from "@/components/PageHeader";
 import type { DashboardData, DashboardHolding, OwnerType, Scope, StoredDailyPrice, StoredFxRate, StructuralLevel } from "@/lib/storage";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
-import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, RATIO_RANGES, type RatioPoint, type RatioRangeKey } from "@/northstar/lib/ratio-engine";
+import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, RATIO_RANGES, type RatioPoint, type RatioRangeKey, type RelativeReturnWindow } from "@/northstar/lib/ratio-engine";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
 import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
 
@@ -30,7 +30,7 @@ type StructuralLevelForm = {
   asOfDate: string;
 };
 type RatioMode = "ratio" | "indexed";
-type RangeKey = Extract<RatioRangeKey, "all" | "6m" | "3m" | "1m">;
+type RangeKey = Extract<RatioRangeKey, "all" | "12m" | "6m" | "3m" | "1m">;
 
 const scopes: Array<{ key: Scope; label: string }> = [
   { key: "overall", label: "Overall" },
@@ -38,7 +38,8 @@ const scopes: Array<{ key: Scope; label: string }> = [
   { key: "smsf", label: "SMSF" },
 ];
 
-const ranges: Array<{ key: RangeKey; label: string; days: number | null }> = RATIO_RANGES.filter((item) => ["all", "6m", "3m", "1m"].includes(item.key)) as Array<{ key: RangeKey; label: string; days: number | null }>;
+const ranges: Array<{ key: RangeKey; label: string; days: number | null }> = RATIO_RANGES.filter((item) => ["all", "12m", "6m", "3m", "1m"].includes(item.key)) as Array<{ key: RangeKey; label: string; days: number | null }>;
+const evidenceRanges = RATIO_RANGES.filter((item) => ["1m", "3m", "6m", "12m", "3y", "5y"].includes(item.key));
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value);
@@ -66,6 +67,9 @@ const localPrice = (value: number, currency: string) =>
 
 const percent = (value: number) =>
   `${value >= 0 ? "+" : ""}${value.toLocaleString("en-AU", { maximumFractionDigits: 1 })}%`;
+
+const periodPercent = (value: number | null) => value == null ? "n/a" : percent(value);
+const periodTone = (value: number | null) => value == null ? "isMuted" : value >= 0 ? "isPositive" : "isNegative";
 
 const dateLabel = (value: string) => {
   const date = new Date(`${value}T12:00:00Z`);
@@ -275,6 +279,19 @@ function RatioChart({ series, mode, left, right }: { series: RatioPoint[]; mode:
   );
 }
 
+function RelativePeriodCell({ window, left, right }: { window: RelativeReturnWindow; left: string; right: string }) {
+  const enoughData = window.points >= 2 && window.ratioReturnPercent != null;
+  const detail = enoughData
+    ? window.points + " closes · " + left + " " + periodPercent(window.leftReturnPercent) + " / " + right + " " + periodPercent(window.rightReturnPercent)
+    : "Not enough overlap";
+  return (
+    <div className="relativePeriodCell">
+      <span>{window.label}</span>
+      <strong className={periodTone(window.ratioReturnPercent)}>{periodPercent(window.ratioReturnPercent)}</strong>
+      <em>{detail}</em>
+    </div>
+  );
+}
 export default function RelativeLeadership() {
   const [dashboards, setDashboards] = useState<DashboardMap>({});
   const [prices, setPrices] = useState<StoredDailyPrice[]>([]);
@@ -345,6 +362,7 @@ export default function RelativeLeadership() {
   const rightHistory = historyForComparison(prices, fxRates, selectedBenchmark ? null : right, selectedBenchmark);
   const fullSeries = left && right ? buildRatioSeries(leftHistory, rightHistory) : [];
   const series = applyRatioRange(fullSeries, range);
+  const evidenceWindows = useMemo(() => relativeReturnWindows(fullSeries, evidenceRanges), [fullSeries]);
   const first = series[0];
   const last = series.at(-1);
   const ratioChange = first && last ? last.ratio / first.ratio * 100 - 100 : 0;
@@ -607,6 +625,18 @@ export default function RelativeLeadership() {
               ["Shared closes", series.length],
             ]}
           />
+
+          <div className="relativePeriodEvidence" aria-label="Relative return evidence by period">
+            <div className="relativePeriodHeader">
+              <p className="eyebrow">Period evidence</p>
+              <span>AUD-adjusted ratio return. Positive means {left.symbol} outperformed {right.symbol}.</span>
+            </div>
+            <div className="relativePeriodGrid">
+              {evidenceWindows.map((window) => (
+                <RelativePeriodCell key={window.key} window={window} left={left.symbol} right={right.symbol} />
+              ))}
+            </div>
+          </div>
 
           {series.length >= 2 ? (
             <RatioChart series={series} mode={mode} left={left} right={right} />

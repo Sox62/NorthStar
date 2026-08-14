@@ -103,6 +103,8 @@ test("applyRatioRange and relativeReturnWindows calculate period returns", () =>
   assert.equal(applyRatioRange(series, "1m").length, 2);
   const windows = relativeReturnWindows(series);
   closeTo(windows.find((window) => window.key === "all")?.ratioReturnPercent, 50);
+  closeTo(windows.find((window) => window.key === "5y")?.ratioReturnPercent, 50);
+  closeTo(windows.find((window) => window.key === "3y")?.ratioReturnPercent, 50);
   closeTo(windows.find((window) => window.key === "1m")?.ratioReturnPercent, 0);
 });
 

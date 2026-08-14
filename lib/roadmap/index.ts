@@ -91,6 +91,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "Period returns", status: "shipped", detail: "Dashboard shows daily, MTD, YTD and since-inception NAV movement from snapshots." },
       { title: "Exposure analysis", status: "shipped", detail: "Currency, commodity and allocation drift are live; allocation targets can be edited and are used in dashboard and CSV exports." },
       { title: "Structural memory", status: "shipped", detail: "Relative leadership can store manual support/resistance levels with timeframe, status, source and notes for each ratio pair." },
+      { title: "Relative period evidence", status: "shipped", detail: "Relative leadership summarizes 1M, 3M, 6M, 12M, 3Y and 5Y ratio returns from stored closes." },
       { title: "Tax position", status: "shipped", detail: "FIFO realised CGT, unrealised CGT, dividend income, franking credits and withholding tax are exported for the Personal tax pack." },
     ],
   },

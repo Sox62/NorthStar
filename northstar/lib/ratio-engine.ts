@@ -1,6 +1,6 @@
 import type { StoredDailyPrice, StoredFxRate } from "@/lib/storage";
 
-export type RatioRangeKey = "all" | "12m" | "6m" | "3m" | "1m";
+export type RatioRangeKey = "all" | "5y" | "3y" | "12m" | "6m" | "3m" | "1m";
 
 export type RatioInstrument = {
   id?: string;
@@ -47,6 +47,8 @@ export type RelativeReturnWindow = {
 
 export const RATIO_RANGES: Array<{ key: RatioRangeKey; label: string; days: number | null }> = [
   { key: "all", label: "All", days: null },
+  { key: "5y", label: "5Y", days: 365 * 5 + 2 },
+  { key: "3y", label: "3Y", days: 365 * 3 + 1 },
   { key: "12m", label: "12M", days: 366 },
   { key: "6m", label: "6M", days: 183 },
   { key: "3m", label: "3M", days: 92 },
