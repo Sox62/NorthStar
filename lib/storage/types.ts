@@ -256,10 +256,12 @@ export type PlatinumPrice = {
   retrievedAt: string;
 };
 
+export type PhysicalMetalType = "GOLD" | "SILVER" | "PLATINUM" | "PALLADIUM";
+
 export type ManualAsset = {
   id: string;
   ownerType: OwnerType;
-  assetType: "PLATINUM";
+  assetType: PhysicalMetalType;
   name: string;
   quantityKg: number;
   totalCostAud: number;

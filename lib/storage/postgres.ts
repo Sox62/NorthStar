@@ -543,28 +543,28 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const currentPriceAudPerOz = input.buybackAudPerKg / 32.1507465686;
       const result = input.id
         ? await client.query(`
-            UPDATE manual_assets SET asset_type='PLATINUM',name=$1,quantity_kg=$2,quantity_troy_oz=$3,
+            UPDATE manual_assets SET asset_type=$16,name=$1,quantity_kg=$2,quantity_troy_oz=$3,
               total_cost_aud=$4,buyback_aud_per_kg=$5,retail_aud_per_kg=$6,current_price_aud_per_oz=$7,
               market_value_aud=$8,price_provider=$9,price_source_url=$10,price_retrieved_at=$11,
               purchase_date=$12,as_of_date=$13,updated_at=NOW()
             WHERE id=$14 AND portfolio_id=$15 RETURNING id,updated_at::text
           `, [input.name, input.quantityKg, quantityTroyOz, input.totalCostAud, input.buybackAudPerKg,
             input.retailAudPerKg, currentPriceAudPerOz, marketValueAud, input.priceProvider,
-            input.priceSourceUrl, input.priceRetrievedAt, input.purchaseDate, input.asOfDate, input.id, portfolioId])
+            input.priceSourceUrl, input.priceRetrievedAt, input.purchaseDate, input.asOfDate, input.id, portfolioId, input.assetType])
         : await client.query(`
             INSERT INTO manual_assets (portfolio_id,asset_type,name,quantity_kg,quantity_troy_oz,total_cost_aud,
               buyback_aud_per_kg,retail_aud_per_kg,current_price_aud_per_oz,market_value_aud,price_provider,
               price_source_url,price_retrieved_at,purchase_date,as_of_date,updated_at)
-            VALUES ($1,'PLATINUM',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
+            VALUES ($1,$15,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
             RETURNING id,updated_at::text
           `, [portfolioId, input.name, input.quantityKg, quantityTroyOz, input.totalCostAud,
             input.buybackAudPerKg, input.retailAudPerKg, currentPriceAudPerOz, marketValueAud,
-            input.priceProvider, input.priceSourceUrl, input.priceRetrievedAt, input.purchaseDate, input.asOfDate]);
-      if (!result.rows[0]) throw new Error("Physical platinum position was not found.");
+            input.priceProvider, input.priceSourceUrl, input.priceRetrievedAt, input.purchaseDate, input.asOfDate, input.assetType]);
+      if (!result.rows[0]) throw new Error("Physical metal position was not found.");
       await captureSnapshot(client, portfolioId);
       await client.query("COMMIT");
       const valuation = buildManualAssetValuation(input);
-      return { id: result.rows[0].id, ownerType: input.ownerType, assetType: "PLATINUM", name: input.name,
+      return { id: result.rows[0].id, ownerType: input.ownerType, assetType: input.assetType, name: input.name,
         quantityKg: input.quantityKg, totalCostAud: input.totalCostAud,
         costAudPerKg: valuation.costAudPerKg,
         buybackAudPerKg: input.buybackAudPerKg, retailAudPerKg: input.retailAudPerKg,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildDashboardModel, buildManualAssetValuation, buildPositionPriceValuation } from "./accounting";
+import { buildDashboardModel, buildManualAssetValuation, buildPositionPriceValuation, manualAssetPosition } from "./accounting";
 import type { CashAccount, ManualAsset, StoredPosition, StoredTransaction, SyncRun } from "@/lib/storage/types";
 
 function position(input: Partial<StoredPosition>): StoredPosition {
@@ -126,6 +126,13 @@ test("buildManualAssetValuation calculates metal value, P/L and dealer spread", 
   assert.equal(valuation.pnlPercent, 16.666666666666664);
   assert.equal(valuation.dealerSpreadAudPerKg, 150);
   assert.equal(valuation.dealerSpreadPercent, 7.894736842105263);
+});
+
+test("manualAssetPosition keeps the selected physical metal type", () => {
+  const position = manualAssetPosition(manualAsset({ assetType: "SILVER", name: "Physical silver", buybackAudPerKg: 1800 }));
+  assert.equal(position.symbol, "SILVER");
+  assert.equal(position.assetClass, "Silver bullion");
+  assert.equal(position.lastPrice, 1800);
 });
 
 test("buildPositionPriceValuation uses previous close for daily P/L", () => {

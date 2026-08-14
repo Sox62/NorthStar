@@ -109,18 +109,26 @@ export function buildPositionPriceValuation(input: {
   };
 }
 
+const physicalMetalMeta: Record<ManualAsset["assetType"], { symbol: string; assetClass: string; label: string }> = {
+  GOLD: { symbol: "GOLD", assetClass: "Gold bullion", label: "Physical gold" },
+  SILVER: { symbol: "SILVER", assetClass: "Silver bullion", label: "Physical silver" },
+  PLATINUM: { symbol: "PLATINUM", assetClass: "Platinum bullion", label: "Physical platinum" },
+  PALLADIUM: { symbol: "PALLADIUM", assetClass: "Palladium bullion", label: "Physical palladium" },
+};
+
 export function manualAssetPosition(asset: ManualAsset): StoredPosition {
+  const metal = physicalMetalMeta[asset.assetType] ?? physicalMetalMeta.PLATINUM;
   return {
     id: asset.id,
     ownerType: asset.ownerType,
     broker: "Physical",
     accountKey: `${asset.ownerType}-PHYSICAL`,
     instrumentKey: `manual:${asset.id}`,
-    symbol: "PLATINUM",
+    symbol: metal.symbol,
     name: asset.name,
     exchange: "PHYSICAL",
     currency: "AUD",
-    assetClass: "Physical platinum",
+    assetClass: metal.assetClass,
     quantity: asset.quantityKg,
     lastPrice: asset.buybackAudPerKg,
     averageCostAud: asset.costAudPerKg,
@@ -257,7 +265,7 @@ function buildAccountRows(input: {
     const assets = input.manualAssets.filter((asset) => asset.ownerType === owner);
     if (!assets.length) continue;
     accounts.push({
-      name: `Physical platinum ${owner === "SMSF" ? "SMSF" : "Personal"}`,
+      name: `Physical metals ${owner === "SMSF" ? "SMSF" : "Personal"}`,
       detail: `${assets.reduce((sum, asset) => sum + asset.quantityKg, 0).toLocaleString("en-AU", { maximumFractionDigits: 4 })} kg`,
       status: `${assets.length} position${assets.length === 1 ? "" : "s"}`,
       ownerType: owner,

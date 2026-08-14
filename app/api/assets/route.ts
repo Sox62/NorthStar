@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 const assetSchema = z.object({
   id: z.string().uuid().optional(),
   ownerType: z.enum(["PERSONAL", "SMSF"]),
-  assetType: z.literal("PLATINUM").default("PLATINUM"),
+  assetType: z.enum(["GOLD", "SILVER", "PLATINUM", "PALLADIUM"]).default("PLATINUM"),
   name: z.string().trim().min(1),
   quantityKg: z.coerce.number().positive(),
   totalCostAud: z.coerce.number().nonnegative(),

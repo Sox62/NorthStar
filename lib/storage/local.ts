@@ -42,6 +42,10 @@ import type {
 const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".north-star", "data.json");
 const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), minerFundamentals: [], imports: [] };
 
+function normalisePhysicalMetalType(value: unknown) {
+  return value === "GOLD" || value === "SILVER" || value === "PLATINUM" || value === "PALLADIUM" ? value : "PLATINUM";
+}
+
 async function readStore(): Promise<LocalStore> {
   try {
     const parsed = JSON.parse(await readFile(DATA_FILE, "utf8")) as Record<string, unknown>;
@@ -93,7 +97,7 @@ async function readStore(): Promise<LocalStore> {
         const marketValueAud = quantityKg * buybackAudPerKg;
         const pnlAud = marketValueAud - totalCostAud;
         return {
-          id: String(asset.id), ownerType: asset.ownerType as OwnerType, assetType: "PLATINUM", name: String(asset.name ?? "Physical platinum"),
+          id: String(asset.id), ownerType: asset.ownerType as OwnerType, assetType: normalisePhysicalMetalType(asset.assetType), name: String(asset.name ?? "Physical platinum"),
           quantityKg, totalCostAud, costAudPerKg: quantityKg ? totalCostAud / quantityKg : 0,
           buybackAudPerKg, retailAudPerKg: buybackAudPerKg, marketValueAud, pnlAud,
           pnlPercent: totalCostAud ? pnlAud / totalCostAud * 100 : 0,
@@ -460,7 +464,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     const existing = input.id ? store.manualAssets.find(asset => asset.id === input.id && asset.ownerType === input.ownerType) : undefined;
     const valuation = buildManualAssetValuation(input);
     const asset: ManualAsset = {
-      id: existing?.id ?? randomUUID(), ownerType: input.ownerType, assetType: "PLATINUM", name: input.name.trim(),
+      id: existing?.id ?? randomUUID(), ownerType: input.ownerType, assetType: input.assetType, name: input.name.trim(),
       quantityKg: input.quantityKg, totalCostAud: input.totalCostAud,
       costAudPerKg: valuation.costAudPerKg,
       buybackAudPerKg: input.buybackAudPerKg, retailAudPerKg: input.retailAudPerKg,
@@ -628,6 +632,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     if (existing) Object.assign(existing, price); else store.platinumPrices.push(price);
     const owners = new Set<OwnerType>();
     for (const asset of store.manualAssets) {
+      if (asset.assetType !== "PLATINUM") continue;
       asset.buybackAudPerKg = price.buybackAudPerKg;
       asset.retailAudPerKg = price.retailAudPerKg;
       const valuation = buildManualAssetValuation(asset);
