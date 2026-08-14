@@ -216,8 +216,17 @@ function yahooSymbols(instrument: PriceableInstrument) {
   const override = providerOverride(instrument, "MARKETDATA_YAHOO_SYMBOL_OVERRIDES");
   if (override) return [override];
   const symbol = normaliseSymbol(instrument.symbol);
+  const benchmarkSymbol = BENCHMARK_YAHOO_SYMBOLS[symbol];
+  if (benchmarkSymbol) return [benchmarkSymbol];
   return unique(yahooSuffixes(instrument.exchange).map((suffix) => suffix ? `${symbol}.${suffix}` : symbol));
 }
+
+const BENCHMARK_YAHOO_SYMBOLS: Record<string, string> = {
+  GOLD: "GC=F",
+  SILVER: "SI=F",
+  PLATINUM: "PL=F",
+  USOIL: "CL=F",
+};
 
 function eodhdDate(response: EodhdResponse) {
   if (response.timestamp) {

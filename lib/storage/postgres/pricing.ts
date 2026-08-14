@@ -7,6 +7,42 @@ const numberValue = (value: unknown) => Number(value ?? 0);
 const normaliseCurrency = (value: string) => value.trim().toUpperCase();
 const normaliseSymbol = (value: string) => value.trim().toUpperCase();
 
+export type BenchmarkPriceInstrument = {
+  symbol: string;
+  exchange: string;
+  name: string;
+  currency: string;
+  assetClass: string;
+};
+
+export async function ensureBenchmarkPriceInstrumentsPostgres(instruments: BenchmarkPriceInstrument[]) {
+  if (!instruments.length) return;
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    for (const input of instruments) {
+      const symbol = normaliseSymbol(input.symbol);
+      const exchange = input.exchange.trim().toUpperCase();
+      const existing = await client.query<{ id: string }>(`
+        SELECT id FROM instruments
+        WHERE UPPER(ticker)=UPPER($1) AND UPPER(exchange)=UPPER($2)
+        LIMIT 1
+      `, [symbol, exchange]);
+      if (existing.rows.length) continue;
+      await client.query(`
+        INSERT INTO instruments (source,external_key,name,ticker,exchange,currency,asset_class,provider_symbol)
+        VALUES ('benchmark',$1,$2,$3,$4,$5,$6,$7)
+      `, [`benchmark:${symbol}:${exchange}`, input.name, symbol, exchange, normaliseCurrency(input.currency), input.assetClass, symbol]);
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function latestFxRate(client: PoolClient, currency: string, priceDate: string) {
   if (normaliseCurrency(currency) === "AUD") return 1;
   const result = await client.query<{ rate_to_aud: string }>(`
