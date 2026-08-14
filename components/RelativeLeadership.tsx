@@ -7,7 +7,7 @@ import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
 import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, RATIO_RANGES, type RatioPoint, type RatioRangeKey } from "@/northstar/lib/ratio-engine";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
-import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
+import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
 type PriceBookResponse = {
@@ -311,8 +311,11 @@ export default function RelativeLeadership() {
   const ratioChange = first && last ? last.ratio / first.ratio * 100 - 100 : 0;
   const leftChange = first && last ? last.leftIndexed - 100 : 0;
   const rightChange = first && last ? last.rightIndexed - 100 : 0;
-  const leftTv = left ? tradingViewChartUrl(tradingViewSymbolForInstrument(left)) : "";
-  const rightTv = selectedBenchmark?.tradingViewSymbol ? tradingViewChartUrl(selectedBenchmark.tradingViewSymbol) : right ? tradingViewChartUrl(tradingViewSymbolForInstrument(right)) : "";
+  const leftTvSymbol = left ? tradingViewSymbolForInstrument(left) : "";
+  const rightTvSymbol = selectedBenchmark?.tradingViewSymbol ?? (right ? tradingViewSymbolForInstrument(right) : "");
+  const leftTv = leftTvSymbol ? tradingViewChartUrl(leftTvSymbol) : "";
+  const rightTv = rightTvSymbol ? tradingViewChartUrl(rightTvSymbol) : "";
+  const ratioTv = leftTvSymbol && rightTvSymbol ? tradingViewRatioChartUrl(leftTvSymbol, rightTvSymbol) : "";
 
   const backfillSelected = async () => {
     if (!left || !right) return;
@@ -379,6 +382,7 @@ export default function RelativeLeadership() {
             </div>
             <div className="relativeActions">
               <button className="button" type="button" onClick={backfillSelected} disabled={backfillBusy}>{backfillBusy ? "Backfilling..." : "Backfill 1Y"}</button>
+              {ratioTv ? <a className="button" href={ratioTv} target="_blank" rel="noreferrer">Ratio TV</a> : null}
               {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer">{left.symbol} TV</a> : null}
               {rightTv ? <a className="button" href={rightTv} target="_blank" rel="noreferrer">{right.symbol} TV</a> : null}
             </div>
