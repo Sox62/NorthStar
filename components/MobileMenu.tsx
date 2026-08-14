@@ -16,7 +16,7 @@ const navItems = [
   { href: "/fundamentals", label: "Fundamentals", detail: "Miner risk queue" },
   { href: "/sync", label: "Sync", detail: "Feeds and status" },
   { href: "/cash", label: "Cash", detail: "Bank balances" },
-  { href: "/assets", label: "Bullion", detail: "Physical metals" },
+  { href: "/assets", label: "Physical metals", detail: "Gold, silver, platinum, palladium" },
   { href: "/reports", label: "Reports", detail: "Exports" },
   { href: "/tax", label: "Tax", detail: "CGT lots" },
   { href: "/security", label: "Security", detail: "Access methods" },

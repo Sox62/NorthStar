@@ -54,7 +54,7 @@ export default function CashPage() {
         links={[
           { href: "/", label: "← Dashboard" },
           { href: "/sync", label: "Sync" },
-          { href: "/assets", label: "Physical platinum" },
+          { href: "/assets", label: "Physical metals" },
           { href: "/roadmap", label: "Roadmap" },
         ]}
       />

@@ -214,7 +214,7 @@ export default function PricesPage() {
         links={[
           { href: "/", label: "← Dashboard" },
           { href: "/sync", label: "Sync" },
-          { href: "/assets", label: "Bullion" },
+          { href: "/assets", label: "Physical metals" },
           { href: "/roadmap", label: "Roadmap" },
         ]}
       />

@@ -45,7 +45,7 @@ const sections: Array<{ label: string; items: RailItem[] }> = [
     label: "Existing modules",
     items: [
       { key: "cash-accounts", label: "Cash accounts", href: "/cash", icon: "cash" },
-      { key: "bullion", label: "Physical platinum", href: "/assets", icon: "bullion" },
+      { key: "bullion", label: "Physical metals", href: "/assets", icon: "bullion" },
       { key: "sync", label: "Imports", href: "/sync", icon: "sync" },
     ],
   },

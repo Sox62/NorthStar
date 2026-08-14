@@ -6,9 +6,27 @@ import type { ManualAsset, OwnerType, PlatinumPrice } from "@/lib/storage";
 import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
 
 const today = new Date().toISOString().slice(0, 10);
-const blank = {
-  ownerType: "PERSONAL" as OwnerType,
-  assetType: "PLATINUM" as const,
+type PhysicalMetalType = "GOLD" | "SILVER" | "PLATINUM" | "PALLADIUM";
+type PhysicalAssetForm = {
+  id?: string;
+  ownerType: OwnerType;
+  assetType: PhysicalMetalType;
+  name: string;
+  quantityKg: number;
+  totalCostAud: number;
+  purchaseDate: string;
+};
+
+const metalOptions: Array<{ value: PhysicalMetalType; label: string; defaultName: string; placeholder: string; enabled: boolean }> = [
+  { value: "GOLD", label: "Gold", defaultName: "Physical gold", placeholder: "Example: ABC Bullion gold bars", enabled: false },
+  { value: "SILVER", label: "Silver", defaultName: "Physical silver", placeholder: "Example: ABC Bullion silver bars", enabled: false },
+  { value: "PLATINUM", label: "Platinum", defaultName: "Physical platinum", placeholder: "Example: ABC Bullion platinum bars", enabled: true },
+  { value: "PALLADIUM", label: "Palladium", defaultName: "Physical palladium", placeholder: "Example: ABC Bullion palladium bars", enabled: false },
+];
+
+const blank: PhysicalAssetForm = {
+  ownerType: "PERSONAL",
+  assetType: "PLATINUM",
   name: "Physical platinum",
   quantityKg: 0,
   totalCostAud: 0,
@@ -33,7 +51,7 @@ const safeIsoDateTime = (value: string) => {
 export default function PhysicalAssetsPage() {
   const [assets, setAssets] = useState<ManualAsset[]>([]);
   const [price, setPrice] = useState<PlatinumPrice | null>(null);
-  const [form, setForm] = useState(blank as typeof blank & { id?: string });
+  const [form, setForm] = useState<PhysicalAssetForm>(blank);
   const [message, setMessage] = useState("");
   const [priceMessage, setPriceMessage] = useState("Loading ABC Bullion buyback price…");
   const [refreshing, setRefreshing] = useState(false);
@@ -87,16 +105,22 @@ export default function PhysicalAssetsPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    const selectedMetal = metalOptions.find((option) => option.value === form.assetType) ?? metalOptions[2];
+    if (form.assetType !== "PLATINUM") {
+      setMessage(selectedMetal.label + " positions need a valuation source before saving. Platinum is enabled now.");
+      return;
+    }
     if (!price) {
       setMessage("Refresh the ABC Bullion price before saving this position.");
       return;
     }
-    setMessage("Saving…");
+    setMessage("Saving...");
     const response = await fetch("/api/assets", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         ...form,
+        assetType: "PLATINUM",
         buybackAudPerKg: price.buybackAudPerKg,
         retailAudPerKg: price.retailAudPerKg,
         priceProvider: price.provider,
@@ -134,14 +158,16 @@ export default function PhysicalAssetsPage() {
     }
   };
 
-  const estimatedValue = form.quantityKg * (price?.buybackAudPerKg ?? 0);
-  const estimatedReturn = form.totalCostAud ? ((estimatedValue - form.totalCostAud) / form.totalCostAud) * 100 : 0;
+  const selectedMetal = metalOptions.find((option) => option.value === form.assetType) ?? metalOptions[2];
+  const canSaveSelectedMetal = selectedMetal.enabled;
+  const estimatedValue = form.assetType === "PLATINUM" ? form.quantityKg * (price?.buybackAudPerKg ?? 0) : 0;
+  const estimatedReturn = form.totalCostAud && estimatedValue ? ((estimatedValue - form.totalCostAud) / form.totalCostAud) * 100 : 0;
 
   return (
     <main className="shell">
       <PageHeader
-        title="Physical platinum"
-        description="Record platinum in kilograms. Current value uses ABC Bullion’s 1 kg tablet buyback price—the amount closest to what the position could realise today."
+        title="Physical metals"
+        description="Record physical bullion positions. Platinum uses the current ABC Bullion buyback valuation path; gold, silver and palladium are ready as controlled categories for the next pricing/storage slice."
         links={[
           { href: "/", label: "← Dashboard" },
           { href: "/sync", label: "Sync" },
@@ -152,8 +178,8 @@ export default function PhysicalAssetsPage() {
 
       <Card className="priceCard">
         <div>
-          <p className="eyebrow">Live valuation source</p>
-          <h2 className="cardTitle">ABC Bullion · 1 kg platinum tablet</h2>
+          <p className="eyebrow">Automated valuation source</p>
+          <h2 className="cardTitle">Platinum · ABC Bullion 1 kg tablet</h2>
           {price ? (
             <SummaryGrid
               entries={[
@@ -195,7 +221,7 @@ export default function PhysicalAssetsPage() {
         <Card>
           <form className="form" onSubmit={submit}>
             <p className="eyebrow">{form.id ? "Edit asset" : "New asset"}</p>
-            <h2 className="cardTitle">{form.id ? "Update position" : "Add platinum position"}</h2>
+            <h2 className="cardTitle">{form.id ? "Update position" : "Add physical metal position"}</h2>
             <label className="field">
               <span>Legal owner</span>
               <select value={form.ownerType} onChange={(event) => setForm({ ...form, ownerType: event.target.value as OwnerType })}>
@@ -204,8 +230,26 @@ export default function PhysicalAssetsPage() {
               </select>
             </label>
             <label className="field">
+              <span>Metal</span>
+              <select
+                value={form.assetType}
+                onChange={(event) => {
+                  const assetType = event.target.value as PhysicalMetalType;
+                  const metal = metalOptions.find((option) => option.value === assetType) ?? selectedMetal;
+                  setForm({ ...form, assetType, name: form.name === selectedMetal.defaultName ? metal.defaultName : form.name });
+                }}
+              >
+                {metalOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            {!canSaveSelectedMetal && (
+              <Notice tone="neutral" title={selectedMetal.label + " valuation pending"}>
+                {selectedMetal.label} can be selected now, but saving is held until NorthStar has a pricing source and storage model for that metal. Platinum remains fully wired.
+              </Notice>
+            )}
+            <label className="field">
               <span>Position name</span>
-              <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Example: ABC Bullion platinum bars" required />
+              <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder={selectedMetal.placeholder} required />
             </label>
             <div className="grid two equal compact">
               <label className="field">
@@ -223,15 +267,15 @@ export default function PhysicalAssetsPage() {
             </label>
             <div className="result">
               <span className="small">Estimated current buyback value</span>
-              <div className="value">{money(estimatedValue)}</div>
-              {form.totalCostAud > 0 && (
+              <div className="value">{canSaveSelectedMetal ? money(estimatedValue) : "Pending"}</div>
+              {form.totalCostAud > 0 && canSaveSelectedMetal && (
                 <div className={estimatedReturn >= 0 ? "positive" : "negative"}>
                   {estimatedReturn >= 0 ? "+" : ""}{estimatedReturn.toFixed(2)}% against your purchase cost
                 </div>
               )}
             </div>
             <div className="buttonRow">
-              <button className="primary" type="submit" disabled={!price}>{form.id ? "Update position" : "Save position"}</button>
+              <button className="primary" type="submit" disabled={!price || !canSaveSelectedMetal}>{form.id ? "Update position" : "Save position"}</button>
               {form.id && <button type="button" onClick={() => setForm(blank)}>Cancel</button>}
             </div>
             {message && <p className="small">{message}</p>}
@@ -239,8 +283,8 @@ export default function PhysicalAssetsPage() {
         </Card>
 
         <Card>
-          <p className="eyebrow">Personal assets</p>
-          <h2 className="cardTitle">Current platinum positions</h2>
+          <p className="eyebrow">Physical bullion</p>
+          <h2 className="cardTitle">Current physical metal positions</h2>
           {assets.length ? (
             assets.map((asset) => (
               <div className="assetRow" key={asset.id}>
@@ -248,7 +292,7 @@ export default function PhysicalAssetsPage() {
                   <strong>{asset.name}</strong>
                   <div className="positionMeta">
                     <StatusBadge tone={asset.ownerType === "SMSF" ? "warning" : "good"}>{asset.ownerType === "SMSF" ? "SMSF" : "Personal"}</StatusBadge>
-                    <span className="small">{number(asset.quantityKg)} kg</span>
+                    <span className="small">{asset.assetType.toLowerCase()} · {number(asset.quantityKg)} kg</span>
                     <span className="small">Bought {asset.purchaseDate}</span>
                   </div>
                   <div className="small">Cost {money(asset.costAudPerKg, 2)} / kg · buyback {money(asset.buybackAudPerKg, 2)} / kg</div>
@@ -267,10 +311,10 @@ export default function PhysicalAssetsPage() {
               </div>
             ))
           ) : (
-            <p className="empty">No physical platinum positions have been added.</p>
+            <p className="empty">No physical metal positions have been added.</p>
           )}
           <Notice tone="neutral" title="Performance versus dealer spread">
-            Your investment return is calculated against what you actually paid. The current ABC retail-to-buyback spread is displayed separately and is not treated as your investment loss.
+            Your investment return is calculated against what you actually paid. For platinum, the current ABC retail-to-buyback spread is displayed separately and is not treated as your investment loss.
           </Notice>
         </Card>
       </section>

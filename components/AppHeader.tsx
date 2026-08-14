@@ -30,7 +30,7 @@ export default function AppHeader({ scope, onScopeChange }: { scope: Scope; onSc
           <Link href="/" className="isActive">Overview</Link>
           <Link href="/sync">Sync</Link>
           <Link href="/cash">Cash</Link>
-          <Link href="/assets">Platinum</Link>
+          <Link href="/assets">Physical metals</Link>
           <PwaInstallButton />
         </nav>
       </div>
