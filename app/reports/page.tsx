@@ -1,5 +1,6 @@
 import PageHeader from "@/components/PageHeader";
 import { Card, SummaryGrid } from "@/northstar/components";
+import styles from "./ReportsPage.module.css";
 
 type ReportDownload = {
   title: string;
@@ -80,8 +81,8 @@ export default function ReportsPage() {
         ]}
       />
 
-      <section className="reportsHero">
-        <Card className="reportsSummaryCard">
+      <section className={styles.hero}>
+        <Card className={styles.summaryCard}>
           <p className="eyebrow">Report set</p>
           <h2 className="cardTitle">CSV, PDF-ready and personal tax reports</h2>
           <p className="cardIntro">Generated directly from stored NorthStar portfolio data. Open report pages can be printed or saved as PDFs from the browser.</p>
@@ -98,7 +99,7 @@ export default function ReportsPage() {
         <Card>
           <p className="eyebrow">Current coverage</p>
           <h2 className="cardTitle">Ready now</h2>
-          <div className="reportCoverage">
+          <div className={styles.coverage}>
             <span>Wealth statement</span>
             <span>Personal report</span>
             <span>SMSF report</span>
@@ -111,7 +112,7 @@ export default function ReportsPage() {
         </Card>
       </section>
 
-      <Card className="reportListCard">
+      <Card>
         <div className="panelHeader">
           <div>
             <p className="eyebrow">Downloads</p>
@@ -120,18 +121,18 @@ export default function ReportsPage() {
           <span className="panelCount">{downloads.length} exports</span>
         </div>
 
-        <div className="reportList">
+        <div className={styles.list}>
           {downloads.map((download) => (
-            <article className="reportRow" key={download.href}>
+            <article className={styles.row} key={download.href}>
               <div>
-                <div className="reportRowHeader">
+                <div className={styles.rowHeader}>
                   <strong>{download.title}</strong>
                   <span>{download.owner}</span>
                 </div>
                 <p>{download.detail}</p>
                 <small>{download.rows}</small>
               </div>
-              <div className="reportActions">
+              <div className={styles.actions}>
                 {download.reportHref ? <a className="button" href={download.reportHref}>Open report</a> : null}
                 {download.secondaryHref ? <a className="button" href={download.secondaryHref}>{download.secondaryLabel ?? "Download"}</a> : null}
                 <a className="button primary" href={download.href}>
