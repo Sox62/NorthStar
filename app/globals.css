@@ -2572,6 +2572,38 @@ button:disabled { opacity: .55; cursor: wait; }
   margin-top: 0;
   min-height: 480px;
 }
+.relativeTvPanel.isPrimary {
+  background: rgba(9,21,32,.50);
+}
+.relativeAuditPanel {
+  margin-top: 14px;
+  border: 1px solid rgba(106,130,153,.18);
+  border-radius: 14px;
+  background: rgba(4,12,20,.24);
+  overflow: hidden;
+}
+.relativeAuditPanel summary {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.relativeAuditPanel[open] {
+  padding-bottom: 14px;
+}
+.relativeAuditPanel[open] summary {
+  border-bottom: 1px solid rgba(106,130,153,.14);
+}
+.relativeAuditPanel .relativeModeBar,
+.relativeAuditPanel .relativeChartWrap,
+.relativeAuditPanel .relativeEmpty {
+  margin-left: 14px;
+  margin-right: 14px;
+}
 .relativeEmpty {
   display: grid;
   gap: 6px;

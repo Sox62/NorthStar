@@ -628,20 +628,6 @@ export default function RelativeLeadership() {
             </div>
           ) : null}
 
-          <div className="relativeModeBar">
-            <div className="scopeSwitch" role="tablist" aria-label="Chart mode">
-              <button type="button" className={mode === "ratio" ? "isActive" : ""} onClick={() => setMode("ratio")}>Ratio</button>
-              <button type="button" className={mode === "indexed" ? "isActive" : ""} onClick={() => setMode("indexed")}>Indexed</button>
-            </div>
-            <div className="scopeSwitch" role="tablist" aria-label="Chart range">
-              {ranges.map((item) => (
-                <button key={item.key} type="button" className={range === item.key ? "isActive" : ""} onClick={() => setRange(item.key)}>
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <SummaryGrid
             entries={[
               ["Ratio move", percent(ratioChange), ratioChange >= 0 ? "positive" : "negative"],
@@ -651,29 +637,8 @@ export default function RelativeLeadership() {
             ]}
           />
 
-          <div className="relativePeriodEvidence" aria-label="Relative return evidence by period">
-            <div className="relativePeriodHeader">
-              <p className="eyebrow">Period evidence</p>
-              <span>AUD-adjusted ratio return. Positive means {left.symbol} outperformed {right.symbol}.</span>
-            </div>
-            <div className="relativePeriodGrid">
-              {evidenceWindows.map((window) => (
-                <RelativePeriodCell key={window.key} window={window} left={left.symbol} right={right.symbol} />
-              ))}
-            </div>
-          </div>
-
-          {series.length >= 2 ? (
-            <RatioChart series={series} mode={mode} left={left} right={right} />
-          ) : (
-            <div className="relativeEmpty">
-              <strong>No overlapping stored closes</strong>
-              <span>NorthStar has fewer than two usable comparison dates. Use Backfill history or choose another pair.</span>
-            </div>
-          )}
-
           {ratioTvExpression ? (
-            <div className="relativeTvPanel">
+            <div className="relativeTvPanel isPrimary">
               <div className="relativeTvHeader">
                 <div>
                   <p className="eyebrow">TradingView workbench</p>
@@ -689,17 +654,53 @@ export default function RelativeLeadership() {
               <TradingViewWidget
                 symbol={ratioTvExpression}
                 className="tradingview-widget-container stockChartWidget relativeTvWidget"
-                minHeight={480}
-                maxHeight={680}
-                compactMinHeight={360}
-                compactMaxHeight={460}
-                heightRatio={0.7}
-                compactHeightRatio={0.58}
+                minHeight={560}
+                maxHeight={760}
+                compactMinHeight={380}
+                compactMaxHeight={520}
+                heightRatio={0.76}
+                compactHeightRatio={0.62}
               />
               <p className="relativeTvNote">If TradingView opens search or an unknown symbol for this formula, use the individual asset buttons above.</p>
             </div>
           ) : null}
 
+          <div className="relativePeriodEvidence" aria-label="Relative return evidence by period">
+            <div className="relativePeriodHeader">
+              <p className="eyebrow">NorthStar evidence</p>
+              <span>AUD-adjusted stored closes. Positive means {left.symbol} outperformed {right.symbol}.</span>
+            </div>
+            <div className="relativePeriodGrid">
+              {evidenceWindows.map((window) => (
+                <RelativePeriodCell key={window.key} window={window} left={left.symbol} right={right.symbol} />
+              ))}
+            </div>
+          </div>
+
+          <details className="relativeAuditPanel">
+            <summary>Stored-close audit chart</summary>
+            <div className="relativeModeBar">
+              <div className="scopeSwitch" role="tablist" aria-label="Chart mode">
+                <button type="button" className={mode === "ratio" ? "isActive" : ""} onClick={() => setMode("ratio")}>Ratio</button>
+                <button type="button" className={mode === "indexed" ? "isActive" : ""} onClick={() => setMode("indexed")}>Indexed</button>
+              </div>
+              <div className="scopeSwitch" role="tablist" aria-label="Chart range">
+                {ranges.map((item) => (
+                  <button key={item.key} type="button" className={range === item.key ? "isActive" : ""} onClick={() => setRange(item.key)}>
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {series.length >= 2 ? (
+              <RatioChart series={series} mode={mode} left={left} right={right} />
+            ) : (
+              <div className="relativeEmpty">
+                <strong>No overlapping stored closes</strong>
+                <span>NorthStar has fewer than two usable comparison dates. Use Backfill history or choose another pair.</span>
+              </div>
+            )}
+          </details>
           <div className="relativeStructurePanel">
             <div className="relativeStructureHeader">
               <div>
