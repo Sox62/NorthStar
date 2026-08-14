@@ -72,7 +72,7 @@ async function captureSnapshot(client: PoolClient, portfolioId: string) {
 
 export async function listPriceBookPostgres(limit = 80): Promise<PriceBook> {
   const safeLimit = Math.max(1, Math.min(20000, limit));
-  const [instrumentRows, priceRows, fxRows] = await Promise.all([
+  const [instrumentRows, priceRows, platinumRows, fxRows] = await Promise.all([
     getPool().query<{
       ticker: string; exchange: string; name: string; currency: string; asset_class: string;
       position_count: string; quantity: string; market_value_aud: string; last_price: string | null; as_of_date: string | null;
@@ -98,6 +98,13 @@ export async function listPriceBookPostgres(limit = 80): Promise<PriceBook> {
       ORDER BY dp.price_date DESC,dp.retrieved_at DESC
       LIMIT $1
     `, [safeLimit]),
+    getPool().query<{ id: string; product_name: string; buyback_aud_per_kg: string; price_date: string; provider: string; retrieved_at: string }>(`
+      SELECT product_key || ':' || price_date::text AS id, product_name, buyback_aud_per_kg::text,
+        price_date::text, provider, retrieved_at::text
+      FROM platinum_prices
+      ORDER BY price_date DESC, retrieved_at DESC
+      LIMIT $1
+    `, [safeLimit]),
     getPool().query<{ id: string; currency: string; rate_to_aud: string; rate_date: string; source: string; retrieved_at: string }>(`
       SELECT id,currency,rate_to_aud::text,rate_date::text,source,retrieved_at::text
       FROM fx_rates
@@ -119,18 +126,32 @@ export async function listPriceBookPostgres(limit = 80): Promise<PriceBook> {
       lastPrice: row.last_price == null ? null : numberValue(row.last_price),
       asOfDate: row.as_of_date,
     })),
-    prices: priceRows.rows.map(row => ({
-      id: row.id,
-      instrumentId: row.instrument_id,
-      symbol: row.ticker,
-      exchange: row.exchange,
-      name: row.name,
-      currency: row.currency,
-      close: numberValue(row.close),
-      priceDate: row.price_date,
-      source: row.source,
-      retrievedAt: new Date(row.retrieved_at).toISOString(),
-    })),
+    prices: [
+      ...priceRows.rows.map(row => ({
+        id: row.id,
+        instrumentId: row.instrument_id,
+        symbol: row.ticker,
+        exchange: row.exchange,
+        name: row.name,
+        currency: row.currency,
+        close: numberValue(row.close),
+        priceDate: row.price_date,
+        source: row.source,
+        retrievedAt: new Date(row.retrieved_at).toISOString(),
+      })),
+      ...platinumRows.rows.map(row => ({
+        id: row.id,
+        instrumentId: null,
+        symbol: "PLATINUM",
+        exchange: "PHYSICAL",
+        name: row.product_name,
+        currency: "AUD",
+        close: numberValue(row.buyback_aud_per_kg),
+        priceDate: row.price_date,
+        source: `${row.provider} buyback`,
+        retrievedAt: new Date(row.retrieved_at).toISOString(),
+      })),
+    ].sort((left, right) => right.priceDate.localeCompare(left.priceDate) || right.retrievedAt.localeCompare(left.retrievedAt)).slice(0, safeLimit),
     fxRates: fxRows.rows.map(row => ({
       id: row.id,
       currency: row.currency,

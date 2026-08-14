@@ -322,7 +322,21 @@ function priceBookFromStore(store: LocalStore, limit = 80): PriceBook {
   }
   return {
     instruments: [...instrumentMap.values()].sort((a, b) => b.marketValueAud - a.marketValueAud),
-    prices: [...store.dailyPrices].sort((a, b) => b.priceDate.localeCompare(a.priceDate) || b.retrievedAt.localeCompare(a.retrievedAt)).slice(0, limit),
+    prices: [
+      ...store.dailyPrices,
+      ...store.platinumPrices.map((price) => ({
+        id: `platinum-${price.priceDate}`,
+        instrumentId: null,
+        symbol: "PLATINUM",
+        exchange: "PHYSICAL",
+        name: "Physical platinum",
+        currency: "AUD",
+        close: price.buybackAudPerKg,
+        priceDate: price.priceDate,
+        source: `${price.provider} buyback`,
+        retrievedAt: price.retrievedAt,
+      } satisfies StoredDailyPrice)),
+    ].sort((a, b) => b.priceDate.localeCompare(a.priceDate) || b.retrievedAt.localeCompare(a.retrievedAt)).slice(0, limit),
     fxRates: [...store.fxRates].sort((a, b) => b.rateDate.localeCompare(a.rateDate) || b.retrievedAt.localeCompare(a.retrievedAt)).slice(0, limit),
   };
 }
