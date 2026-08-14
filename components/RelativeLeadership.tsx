@@ -146,6 +146,13 @@ function nodeIsChartable(node: BenchmarkNode) {
   return Boolean(node.symbol && node.tradingViewSymbol && node.role !== "candidate" && node.role !== "peer_group");
 }
 
+function formatAxisTick(value: number, mode: RatioMode) {
+  if (mode !== "ratio") return value.toFixed(1);
+  if (value >= 10) return value.toFixed(1);
+  if (value >= 1) return value.toFixed(2);
+  return value.toFixed(3);
+}
+
 function RatioChart({ series, mode, left, right }: { series: RatioPoint[]; mode: RatioMode; left: DashboardHolding; right: DashboardHolding }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const chartRef = useRef<SVGSVGElement | null>(null);
@@ -159,8 +166,12 @@ function RatioChart({ series, mode, left, right }: { series: RatioPoint[]; mode:
   const values = mode === "ratio"
     ? series.map((point) => point.ratio)
     : series.flatMap((point) => [point.leftIndexed, point.rightIndexed]);
-  const max = Math.max(...values, 100);
-  const min = Math.min(...values, 100);
+  const rawMax = values.length ? Math.max(...values) : 1;
+  const rawMin = values.length ? Math.min(...values) : 0;
+  const rawRange = Math.max(0.000001, rawMax - rawMin);
+  const padding = mode === "ratio" ? Math.max(rawRange * 0.08, Math.abs(rawMax) * 0.02, 0.01) : 0;
+  const max = mode === "ratio" ? rawMax + padding : Math.max(rawMax, 100);
+  const min = mode === "ratio" ? Math.max(0, rawMin - padding) : Math.min(rawMin, 100);
   const range = Math.max(0.000001, max - min);
   const xy = (point: RatioPoint, index: number, key: "ratio" | "leftIndexed" | "rightIndexed") => ({
     x: padX + (series.length === 1 ? chartWidth : index / Math.max(1, series.length - 1) * chartWidth),
@@ -193,7 +204,7 @@ function RatioChart({ series, mode, left, right }: { series: RatioPoint[]; mode:
           return (
             <g key={tick.toFixed(4)}>
               <line className="relativeChartGrid" x1={padX} x2={padX + chartWidth} y1={y} y2={y} />
-              <text className="relativeChartAxis" x={padX + chartWidth - 5} y={Math.max(12, y - 6)} textAnchor="end">{tick.toFixed(1)}</text>
+              <text className="relativeChartAxis" x={padX + chartWidth - 5} y={Math.max(12, y - 6)} textAnchor="end">{formatAxisTick(tick, mode)}</text>
             </g>
           );
         })}
