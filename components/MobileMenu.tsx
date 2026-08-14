@@ -12,6 +12,7 @@ const navItems = [
   { href: "/sectors", label: "Sectors", detail: "Exposure breakdown" },
   { href: "/targets", label: "Targets", detail: "Allocation drift" },
   { href: "/relative", label: "Relative", detail: "Ratio charts" },
+  { href: "/relative/calculator", label: "Calculator", detail: "Manual ratios" },
   { href: "/fundamentals", label: "Fundamentals", detail: "Miner risk queue" },
   { href: "/sync", label: "Sync", detail: "Feeds and status" },
   { href: "/cash", label: "Cash", detail: "Bank balances" },

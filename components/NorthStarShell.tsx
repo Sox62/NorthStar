@@ -12,6 +12,7 @@ function activeForPath(pathname: string) {
   if (pathname.startsWith("/sync") || pathname.startsWith("/imports")) return "sync";
   if (pathname.startsWith("/sectors")) return "sectors";
   if (pathname.startsWith("/targets")) return "targets";
+  if (pathname.startsWith("/relative/calculator")) return "relative-calculator";
   if (pathname.startsWith("/relative")) return "relative-leadership";
   if (pathname.startsWith("/reports")) return "reports";
   if (pathname.startsWith("/tax")) return "tax";

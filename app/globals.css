@@ -2614,3 +2614,104 @@ button:disabled { opacity: .55; cursor: wait; }
     flex: 1 1 116px;
   }
 }
+
+.relativeCalcCard {
+  min-width: 0;
+}
+.relativeCalcGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+.relativeCalcPanel {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(106,130,153,.20);
+  border-radius: 14px;
+  background: rgba(4,12,20,.30);
+}
+.relativeCalcPanel h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+}
+.relativeCalcPanel label,
+.relativeCalcFields label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.relativeCalcPanel label span,
+.relativeCalcFields label span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.relativeCalcPanel input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid rgba(106,130,153,.30);
+  border-radius: 12px;
+  background: rgba(4,12,20,.58);
+  color: var(--text-primary);
+}
+.relativeCalcFields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.relativeCalcResult {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(215,181,109,.22);
+  border-radius: 14px;
+  background: rgba(215,181,109,.06);
+}
+.relativeCalcResult > strong {
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.45;
+}
+.relativeCalcResult dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.relativeCalcResult dl div {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(4,12,20,.30);
+}
+.relativeCalcResult dt {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.relativeCalcResult dd {
+  margin: 0;
+  color: var(--text-secondary);
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .relativeCalcGrid,
+  .relativeCalcResult dl {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .relativeCalcFields {
+    grid-template-columns: 1fr;
+  }
+}
