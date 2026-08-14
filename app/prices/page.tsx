@@ -196,7 +196,7 @@ export default function PricesPage() {
       const response = await fetch("/api/prices/backfill", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ range: "1y", symbols }),
+        body: JSON.stringify({ range: "max", symbols }),
       });
       const payloadResult = await response.json();
       setResult(payloadResult);
@@ -312,7 +312,7 @@ export default function PricesPage() {
                 onClick={() => backfillHistory(selectedInstrument ? [`${selectedInstrument.symbol}:${selectedInstrument.exchange}`] : undefined)}
                 disabled={refreshBusy || backfillBusy || !book.instruments.length}
               >
-                {backfillBusy ? "Backfilling..." : selectedInstrument ? `Backfill ${selectedInstrument.symbol}` : "Backfill 1Y"}
+                {backfillBusy ? "Backfilling..." : selectedInstrument ? `Backfill ${selectedInstrument.symbol}` : "Backfill history"}
               </button>
               {selectedInstrument ? (
                 <button className="button" type="button" onClick={() => refreshQuotes()} disabled={refreshBusy || backfillBusy || !book.instruments.length}>

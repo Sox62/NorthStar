@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { fetchFrankfurterFx, fetchMetalSpotQuotes, refreshMarketQuotes } from "./market-data";
+import { fetchFrankfurterFx, fetchHistoricalMarketPrices, fetchMetalSpotQuotes, refreshMarketQuotes } from "./market-data";
 import type { PriceableInstrument } from "@/lib/storage";
 
 function jsonResponse(body: unknown, status = 200) {
@@ -308,6 +308,41 @@ test("refreshMarketQuotes surfaces Stooq browser verification pages", async () =
     assert.equal(result.prices.length, 0);
     assert.match(result.failures[0].message, /browser verification/);
     assert.equal(result.providers.stooqEnabled, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+
+test("fetchHistoricalMarketPrices requests max history by default", async () => {
+  const originalFetch = globalThis.fetch;
+  const requestedUrls: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    requestedUrls.push(url);
+    if (url.includes("/SPY?")) {
+      return jsonResponse({
+        chart: {
+          result: [{
+            meta: { currency: "USD", exchangeTimezoneName: "America/New_York" },
+            timestamp: [Date.parse("2026-07-17T20:00:00Z") / 1000],
+            indicators: { quote: [{ close: [640] }] },
+          }],
+          error: null,
+        },
+      });
+    }
+    if (url === "https://api.frankfurter.dev/v2/rate/USD/AUD?date=2026-07-17") {
+      return jsonResponse({ date: "2026-07-17", base: "USD", quote: "AUD", rate: 1.52 });
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  try {
+    const result = await fetchHistoricalMarketPrices([instrument({ symbol: "SPY", exchange: "AMEX", currency: "USD" })]);
+    assert.equal(result.prices.length, 1);
+    assert.equal(result.fxRates.length, 1);
+    assert.ok(requestedUrls.some((url) => url.includes("range=max")));
   } finally {
     globalThis.fetch = originalFetch;
   }

@@ -474,11 +474,12 @@ async function fetchYahooQuote(instrument: PriceableInstrument): Promise<MarketQ
   });
 }
 
-async function fetchYahooHistory(instrument: PriceableInstrument, range = "1y"): Promise<DailyPriceInput[]> {
+async function fetchYahooHistory(instrument: PriceableInstrument, range = "max"): Promise<DailyPriceInput[]> {
+  const yahooRange = range === "all" ? "max" : range;
   const errors: string[] = [];
   for (const providerSymbol of yahooSymbols(instrument)) {
     try {
-      const url = `${YAHOO_CHART_BASE_URL}/${encodeURIComponent(providerSymbol)}?range=${encodeURIComponent(range)}&interval=1d&includePrePost=false`;
+      const url = `${YAHOO_CHART_BASE_URL}/${encodeURIComponent(providerSymbol)}?range=${encodeURIComponent(yahooRange)}&interval=1d&includePrePost=false`;
       const payload = await fetchYahooJson(url);
       if (payload.chart?.error) throw new Error(payload.chart.error.description ?? payload.chart.error.code ?? "Yahoo chart error");
       const result = payload.chart?.result?.[0];
@@ -694,7 +695,7 @@ export async function refreshMarketQuotes(instruments: PriceableInstrument[], pr
   };
 }
 
-export async function fetchHistoricalMarketPrices(instruments: PriceableInstrument[], range = "1y"): Promise<HistoricalPriceResult> {
+export async function fetchHistoricalMarketPrices(instruments: PriceableInstrument[], range = "max"): Promise<HistoricalPriceResult> {
   const prices: DailyPriceInput[] = [];
   const fxRates = new Map<string, FxRateInput>();
   const failures: QuoteFailure[] = [];

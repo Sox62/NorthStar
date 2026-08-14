@@ -30,7 +30,7 @@ type StructuralLevelForm = {
   asOfDate: string;
 };
 type RatioMode = "ratio" | "indexed";
-type RangeKey = Extract<RatioRangeKey, "all" | "12m" | "6m" | "3m" | "1m">;
+type RangeKey = Extract<RatioRangeKey, "all" | "5y" | "3y" | "12m" | "6m" | "3m" | "1m">;
 
 const scopes: Array<{ key: Scope; label: string }> = [
   { key: "overall", label: "Overall" },
@@ -38,7 +38,7 @@ const scopes: Array<{ key: Scope; label: string }> = [
   { key: "smsf", label: "SMSF" },
 ];
 
-const ranges: Array<{ key: RangeKey; label: string; days: number | null }> = RATIO_RANGES.filter((item) => ["all", "12m", "6m", "3m", "1m"].includes(item.key)) as Array<{ key: RangeKey; label: string; days: number | null }>;
+const ranges: Array<{ key: RangeKey; label: string; days: number | null }> = RATIO_RANGES.filter((item) => ["all", "5y", "3y", "12m", "6m", "3m", "1m"].includes(item.key)) as Array<{ key: RangeKey; label: string; days: number | null }>;
 const evidenceRanges = RATIO_RANGES.filter((item) => ["1m", "3m", "6m", "12m", "3y", "5y"].includes(item.key));
 
 const money = (value: number) =>
@@ -497,9 +497,9 @@ export default function RelativeLeadership() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          range: "1y",
+          range: "max",
           symbols: [
-            backfillKeyForHolding(left),
+            selectedLeftBenchmark ? backfillKeyForBenchmark(selectedLeftBenchmark) : backfillKeyForHolding(left),
             selectedBenchmark ? backfillKeyForBenchmark(selectedBenchmark) : backfillKeyForHolding(right),
           ],
         }),
@@ -516,7 +516,7 @@ export default function RelativeLeadership() {
       setPrices(storedPrices.prices);
       setFxRates(storedPrices.fxRates);
       const warnings = Array.isArray(payload.errors) && payload.errors.length ? ` with warnings: ${payload.errors.slice(0, 2).join("; ")}` : "";
-      setOperationMessage(`Backfilled ${payload.imported ?? 0} historical closes${warnings}.`);
+      setOperationMessage(`Backfilled ${payload.imported ?? 0} historical closes across all available provider history${warnings}.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Historical backfill failed");
     } finally {
@@ -551,7 +551,7 @@ export default function RelativeLeadership() {
               <p className="cardIntro">{series.length} shared close{series.length === 1 ? "" : "s"} · {series.length ? `${dateLabel(series[0].date)} to ${dateLabel(series.at(-1)!.date)}` : "No overlapping price history yet"}</p>
             </div>
             <div className="relativeActions">
-              <button className="button" type="button" onClick={backfillSelected} disabled={backfillBusy}>{backfillBusy ? "Backfilling..." : "Backfill 1Y"}</button>
+              <button className="button" type="button" onClick={backfillSelected} disabled={backfillBusy}>{backfillBusy ? "Backfilling..." : "Backfill history"}</button>
               {ratioTvExpression ? <button className="button" type="button" onClick={() => void copyRatioExpression()} title={ratioTvExpression}>{copiedRatio ? "Copied" : "Copy formula"}</button> : null}
               {ratioTv ? <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={`TradingView formula attempt: ${ratioTvExpression}`}>Try ratio in TV</a> : null}
               {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>{left.symbol} TV</a> : null}
@@ -667,7 +667,7 @@ export default function RelativeLeadership() {
           ) : (
             <div className="relativeEmpty">
               <strong>No overlapping stored closes</strong>
-              <span>NorthStar has fewer than two usable comparison dates. Use Backfill 1Y or choose another pair.</span>
+              <span>NorthStar has fewer than two usable comparison dates. Use Backfill history or choose another pair.</span>
             </div>
           )}
 

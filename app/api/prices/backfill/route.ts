@@ -9,7 +9,7 @@ export const maxDuration = 60;
 
 const bodySchema = z.object({
   symbols: z.array(z.string().trim().min(1)).optional(),
-  range: z.enum(["1mo", "3mo", "6mo", "1y", "2y"]).default("1y"),
+  range: z.enum(["1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "max"]).default("max"),
 });
 
 function normaliseKey(value: string) {
@@ -33,6 +33,7 @@ const BENCHMARK_BACKFILL_INSTRUMENTS: Record<string, PriceableInstrument> = {
   CVX: benchmarkInstrument("CVX", "NYSE", "Chevron", "USD", "Oil"),
   SPY: benchmarkInstrument("SPY", "AMEX", "SPDR S&P 500 ETF", "USD", "Broad equities"),
   QQQ: benchmarkInstrument("QQQ", "NASDAQ", "Invesco QQQ Trust", "USD", "Technology"),
+  RSP: benchmarkInstrument("RSP", "AMEX", "Invesco S&P 500 Equal Weight ETF", "USD", "Broad equities"),
 };
 
 function benchmarkInstrument(symbol: string, exchange: string, name: string, currency: string, assetClass: string): PriceableInstrument {
