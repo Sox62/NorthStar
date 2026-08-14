@@ -442,6 +442,33 @@ function SectorDonut({ sectors, total }: { sectors: Array<{ sector: Sector; valu
   );
 }
 
+function NorthStarIntentDialog({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="nsIntentOverlay" role="dialog" aria-modal="true" aria-labelledby="northstar-intent-title" onClick={onClose}>
+      <section className="nsPanel nsIntentDialog" onClick={(event) => event.stopPropagation()}>
+        <button className="nsIntentCloseButton" type="button" onClick={onClose} aria-label="Close NorthStar information">
+          x
+        </button>
+        <div className="nsIntentLead">
+          <p className="nsEyebrow">About NorthStar</p>
+          <h2 id="northstar-intent-title">Fiat is the reporting currency. Gold is the numeraire.</h2>
+          <p>
+            NorthStar is designed to preserve and grow purchasing power, not merely nominal portfolio value. Capital begins from a reserve benchmark and moves outward only when relative leadership, structural breakouts and fundamentals justify additional risk.
+          </p>
+        </div>
+        <div className="nsIntentChecks" aria-label="NorthStar allocation structure">
+          <span>GSR establishes precious-metals leadership.</span>
+          <span>Cross-commodity ratios identify challengers.</span>
+          <span>Miner/metal and company/benchmark ratios test whether equity risk is being rewarded.</span>
+        </div>
+        <p className="nsIntentClose">
+          Price determines opportunity. Structure determines commitment. The investor supplies the thesis. The market supplies the evidence. NorthStar identifies when the two agree.
+        </p>
+      </section>
+    </div>
+  );
+}
+
 /** Full redesigned overview dashboard matching the screenshot reference. */
 export function OverviewScreen({ holdings, logoSrc, performance = [], accountBreakdown = [], syncRuns = [], freshnessByScope, lastUpdatedByScope, onRefresh }: {
   holdings: Holding[];
@@ -457,6 +484,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], accountBre
   const [syncingAll, setSyncingAll] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
   const [syncMessageTone, setSyncMessageTone] = useState<"good" | "warning" | "bad">("good");
+  const [showIntentInfo, setShowIntentInfo] = useState(false);
   const view = byScope(holdings, scope);
   const t = totals(view);
   const dailyPnl = view.reduce((sum, holding) => sum + (holding.dayGainAud ?? 0), 0);
@@ -517,12 +545,15 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], accountBre
               </button>
               <a className="nsReportLink" href={`/api/reports/wealth-statement?scope=${scope}`}>Wealth CSV</a>
               <a className="nsReportLink" href="/api/reports/estate-summary">Estate CSV</a>
+              <button className="nsReportButton" type="button" onClick={() => setShowIntentInfo(true)}>About</button>
               <button className="nsReportButton" type="button" onClick={() => void signOut()}>Sign out</button>
             </div>
           </div>
         </header>
 
         <StateOfPlayCards total={t} dailyPnl={dailyPnl} accounts={accountBreakdown} holdings={holdings} scope={scope} />
+
+        {showIntentInfo ? <NorthStarIntentDialog onClose={() => setShowIntentInfo(false)} /> : null}
 
         <div className="nsStateChartGrid">
           <HistoryChart now={t.marketValue} investedNow={investedNow} scope={scope} performance={performance} />
