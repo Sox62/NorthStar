@@ -706,7 +706,7 @@ export async function fetchHistoricalMarketPrices(instruments: PriceableInstrume
       if (instrument.currency.toUpperCase() !== "AUD") {
         const months = [...new Set(rows.map((row) => row.priceDate.slice(0, 7)))];
         for (const month of months) {
-          const rateDate = rows.findLast((row) => row.priceDate.startsWith(month))?.priceDate;
+          const rateDate = rows.find((row) => row.priceDate.startsWith(month))?.priceDate;
           if (!rateDate) continue;
           const rate = await fetchFrankfurterFx(instrument.currency, rateDate).catch(() => null);
           if (rate) fxRates.set(`${rate.currency}:${rate.rateDate}:${rate.source}`, rate);
