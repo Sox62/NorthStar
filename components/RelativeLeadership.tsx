@@ -196,6 +196,15 @@ function mergeBenchmarkNodes(nodes: BenchmarkNode[]) {
   });
 }
 
+function benchmarkOptionLabel(node: BenchmarkNode) {
+  const symbol = node.symbol ?? node.label;
+  return `${symbol} · ${node.label}`;
+}
+
+function selectionValue(kind: "holding" | "benchmark", id: string) {
+  return id ? `${kind}:${id}` : "";
+}
+
 function formatAxisTick(value: number, mode: RatioMode) {
   if (mode !== "ratio") return value.toFixed(1);
   if (value >= 10) return value.toFixed(1);
@@ -365,10 +374,14 @@ export default function RelativeLeadership() {
   }, [holdings, leftId, rightId, leftBenchmarkId, rightBenchmarkId]);
 
   const leftHolding = holdings.find((holding) => holding.id === leftId) ?? null;
-  const selectedLeftBenchmark = RESEARCH_BENCHMARKS.find((node) => node.id === leftBenchmarkId) ?? null;
-  const left = selectedLeftBenchmark ? benchmarkInstrument(selectedLeftBenchmark) : leftHolding ?? holdings[0];
-  const tree = left ? resolveBenchmarkTree({ symbol: left.symbol, name: left.name, sector: sectorForInstrument(left), exchange: left.exchange, currency: left.currency }) : null;
-  const benchmarkNodes = tree ? mergeBenchmarkNodes([...tree.path, ...tree.peers, ...RESEARCH_BENCHMARKS]).filter(nodeIsChartable) : RESEARCH_BENCHMARKS.filter(nodeIsChartable);
+  const selectedResearchLeftBenchmark = RESEARCH_BENCHMARKS.find((node) => node.id === leftBenchmarkId) ?? null;
+  const provisionalLeft = selectedResearchLeftBenchmark ? benchmarkInstrument(selectedResearchLeftBenchmark) : leftHolding ?? holdings[0];
+  const provisionalTree = provisionalLeft ? resolveBenchmarkTree({ symbol: provisionalLeft.symbol, name: provisionalLeft.name, sector: sectorForInstrument(provisionalLeft), exchange: provisionalLeft.exchange, currency: provisionalLeft.currency }) : null;
+  const provisionalBenchmarkNodes = provisionalTree ? mergeBenchmarkNodes([...provisionalTree.path, ...provisionalTree.peers, ...RESEARCH_BENCHMARKS]).filter(nodeIsChartable) : RESEARCH_BENCHMARKS.filter(nodeIsChartable);
+  const selectedLeftBenchmark = provisionalBenchmarkNodes.find((node) => node.id === leftBenchmarkId) ?? selectedResearchLeftBenchmark;
+  const left = selectedLeftBenchmark ? benchmarkInstrument(selectedLeftBenchmark) : provisionalLeft;
+  const leftTree = left ? resolveBenchmarkTree({ symbol: left.symbol, name: left.name, sector: sectorForInstrument(left), exchange: left.exchange, currency: left.currency }) : null;
+  const benchmarkNodes = leftTree ? mergeBenchmarkNodes([...leftTree.path, ...leftTree.peers, ...RESEARCH_BENCHMARKS]).filter(nodeIsChartable) : provisionalBenchmarkNodes;
   const selectedBenchmark = benchmarkNodes.find((node) => node.id === rightBenchmarkId) ?? null;
   const rightHolding = holdings.find((holding) => holding.id === rightId) ?? null;
   const right = selectedBenchmark ? benchmarkInstrument(selectedBenchmark) : rightHolding ?? holdings[1] ?? holdings[0];
@@ -572,62 +585,52 @@ export default function RelativeLeadership() {
               ))}
             </div>
             <label className="relativeSelect">
-              <span>First holding</span>
-              <select value={leftBenchmarkId ? "" : leftHolding?.id ?? ""} onChange={(event) => { setLeftBenchmarkId(""); setLeftId(event.target.value); }}>
-                <option value="" disabled>{leftBenchmarkId ? "Research benchmark selected below" : "Choose holding"}</option>
-                {holdings.map((holding) => (
-                  <option key={holding.id} value={holding.id}>{holding.symbol} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
-                ))}
+              <span>First asset</span>
+              <select
+                value={leftBenchmarkId ? selectionValue("benchmark", leftBenchmarkId) : selectionValue("holding", leftHolding?.id ?? "")}
+                onChange={(event) => {
+                  const [kind, id] = event.target.value.split(":");
+                  if (kind === "benchmark") { setLeftBenchmarkId(id); setLeftId(""); }
+                  else { setLeftBenchmarkId(""); setLeftId(id); }
+                }}
+              >
+                <option value="" disabled>Choose first asset</option>
+                <optgroup label="Benchmarks">
+                  {benchmarkNodes.map((node) => (
+                    <option key={node.id + ":left"} value={selectionValue("benchmark", node.id)}>{benchmarkOptionLabel(node)}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Holdings">
+                  {holdings.map((holding) => (
+                    <option key={holding.id} value={selectionValue("holding", holding.id)}>{holding.symbol} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
+                  ))}
+                </optgroup>
               </select>
             </label>
             <label className="relativeSelect">
-              <span>Second holding</span>
-              <select value={rightBenchmarkId ? "" : rightHolding?.id ?? ""} onChange={(event) => { setRightBenchmarkId(""); setRightId(event.target.value); }}>
-                <option value="" disabled>{rightBenchmarkId ? "Benchmark selected below" : "Choose holding"}</option>
-                {holdings.map((holding) => (
-                  <option key={holding.id} value={holding.id}>{holding.symbol} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
-                ))}
+              <span>Second asset</span>
+              <select
+                value={rightBenchmarkId ? selectionValue("benchmark", rightBenchmarkId) : selectionValue("holding", rightHolding?.id ?? "")}
+                onChange={(event) => {
+                  const [kind, id] = event.target.value.split(":");
+                  if (kind === "benchmark") { setRightBenchmarkId(id); setRightId(""); }
+                  else { setRightBenchmarkId(""); setRightId(id); }
+                }}
+              >
+                <option value="" disabled>Choose second asset</option>
+                <optgroup label="Benchmarks">
+                  {benchmarkNodes.map((node) => (
+                    <option key={node.id + ":right"} value={selectionValue("benchmark", node.id)}>{benchmarkOptionLabel(node)}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="Holdings">
+                  {holdings.map((holding) => (
+                    <option key={holding.id} value={selectionValue("holding", holding.id)}>{holding.symbol} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
+                  ))}
+                </optgroup>
               </select>
             </label>
           </div>
-
-          {tree ? (
-            <div className="relativeBenchmarkPath" aria-label="Benchmark path">
-              <div>
-                <span className="relativeBenchmarkLabel">Benchmark tree</span>
-                <strong>{tree.sector}</strong>
-              </div>
-              <div className="relativeBenchmarkNodes">
-                {tree.path.map((node) => (
-                  <button key={node.id} type="button" disabled={!nodeIsChartable(node)} className={rightBenchmarkId === node.id ? "isActive" : ""} onClick={() => { setRightBenchmarkId(node.id); setRightId(""); }}>
-                    <span>{node.role.replace("_", " ")}</span>
-                    <strong>{node.symbol ?? node.label}</strong>
-                  </button>
-                ))}
-              </div>
-              {benchmarkNodes.length ? (
-                <div className="relativePeerNodes">
-                  {benchmarkNodes.filter((node) => !tree.path.some((pathNode) => pathNode.id === node.id)).map((node) => nodeIsChartable(node) ? (
-                    <button key={node.id} type="button" className={rightBenchmarkId === node.id ? "isActive" : ""} onClick={() => { setRightBenchmarkId(node.id); setRightId(""); }}>
-                      {node.symbol ?? node.label}
-                    </button>
-                  ) : null)}
-                </div>
-              ) : null}
-              {tree.notes.length ? <p>{tree.notes[0]}</p> : null}
-              <div className="relativeResearchSet">
-                <span>Use research candidate as first asset</span>
-                <div className="relativePeerNodes">
-                  {RESEARCH_BENCHMARKS.map((node) => (
-                    <button key={node.id + ":left"} type="button" className={leftBenchmarkId === node.id ? "isActive" : ""} onClick={() => { setLeftBenchmarkId(node.id); setLeftId(""); }} title={node.label}>
-                      {node.symbol ?? node.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : null}
-
           <SummaryGrid
             entries={[
               ["Ratio move", percent(ratioChange), ratioChange >= 0 ? "positive" : "negative"],
