@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/PageHeader";
+import TradingViewWidget from "@/components/TradingViewWidget";
 import type { DashboardData, DashboardHolding, OwnerType, Scope, StoredDailyPrice, StoredFxRate, StructuralLevel } from "@/lib/storage";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { RESEARCH_BENCHMARKS, resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
@@ -670,6 +671,34 @@ export default function RelativeLeadership() {
               <span>NorthStar has fewer than two usable comparison dates. Use Backfill history or choose another pair.</span>
             </div>
           )}
+
+          {ratioTvExpression ? (
+            <div className="relativeTvPanel">
+              <div className="relativeTvHeader">
+                <div>
+                  <p className="eyebrow">TradingView workbench</p>
+                  <h3>{left.symbol}/{right.symbol}</h3>
+                  <span>{ratioTvExpression}</span>
+                </div>
+                <div className="relativeActions">
+                  <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={ratioTvExpression}>Open ratio</a>
+                  {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>{left.symbol}</a> : null}
+                  {rightTv ? <a className="button" href={rightTv} target="_blank" rel="noreferrer" title={rightTvSymbol}>{right.symbol}</a> : null}
+                </div>
+              </div>
+              <TradingViewWidget
+                symbol={ratioTvExpression}
+                className="tradingview-widget-container stockChartWidget relativeTvWidget"
+                minHeight={480}
+                maxHeight={680}
+                compactMinHeight={360}
+                compactMaxHeight={460}
+                heightRatio={0.7}
+                compactHeightRatio={0.58}
+              />
+              <p className="relativeTvNote">If TradingView opens search or an unknown symbol for this formula, use the individual asset buttons above.</p>
+            </div>
+          ) : null}
 
           <div className="relativeStructurePanel">
             <div className="relativeStructureHeader">
