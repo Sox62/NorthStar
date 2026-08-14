@@ -20,6 +20,11 @@ type FundamentalsResponse = {
   error?: string;
 };
 
+type StarterResponse = FundamentalsResponse & {
+  imported?: number;
+  symbols?: string[];
+};
+
 type MetricDefinition = {
   label: string;
   field: string;
@@ -69,6 +74,13 @@ async function loadFundamentals(symbols: string[]): Promise<MinerFundamentals[]>
   return payload.fundamentals ?? [];
 }
 
+async function loadStarterFundamentals(): Promise<MinerFundamentals[]> {
+  const response = await fetch("/api/fundamentals/starter", { method: "POST", cache: "no-store" });
+  const payload = await response.json() as StarterResponse;
+  if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load starter fundamentals");
+  return payload.fundamentals ?? [];
+}
+
 function isMinerHolding(holding: Holding) {
   return minerSectors.includes(holding.sector);
 }
@@ -109,6 +121,7 @@ function dateOrDash(value: string | null | undefined) {
 
 export default function FundamentalsRisk() {
   const [{ holdings, fundamentals, loading, error }, setState] = useState<FundamentalsState>({ holdings: [], fundamentals: [], loading: true, error: "" });
+  const [starterStatus, setStarterStatus] = useState<{ loading: boolean; message: string; error: string }>({ loading: false, message: "", error: "" });
 
   useEffect(() => {
     let cancelled = false;
@@ -141,6 +154,21 @@ export default function FundamentalsRisk() {
     return [...totals.entries()].sort((a, b) => b[1] - a[1]);
   }, [sortedHoldings]);
   const fundamentalsBySymbol = useMemo(() => new Map(fundamentals.map((item) => [item.symbol.toUpperCase(), item])), [fundamentals]);
+
+  async function handleLoadStarterFundamentals() {
+    setStarterStatus({ loading: true, message: "", error: "" });
+    try {
+      const nextFundamentals = await loadStarterFundamentals();
+      setState((current) => {
+        const bySymbol = new Map(current.fundamentals.map((item) => [item.symbol.toUpperCase(), item]));
+        for (const item of nextFundamentals) bySymbol.set(item.symbol.toUpperCase(), item);
+        return { ...current, fundamentals: [...bySymbol.values()].sort((a, b) => a.symbol.localeCompare(b.symbol)) };
+      });
+      setStarterStatus({ loading: false, message: `Loaded ${nextFundamentals.map((item) => item.symbol).join(", ")} from source records.`, error: "" });
+    } catch (reason) {
+      setStarterStatus({ loading: false, message: "", error: reason instanceof Error ? reason.message : "Unable to load starter fundamentals" });
+    }
+  }
 
   return (
     <main className="shell">
@@ -175,6 +203,11 @@ export default function FundamentalsRisk() {
           <p className="eyebrow">Edge score inputs</p>
           <h2 className="cardTitle">No score until data is sourced</h2>
           <p className="cardIntro">The methodology needs company-level fundamentals, not just broker prices. This keeps the risk framework useful without pretending the feed already knows mine economics.</p>
+          <button className="fundamentalsStarterAction" type="button" onClick={handleLoadStarterFundamentals} disabled={starterStatus.loading}>
+            {starterStatus.loading ? "Loading records" : "Load CDE, AYA, ASL"}
+          </button>
+          {starterStatus.message ? <p className="fundamentalsStarterMessage">{starterStatus.message}</p> : null}
+          {starterStatus.error ? <p className="fundamentalsStarterMessage isError">{starterStatus.error}</p> : null}
           <div className="fundamentalsChecklist">
             {checklist.map((item) => <span key={item}>{item}</span>)}
           </div>
@@ -239,7 +272,8 @@ export default function FundamentalsRisk() {
                     </td>
                     <td>
                       <span>{saved?.jurisdiction ?? "Jurisdiction needed"}{saved?.primaryMetal ? ` · ${saved.primaryMetal}` : ""}</span>
-                      <small>{saved?.asOfDate ? `As of ${dateOrDash(saved.asOfDate)}` : "Production, AISC, resource oz and source date needed."}</small>
+                      <small>{saved?.notes ?? (saved?.asOfDate ? `As of ${dateOrDash(saved.asOfDate)}` : "Production, AISC, resource oz and source date needed.")}</small>
+                      {saved?.sourceUrl ? <a className="fundamentalsSourceLink" href={saved.sourceUrl} target="_blank" rel="noreferrer">Source</a> : null}
                     </td>
                   </tr>
                 );

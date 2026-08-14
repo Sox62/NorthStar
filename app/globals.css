@@ -2020,6 +2020,29 @@ button:disabled { opacity: .55; cursor: wait; }
   font-size: 12px;
   line-height: 1.5;
 }
+.fundamentalsStarterAction {
+  margin-top: 14px;
+}
+.fundamentalsStarterMessage {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.fundamentalsStarterMessage.isError {
+  color: var(--status-negative);
+}
+.fundamentalsSourceLink {
+  display: inline-flex;
+  margin-top: 6px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.fundamentalsSourceLink:hover {
+  color: var(--text-primary);
+}
 .fundamentalsChecklist {
   display: flex;
   flex-wrap: wrap;
