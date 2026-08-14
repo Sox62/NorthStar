@@ -25,6 +25,36 @@ type StarterResponse = FundamentalsResponse & {
   symbols?: string[];
 };
 
+type SaveFundamentalsResponse = {
+  fundamental?: MinerFundamentals;
+  error?: string;
+};
+
+type ResearchFormState = {
+  symbol: string;
+  name: string;
+  primaryMetal: string;
+  jurisdiction: string;
+  projectStage: string;
+  productionOz: string;
+  aiscUsdPerOz: string;
+  resourceMoz: string;
+  reserveMoz: string;
+  cashAud: string;
+  debtAud: string;
+  marketCapAud: string;
+  npvAud: string;
+  capexAud: string;
+  irrPercent: string;
+  jurisdictionScore: string;
+  balanceSheetScore: string;
+  dilutionScore: string;
+  managementScore: string;
+  sourceUrl: string;
+  asOfDate: string;
+  notes: string;
+};
+
 type MetricDefinition = {
   label: string;
   field: string;
@@ -32,6 +62,31 @@ type MetricDefinition = {
 };
 
 const minerSectors: Sector[] = ["Silver miners", "Gold miners", "Uranium miners", "Uranium explorers"];
+
+const blankResearchForm: ResearchFormState = {
+  symbol: "",
+  name: "",
+  primaryMetal: "",
+  jurisdiction: "",
+  projectStage: "",
+  productionOz: "",
+  aiscUsdPerOz: "",
+  resourceMoz: "",
+  reserveMoz: "",
+  cashAud: "",
+  debtAud: "",
+  marketCapAud: "",
+  npvAud: "",
+  capexAud: "",
+  irrPercent: "",
+  jurisdictionScore: "",
+  balanceSheetScore: "",
+  dilutionScore: "",
+  managementScore: "",
+  sourceUrl: "",
+  asOfDate: "",
+  notes: "",
+};
 
 const metricDefinitions: MetricDefinition[] = [
   { label: "Production margin", field: "Spot price - AISC", reason: "Shows operating leverage before trusting a miner P/L number." },
@@ -81,6 +136,50 @@ async function loadStarterFundamentals(): Promise<MinerFundamentals[]> {
   return payload.fundamentals ?? [];
 }
 
+function formValue(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+}
+
+function formNumber(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length ? Number(trimmed) : null;
+}
+
+async function saveResearchFundamentals(form: ResearchFormState): Promise<MinerFundamentals> {
+  const response = await fetch("/api/fundamentals", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      symbol: form.symbol,
+      name: formValue(form.name),
+      primaryMetal: formValue(form.primaryMetal),
+      jurisdiction: formValue(form.jurisdiction),
+      projectStage: formValue(form.projectStage),
+      productionOz: formNumber(form.productionOz),
+      aiscUsdPerOz: formNumber(form.aiscUsdPerOz),
+      resourceMoz: formNumber(form.resourceMoz),
+      reserveMoz: formNumber(form.reserveMoz),
+      cashAud: formNumber(form.cashAud),
+      debtAud: formNumber(form.debtAud),
+      marketCapAud: formNumber(form.marketCapAud),
+      npvAud: formNumber(form.npvAud),
+      capexAud: formNumber(form.capexAud),
+      irrPercent: formNumber(form.irrPercent),
+      jurisdictionScore: formNumber(form.jurisdictionScore),
+      balanceSheetScore: formNumber(form.balanceSheetScore),
+      dilutionScore: formNumber(form.dilutionScore),
+      managementScore: formNumber(form.managementScore),
+      sourceUrl: formValue(form.sourceUrl),
+      asOfDate: formValue(form.asOfDate),
+      notes: form.notes.trim(),
+    }),
+  });
+  const payload = await response.json() as SaveFundamentalsResponse;
+  if (!response.ok || payload.error || !payload.fundamental) throw new Error(payload.error || "Unable to save research idea");
+  return payload.fundamental;
+}
+
 function isMinerHolding(holding: Holding) {
   return minerSectors.includes(holding.sector);
 }
@@ -122,6 +221,8 @@ function dateOrDash(value: string | null | undefined) {
 export default function FundamentalsRisk() {
   const [{ holdings, fundamentals, loading, error }, setState] = useState<FundamentalsState>({ holdings: [], fundamentals: [], loading: true, error: "" });
   const [starterStatus, setStarterStatus] = useState<{ loading: boolean; message: string; error: string }>({ loading: false, message: "", error: "" });
+  const [researchForm, setResearchForm] = useState<ResearchFormState>(blankResearchForm);
+  const [researchStatus, setResearchStatus] = useState<{ saving: boolean; message: string; error: string }>({ saving: false, message: "", error: "" });
 
   useEffect(() => {
     let cancelled = false;
@@ -157,6 +258,27 @@ export default function FundamentalsRisk() {
     const heldSymbols = new Set(sortedHoldings.map((holding) => holding.symbol.toUpperCase()));
     return fundamentals.filter((item) => !heldSymbols.has(item.symbol.toUpperCase()));
   }, [fundamentals, sortedHoldings]);
+
+  function updateResearchField<K extends keyof ResearchFormState>(field: K, value: ResearchFormState[K]) {
+    setResearchForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function handleSaveResearchIdea(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setResearchStatus({ saving: true, message: "", error: "" });
+    try {
+      const next = await saveResearchFundamentals(researchForm);
+      setState((current) => {
+        const bySymbol = new Map(current.fundamentals.map((item) => [item.symbol.toUpperCase(), item]));
+        bySymbol.set(next.symbol.toUpperCase(), next);
+        return { ...current, fundamentals: [...bySymbol.values()].sort((a, b) => a.symbol.localeCompare(b.symbol)) };
+      });
+      setResearchForm(blankResearchForm);
+      setResearchStatus({ saving: false, message: `Saved ${next.symbol} as a research idea.`, error: "" });
+    } catch (reason) {
+      setResearchStatus({ saving: false, message: "", error: reason instanceof Error ? reason.message : "Unable to save research idea" });
+    }
+  }
 
   async function handleLoadStarterFundamentals() {
     setStarterStatus({ loading: true, message: "", error: "" });
@@ -287,6 +409,42 @@ export default function FundamentalsRisk() {
         </div>
 
         {!loading && !sortedHoldings.length ? <p className="empty">No miner holdings are available for this workbench.</p> : null}
+      </Card>
+
+      <Card className="fundamentalsResearchFormCard">
+        <div className="panelHeader">
+          <div>
+            <p className="eyebrow">Research intake</p>
+            <h2 className="cardTitle">Add a miner idea</h2>
+          </div>
+          <StatusBadge tone={researchStatus.message ? "good" : "warning"}>{researchStatus.saving ? "Saving" : "Manual source"}</StatusBadge>
+        </div>
+        <form className="fundamentalsResearchForm" onSubmit={handleSaveResearchIdea}>
+          <label><span>Symbol</span><input value={researchForm.symbol} onChange={(event) => updateResearchField("symbol", event.target.value.toUpperCase())} placeholder="PAAS" required /></label>
+          <label><span>Name</span><input value={researchForm.name} onChange={(event) => updateResearchField("name", event.target.value)} placeholder="Pan American Silver" /></label>
+          <label><span>Metal / theme</span><input value={researchForm.primaryMetal} onChange={(event) => updateResearchField("primaryMetal", event.target.value)} placeholder="Silver" /></label>
+          <label><span>Jurisdiction</span><input value={researchForm.jurisdiction} onChange={(event) => updateResearchField("jurisdiction", event.target.value)} placeholder="Mexico, Peru, Canada" /></label>
+          <label><span>Stage</span><input value={researchForm.projectStage} onChange={(event) => updateResearchField("projectStage", event.target.value)} placeholder="Producer" /></label>
+          <label><span>As of</span><input type="date" value={researchForm.asOfDate} onChange={(event) => updateResearchField("asOfDate", event.target.value)} /></label>
+          <label><span>Production oz</span><input inputMode="decimal" value={researchForm.productionOz} onChange={(event) => updateResearchField("productionOz", event.target.value)} placeholder="12000000" /></label>
+          <label><span>AISC USD/oz</span><input inputMode="decimal" value={researchForm.aiscUsdPerOz} onChange={(event) => updateResearchField("aiscUsdPerOz", event.target.value)} placeholder="18.50" /></label>
+          <label><span>Resource Moz</span><input inputMode="decimal" value={researchForm.resourceMoz} onChange={(event) => updateResearchField("resourceMoz", event.target.value)} placeholder="100" /></label>
+          <label><span>Reserve Moz</span><input inputMode="decimal" value={researchForm.reserveMoz} onChange={(event) => updateResearchField("reserveMoz", event.target.value)} placeholder="50" /></label>
+          <label><span>Cash A$</span><input inputMode="decimal" value={researchForm.cashAud} onChange={(event) => updateResearchField("cashAud", event.target.value)} /></label>
+          <label><span>Debt A$</span><input inputMode="decimal" value={researchForm.debtAud} onChange={(event) => updateResearchField("debtAud", event.target.value)} /></label>
+          <label><span>Jurisdiction score</span><input inputMode="numeric" min="0" max="5" value={researchForm.jurisdictionScore} onChange={(event) => updateResearchField("jurisdictionScore", event.target.value)} placeholder="0-5" /></label>
+          <label><span>Balance score</span><input inputMode="numeric" min="0" max="5" value={researchForm.balanceSheetScore} onChange={(event) => updateResearchField("balanceSheetScore", event.target.value)} placeholder="0-5" /></label>
+          <label><span>Dilution score</span><input inputMode="numeric" min="0" max="5" value={researchForm.dilutionScore} onChange={(event) => updateResearchField("dilutionScore", event.target.value)} placeholder="0-5" /></label>
+          <label><span>Management score</span><input inputMode="numeric" min="0" max="5" value={researchForm.managementScore} onChange={(event) => updateResearchField("managementScore", event.target.value)} placeholder="0-5" /></label>
+          <label className="isWide"><span>Source URL</span><input value={researchForm.sourceUrl} onChange={(event) => updateResearchField("sourceUrl", event.target.value)} placeholder="https://..." /></label>
+          <label className="isWide"><span>Notes</span><textarea value={researchForm.notes} onChange={(event) => updateResearchField("notes", event.target.value)} rows={3} placeholder="What was sourced, what is judgement, what needs checking next." /></label>
+          <div className="buttonRow fundamentalsResearchActions">
+            <button className="primary" type="submit" disabled={researchStatus.saving}>{researchStatus.saving ? "Saving" : "Save research idea"}</button>
+            <button type="button" onClick={() => setResearchForm(blankResearchForm)} disabled={researchStatus.saving}>Clear</button>
+          </div>
+        </form>
+        {researchStatus.message ? <p className="fundamentalsStarterMessage">{researchStatus.message}</p> : null}
+        {researchStatus.error ? <p className="fundamentalsStarterMessage isError">{researchStatus.error}</p> : null}
       </Card>
 
       <Card className="fundamentalsTableCard">

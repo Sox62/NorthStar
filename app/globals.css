@@ -2060,6 +2060,53 @@ button:disabled { opacity: .55; cursor: wait; }
   color: var(--text-secondary);
   font-size: 12px;
 }
+.fundamentalsResearchFormCard {
+  margin-bottom: 18px;
+}
+.fundamentalsResearchForm {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+.fundamentalsResearchForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.fundamentalsResearchForm label.isWide {
+  grid-column: span 2;
+}
+.fundamentalsResearchForm span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.fundamentalsResearchForm input,
+.fundamentalsResearchForm textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(106,130,153,.28);
+  border-radius: 10px;
+  background: rgba(4,12,20,.56);
+  color: var(--text-primary);
+  padding: 10px 11px;
+  outline: none;
+}
+.fundamentalsResearchForm textarea {
+  resize: vertical;
+}
+.fundamentalsResearchForm input:focus,
+.fundamentalsResearchForm textarea:focus {
+  border-color: rgba(215,181,109,.52);
+}
+.fundamentalsResearchActions {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
 .fundamentalsTableCard {
   min-width: 0;
 }
@@ -2096,7 +2143,8 @@ button:disabled { opacity: .55; cursor: wait; }
   .syncStatusCard .nsActivityRow { grid-template-columns: minmax(0, 1fr) auto; gap: 10px 14px; padding: 12px 0; }
   .syncStatusCard .nsActivityRow p { grid-column: 1 / -1; }
   .roadmapHero { grid-template-columns: 1fr; }
-  .fundamentalsHero, .fundamentalsGrid { grid-template-columns: 1fr; }
+  .fundamentalsHero, .fundamentalsGrid, .fundamentalsResearchForm { grid-template-columns: 1fr; }
+  .fundamentalsResearchForm label.isWide { grid-column: auto; }
   .holdingsAccounts { grid-template-columns: 1fr; }
   .holdingsToolbar { grid-template-columns: 1fr; align-items: stretch; }
   .printReportToolbar { align-items: stretch; flex-direction: column; }
