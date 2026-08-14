@@ -89,6 +89,7 @@ export default function PricesPage() {
   const [busy, setBusy] = useState(false);
   const [csvBusy, setCsvBusy] = useState(false);
   const [refreshBusy, setRefreshBusy] = useState(false);
+  const [backfillBusy, setBackfillBusy] = useState(false);
   const [refreshProvider, setRefreshProvider] = useState<QuoteRefreshProvider>("auto");
   const [selectedKey, setSelectedKey] = useState("");
   const [form, setForm] = useState({ symbol: "", exchange: "", close: "", currency: "AUD", priceDate: today(), source: "Manual close", fxRateToAud: "" });
@@ -188,6 +189,23 @@ export default function PricesPage() {
     }
   };
 
+  const backfillHistory = async (symbols?: string[]) => {
+    setBackfillBusy(true);
+    setResult(null);
+    try {
+      const response = await fetch("/api/prices/backfill", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ range: "1y", symbols }),
+      });
+      const payloadResult = await response.json();
+      setResult(payloadResult);
+      if (response.ok) await load();
+    } finally {
+      setBackfillBusy(false);
+    }
+  };
+
   return (
     <main className="shell">
       <PageHeader
@@ -284,12 +302,20 @@ export default function PricesPage() {
                 className="primary"
                 type="button"
                 onClick={() => refreshQuotes(selectedInstrument ? [`${selectedInstrument.symbol}:${selectedInstrument.exchange}`] : undefined)}
-                disabled={refreshBusy || !book.instruments.length}
+                disabled={refreshBusy || backfillBusy || !book.instruments.length}
               >
                 {refreshBusy ? "Refreshing..." : selectedInstrument ? `Refresh ${selectedInstrument.symbol}` : "Refresh all"}
               </button>
+              <button
+                className="button"
+                type="button"
+                onClick={() => backfillHistory(selectedInstrument ? [`${selectedInstrument.symbol}:${selectedInstrument.exchange}`] : undefined)}
+                disabled={refreshBusy || backfillBusy || !book.instruments.length}
+              >
+                {backfillBusy ? "Backfilling..." : selectedInstrument ? `Backfill ${selectedInstrument.symbol}` : "Backfill 1Y"}
+              </button>
               {selectedInstrument ? (
-                <button className="button" type="button" onClick={() => refreshQuotes()} disabled={refreshBusy || !book.instruments.length}>
+                <button className="button" type="button" onClick={() => refreshQuotes()} disabled={refreshBusy || backfillBusy || !book.instruments.length}>
                   All
                 </button>
               ) : null}
