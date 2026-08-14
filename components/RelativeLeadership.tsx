@@ -2,26 +2,20 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/PageHeader";
-import type { DashboardData, DashboardHolding, Scope, StoredDailyPrice } from "@/lib/storage";
+import type { DashboardData, DashboardHolding, Scope, StoredDailyPrice, StoredFxRate } from "@/lib/storage";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
+import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, RATIO_RANGES, type RatioPoint, type RatioRangeKey } from "@/northstar/lib/ratio-engine";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
 import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
 type PriceBookResponse = {
   prices?: StoredDailyPrice[];
+  fxRates?: StoredFxRate[];
   error?: string;
 };
 type RatioMode = "ratio" | "indexed";
-type RangeKey = "all" | "6m" | "3m" | "1m";
-type RatioPoint = {
-  date: string;
-  left: number;
-  right: number;
-  leftIndexed: number;
-  rightIndexed: number;
-  ratio: number;
-};
+type RangeKey = Extract<RatioRangeKey, "all" | "6m" | "3m" | "1m">;
 
 const scopes: Array<{ key: Scope; label: string }> = [
   { key: "overall", label: "Overall" },
@@ -29,12 +23,7 @@ const scopes: Array<{ key: Scope; label: string }> = [
   { key: "smsf", label: "SMSF" },
 ];
 
-const ranges: Array<{ key: RangeKey; label: string; days: number | null }> = [
-  { key: "all", label: "All", days: null },
-  { key: "6m", label: "6M", days: 183 },
-  { key: "3m", label: "3M", days: 92 },
-  { key: "1m", label: "1M", days: 31 },
-];
+const ranges: Array<{ key: RangeKey; label: string; days: number | null }> = RATIO_RANGES.filter((item) => ["all", "6m", "3m", "1m"].includes(item.key)) as Array<{ key: RangeKey; label: string; days: number | null }>;
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value);
@@ -61,84 +50,24 @@ async function loadDashboard(scope: Scope): Promise<DashboardData> {
   return payload as DashboardData;
 }
 
-async function loadStoredPrices(): Promise<StoredDailyPrice[]> {
+async function loadStoredPrices(): Promise<{ prices: StoredDailyPrice[]; fxRates: StoredFxRate[] }> {
   const response = await fetch("/api/prices/daily?limit=12000", { cache: "no-store" });
   const payload = await response.json() as PriceBookResponse;
   if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load stored prices");
-  return payload.prices ?? [];
+  return { prices: payload.prices ?? [], fxRates: payload.fxRates ?? [] };
 }
 
-function canonicalMarket(value: string) {
-  const exchange = value.trim().toUpperCase();
-  if (["CA", "CANADA", "TSX", "TSXV", "TSE", "CVE", "TSX/TSXV"].includes(exchange)) return "CA";
-  if (["AU", "ASX", "CHIXAU"].includes(exchange)) return "ASX";
-  if (["US", "USA", "NYSE", "NASDAQ", "AMEX", "ARCA", "NYSEARCA"].includes(exchange)) return "US";
-  return exchange;
-}
-
-function priceMatchesHolding(row: StoredDailyPrice, holding: DashboardHolding) {
-  return row.symbol.toUpperCase() === holding.symbol.toUpperCase()
-    && canonicalMarket(row.exchange) === canonicalMarket(holding.exchange);
-}
-
-function historyForHolding(prices: StoredDailyPrice[], holding: DashboardHolding) {
-  const byDate = new Map<string, StoredDailyPrice>();
-  for (const row of prices) {
-    if (!priceMatchesHolding(row, holding)) continue;
-    const current = byDate.get(row.priceDate);
-    if (!current || current.retrievedAt < row.retrievedAt) byDate.set(row.priceDate, row);
-  }
-  if (holding.lastPrice != null && holding.lastPrice > 0 && holding.asOfDate) {
-    const livePoint: StoredDailyPrice = {
-      id: `current-${holding.id}`,
-      instrumentId: holding.instrumentKey,
-      symbol: holding.symbol,
-      exchange: holding.exchange,
-      name: holding.name,
-      currency: holding.currency,
-      close: holding.lastPrice,
-      priceDate: holding.asOfDate,
-      source: holding.source || "Current position",
-      retrievedAt: new Date().toISOString(),
-    };
-    const current = byDate.get(holding.asOfDate);
-    if (!current || current.retrievedAt < livePoint.retrievedAt) byDate.set(holding.asOfDate, livePoint);
-  }
-  return [...byDate.values()].sort((left, right) => left.priceDate.localeCompare(right.priceDate));
-}
-
-function buildRatioSeries(leftHistory: StoredDailyPrice[], rightHistory: StoredDailyPrice[]) {
-  const leftByDate = new Map(leftHistory.map((row) => [row.priceDate, row]));
-  const rightByDate = new Map(rightHistory.map((row) => [row.priceDate, row]));
-  const dates = [...new Set([...leftByDate.keys(), ...rightByDate.keys()])].sort();
-  const joined: Array<{ date: string; left: number; right: number }> = [];
-  let latestLeft: StoredDailyPrice | undefined;
-  let latestRight: StoredDailyPrice | undefined;
-  for (const date of dates) {
-    latestLeft = leftByDate.get(date) ?? latestLeft;
-    latestRight = rightByDate.get(date) ?? latestRight;
-    if (!latestLeft || !latestRight || !latestRight.close) continue;
-    joined.push({ date, left: latestLeft.close, right: latestRight.close });
-  }
-  const first = joined[0];
-  if (!first) return [];
-  return joined.map((row) => ({
-    ...row,
-    leftIndexed: first.left ? row.left / first.left * 100 : 100,
-    rightIndexed: first.right ? row.right / first.right * 100 : 100,
-    ratio: row.right ? row.left / row.right * 100 : 0,
-  }));
-}
-
-function applyRange(series: RatioPoint[], range: RangeKey) {
-  const rangeSpec = ranges.find((item) => item.key === range);
-  if (!rangeSpec?.days || series.length < 2) return series;
-  const last = series.at(-1);
-  if (!last) return series;
-  const latest = new Date(`${last.date}T12:00:00Z`).getTime();
-  const cutoff = latest - rangeSpec.days * 24 * 60 * 60 * 1000;
-  const filtered = series.filter((point) => new Date(`${point.date}T12:00:00Z`).getTime() >= cutoff);
-  return filtered.length >= 2 ? filtered : series.slice(-Math.min(series.length, rangeSpec.days));
+function historyForHolding(prices: StoredDailyPrice[], fxRates: StoredFxRate[], holding: DashboardHolding) {
+  return buildInstrumentHistory(prices, fxRates, {
+    id: holding.id,
+    symbol: holding.symbol,
+    exchange: holding.exchange,
+    name: holding.name,
+    currency: holding.currency,
+    currentClose: holding.lastPrice,
+    currentDate: holding.asOfDate,
+    currentSource: holding.source || "Current position",
+  });
 }
 
 function isChartable(holding: DashboardHolding) {
@@ -235,6 +164,7 @@ function RatioChart({ series, mode, left, right }: { series: RatioPoint[]; mode:
 export default function RelativeLeadership() {
   const [dashboards, setDashboards] = useState<DashboardMap>({});
   const [prices, setPrices] = useState<StoredDailyPrice[]>([]);
+  const [fxRates, setFxRates] = useState<StoredFxRate[]>([]);
   const [scope, setScope] = useState<Scope>("overall");
   const [leftId, setLeftId] = useState("");
   const [rightId, setRightId] = useState("");
@@ -259,7 +189,8 @@ export default function RelativeLeadership() {
         ]);
         if (!cancelled) {
           setDashboards({ overall, personal, smsf });
-          setPrices(storedPrices);
+          setPrices(storedPrices.prices);
+          setFxRates(storedPrices.fxRates);
         }
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load relative chart");
@@ -287,10 +218,10 @@ export default function RelativeLeadership() {
 
   const left = holdings.find((holding) => holding.id === leftId) ?? holdings[0];
   const right = holdings.find((holding) => holding.id === rightId) ?? holdings[1] ?? holdings[0];
-  const leftHistory = left ? historyForHolding(prices, left) : [];
-  const rightHistory = right ? historyForHolding(prices, right) : [];
+  const leftHistory = left ? historyForHolding(prices, fxRates, left) : [];
+  const rightHistory = right ? historyForHolding(prices, fxRates, right) : [];
   const fullSeries = left && right ? buildRatioSeries(leftHistory, rightHistory) : [];
-  const series = applyRange(fullSeries, range);
+  const series = applyRatioRange(fullSeries, range);
   const first = series[0];
   const last = series.at(-1);
   const ratioChange = first && last ? last.ratio / first.ratio * 100 - 100 : 0;
@@ -319,7 +250,8 @@ export default function RelativeLeadership() {
         loadStoredPrices(),
       ]);
       setDashboards({ overall, personal, smsf });
-      setPrices(storedPrices);
+      setPrices(storedPrices.prices);
+      setFxRates(storedPrices.fxRates);
       const warnings = Array.isArray(payload.errors) && payload.errors.length ? ` with warnings: ${payload.errors.slice(0, 2).join("; ")}` : "";
       setOperationMessage(`Backfilled ${payload.imported ?? 0} historical closes${warnings}.`);
     } catch (reason) {
