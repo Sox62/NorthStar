@@ -572,7 +572,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .sourceActions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 
 /* Secondary page mastheads */
-.pageMastheadBar { min-height: 64px; }
+.pageMastheadBar { min-height: 52px; }
 .miniBrand { display: inline-flex; align-items: center; gap: 9px; color: var(--text-primary); font-family: var(--font-display); font-size: 20px; text-decoration: none; }
 .miniBrand:hover { text-decoration: none; color: var(--accent); }
 .miniStar { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid rgba(215,181,109,.35); border-radius: 10px; color: var(--accent); background: rgba(215,181,109,.08); font-family: var(--font-sans); font-size: 14px; }
@@ -580,21 +580,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   position: relative;
   z-index: 1;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 30px;
-  padding: 34px 34px 38px;
+  gap: 22px;
+  padding: 22px 28px 26px;
 }
 .pageHero h1 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(38px, 5vw, 58px);
+  font-size: clamp(30px, 3.5vw, 44px);
   font-weight: 500;
-  line-height: .98;
-  letter-spacing: -.045em;
+  line-height: 1.02;
+  letter-spacing: -.025em;
 }
-.pageHero p:not(.eyebrow) { max-width: 760px; margin: 14px 0 0; color: var(--text-muted); line-height: 1.6; }
-.pageStar { color: rgba(215,181,109,.50); font-size: 54px; line-height: 1; }
+.pageHero p:not(.eyebrow) { max-width: 680px; margin: 8px 0 0; color: var(--text-muted); font-size: 14px; line-height: 1.45; }
+.pageStar { color: rgba(215,181,109,.42); font-size: 34px; line-height: 1; }
 
 /* Forms and operational pages */
 .grid { display: grid; gap: 18px; }
@@ -2107,7 +2107,8 @@ button:disabled { opacity: .55; cursor: wait; }
   .pageMastheadBar {
     flex-direction: row;
     align-items: center;
-    padding: 14px 16px;
+    min-height: 46px;
+    padding: 10px 12px;
   }
   .mobileMenu { display: block; }
   .pageNav, .primaryNav { display: none; }
@@ -2128,8 +2129,9 @@ button:disabled { opacity: .55; cursor: wait; }
   .holdingOwner { grid-column: 1; }
   .holdingAmount { grid-column: 2; grid-row: 1; }
   .holdingReturn { grid-column: 2; grid-row: 2; }
-  .pageHero { padding: 26px 22px 30px; }
-  .pageHero h1 { font-size: 41px; }
+  .pageHero { padding: 16px 16px 18px; }
+  .pageHero h1 { font-size: 31px; }
+  .pageHero p:not(.eyebrow) { font-size: 13px; line-height: 1.35; }
   .pageStar { display: none; }
   .assetRow, .cashRow { flex-direction: column; }
   .reportRow { grid-template-columns: 1fr; }
