@@ -253,6 +253,7 @@ export default function RelativeLeadership() {
   const [loading, setLoading] = useState(true);
   const [backfillBusy, setBackfillBusy] = useState(false);
   const [operationMessage, setOperationMessage] = useState("");
+  const [copiedRatio, setCopiedRatio] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -317,6 +318,18 @@ export default function RelativeLeadership() {
   const rightTv = rightTvSymbol ? tradingViewChartUrl(rightTvSymbol) : "";
   const ratioTvExpression = leftTvSymbol && rightTvSymbol ? tradingViewRatioExpression(leftTvSymbol, rightTvSymbol) : "";
   const ratioTv = ratioTvExpression ? tradingViewRatioChartUrl(leftTvSymbol, rightTvSymbol) : "";
+
+  const copyRatioExpression = async () => {
+    if (!ratioTvExpression) return;
+    setCopiedRatio(false);
+    try {
+      await navigator.clipboard.writeText(ratioTvExpression);
+      setCopiedRatio(true);
+      window.setTimeout(() => setCopiedRatio(false), 1600);
+    } catch {
+      setOperationMessage(`TV ratio expression: ${ratioTvExpression}`);
+    }
+  };
 
   const backfillSelected = async () => {
     if (!left || !right) return;
@@ -383,6 +396,7 @@ export default function RelativeLeadership() {
             </div>
             <div className="relativeActions">
               <button className="button" type="button" onClick={backfillSelected} disabled={backfillBusy}>{backfillBusy ? "Backfilling..." : "Backfill 1Y"}</button>
+              {ratioTvExpression ? <button className="button" type="button" onClick={() => void copyRatioExpression()} title={ratioTvExpression}>{copiedRatio ? "Copied" : "Copy formula"}</button> : null}
               {ratioTv ? <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={`TradingView formula attempt: ${ratioTvExpression}`}>Try ratio in TV</a> : null}
               {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>{left.symbol} TV</a> : null}
               {rightTv ? <a className="button" href={rightTv} target="_blank" rel="noreferrer" title={rightTvSymbol}>{right.symbol} TV</a> : null}
