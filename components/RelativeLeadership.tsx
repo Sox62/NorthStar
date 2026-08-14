@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/PageHeader";
-import type { DashboardData, DashboardHolding, Scope, StoredDailyPrice, StoredFxRate } from "@/lib/storage";
+import type { DashboardData, DashboardHolding, OwnerType, Scope, StoredDailyPrice, StoredFxRate } from "@/lib/storage";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
+import { resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
 import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, RATIO_RANGES, type RatioPoint, type RatioRangeKey } from "@/northstar/lib/ratio-engine";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
 import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
@@ -27,6 +28,8 @@ const ranges: Array<{ key: RangeKey; label: string; days: number | null }> = RAT
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value);
+
+const BENCHMARK_OWNER: OwnerType = "PERSONAL";
 
 const localPrice = (value: number, currency: string) =>
   `${currency} ${value.toLocaleString("en-AU", {
@@ -70,12 +73,68 @@ function historyForHolding(prices: StoredDailyPrice[], fxRates: StoredFxRate[], 
   });
 }
 
+function historyForBenchmark(prices: StoredDailyPrice[], fxRates: StoredFxRate[], node: BenchmarkNode) {
+  const symbol = node.symbol ?? node.label;
+  const exchange = node.tradingViewSymbol?.split(":")[0] ?? "";
+  const direct = buildInstrumentHistory(prices, fxRates, {
+    id: node.id,
+    symbol,
+    exchange,
+    name: node.label,
+    currency: node.basisCurrency,
+  });
+  if (direct.length || !node.tradingViewSymbol?.includes(":")) return direct;
+  return buildInstrumentHistory(prices, fxRates, {
+    id: node.id,
+    symbol,
+    name: node.label,
+    currency: node.basisCurrency,
+  });
+}
+
+function historyForComparison(prices: StoredDailyPrice[], fxRates: StoredFxRate[], holding: DashboardHolding | null, node: BenchmarkNode | null) {
+  if (holding) return historyForHolding(prices, fxRates, holding);
+  if (node) return historyForBenchmark(prices, fxRates, node);
+  return [];
+}
+
 function isChartable(holding: DashboardHolding) {
   return holding.symbol !== "CASH" && holding.exchange !== "CASH" && holding.lastPrice != null && holding.lastPrice > 0;
 }
 
 function defaultSymbol(rows: DashboardHolding[], fallbackIndex: number) {
   return rows[fallbackIndex]?.id ?? rows[0]?.id ?? "";
+}
+
+function benchmarkInstrument(node: BenchmarkNode): DashboardHolding {
+  return {
+    id: node.id,
+    ownerType: BENCHMARK_OWNER,
+    broker: "Benchmark",
+    accountKey: "benchmark",
+    instrumentKey: node.id,
+    symbol: node.symbol ?? node.label,
+    name: node.label,
+    exchange: node.tradingViewSymbol?.split(":")[0] ?? "",
+    currency: node.basisCurrency,
+    assetClass: node.role,
+    quantity: 0,
+    lastPrice: null,
+    averageCostAud: 0,
+    costAud: 0,
+    marketValueAud: 0,
+    dayGainAud: 0,
+    pnlAud: 0,
+    pnlPercent: 0,
+    valuationBasis: "market",
+    asOfDate: "",
+    source: "Benchmark tree",
+    weight: 0,
+  };
+}
+
+function nodeIsChartable(node: BenchmarkNode) {
+  return Boolean(node.symbol && node.tradingViewSymbol && node.role !== "candidate" && node.role !== "peer_group");
 }
 
 function RatioChart({ series, mode, left, right }: { series: RatioPoint[]; mode: RatioMode; left: DashboardHolding; right: DashboardHolding }) {
@@ -168,6 +227,7 @@ export default function RelativeLeadership() {
   const [scope, setScope] = useState<Scope>("overall");
   const [leftId, setLeftId] = useState("");
   const [rightId, setRightId] = useState("");
+  const [rightBenchmarkId, setRightBenchmarkId] = useState("");
   const [mode, setMode] = useState<RatioMode>("ratio");
   const [range, setRange] = useState<RangeKey>("all");
   const [loading, setLoading] = useState(true);
@@ -217,9 +277,13 @@ export default function RelativeLeadership() {
   }, [holdings, leftId, rightId]);
 
   const left = holdings.find((holding) => holding.id === leftId) ?? holdings[0];
-  const right = holdings.find((holding) => holding.id === rightId) ?? holdings[1] ?? holdings[0];
+  const tree = left ? resolveBenchmarkTree({ symbol: left.symbol, name: left.name, sector: sectorForInstrument(left), exchange: left.exchange, currency: left.currency }) : null;
+  const benchmarkNodes = tree ? [...tree.path, ...tree.peers].filter(nodeIsChartable) : [];
+  const selectedBenchmark = benchmarkNodes.find((node) => node.id === rightBenchmarkId) ?? null;
+  const rightHolding = holdings.find((holding) => holding.id === rightId) ?? null;
+  const right = selectedBenchmark ? benchmarkInstrument(selectedBenchmark) : rightHolding ?? holdings[1] ?? holdings[0];
   const leftHistory = left ? historyForHolding(prices, fxRates, left) : [];
-  const rightHistory = right ? historyForHolding(prices, fxRates, right) : [];
+  const rightHistory = historyForComparison(prices, fxRates, selectedBenchmark ? null : right, selectedBenchmark);
   const fullSeries = left && right ? buildRatioSeries(leftHistory, rightHistory) : [];
   const series = applyRatioRange(fullSeries, range);
   const first = series[0];
@@ -228,7 +292,7 @@ export default function RelativeLeadership() {
   const leftChange = first && last ? last.leftIndexed - 100 : 0;
   const rightChange = first && last ? last.rightIndexed - 100 : 0;
   const leftTv = left ? tradingViewChartUrl(tradingViewSymbolForInstrument(left)) : "";
-  const rightTv = right ? tradingViewChartUrl(tradingViewSymbolForInstrument(right)) : "";
+  const rightTv = selectedBenchmark?.tradingViewSymbol ? tradingViewChartUrl(selectedBenchmark.tradingViewSymbol) : right ? tradingViewChartUrl(tradingViewSymbolForInstrument(right)) : "";
 
   const backfillSelected = async () => {
     if (!left || !right) return;
@@ -314,13 +378,41 @@ export default function RelativeLeadership() {
             </label>
             <label className="relativeSelect">
               <span>Second holding</span>
-              <select value={right?.id ?? ""} onChange={(event) => setRightId(event.target.value)}>
+              <select value={rightBenchmarkId ? "" : rightHolding?.id ?? ""} onChange={(event) => { setRightBenchmarkId(""); setRightId(event.target.value); }}>
+                <option value="" disabled>{rightBenchmarkId ? "Benchmark selected below" : "Choose holding"}</option>
                 {holdings.map((holding) => (
                   <option key={holding.id} value={holding.id}>{holding.symbol} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
                 ))}
               </select>
             </label>
           </div>
+
+          {tree ? (
+            <div className="relativeBenchmarkPath" aria-label="Benchmark path">
+              <div>
+                <span className="relativeBenchmarkLabel">Benchmark tree</span>
+                <strong>{tree.sector}</strong>
+              </div>
+              <div className="relativeBenchmarkNodes">
+                {tree.path.map((node) => (
+                  <button key={node.id} type="button" disabled={!nodeIsChartable(node)} className={rightBenchmarkId === node.id ? "isActive" : ""} onClick={() => { setRightBenchmarkId(node.id); setRightId(""); }}>
+                    <span>{node.role.replace("_", " ")}</span>
+                    <strong>{node.symbol ?? node.label}</strong>
+                  </button>
+                ))}
+              </div>
+              {benchmarkNodes.length ? (
+                <div className="relativePeerNodes">
+                  {tree.peers.map((node) => nodeIsChartable(node) ? (
+                    <button key={node.id} type="button" className={rightBenchmarkId === node.id ? "isActive" : ""} onClick={() => { setRightBenchmarkId(node.id); setRightId(""); }}>
+                      {node.symbol ?? node.label}
+                    </button>
+                  ) : null)}
+                </div>
+              ) : null}
+              {tree.notes.length ? <p>{tree.notes[0]}</p> : null}
+            </div>
+          ) : null}
 
           <div className="relativeModeBar">
             <div className="scopeSwitch" role="tablist" aria-label="Chart mode">

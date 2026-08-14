@@ -2513,3 +2513,104 @@ button:disabled { opacity: .55; cursor: wait; }
   font-size: 12px;
   line-height: 1.45;
 }
+
+.relativeBenchmarkPath {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 13px 14px;
+  border: 1px solid rgba(106,130,153,.20);
+  border-radius: 14px;
+  background: rgba(4,12,20,.30);
+}
+.relativeBenchmarkPath > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.relativeBenchmarkLabel {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.relativeBenchmarkPath strong {
+  color: var(--text-primary);
+}
+.relativeBenchmarkNodes,
+.relativePeerNodes {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.relativeBenchmarkNodes button,
+.relativePeerNodes button {
+  min-height: 42px;
+  padding: 8px 11px;
+  border: 1px solid rgba(106,130,153,.22);
+  border-radius: 12px;
+  background: rgba(7,16,26,.52);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.relativeBenchmarkNodes button {
+  display: grid;
+  gap: 2px;
+  min-width: 96px;
+  text-align: left;
+}
+.relativeBenchmarkNodes button span {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.relativeBenchmarkNodes button strong {
+  font-size: 13px;
+}
+.relativeBenchmarkNodes button:hover,
+.relativePeerNodes button:hover,
+.relativeBenchmarkNodes button.isActive,
+.relativePeerNodes button.isActive {
+  border-color: rgba(215,181,109,.55);
+  color: var(--text-primary);
+}
+.relativeBenchmarkNodes button.isActive,
+.relativePeerNodes button.isActive {
+  background: rgba(215,181,109,.12);
+}
+.relativeBenchmarkNodes button:disabled,
+.relativePeerNodes button:disabled {
+  opacity: .46;
+  cursor: not-allowed;
+}
+.relativePeerNodes {
+  padding-top: 1px;
+}
+.relativePeerNodes button {
+  min-height: 34px;
+  padding: 7px 10px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+.relativeBenchmarkPath p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 760px) {
+  .relativeBenchmarkPath > div:first-child {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .relativeBenchmarkNodes button {
+    flex: 1 1 116px;
+  }
+}
