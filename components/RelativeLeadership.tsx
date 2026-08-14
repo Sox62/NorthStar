@@ -97,6 +97,15 @@ function historyForComparison(prices: StoredDailyPrice[], fxRates: StoredFxRate[
   if (node) return historyForBenchmark(prices, fxRates, node);
   return [];
 }
+function backfillKeyForHolding(holding: DashboardHolding) {
+  return holding.exchange ? holding.symbol + ":" + holding.exchange : holding.symbol;
+}
+
+function backfillKeyForBenchmark(node: BenchmarkNode) {
+  const symbol = node.symbol ?? node.label;
+  const exchange = node.tradingViewSymbol?.split(":")[0] ?? "";
+  return exchange ? symbol + ":" + exchange : symbol;
+}
 
 function isChartable(holding: DashboardHolding) {
   return holding.symbol !== "CASH" && holding.exchange !== "CASH" && holding.lastPrice != null && holding.lastPrice > 0;
@@ -303,7 +312,13 @@ export default function RelativeLeadership() {
       const response = await fetch("/api/prices/backfill", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ range: "1y", symbols: [left.symbol, right.symbol] }),
+        body: JSON.stringify({
+          range: "1y",
+          symbols: [
+            backfillKeyForHolding(left),
+            selectedBenchmark ? backfillKeyForBenchmark(selectedBenchmark) : backfillKeyForHolding(right),
+          ],
+        }),
       });
       const payload = await response.json();
       if (!response.ok && payload.error) throw new Error(payload.error);
