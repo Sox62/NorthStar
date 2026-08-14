@@ -63,6 +63,10 @@ export function tradingViewChartUrl(symbol: string) {
   return url.toString();
 }
 
+export function tradingViewRatioExpression(leftSymbol: string, rightSymbol: string) {
+  return leftSymbol + "/" + rightSymbol;
+}
+
 export function tradingViewRatioChartUrl(leftSymbol: string, rightSymbol: string) {
-  return tradingViewChartUrl(leftSymbol + "/" + rightSymbol);
+  return tradingViewChartUrl(tradingViewRatioExpression(leftSymbol, rightSymbol));
 }

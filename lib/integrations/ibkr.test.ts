@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseIbkrFlexXml } from "./ibkr";
-import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
+import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
 
 const flexXml = `<FlexQueryResponse queryName="NorthStar" type="AF">
   <FlexStatements count="1">
@@ -333,11 +333,13 @@ test("TradingView chart URLs use the saved NorthStar layout", () => {
 });
 
 test("TradingView ratio URLs use the saved NorthStar layout", () => {
+  const expression = tradingViewRatioExpression("NYSE:CDE", "TVC:GOLD");
   const url = new URL(tradingViewRatioChartUrl("NYSE:CDE", "TVC:GOLD"));
 
+  assert.equal(expression, "NYSE:CDE/TVC:GOLD");
   assert.equal(url.origin, "https://www.tradingview.com");
   assert.equal(url.pathname, "/chart/rps0WMxt/");
-  assert.equal(url.searchParams.get("symbol"), "NYSE:CDE/TVC:GOLD");
+  assert.equal(url.searchParams.get("symbol"), expression);
 });
 
 test("parseIbkrFlexXml reads open orders from Flex reports", () => {

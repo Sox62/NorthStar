@@ -7,7 +7,7 @@ import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
 import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, RATIO_RANGES, type RatioPoint, type RatioRangeKey } from "@/northstar/lib/ratio-engine";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
-import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
+import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
 type PriceBookResponse = {
@@ -315,7 +315,8 @@ export default function RelativeLeadership() {
   const rightTvSymbol = selectedBenchmark?.tradingViewSymbol ?? (right ? tradingViewSymbolForInstrument(right) : "");
   const leftTv = leftTvSymbol ? tradingViewChartUrl(leftTvSymbol) : "";
   const rightTv = rightTvSymbol ? tradingViewChartUrl(rightTvSymbol) : "";
-  const ratioTv = leftTvSymbol && rightTvSymbol ? tradingViewRatioChartUrl(leftTvSymbol, rightTvSymbol) : "";
+  const ratioTvExpression = leftTvSymbol && rightTvSymbol ? tradingViewRatioExpression(leftTvSymbol, rightTvSymbol) : "";
+  const ratioTv = ratioTvExpression ? tradingViewRatioChartUrl(leftTvSymbol, rightTvSymbol) : "";
 
   const backfillSelected = async () => {
     if (!left || !right) return;
@@ -382,13 +383,14 @@ export default function RelativeLeadership() {
             </div>
             <div className="relativeActions">
               <button className="button" type="button" onClick={backfillSelected} disabled={backfillBusy}>{backfillBusy ? "Backfilling..." : "Backfill 1Y"}</button>
-              {ratioTv ? <a className="button" href={ratioTv} target="_blank" rel="noreferrer">Ratio TV</a> : null}
-              {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer">{left.symbol} TV</a> : null}
-              {rightTv ? <a className="button" href={rightTv} target="_blank" rel="noreferrer">{right.symbol} TV</a> : null}
+              {ratioTv ? <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={`TradingView formula attempt: ${ratioTvExpression}`}>Try ratio in TV</a> : null}
+              {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>{left.symbol} TV</a> : null}
+              {rightTv ? <a className="button" href={rightTv} target="_blank" rel="noreferrer" title={rightTvSymbol}>{right.symbol} TV</a> : null}
             </div>
           </div>
 
           {operationMessage ? <p className="relativeMessage">{operationMessage}</p> : null}
+          {ratioTvExpression ? <p className="relativeMessage">TV ratio expression: {ratioTvExpression}. TradingView may reject some formula symbols; use the individual TV buttons if it opens a search or unknown symbol.</p> : null}
 
           <div className="relativeControls">
             <div className="scopeSwitch" role="tablist" aria-label="Comparison scope">
