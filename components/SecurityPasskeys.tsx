@@ -3,6 +3,7 @@
 import { startRegistration } from "@simplewebauthn/browser";
 import { FormEvent, useEffect, useState } from "react";
 import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
+import styles from "./SecurityPasskeys.module.css";
 
 const API_TIMEOUT_MS = 20_000;
 const PASSKEY_TIMEOUT_MS = 75_000;
@@ -139,8 +140,8 @@ export default function SecurityPasskeys() {
 
   return (
     <>
-      <Card className="securityCard">
-        <div className="securityCardHeader">
+      <Card className={styles.card}>
+        <div className={styles.header}>
           <div>
             <p className="eyebrow">Passkey</p>
             <h2 className="cardTitle">Face ID / Touch ID access</h2>
@@ -149,7 +150,7 @@ export default function SecurityPasskeys() {
           <StatusBadge tone={registered ? "good" : "warning"}>{passkeyLabel}</StatusBadge>
         </div>
 
-        <form className="securityForm" onSubmit={createPasskey}>
+        <form className={styles.form} onSubmit={createPasskey}>
           <label className="field">
             <span>Display name</span>
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" />
@@ -174,7 +175,7 @@ export default function SecurityPasskeys() {
         </Notice>
 
         {registered ? (
-          <form className="securityForm securityDanger" onSubmit={removePasskeys}>
+          <form className={`${styles.form} ${styles.danger}`} onSubmit={removePasskeys}>
             <label className="field">
               <span>Current NorthStar password</span>
               <input
@@ -192,7 +193,7 @@ export default function SecurityPasskeys() {
         ) : null}
       </Card>
 
-      <Card className="securityCard">
+      <Card className={styles.card}>
         <p className="eyebrow">Recovery</p>
         <h2 className="cardTitle">Password access</h2>
         <p className="cardIntro">The plain password login stays available as the recovery path if a device passkey is lost.</p>

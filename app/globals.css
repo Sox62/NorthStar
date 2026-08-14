@@ -801,35 +801,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.securityCard {
-  min-height: 330px;
-}
-.securityCardHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-}
-.securityForm {
-  margin-top: 22px;
-}
-.securityForm .primary {
-  margin-top: 18px;
-}
-.securityDanger {
-  margin-top: 20px;
-  padding-top: 18px;
-  border-top: 1px solid rgba(106,130,153,.22);
-}
-.securityDanger button {
-  margin-top: 14px;
-  border-color: rgba(255,154,154,.32);
-  color: #ffb9b9;
-}
-.securityDanger button:hover {
-  border-color: rgba(255,154,154,.52);
-  color: #ffd6d6;
-}
 .field {
   display: flex;
   flex-direction: column;
