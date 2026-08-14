@@ -1,0 +1,121 @@
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.summaryCard {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.progress {
+  height: 10px;
+  margin-top: 22px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(122,149,178,.16);
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #d7b56d, #8dc6a0);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.phaseCard {
+  min-width: 0;
+}
+
+.phaseHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.items {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 13px 0;
+  border-top: 1px solid rgba(106,130,153,.18);
+}
+
+.item strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.item p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 4px 8px;
+  border: 1px solid rgba(106,130,153,.22);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.shipped {
+  border-color: rgba(141,198,160,.30);
+  background: rgba(18,50,32,.72);
+  color: var(--status-good-fg);
+}
+
+.inProgress {
+  border-color: rgba(215,181,109,.34);
+  background: rgba(215,181,109,.10);
+  color: var(--accent);
+}
+
+.planned {
+  border-color: rgba(119,169,216,.24);
+  background: rgba(119,169,216,.08);
+  color: var(--text-secondary);
+}
+
+.blocked {
+  border-color: rgba(255,125,125,.30);
+  background: rgba(80,24,24,.55);
+  color: var(--status-negative);
+}
+
+@media (max-width: 1180px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+}
