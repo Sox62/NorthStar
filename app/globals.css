@@ -2396,6 +2396,20 @@ button:disabled { opacity: .55; cursor: wait; }
   background: rgba(4,12,20,.58);
   color: var(--text-primary);
 }
+.relativeResearchSet {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(106,130,153,.18);
+}
+.relativeResearchSet > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
 .relativeModeBar {
   display: flex;
   align-items: center;

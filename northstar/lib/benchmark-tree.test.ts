@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { benchmarkSymbols, resolveBenchmarkTree } from "./benchmark-tree";
+import { benchmarkSymbols, RESEARCH_BENCHMARKS, resolveBenchmarkTree } from "./benchmark-tree";
 
 function rolesFor(symbol: string, name: string, sector?: Parameters<typeof resolveBenchmarkTree>[0]["sector"], exchange?: string) {
   return resolveBenchmarkTree({ symbol, name, sector, exchange });
@@ -52,4 +52,14 @@ test("benchmarkSymbols returns non-candidate chartable benchmarks", () => {
   const tree = rolesFor("AYA", "Aya Gold & Silver", "Silver miners", "TSX");
   const symbols = benchmarkSymbols(tree).map((node) => node.symbol);
   assert.deepEqual(symbols, ["GOLD", "SILVER", "SLVM", "PAAS", "SIL", "SILJ", "WPM"]);
+});
+
+
+test("research benchmarks include permanent non-holding candidates", () => {
+  const symbols = RESEARCH_BENCHMARKS.map((node) => node.symbol);
+  assert.ok(symbols.includes("GOLD"));
+  assert.ok(symbols.includes("SPY"));
+  assert.ok(symbols.includes("RSP"));
+  assert.ok(symbols.includes("QQQ"));
+  assert.ok(symbols.includes("USD"));
 });

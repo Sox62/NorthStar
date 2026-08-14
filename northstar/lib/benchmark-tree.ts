@@ -47,6 +47,23 @@ const GOLD_RESERVE: BenchmarkNode = {
   basisCurrency: "USD",
   note: "Reserve benchmark and numeraire; not an actual holding unless gold appears in allocations.",
 };
+export const RESEARCH_BENCHMARKS: BenchmarkNode[] = [
+  GOLD_RESERVE,
+  sectorEtf("spy", "S&P 500", "SPY", "AMEX:SPY"),
+  sectorEtf("rsp", "S&P 500 equal weight", "RSP", "AMEX:RSP"),
+  sectorEtf("qqq", "NASDAQ 100", "QQQ", "NASDAQ:QQQ"),
+  currencyBenchmark("usd", "US dollar", "USD", "FX_IDC:USDAUD"),
+  commodity("silver", "Silver", "SILVER", "TVC:SILVER"),
+  commodity("platinum", "Platinum", "PLATINUM", "TVC:PLATINUM"),
+  commodity("oil", "Oil", "USOIL", "TVC:USOIL"),
+  sectorEtf("gdx", "Gold miners ETF", "GDX", "AMEX:GDX"),
+  sectorEtf("slvm", "Silver miners ETF", "SLVM", "ASX:SLVM", "AUD"),
+  sectorEtf("silj", "Junior silver miners ETF", "SILJ", "AMEX:SILJ"),
+  sectorEtf("urnm", "Uranium miners ETF", "URNM", "AMEX:URNM"),
+  sectorEtf("ura", "Uranium ETF", "URA", "AMEX:URA"),
+  sectorEtf("xle", "Energy sector ETF", "XLE", "AMEX:XLE"),
+  sectorEtf("xop", "Oil & gas exploration ETF", "XOP", "AMEX:XOP"),
+];
 
 const TEMPLATES: Record<Sector, BenchmarkTemplate> = {
   "Silver miners": {
@@ -212,6 +229,9 @@ function leader(id: string, label: string, symbol: string, tradingViewSymbol: st
 
 function peerGroup(id: string, label: string): TemplateNode {
   return { id: `peer_group:${id}`, label, role: "peer_group", basisCurrency: "AUD" };
+}
+function currencyBenchmark(id: string, label: string, symbol: string, tradingViewSymbol: string): TemplateNode {
+  return { id: `currency:${id}`, label, role: "reserve", symbol, tradingViewSymbol, basisCurrency: "USD", note: "Currency benchmark uses stored FX rates for NorthStar ratio history." };
 }
 
 function dedupeNodes(nodes: BenchmarkNode[]) {

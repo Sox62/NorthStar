@@ -56,6 +56,8 @@ export const RATIO_RANGES: Array<{ key: RatioRangeKey; label: string; days: numb
 ];
 
 export function buildInstrumentHistory(prices: StoredDailyPrice[], fxRates: StoredFxRate[], instrument: RatioInstrument): RatioHistoryPoint[] {
+  const currencyHistory = buildCurrencyHistory(fxRates, instrument);
+  if (currencyHistory.length) return currencyHistory;
   const byDate = new Map<string, StoredDailyPrice>();
   for (const row of prices) {
     if (!priceMatchesInstrument(row, instrument)) continue;
@@ -148,6 +150,23 @@ export function relativeReturnWindows(series: RatioPoint[], ranges = RATIO_RANGE
       points: windowSeries.length,
     };
   });
+}
+
+function buildCurrencyHistory(fxRates: StoredFxRate[], instrument: RatioInstrument): RatioHistoryPoint[] {
+  const symbol = normaliseSymbol(instrument.symbol);
+  const currency = normaliseCurrency(instrument.currency);
+  if (symbol !== currency || currency === "AUD") return [];
+  return fxRates
+    .filter((rate) => normaliseCurrency(rate.currency) === currency && Number.isFinite(rate.rateToAud) && rate.rateToAud > 0)
+    .sort((left, right) => left.rateDate.localeCompare(right.rateDate) || left.retrievedAt.localeCompare(right.retrievedAt))
+    .map((rate) => ({
+      date: rate.rateDate,
+      close: 1,
+      currency,
+      fxRateToAud: rate.rateToAud,
+      valueAud: rate.rateToAud,
+      source: rate.source,
+    }));
 }
 
 function priceMatchesInstrument(row: StoredDailyPrice, instrument: RatioInstrument) {

@@ -117,3 +117,14 @@ test("current position closes are included as the latest point", () => {
   assert.deepEqual(history.map((point) => point.date), ["2026-08-01", "2026-08-03"]);
   assert.equal(history.at(-1)?.valueAud, 24.200000000000003);
 });
+
+
+test("buildInstrumentHistory can use stored FX rates as a currency benchmark", () => {
+  const history = buildInstrumentHistory(
+    [],
+    [fx("USD", 1.5, "2026-08-01"), fx("USD", 1.6, "2026-08-02")],
+    { symbol: "USD", exchange: "FX_IDC", currency: "USD" },
+  );
+  assert.deepEqual(history.map((point) => point.valueAud), [1.5, 1.6]);
+  assert.deepEqual(history.map((point) => point.close), [1, 1]);
+});
