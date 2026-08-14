@@ -29,6 +29,15 @@ function normaliseUsTradingViewExchange(exchange: string) {
   return exchange === "ARCA" || exchange === "NYSEARCA" ? "AMEX" : exchange;
 }
 
+function tradingViewFxPairSymbol(symbol: string, exchange: string) {
+  const match = symbol.match(/^([A-Z]{3})[./]?([A-Z]{3})$/);
+  if (!match) return null;
+  if (exchange === "IDEALFX" || exchange.includes("FOREX") || exchange.includes("FX")) {
+    return `FX_IDC:${match[1]}${match[2]}`;
+  }
+  return null;
+}
+
 function configuredTradingViewChartUrl() {
   const configured = process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL?.trim();
   if (!configured) return new URL(DEFAULT_TRADINGVIEW_CHART_URL);
@@ -46,6 +55,8 @@ export function tradingViewSymbolForInstrument(instrument: TradingViewInstrument
   const symbol = instrument.symbol.trim().toUpperCase();
   const exchange = instrument.exchange?.trim().toUpperCase() ?? "";
   const key = `${symbol}:${exchange}`;
+  const fxPairSymbol = tradingViewFxPairSymbol(symbol, exchange);
+  if (fxPairSymbol) return fxPairSymbol;
   if (tradingViewOverrides[key]) return tradingViewOverrides[key];
   if (exchange.includes("ASX")) return `ASX:${symbol}`;
   if (usTradingViewExchanges.has(exchange)) return `${normaliseUsTradingViewExchange(exchange)}:${symbol}`;

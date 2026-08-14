@@ -15,6 +15,18 @@ const bodySchema = z.object({
 function normaliseKey(value: string) {
   return value.trim().toUpperCase();
 }
+
+function isFxPairSymbol(symbol: string) {
+  return /^[A-Z]{3}[./][A-Z]{3}$/.test(normaliseKey(symbol));
+}
+
+function isBackfillableInstrument(instrument: PriceableInstrument) {
+  const exchange = normaliseKey(instrument.exchange);
+  if (exchange === "IDEALFX" || exchange.includes("FOREX")) return false;
+  if (isFxPairSymbol(instrument.symbol)) return false;
+  return true;
+}
+
 const BENCHMARK_BACKFILL_INSTRUMENTS: Record<string, PriceableInstrument> = {
   GOLD: benchmarkInstrument("GOLD", "TVC", "Gold spot", "USD", "Reserve benchmark"),
   SILVER: benchmarkInstrument("SILVER", "TVC", "Silver spot", "USD", "Commodity benchmark"),
@@ -57,9 +69,9 @@ export async function POST(request: Request) {
     const input = bodySchema.parse(await request.json().catch(() => ({})));
     const book = await storage.listPriceBook(300);
     const requested = new Set((input.symbols ?? []).map(normaliseKey));
-    const heldInstruments = requested.size
+    const heldInstruments = (requested.size
       ? book.instruments.filter((instrument) => requested.has(normaliseKey(instrument.symbol)) || requested.has(normaliseKey(instrument.symbol) + ":" + normaliseKey(instrument.exchange)))
-      : book.instruments;
+      : book.instruments).filter(isBackfillableInstrument);
     const benchmarkInstruments = requested.size ? benchmarkRequests(requested) : [];
     const instruments = [...new Map([...heldInstruments, ...benchmarkInstruments].map((instrument) => [normaliseKey(instrument.symbol) + ":" + normaliseKey(instrument.exchange), instrument])).values()];
 

@@ -324,6 +324,11 @@ test("TradingView maps URA on ARCA to the US ETF symbol", () => {
   assert.equal(tradingViewSymbolForInstrument({ symbol: "URA", exchange: "US" }), "AMEX:URA");
 });
 
+test("TradingView maps IBKR FX pairs to TradingView FX symbols", () => {
+  assert.equal(tradingViewSymbolForInstrument({ symbol: "AUD.USD", exchange: "IDEALFX" }), "FX_IDC:AUDUSD");
+  assert.equal(tradingViewSymbolForInstrument({ symbol: "USD/AUD", exchange: "IDEALFX" }), "FX_IDC:USDAUD");
+});
+
 test("TradingView chart URLs use the saved NorthStar layout", () => {
   const url = new URL(tradingViewChartUrl("TVC:GOLDSILVER"));
 

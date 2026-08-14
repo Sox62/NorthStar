@@ -275,6 +275,14 @@ function normaliseSymbol(value: string) {
   return value.trim().toUpperCase();
 }
 
+function isPriceablePosition(position: StoredPosition) {
+  const symbol = normaliseSymbol(position.symbol);
+  const exchange = position.exchange.trim().toUpperCase();
+  if (exchange === "IDEALFX" || exchange.includes("FOREX")) return false;
+  if (/^[A-Z]{3}[./][A-Z]{3}$/.test(symbol)) return false;
+  return true;
+}
+
 function latestFxRate(store: LocalStore, currency: string, date: string) {
   if (normaliseCurrency(currency) === "AUD") return 1;
   const rates = store.fxRates
@@ -286,6 +294,7 @@ function latestFxRate(store: LocalStore, currency: string, date: string) {
 function priceBookFromStore(store: LocalStore, limit = 80): PriceBook {
   const instrumentMap = new Map<string, PriceBook["instruments"][number]>();
   for (const position of store.positions) {
+    if (!isPriceablePosition(position)) continue;
     const key = `${normaliseSymbol(position.symbol)}:${position.exchange.trim().toUpperCase()}`;
     const current = instrumentMap.get(key);
     if (current) {
