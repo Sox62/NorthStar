@@ -3,6 +3,7 @@ import { fetchIbkrFlexReport } from "../lib/integrations/ibkr";
 import { getStorage, type OwnerType } from "../lib/storage";
 import { syncDirectsharesDividends } from "../lib/sync/directshares-dividends";
 import { syncDirectsharesEmail } from "../lib/sync/directshares-email";
+import { syncSourcedFundamentals } from "../lib/sync/fundamentals";
 import { syncMarketData } from "../lib/sync/market-data";
 
 async function main() {
@@ -42,6 +43,13 @@ async function main() {
     console.log(`[sync] Market data: ${result.status} · ${result.updatedPositions} positions, ${result.quotes} quotes`);
   } catch (error) {
     console.error("[sync] Market data:", error);
+  }
+
+  try {
+    const result = await syncSourcedFundamentals(storage, "scheduled");
+    console.log(`[sync] Fundamentals: ${result.message}`);
+  } catch (error) {
+    console.error("[sync] Fundamentals:", error);
   }
 
   try {

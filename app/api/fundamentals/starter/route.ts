@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { starterMinerFundamentals } from "@/lib/fundamentals/starter-records";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 import { getStorage } from "@/lib/storage";
+import { syncSourcedFundamentals } from "@/lib/sync/fundamentals";
 
 export const runtime = "nodejs";
 
@@ -13,14 +13,13 @@ export async function POST() {
 
   try {
     const storage = getStorage();
-    const fundamentals = [];
-    for (const record of starterMinerFundamentals) {
-      fundamentals.push(await storage.upsertMinerFundamentals(record));
-    }
+    const result = await syncSourcedFundamentals(storage, "manual");
+    const fundamentals = await storage.listMinerFundamentals(result.symbols);
     return NextResponse.json({
-      imported: fundamentals.length,
-      symbols: fundamentals.map((record) => record.symbol),
+      imported: result.imported,
+      symbols: result.symbols,
       fundamentals,
+      message: result.message,
     });
   } catch (error) {
     return NextResponse.json(

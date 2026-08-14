@@ -66,9 +66,9 @@ async function loadDashboard(scope: "personal" | "smsf"): Promise<DashboardData>
   return payload as DashboardData;
 }
 
-async function loadFundamentals(symbols: string[]): Promise<MinerFundamentals[]> {
-  if (!symbols.length) return [];
-  const response = await fetch(`/api/fundamentals?symbols=${encodeURIComponent(symbols.join(","))}`, { cache: "no-store" });
+async function loadFundamentals(symbols?: string[]): Promise<MinerFundamentals[]> {
+  const query = symbols?.length ? `?symbols=${encodeURIComponent(symbols.join(","))}` : "";
+  const response = await fetch(`/api/fundamentals${query}`, { cache: "no-store" });
   const payload = await response.json() as FundamentalsResponse;
   if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load fundamentals ledger");
   return payload.fundamentals ?? [];
@@ -131,8 +131,7 @@ export default function FundamentalsRisk() {
       try {
         const [personal, smsf] = await Promise.all([loadDashboard("personal"), loadDashboard("smsf")]);
         const nextHoldings = [...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)].filter(isMinerHolding);
-        const symbols = [...new Set(nextHoldings.map((holding) => holding.symbol.toUpperCase()))];
-        const nextFundamentals = await loadFundamentals(symbols);
+        const nextFundamentals = await loadFundamentals();
         if (!cancelled) setState({ holdings: nextHoldings, fundamentals: nextFundamentals, loading: false, error: "" });
       } catch (reason) {
         if (!cancelled) setState({ holdings: [], fundamentals: [], loading: false, error: reason instanceof Error ? reason.message : "Unable to load fundamentals" });
@@ -154,6 +153,10 @@ export default function FundamentalsRisk() {
     return [...totals.entries()].sort((a, b) => b[1] - a[1]);
   }, [sortedHoldings]);
   const fundamentalsBySymbol = useMemo(() => new Map(fundamentals.map((item) => [item.symbol.toUpperCase(), item])), [fundamentals]);
+  const researchFundamentals = useMemo(() => {
+    const heldSymbols = new Set(sortedHoldings.map((holding) => holding.symbol.toUpperCase()));
+    return fundamentals.filter((item) => !heldSymbols.has(item.symbol.toUpperCase()));
+  }, [fundamentals, sortedHoldings]);
 
   async function handleLoadStarterFundamentals() {
     setStarterStatus({ loading: true, message: "", error: "" });
@@ -195,6 +198,7 @@ export default function FundamentalsRisk() {
               ["Largest position", largest ? `${largest.symbol} · ${money(largest.marketValueAud)}` : "n/a"],
               ["Largest sector", sectors[0] ? `${sectors[0][0]} · ${money(sectors[0][1])}` : "n/a"],
               ["Saved records", loading ? "..." : String(fundamentals.length)],
+              ["Research ideas", loading ? "..." : String(researchFundamentals.length)],
             ]}
           />
         </Card>
@@ -204,7 +208,7 @@ export default function FundamentalsRisk() {
           <h2 className="cardTitle">No score until data is sourced</h2>
           <p className="cardIntro">The methodology needs company-level fundamentals, not just broker prices. This keeps the risk framework useful without pretending the feed already knows mine economics.</p>
           <button className="fundamentalsStarterAction" type="button" onClick={handleLoadStarterFundamentals} disabled={starterStatus.loading}>
-            {starterStatus.loading ? "Loading records" : "Load CDE, AYA, ASL"}
+            {starterStatus.loading ? "Refreshing records" : "Refresh sourced records"}
           </button>
           {starterStatus.message ? <p className="fundamentalsStarterMessage">{starterStatus.message}</p> : null}
           {starterStatus.error ? <p className="fundamentalsStarterMessage isError">{starterStatus.error}</p> : null}
@@ -283,6 +287,65 @@ export default function FundamentalsRisk() {
         </div>
 
         {!loading && !sortedHoldings.length ? <p className="empty">No miner holdings are available for this workbench.</p> : null}
+      </Card>
+
+      <Card className="fundamentalsTableCard">
+        <div className="panelHeader">
+          <div>
+            <p className="eyebrow">Research ideas</p>
+            <h2 className="cardTitle">Saved fundamentals not currently held</h2>
+          </div>
+          <StatusBadge tone={researchFundamentals.length ? "good" : "warning"}>
+            {loading ? "Loading" : `${researchFundamentals.length} ideas`}
+          </StatusBadge>
+        </div>
+
+        <div className="holdingsTableWrap">
+          <table className="holdingsTable fundamentalsTable">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Theme</th>
+                <th>Stage</th>
+                <th>Core inputs</th>
+                <th>Risk score</th>
+                <th>Source notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {researchFundamentals.map((item) => {
+                const score = averageScore(item);
+                return (
+                  <tr key={item.symbol}>
+                    <td>
+                      <strong>{item.symbol}</strong>
+                      <span>{item.name ?? "Research candidate"}</span>
+                    </td>
+                    <td>{item.primaryMetal ?? "Metal needed"}</td>
+                    <td>
+                      <span>{item.projectStage ?? "Stage needed"}</span>
+                      <small>{item.jurisdiction ?? "Jurisdiction needed"}</small>
+                    </td>
+                    <td>
+                      <span>AISC {numberOrDash(item.aiscUsdPerOz, " USD/oz")} · Resource {numberOrDash(item.resourceMoz, " Moz")}</span>
+                      <small>Reserve {numberOrDash(item.reserveMoz, " Moz")} · NPV {moneyOrDash(item.npvAud)}</small>
+                    </td>
+                    <td>
+                      <StatusBadge tone={score == null ? "warning" : "good"}>{score == null ? "No score" : `${score.toFixed(1)} / 5`}</StatusBadge>
+                    </td>
+                    <td>
+                      <span>{item.notes ?? "Source notes needed."}</span>
+                      <small>{item.asOfDate ? `As of ${dateOrDash(item.asOfDate)}` : "No source date"}</small>
+                      {item.sourceUrl ? <a className="fundamentalsSourceLink" href={item.sourceUrl} target="_blank" rel="noreferrer">Source</a> : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {!loading && !researchFundamentals.length ? <p className="empty">No saved research ideas outside current holdings yet.</p> : null}
       </Card>
     </main>
   );

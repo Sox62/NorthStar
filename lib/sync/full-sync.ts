@@ -4,6 +4,7 @@ import { getStorage, type SyncTrigger } from "@/lib/storage";
 import { configuredIbkrFlexSyncs, ibkrFlexNotConfiguredMessage, legacyIbkrFlexOwner, syncIbkrFlexConfig, waitForIbkrFlexSlot } from "@/lib/sync/ibkr-flex";
 import { syncDirectsharesDividends } from "@/lib/sync/directshares-dividends";
 import { syncDirectsharesEmail } from "@/lib/sync/directshares-email";
+import { syncSourcedFundamentals } from "@/lib/sync/fundamentals";
 import { syncMarketData } from "@/lib/sync/market-data";
 
 function isSydneyToday(date: string) {
@@ -26,6 +27,7 @@ export type FullSyncResult = {
   directsharesEmail?: unknown;
   directsharesDividends?: unknown;
   marketData?: unknown;
+  fundamentals?: unknown;
   platinum?: unknown;
 };
 
@@ -113,6 +115,15 @@ export async function runFullSync(trigger: SyncTrigger, provider: QuoteProvider 
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown market data sync error";
     errors.push(`Market Data: ${message}`);
+  }
+
+  try {
+    const result = await syncSourcedFundamentals(storage, trigger);
+    output.fundamentals = result;
+    if (result.status === "failed") errors.push(`Fundamentals: ${result.message}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown fundamentals sync error";
+    errors.push(`Fundamentals: ${message}`);
   }
 
   const platinumStartedAt = new Date().toISOString();
