@@ -17,6 +17,8 @@ import {
   loadFundamentals,
   loadStarterFundamentals,
   metricDefinitions,
+  researchFormForHolding,
+  RESEARCH_FORM_ID,
   money,
   saveResearchFundamentals,
   topRisk,
@@ -65,6 +67,16 @@ export default function FundamentalsRisk() {
     const heldSymbols = new Set(sortedHoldings.map((holding) => holding.symbol.toUpperCase()));
     return fundamentals.filter((item) => !heldSymbols.has(item.symbol.toUpperCase()));
   }, [fundamentals, sortedHoldings]);
+
+  function handleEditFundamentals(holding: Holding) {
+    setResearchForm(researchFormForHolding(holding, fundamentalsBySymbol.get(holding.symbol.toUpperCase())));
+    setResearchStatus({ saving: false, message: "", error: "" });
+    setSelected(null);
+    // The form sits well below the queue, so move to it rather than leaving the user to hunt.
+    requestAnimationFrame(() => {
+      document.getElementById(RESEARCH_FORM_ID)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 
   function updateResearchField<K extends keyof ResearchFormState>(field: K, value: ResearchFormState[K]) {
     setResearchForm((current) => ({ ...current, [field]: value }));
@@ -180,6 +192,7 @@ export default function FundamentalsRisk() {
           holding={selected}
           fundamentals={fundamentalsBySymbol.get(selected.symbol.toUpperCase())}
           onClose={() => setSelected(null)}
+          onEdit={handleEditFundamentals}
         />
       ) : null}
     </main>

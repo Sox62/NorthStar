@@ -81,6 +81,45 @@ export const blankResearchForm: ResearchFormState = {
   notes: "",
 };
 
+/** Anchor for jumping from the workpage to the intake form. */
+export const RESEARCH_FORM_ID = "research-intake";
+
+const formText = (value: string | null | undefined) => value ?? "";
+const formNumberText = (value: number | null | undefined) => value == null ? "" : String(value);
+
+/**
+ * Seed the intake form for one holding. Saving upserts the whole record, so an existing
+ * research record must be loaded back into the form — starting blank would write its
+ * populated fields away as nulls.
+ */
+export function researchFormForHolding(holding: Holding, saved: MinerFundamentals | undefined): ResearchFormState {
+  return {
+    ...blankResearchForm,
+    symbol: holding.symbol.toUpperCase(),
+    name: formText(saved?.name) || holding.name,
+    primaryMetal: formText(saved?.primaryMetal),
+    jurisdiction: formText(saved?.jurisdiction),
+    projectStage: formText(saved?.projectStage),
+    productionOz: formNumberText(saved?.productionOz),
+    aiscUsdPerOz: formNumberText(saved?.aiscUsdPerOz),
+    resourceMoz: formNumberText(saved?.resourceMoz),
+    reserveMoz: formNumberText(saved?.reserveMoz),
+    cashAud: formNumberText(saved?.cashAud),
+    debtAud: formNumberText(saved?.debtAud),
+    marketCapAud: formNumberText(saved?.marketCapAud),
+    npvAud: formNumberText(saved?.npvAud),
+    capexAud: formNumberText(saved?.capexAud),
+    irrPercent: formNumberText(saved?.irrPercent),
+    jurisdictionScore: formNumberText(saved?.jurisdictionScore),
+    balanceSheetScore: formNumberText(saved?.balanceSheetScore),
+    dilutionScore: formNumberText(saved?.dilutionScore),
+    managementScore: formNumberText(saved?.managementScore),
+    sourceUrl: formText(saved?.sourceUrl),
+    asOfDate: formText(saved?.asOfDate).slice(0, 10),
+    notes: formText(saved?.notes),
+  };
+}
+
 export const metricDefinitions: MetricDefinition[] = [
   { label: "Production margin", field: "Spot price - AISC", reason: "Shows operating leverage before trusting a miner P/L number." },
   { label: "Balance sheet cover", field: "FCF / net debt", reason: "Flags whether debt can be handled at current metal prices." },

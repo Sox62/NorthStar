@@ -12,10 +12,11 @@ import styles from "./FundamentalsDetail.module.css";
 const DEFAULT_PROBABILITY = 0.6;
 const DEFAULT_HAIRCUT = 35;
 
-export function FundamentalsDetail({ holding, fundamentals, onClose }: {
+export function FundamentalsDetail({ holding, fundamentals, onClose, onEdit }: {
   holding: Holding;
   fundamentals: MinerFundamentals | undefined;
   onClose: () => void;
+  onEdit: (holding: Holding) => void;
 }) {
   const [probability, setProbability] = useState(DEFAULT_PROBABILITY);
   const [haircut, setHaircut] = useState(DEFAULT_HAIRCUT);
@@ -41,6 +42,11 @@ export function FundamentalsDetail({ holding, fundamentals, onClose }: {
       eyebrow="Fundamentals and risk"
       title={`${holding.symbol} — ${holding.name}`}
       subtitle={descriptor || "No fundamentals recorded yet"}
+      actions={
+        <button className="nsReportButton" type="button" onClick={() => onEdit(holding)}>
+          {fundamentals ? "Edit fundamentals" : "Add fundamentals"}
+        </button>
+      }
       onClose={onClose}
     >
       <div className={styles.detail}>

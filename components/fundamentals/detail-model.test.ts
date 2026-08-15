@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { MinerFundamentals } from "@/lib/storage";
 import { enterpriseValueAud, failureModes, netCashAud, riskLevel, valuationRows } from "./detail-model";
+import { researchFormForHolding } from "./model";
+import type { Holding } from "@/northstar/types";
 
 const base: MinerFundamentals = {
   symbol: "AYA",
@@ -91,4 +93,26 @@ test("capex beyond enterprise value is flagged as a funding gap", () => {
   const modes = failureModes({ ...base, capexAud: 2_000_000_000 });
 
   assert.ok(modes.some((mode) => mode.includes("Capex exceeds enterprise value")));
+});
+
+test("researchFormForHolding round-trips a saved record so an edit cannot blank it", () => {
+  const holding = { symbol: "aya", name: "Aya Gold & Silver" } as Holding;
+  const form = researchFormForHolding(holding, base);
+
+  assert.equal(form.symbol, "AYA", "the symbol comes from the holding, so it always matches the queue");
+  assert.equal(form.npvAud, "1400000000");
+  assert.equal(form.marketCapAud, "900000000");
+  assert.equal(form.jurisdictionScore, "3");
+  assert.equal(form.asOfDate, "2026-08-01");
+  assert.equal(form.notes, "Restart thesis");
+});
+
+test("researchFormForHolding seeds a blank form from the holding when nothing is saved", () => {
+  const holding = { symbol: "wrn", name: "Western Copper & Gold" } as Holding;
+  const form = researchFormForHolding(holding, undefined);
+
+  assert.equal(form.symbol, "WRN");
+  assert.equal(form.name, "Western Copper & Gold");
+  assert.equal(form.npvAud, "");
+  assert.equal(form.jurisdictionScore, "");
 });

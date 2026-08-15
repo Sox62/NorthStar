@@ -1,6 +1,6 @@
 import type { FormEvent } from "react";
 import { Card, StatusBadge } from "@/northstar/components";
-import type { ResearchFormState } from "./model";
+import { RESEARCH_FORM_ID, type ResearchFormState } from "./model";
 import styles from "./FundamentalsRisk.module.css";
 
 type ResearchIntakeFormProps = {
@@ -13,7 +13,7 @@ type ResearchIntakeFormProps = {
 
 export function ResearchIntakeForm({ form, status, onChange, onSubmit, onClear }: ResearchIntakeFormProps) {
   return (
-    <Card className={styles.researchFormCard}>
+    <Card id={RESEARCH_FORM_ID} className={styles.researchFormCard}>
       <div className="panelHeader">
         <div>
           <p className="eyebrow">Research intake</p>
@@ -34,6 +34,10 @@ export function ResearchIntakeForm({ form, status, onChange, onSubmit, onClear }
         <label><span>Reserve Moz</span><input inputMode="decimal" value={form.reserveMoz} onChange={(event) => onChange("reserveMoz", event.target.value)} placeholder="50" /></label>
         <label><span>Cash A$</span><input inputMode="decimal" value={form.cashAud} onChange={(event) => onChange("cashAud", event.target.value)} /></label>
         <label><span>Debt A$</span><input inputMode="decimal" value={form.debtAud} onChange={(event) => onChange("debtAud", event.target.value)} /></label>
+        <label><span>Market cap A$</span><input inputMode="decimal" value={form.marketCapAud} onChange={(event) => onChange("marketCapAud", event.target.value)} placeholder="900000000" /></label>
+        <label><span>Project NPV A$</span><input inputMode="decimal" value={form.npvAud} onChange={(event) => onChange("npvAud", event.target.value)} placeholder="1400000000" /></label>
+        <label><span>Capex A$</span><input inputMode="decimal" value={form.capexAud} onChange={(event) => onChange("capexAud", event.target.value)} placeholder="300000000" /></label>
+        <label><span>IRR %</span><input inputMode="decimal" value={form.irrPercent} onChange={(event) => onChange("irrPercent", event.target.value)} placeholder="32" /></label>
         <label><span>Jurisdiction score</span><input inputMode="numeric" min="0" max="5" value={form.jurisdictionScore} onChange={(event) => onChange("jurisdictionScore", event.target.value)} placeholder="0-5" /></label>
         <label><span>Balance score</span><input inputMode="numeric" min="0" max="5" value={form.balanceSheetScore} onChange={(event) => onChange("balanceSheetScore", event.target.value)} placeholder="0-5" /></label>
         <label><span>Dilution score</span><input inputMode="numeric" min="0" max="5" value={form.dilutionScore} onChange={(event) => onChange("dilutionScore", event.target.value)} placeholder="0-5" /></label>
