@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import TradingViewWidget from "@/components/TradingViewWidget";
 import { ChartOverlay, HistoryChart } from "./HistoryChart";
+import { MarketsPanel } from "./MarketsPanel";
 import { ScopeTabs } from "./ScopeTabs";
 import { StateOfPlayCards } from "./StateOfPlayCards";
 import type { PerformancePoint } from "../lib/nav-series";
@@ -550,6 +551,8 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], accountBre
             </div>
           </div>
         </header>
+
+        <MarketsPanel />
 
         <StateOfPlayCards total={t} dailyPnl={dailyPnl} accounts={accountBreakdown} holdings={holdings} scope={scope} />
 

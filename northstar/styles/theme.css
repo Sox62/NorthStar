@@ -731,7 +731,8 @@ body.northstar .nsMetalsHeader strong {
 
 body.northstar .nsMetalsGrid {
   display:grid;
-  grid-template-columns:repeat(4, minmax(0, 1fr));
+  /* Auto-fit rather than a fixed count: the tile list grows as reference markets are added. */
+  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
   gap:10px;
 }
 
@@ -1875,7 +1876,7 @@ body.northstar .nsActivityRow.is-failed em {
   }
 
   body.northstar .nsMetalsGrid {
-    grid-template-columns:repeat(3, minmax(0, 1fr));
+    grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));
   }
 
   body.northstar .nsHoldingsHeader {
