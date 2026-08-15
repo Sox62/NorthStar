@@ -18,9 +18,10 @@ type HeldMinerTableProps = {
   fundamentalsBySymbol: Map<string, MinerFundamentals>;
   loading: boolean;
   totalMinerValue: number;
+  onSelect: (holding: Holding) => void;
 };
 
-export function HeldMinerTable({ holdings, fundamentalsBySymbol, loading, totalMinerValue }: HeldMinerTableProps) {
+export function HeldMinerTable({ holdings, fundamentalsBySymbol, loading, totalMinerValue, onSelect }: HeldMinerTableProps) {
   return (
     <Card className={styles.tableCard}>
       <div className="panelHeader">
@@ -53,9 +54,21 @@ export function HeldMinerTable({ holdings, fundamentalsBySymbol, loading, totalM
               const status = saved ? { label: "Research saved", tone: "good" as const } : scoreStatus(holding);
               const score = averageScore(saved);
               return (
-                <tr key={holding.id}>
+                <tr
+                  key={holding.id}
+                  className={styles.clickableRow}
+                  onClick={() => onSelect(holding)}
+                >
                   <td>
-                    <strong>{holding.symbol}</strong>
+                    {/* The row is the click target, but the symbol carries the accessible name so the
+                        workpage is reachable by keyboard without making every cell focusable. */}
+                    <button
+                      type="button"
+                      className={styles.rowOpen}
+                      onClick={(event) => { event.stopPropagation(); onSelect(holding); }}
+                    >
+                      {holding.symbol}
+                    </button>
                     <span>{holding.name}</span>
                     <small>{holding.broker ?? "Unknown broker"} · {holding.priceCurrency ?? "AUD"}</small>
                   </td>

@@ -2,13 +2,18 @@ import React from "react";
 
 export interface StatusBadgeProps {
   
-  tone?: "good" | "warning";
+  tone?: "good" | "warning" | "bad";
   children: React.ReactNode;
 }
 
+const TONES = {
+  good: { bg: "var(--status-good-bg)", fg: "var(--status-good-fg)" },
+  warning: { bg: "var(--status-warning-bg)", fg: "var(--status-warning)" },
+  bad: { bg: "var(--result-error-bg)", fg: "var(--status-negative)" },
+} as const;
+
 export function StatusBadge({ tone = "good", children }: StatusBadgeProps) {
-  const bg = tone === "warning" ? "var(--status-warning-bg)" : "var(--status-good-bg)";
-  const fg = tone === "warning" ? "var(--status-warning)" : "var(--status-good-fg)";
+  const { bg, fg } = TONES[tone] ?? TONES.good;
   return (
     <span
       style={{

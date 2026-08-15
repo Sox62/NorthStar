@@ -4,8 +4,10 @@ import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
+import type { Holding } from "@/northstar/types";
 import { dashboardToNorthstarHoldings } from "./northstar-adapter";
 import { HeldMinerTable, ResearchIdeasTable } from "./fundamentals/FundamentalsTables";
+import { FundamentalsDetail } from "./fundamentals/FundamentalsDetail";
 import { ResearchIntakeForm } from "./fundamentals/ResearchIntakeForm";
 import {
   blankResearchForm,
@@ -29,6 +31,7 @@ export default function FundamentalsRisk() {
   const [starterStatus, setStarterStatus] = useState<{ loading: boolean; message: string; error: string }>({ loading: false, message: "", error: "" });
   const [researchForm, setResearchForm] = useState<ResearchFormState>(blankResearchForm);
   const [researchStatus, setResearchStatus] = useState<{ saving: boolean; message: string; error: string }>({ saving: false, message: "", error: "" });
+  const [selected, setSelected] = useState<Holding | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,7 +157,13 @@ export default function FundamentalsRisk() {
         ))}
       </section>
 
-      <HeldMinerTable holdings={sortedHoldings} fundamentalsBySymbol={fundamentalsBySymbol} loading={loading} totalMinerValue={value} />
+      <HeldMinerTable
+        holdings={sortedHoldings}
+        fundamentalsBySymbol={fundamentalsBySymbol}
+        loading={loading}
+        totalMinerValue={value}
+        onSelect={setSelected}
+      />
 
       <ResearchIntakeForm
         form={researchForm}
@@ -165,6 +174,14 @@ export default function FundamentalsRisk() {
       />
 
       <ResearchIdeasTable ideas={researchFundamentals} loading={loading} />
+
+      {selected ? (
+        <FundamentalsDetail
+          holding={selected}
+          fundamentals={fundamentalsBySymbol.get(selected.symbol.toUpperCase())}
+          onClose={() => setSelected(null)}
+        />
+      ) : null}
     </main>
   );
 }

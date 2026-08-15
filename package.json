@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build && node scripts/prepare-standalone.mjs",
-    "test": "node --import tsx --test lib/auth/policy.test.ts lib/capital-policy.test.ts lib/tax-jurisdictions.test.ts lib/core/accounting.test.ts lib/storage/xirr.test.ts lib/storage/classify.test.ts northstar/lib/data-health.test.ts northstar/lib/nav-series.test.ts northstar/lib/benchmark-tree.test.ts northstar/lib/ratio-engine.test.ts northstar/lib/relative-calculator.test.ts lib/storage/ibkr-positions.test.ts lib/integrations/directshares.test.ts lib/integrations/ibkr.test.ts lib/integrations/ibkr-open-orders.test.ts lib/integrations/market-data.test.ts lib/sync/ibkr-flex.test.ts lib/sync/market-data.test.ts lib/integrations/dividends.test.ts lib/tax-lots.test.ts lib/reports/eofy.test.ts",
+    "test": "node --import tsx --test lib/auth/policy.test.ts lib/capital-policy.test.ts lib/tax-jurisdictions.test.ts lib/core/accounting.test.ts lib/storage/xirr.test.ts lib/storage/classify.test.ts northstar/lib/data-health.test.ts northstar/lib/nav-series.test.ts components/fundamentals/detail-model.test.ts northstar/lib/benchmark-tree.test.ts northstar/lib/ratio-engine.test.ts northstar/lib/relative-calculator.test.ts lib/storage/ibkr-positions.test.ts lib/integrations/directshares.test.ts lib/integrations/ibkr.test.ts lib/integrations/ibkr-open-orders.test.ts lib/integrations/market-data.test.ts lib/sync/ibkr-flex.test.ts lib/sync/market-data.test.ts lib/integrations/dividends.test.ts lib/tax-lots.test.ts lib/reports/eofy.test.ts",
     "start": "node .next/standalone/server.js",
     "worker": "tsx workers/daily-sync.ts",
     "db:generate": "drizzle-kit generate",

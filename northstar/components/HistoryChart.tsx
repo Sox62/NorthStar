@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { NavDetailPanel } from "./NavDetailPanel";
+import { Overlay } from "./Overlay";
 import { buildNavSeries, type ChartValueMode, type PerformancePoint } from "../lib/nav-series";
 import { fmtAud } from "../lib/portfolio-metrics";
 import type { PortfolioScope } from "../types";
@@ -28,29 +29,7 @@ function fmtChartLabel(value: string) {
 }
 
 export function ChartOverlay({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="nsChartOverlay" role="dialog" aria-modal="true" aria-label={title}>
-      <button className="nsChartOverlayScrim" type="button" aria-label="Close chart" onClick={onClose} />
-      <section className="nsChartOverlayPanel">
-        <div className="nsChartOverlayHeader">
-          <div>
-            <p className="nsEyebrow">Detailed chart</p>
-            <h2>{title}</h2>
-          </div>
-          <button className="nsReportButton" type="button" onClick={onClose}>Close</button>
-        </div>
-        {children}
-      </section>
-    </div>
-  );
+  return <Overlay eyebrow="Detailed chart" title={title} onClose={onClose}>{children}</Overlay>;
 }
 
 export function HistoryChart({ now, investedNow, scope, performance }: { now: number; investedNow: number; scope: PortfolioScope; performance: PerformancePoint[] }) {
