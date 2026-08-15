@@ -28,7 +28,7 @@ const sections: Array<{ label: string; items: RailItem[] }> = [
     label: "Discipline",
     items: [
       { key: "sectors", label: "Positions & strategy", href: "/sectors", icon: "sectors" },
-      { key: "position-sizer", label: "Position sizer", href: "/roadmap", icon: "targets" },
+      { key: "position-sizer", label: "Position sizer", href: "/sizer", icon: "targets" },
       { key: "reports", label: "Harvest plan", href: "/reports", icon: "reports" },
     ],
   },
