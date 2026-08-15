@@ -6,11 +6,30 @@ import { Overlay } from "@/northstar/components/Overlay";
 import { SectorTag, StatusBadge } from "@/northstar/components";
 import { SECTOR_COLORS, type Holding } from "@/northstar/types";
 import { averageScore, money, percent } from "./model";
-import { failureModes, fundamentalFields, riskRows, valuationRows } from "./detail-model";
+import { failureModes, fundamentalBars, fundamentalFields, riskRows, valuationBars, valuationRows, type MagnitudeBar } from "./detail-model";
 import styles from "./FundamentalsDetail.module.css";
 
 const DEFAULT_PROBABILITY = 0.6;
 const DEFAULT_HAIRCUT = 35;
+
+function BarGroup({ bars }: { bars: MagnitudeBar[] }) {
+  return (
+    <div className={styles.bars}>
+      {bars.map((bar) => (
+        <div className={styles.bar} key={bar.key}>
+          <div className={styles.barHead}>
+            <span>{bar.label}</span>
+            <strong>{bar.display}</strong>
+          </div>
+          <div className={styles.barTrack} role="img" aria-label={`${bar.label}: ${bar.display}${bar.note ? `, ${bar.note}` : ""}`}>
+            <span className={`${styles.barFill} ${styles[bar.tone]}`} style={{ width: `${Math.min(100, bar.ratio * 100)}%` }} />
+          </div>
+          {bar.note ? <em className={styles.barNote}>{bar.note}</em> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function FundamentalsDetail({ holding, fundamentals, onClose, onEdit }: {
   holding: Holding;
@@ -27,6 +46,11 @@ export function FundamentalsDetail({ holding, fundamentals, onClose, onEdit }: {
     () => valuationRows({ fundamentals, probability, haircutPercent: haircut }),
     [fundamentals, probability, haircut],
   );
+  const valuationChart = useMemo(
+    () => valuationBars({ fundamentals, probability, haircutPercent: haircut }),
+    [fundamentals, probability, haircut],
+  );
+  const relationBars = useMemo(() => fundamentalBars(fundamentals), [fundamentals]);
   const modes = useMemo(() => failureModes(fundamentals), [fundamentals]);
   const score = averageScore(fundamentals);
 
@@ -72,6 +96,8 @@ export function FundamentalsDetail({ holding, fundamentals, onClose, onEdit }: {
               {fundamentals?.notes?.trim()
                 || "No thesis recorded. Add notes from the research intake form to keep the reasoning beside the numbers."}
             </p>
+
+            {relationBars.length ? <BarGroup bars={relationBars} /> : null}
 
             <div className={styles.fieldGrid}>
               {fields.map((field) => (
@@ -139,6 +165,8 @@ export function FundamentalsDetail({ holding, fundamentals, onClose, onEdit }: {
                 />
               </label>
             </div>
+            {valuationChart.length ? <BarGroup bars={valuationChart} /> : null}
+
             <div className={styles.valuationRows}>
               {valuation.map((row) => (
                 <div className={`${styles.valuationRow}${row.emphasis ? ` ${styles.isEmphasis}` : ""}`} key={row.key}>

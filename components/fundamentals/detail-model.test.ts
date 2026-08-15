@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { MinerFundamentals } from "@/lib/storage";
-import { enterpriseValueAud, failureModes, netCashAud, riskLevel, valuationRows } from "./detail-model";
+import { enterpriseValueAud, failureModes, fundamentalBars, netCashAud, riskLevel, valuationBars, valuationRows } from "./detail-model";
 import { researchFormForHolding } from "./model";
 import type { Holding } from "@/northstar/types";
 
@@ -122,4 +122,53 @@ test("researchFormForHolding seeds a blank form from the holding when nothing is
   assert.equal(form.name, "Western Copper & Gold");
   assert.equal(form.npvAud, "");
   assert.equal(form.jurisdictionScore, "");
+});
+
+test("valuation bars share one scale so the comparison is visual", () => {
+  const bars = valuationBars({ fundamentals: base, probability: 0.5, haircutPercent: 50 });
+  const byKey = new Map(bars.map((bar) => [bar.key, bar]));
+
+  // NPV 1.4bn is the largest, so it anchors the scale at 1.
+  assert.equal(byKey.get("npv")?.ratio, 1);
+  // Risked 350m and EV 870m are drawn as fractions of it.
+  assert.equal(byKey.get("risked")?.ratio, 0.25);
+  assert.equal(Number(byKey.get("ev")?.ratio.toFixed(4)), Number((870_000_000 / 1_400_000_000).toFixed(4)));
+});
+
+test("risked NPV reads positive only when it clears what the market already pays", () => {
+  const under = valuationBars({ fundamentals: base, probability: 0.5, haircutPercent: 50 });
+  assert.equal(under.find((bar) => bar.key === "risked")?.tone, "negative");
+
+  const over = valuationBars({ fundamentals: base, probability: 1, haircutPercent: 0 });
+  assert.equal(over.find((bar) => bar.key === "risked")?.tone, "positive");
+});
+
+test("no valuation inputs draws nothing rather than an empty scale", () => {
+  assert.deepEqual(valuationBars({ fundamentals: undefined, probability: 0.6, haircutPercent: 35 }), []);
+  const bare = { ...base, npvAud: null, marketCapAud: null };
+  assert.deepEqual(valuationBars({ fundamentals: bare, probability: 0.6, haircutPercent: 35 }), []);
+});
+
+test("relational bars express conversion, balance and funding cover", () => {
+  const bars = fundamentalBars(base);
+  const byKey = new Map(bars.map((bar) => [bar.key, bar]));
+
+  // 40 of 120 Moz proven.
+  assert.equal(byKey.get("conversion")?.display, "33%");
+  assert.equal(byKey.get("conversion")?.tone, "positive");
+  assert.equal(byKey.get("debt")?.tone, "muted", "debt below cash is not a negative");
+  assert.equal(byKey.get("debt")?.note, "covered by cash");
+  assert.equal(byKey.get("capex")?.display, "2.90x");
+});
+
+test("debt above cash reads negative", () => {
+  const geared = fundamentalBars({ ...base, cashAud: 10_000_000, debtAud: 90_000_000 });
+  const debt = geared.find((bar) => bar.key === "debt");
+
+  assert.equal(debt?.tone, "negative");
+  assert.equal(debt?.note, "exceeds cash");
+});
+
+test("an unresearched holding draws no relational bars", () => {
+  assert.deepEqual(fundamentalBars(undefined), []);
 });

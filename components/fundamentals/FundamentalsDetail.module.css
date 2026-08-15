@@ -262,3 +262,51 @@
 .riskFill.good { background: var(--status-positive); }
 .riskFill.warning { background: var(--status-warning); }
 .riskFill.bad { background: var(--status-negative); }
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.barHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.barHead strong {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.barTrack {
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: rgba(122, 149, 178, 0.14);
+  overflow: hidden;
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.barFill.accent { background: var(--accent); }
+.barFill.positive { background: var(--status-positive); }
+.barFill.negative { background: var(--status-negative); }
+.barFill.muted { background: var(--ns-slate-400); }
+
+.barNote {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-style: normal;
+  color: var(--text-muted);
+}

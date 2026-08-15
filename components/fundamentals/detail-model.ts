@@ -179,3 +179,102 @@ export function failureModes(fundamentals: MinerFundamentals | undefined): strin
   }
   return modes;
 }
+
+export type MagnitudeBar = {
+  key: string;
+  label: string;
+  display: string;
+  /** 0-1 against the largest bar in the set, so the group shares one scale. */
+  ratio: number;
+  tone: "accent" | "positive" | "negative" | "muted";
+  note?: string;
+};
+
+/**
+ * The valuation question is relational — is what shareholders plausibly receive worth more than
+ * what the market already pays? Three dollar figures in a column make that a subtraction; on a
+ * shared scale it is a glance.
+ */
+export function valuationBars(input: {
+  fundamentals: MinerFundamentals | undefined;
+  probability: number;
+  haircutPercent: number;
+}): MagnitudeBar[] {
+  const npv = input.fundamentals?.npvAud ?? null;
+  const enterprise = enterpriseValueAud(input.fundamentals);
+  const probability = Math.min(1, Math.max(0, input.probability));
+  const haircut = Math.min(100, Math.max(0, input.haircutPercent));
+  const risked = npv == null ? null : npv * probability * (1 - haircut / 100);
+  if (npv == null && enterprise == null) return [];
+
+  const max = Math.max(npv ?? 0, risked ?? 0, enterprise ?? 0, 1);
+  const bar = (key: string, label: string, value: number | null, tone: MagnitudeBar["tone"], note?: string): MagnitudeBar => ({
+    key,
+    label,
+    display: moneyOrDash(value),
+    ratio: value == null ? 0 : Math.max(0, value / max),
+    tone,
+    note,
+  });
+
+  return [
+    bar("npv", "Project NPV", npv, "muted", "before any discount"),
+    bar("risked", "Risked NPV", risked, risked != null && enterprise != null && risked >= enterprise ? "positive" : "negative",
+      `${(probability * 100).toFixed(0)}% delivered, ${haircut.toFixed(0)}% haircut`),
+    bar("ev", "Enterprise value", enterprise, "accent", "what the market pays today"),
+  ];
+}
+
+/** Relational readings the raw field grid cannot show: conversion, balance, and funding cover. */
+export function fundamentalBars(fundamentals: MinerFundamentals | undefined): MagnitudeBar[] {
+  if (!fundamentals) return [];
+  const bars: MagnitudeBar[] = [];
+
+  if (fundamentals.resourceMoz && fundamentals.reserveMoz != null) {
+    const conversion = fundamentals.reserveMoz / fundamentals.resourceMoz;
+    bars.push({
+      key: "conversion",
+      label: "Reserve of resource",
+      display: `${(conversion * 100).toFixed(0)}%`,
+      ratio: Math.min(1, conversion),
+      tone: conversion >= 0.3 ? "positive" : "negative",
+      note: `${fundamentals.reserveMoz} of ${fundamentals.resourceMoz} Moz proven`,
+    });
+  }
+
+  const cash = fundamentals.cashAud ?? 0;
+  const debt = fundamentals.debtAud ?? 0;
+  if (fundamentals.cashAud != null || fundamentals.debtAud != null) {
+    const scale = Math.max(cash, debt, 1);
+    bars.push({
+      key: "cash",
+      label: "Cash",
+      display: moneyOrDash(fundamentals.cashAud),
+      ratio: cash / scale,
+      tone: "positive",
+    });
+    bars.push({
+      key: "debt",
+      label: "Debt",
+      display: moneyOrDash(fundamentals.debtAud),
+      ratio: debt / scale,
+      tone: debt > cash ? "negative" : "muted",
+      note: cash >= debt ? "covered by cash" : "exceeds cash",
+    });
+  }
+
+  const enterprise = enterpriseValueAud(fundamentals);
+  if (fundamentals.capexAud && enterprise) {
+    const cover = enterprise / fundamentals.capexAud;
+    bars.push({
+      key: "capex",
+      label: "Capex cover",
+      display: `${cover.toFixed(2)}x`,
+      ratio: Math.min(1, cover),
+      tone: cover >= 1 ? "positive" : "negative",
+      note: `${moneyOrDash(fundamentals.capexAud)} to build`,
+    });
+  }
+
+  return bars;
+}
