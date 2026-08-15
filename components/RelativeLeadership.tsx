@@ -8,6 +8,7 @@ import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { RESEARCH_BENCHMARKS, resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
 import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, RATIO_RANGES, type RatioPoint, type RatioRangeKey, type RelativeReturnWindow } from "@/northstar/lib/ratio-engine";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
+import { parseSelectionValue, selectionValue } from "@/northstar/lib/selection";
 import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
@@ -199,10 +200,6 @@ function mergeBenchmarkNodes(nodes: BenchmarkNode[]) {
 function benchmarkOptionLabel(node: BenchmarkNode) {
   const symbol = node.symbol ?? node.label;
   return `${symbol} · ${node.label}`;
-}
-
-function selectionValue(kind: "holding" | "benchmark", id: string) {
-  return id ? `${kind}:${id}` : "";
 }
 
 function formatAxisTick(value: number, mode: RatioMode) {
@@ -587,9 +584,10 @@ export default function RelativeLeadership() {
               <select
                 value={leftBenchmarkId ? selectionValue("benchmark", leftBenchmarkId) : selectionValue("holding", leftHolding?.id ?? "")}
                 onChange={(event) => {
-                  const [kind, id] = event.target.value.split(":");
-                  if (kind === "benchmark") { setLeftBenchmarkId(id); setLeftId(""); }
-                  else { setLeftBenchmarkId(""); setLeftId(id); }
+                  const selection = parseSelectionValue(event.target.value);
+                  if (!selection) return;
+                  if (selection.kind === "benchmark") { setLeftBenchmarkId(selection.id); setLeftId(""); }
+                  else { setLeftBenchmarkId(""); setLeftId(selection.id); }
                 }}
               >
                 <option value="" disabled>Choose first asset</option>
@@ -610,9 +608,10 @@ export default function RelativeLeadership() {
               <select
                 value={rightBenchmarkId ? selectionValue("benchmark", rightBenchmarkId) : selectionValue("holding", rightHolding?.id ?? "")}
                 onChange={(event) => {
-                  const [kind, id] = event.target.value.split(":");
-                  if (kind === "benchmark") { setRightBenchmarkId(id); setRightId(""); }
-                  else { setRightBenchmarkId(""); setRightId(id); }
+                  const selection = parseSelectionValue(event.target.value);
+                  if (!selection) return;
+                  if (selection.kind === "benchmark") { setRightBenchmarkId(selection.id); setRightId(""); }
+                  else { setRightBenchmarkId(""); setRightId(selection.id); }
                 }}
               >
                 <option value="" disabled>Choose second asset</option>
