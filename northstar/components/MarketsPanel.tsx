@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { tradingViewChartUrl } from "../lib/tradingview";
+import { tradingViewChartUrl, tradingViewRatioExpression } from "../lib/tradingview";
 import { SECTOR_COLORS } from "../types";
 
 type SpotMetal = "gold" | "silver" | "platinum";
@@ -30,7 +30,9 @@ type Tile = {
 const TILES: Tile[] = [
   { key: "gold", label: "Gold", metal: "gold", tradingViewSymbol: "TVC:GOLD", color: SECTOR_COLORS["Gold miners"], note: "Spot" },
   { key: "silver", label: "Silver", metal: "silver", tradingViewSymbol: "TVC:SILVER", color: SECTOR_COLORS["Silver bullion"], note: "Spot" },
-  { key: "gsr", label: "GSR", tradingViewSymbol: "TVC:GOLDSILVER", color: SECTOR_COLORS["Silver miners"], note: "Gold / silver" },
+  // The computed expression rather than the TVC:GOLDSILVER index, so the ratio is built from the
+  // same two legs charted above it and matches how relative leadership expresses ratios.
+  { key: "gsr", label: "GSR", tradingViewSymbol: tradingViewRatioExpression("TVC:GOLD", "TVC:SILVER"), color: SECTOR_COLORS["Silver miners"], note: "Gold / silver" },
   { key: "platinum", label: "Platinum", metal: "platinum", tradingViewSymbol: "ACTIVTRADES:PLATINUM", color: SECTOR_COLORS["Platinum bullion"], note: "Spot" },
   { key: "copper", label: "Copper", tradingViewSymbol: "CAPITALCOM:COPPER", color: SECTOR_COLORS.Oil, note: "Chart only" },
   { key: "uranium", label: "Uranium", tradingViewSymbol: "TSX:U.UN", color: SECTOR_COLORS["Uranium miners"], note: "Sprott proxy" },
