@@ -39,6 +39,8 @@ function addSharesightCompatibilityRows(rows: CsvRow[], report: EofyReport) {
     rows.push([
       "sharesight_cgt_summary",
       report.ownerLabel,
+      report.taxJurisdictionCode,
+      report.taxJurisdiction.taxCurrency,
       report.financialYear.label,
       label,
       "",
@@ -65,6 +67,8 @@ function addSharesightCompatibilityRows(rows: CsvRow[], report: EofyReport) {
     rows.push([
       "sharesight_cgt_all_holdings",
       report.ownerLabel,
+      report.taxJurisdictionCode,
+      report.taxJurisdiction.taxCurrency,
       report.financialYear.label,
       row.name,
       row.code,
@@ -91,6 +95,8 @@ function addSharesightCompatibilityRows(rows: CsvRow[], report: EofyReport) {
     rows.push([
       "sharesight_taxable_income_au_non_trust",
       report.ownerLabel,
+      report.taxJurisdictionCode,
+      report.taxJurisdiction.taxCurrency,
       report.financialYear.label,
       row.name,
       row.code,
@@ -117,6 +123,8 @@ function addSharesightCompatibilityRows(rows: CsvRow[], report: EofyReport) {
     rows.push([
       "sharesight_taxable_income_au_trust",
       report.ownerLabel,
+      report.taxJurisdictionCode,
+      report.taxJurisdiction.taxCurrency,
       report.financialYear.label,
       row.name,
       row.code,
@@ -143,6 +151,8 @@ function addSharesightCompatibilityRows(rows: CsvRow[], report: EofyReport) {
     rows.push([
       "sharesight_taxable_income_foreign",
       report.ownerLabel,
+      report.taxJurisdictionCode,
+      report.taxJurisdiction.taxCurrency,
       report.financialYear.label,
       row.name,
       row.code,
@@ -169,6 +179,8 @@ function addSharesightCompatibilityRows(rows: CsvRow[], report: EofyReport) {
     rows.push([
       "sharesight_historical_cost",
       report.ownerLabel,
+      report.taxJurisdictionCode,
+      report.taxJurisdiction.taxCurrency,
       report.financialYear.label,
       row.name,
       row.code,
@@ -201,6 +213,8 @@ function addSharesightCompatibilityRows(rows: CsvRow[], report: EofyReport) {
       rows.push([
         section,
         report.ownerLabel,
+        report.taxJurisdictionCode,
+        report.taxJurisdiction.taxCurrency,
         report.financialYear.label,
         lot.name,
         lot.symbol,
@@ -229,6 +243,8 @@ export function eofyReportCsv(report: EofyReport) {
   const rows: CsvRow[] = [[
     "section",
     "owner",
+    "tax_jurisdiction",
+    "tax_currency",
     "financial_year",
     "item",
     "symbol",
@@ -253,6 +269,8 @@ export function eofyReportCsv(report: EofyReport) {
   rows.push([
     "metadata",
     report.ownerLabel,
+    report.taxJurisdictionCode,
+    report.taxJurisdiction.taxCurrency,
     report.financialYear.label,
     "NorthStar EOFY accountant pack",
     "",
@@ -280,6 +298,8 @@ export function eofyReportCsv(report: EofyReport) {
     rows.push([
       "account_summary",
       report.ownerLabel,
+      report.taxJurisdictionCode,
+      report.taxJurisdiction.taxCurrency,
       report.financialYear.label,
       `${row.broker} account ${row.accountKey}`,
       "",
@@ -306,6 +326,8 @@ export function eofyReportCsv(report: EofyReport) {
     rows.push([
       "accountant_reconciliation",
       report.ownerLabel,
+      report.taxJurisdictionCode,
+      report.taxJurisdiction.taxCurrency,
       report.financialYear.label,
       row.check,
       row.section,
@@ -332,6 +354,8 @@ export function eofyReportCsv(report: EofyReport) {
     rows.push([
       "income_summary",
       report.ownerLabel,
+      report.taxJurisdictionCode,
+      report.taxJurisdiction.taxCurrency,
       report.financialYear.label,
       row.name,
       row.symbol,
@@ -358,6 +382,8 @@ export function eofyReportCsv(report: EofyReport) {
     rows.push([
       "income_payment",
       report.ownerLabel,
+      report.taxJurisdictionCode,
+      report.taxJurisdiction.taxCurrency,
       report.financialYear.label,
       row.name,
       row.symbol,
@@ -384,6 +410,8 @@ export function eofyReportCsv(report: EofyReport) {
     rows.push([
       "realised_cgt_lot",
       report.ownerLabel,
+      report.taxJurisdictionCode,
+      report.taxJurisdiction.taxCurrency,
       report.financialYear.label,
       row.name,
       row.symbol,
@@ -410,6 +438,8 @@ export function eofyReportCsv(report: EofyReport) {
     rows.push([
       "trade_movement",
       report.ownerLabel,
+      report.taxJurisdictionCode,
+      report.taxJurisdiction.taxCurrency,
       report.financialYear.label,
       row.type,
       row.symbol,
@@ -436,6 +466,8 @@ export function eofyReportCsv(report: EofyReport) {
     rows.push([
       "current_holding_reference",
       report.ownerLabel,
+      report.taxJurisdictionCode,
+      report.taxJurisdiction.taxCurrency,
       report.financialYear.label,
       row.name,
       row.symbol,
@@ -459,7 +491,7 @@ export function eofyReportCsv(report: EofyReport) {
   }
 
   for (const note of report.dataQuality) {
-    rows.push(["data_quality", report.ownerLabel, report.financialYear.label, note, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", report.generatedAt]);
+    rows.push(["data_quality", report.ownerLabel, report.taxJurisdictionCode, report.taxJurisdiction.taxCurrency, report.financialYear.label, note, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", report.generatedAt]);
   }
 
   return csv(rows);

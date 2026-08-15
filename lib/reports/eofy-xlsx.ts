@@ -57,16 +57,16 @@ function groupedBy<T>(rows: T[], keyFor: (row: T) => string) {
 function reportIntro(report: EofyReport, titleText: string): Row[] {
   return [
     title(titleText),
-    subtitle(`${report.ownerLabel} | ${report.financialYear.label}: ${report.financialYear.startDate} to ${report.financialYear.endDate}`),
-    subtitle(`Generated ${report.generatedAt.slice(0, 10)} | Current valuation reference ${report.valuationAsOf ?? "not recorded"}`),
+    subtitle(`${report.ownerLabel} | ${report.taxJurisdiction.label} ${report.financialYear.label}: ${report.financialYear.startDate} to ${report.financialYear.endDate}`),
+    subtitle(`Tax currency ${report.taxJurisdiction.taxCurrency} | Generated ${report.generatedAt.slice(0, 10)} | Current valuation reference ${report.valuationAsOf ?? "not recorded"}`),
     blank,
   ];
 }
 
 function sharesightCgtIntro(report: EofyReport, sectionText: string): Row[] {
   return [
-    title(`Australian Capital Gains Tax Report for ${report.ownerLabel}`),
-    subtitle(`Showing capital gains from ${report.financialYear.startDate} to ${report.financialYear.endDate}`),
+    title(`${report.taxJurisdiction.label} Capital Gains Tax Report for ${report.ownerLabel}`),
+    subtitle(`Showing capital gains from ${report.financialYear.startDate} to ${report.financialYear.endDate} in ${report.taxJurisdiction.taxCurrency}`),
     subtitle("Sale allocation method assigned for this reporting period: FIFO unless row notes state otherwise"),
     blank,
     section(sectionText),

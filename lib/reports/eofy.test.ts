@@ -73,6 +73,45 @@ test("buildEofyReport declares its Australian tax jurisdiction", () => {
   assert.equal(report.taxJurisdiction.taxYearBasis, "australian_financial_year");
 });
 
+
+function parseCsvLine(line: string) {
+  const cells: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      cell += '"';
+      index += 1;
+      continue;
+    }
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (char === "," && !quoted) {
+      cells.push(cell);
+      cell = "";
+      continue;
+    }
+    cell += char;
+  }
+  cells.push(cell);
+  return cells;
+}
+
+test("eofyReportCsv carries tax jurisdiction metadata without shifting columns", () => {
+  const report = buildEofyReport("personal", dashboard([]), [], 2026, new Date("2026-07-18T00:00:00.000Z"));
+  const rows = eofyReportCsv(report).split("\n").map(parseCsvLine);
+  const header = rows[0];
+  assert.equal(header.includes("tax_jurisdiction"), true);
+  assert.equal(header.includes("tax_currency"), true);
+  assert.equal(rows[1][header.indexOf("tax_jurisdiction")], "AU");
+  assert.equal(rows[1][header.indexOf("tax_currency")], "AUD");
+  assert.equal(rows.every((row) => row.length === header.length), true);
+});
+
 test("buildEofyReport values historical cost rows from EOFY price book", () => {
   const holdings = [
     holding({ id: "h-CMM", symbol: "CMM", name: "Capricorn Metals", exchange: "ASX", currency: "AUD", quantity: 100, costAud: 1000, marketValueAud: 2500 }),
@@ -244,9 +283,9 @@ test("buildEofyReport calculates realised CGT after loss offset and discount", (
   assert.equal(report.reconciliation.rows.find((row) => row.check === "Taxable net capital gain")?.varianceAud, 0);
 
   const csv = eofyReportCsv(report);
-  assert.match(csv, /accountant_reconciliation,Personal,FY2026,Realised proceeds subtotal,CGT/);
-  assert.match(csv, /sharesight_cgt_summary,Personal,FY2026,Total net capital gain \(18A\)/);
-  assert.match(csv, /realised_cgt_lot,Personal,FY2026,Capricorn Metals,CMM,Directshares,2026-01-10/);
+  assert.match(csv, /accountant_reconciliation,Personal,AU,AUD,FY2026,Realised proceeds subtotal,CGT/);
+  assert.match(csv, /sharesight_cgt_summary,Personal,AU,AUD,FY2026,Total net capital gain \(18A\)/);
+  assert.match(csv, /realised_cgt_lot,Personal,AU,AUD,FY2026,Capricorn Metals,CMM,Directshares,2026-01-10/);
   assert.match(csv, /discount 50%/);
   const xlsx = eofyReportXlsx(report);
   assert.ok(xlsx.includes(Buffer.from("Reconciliation")));
@@ -322,6 +361,6 @@ test("buildEofyReport keeps multiple personal Directshares accounts in the accou
   assert.deepEqual(report.accountSummaries.map((row) => row.accountKey), ["4317403", "4386162"]);
   assert.equal(report.accountSummaries.find((row) => row.accountKey === "4317403")?.sellTrades, 1);
   assert.equal(report.accountSummaries.find((row) => row.accountKey === "4386162")?.incomePayments, 1);
-  assert.match(eofyReportCsv(report), /account_summary,Personal,FY2026,Directshares account 4386162/);
+  assert.match(eofyReportCsv(report), /account_summary,Personal,AU,AUD,FY2026,Directshares account 4386162/);
   assert.ok(eofyReportXlsx(report).includes(Buffer.from("Account Summary")));
 });
