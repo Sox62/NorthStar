@@ -30,7 +30,7 @@ function isBackfillableInstrument(instrument: PriceableInstrument) {
 const BENCHMARK_BACKFILL_INSTRUMENTS: Record<string, PriceableInstrument> = {
   GOLD: benchmarkInstrument("GOLD", "TVC", "Gold spot", "USD", "Reserve benchmark"),
   SILVER: benchmarkInstrument("SILVER", "TVC", "Silver spot", "USD", "Commodity benchmark"),
-  PLATINUM: benchmarkInstrument("PLATINUM", "TVC", "Platinum spot", "USD", "Commodity benchmark"),
+  PLATINUM: benchmarkInstrument("PLATINUM", "ACTIVTRADES", "Platinum spot", "USD", "Commodity benchmark"),
   USOIL: benchmarkInstrument("USOIL", "TVC", "WTI crude oil", "USD", "Commodity benchmark"),
   SLVM: benchmarkInstrument("SLVM", "ASX", "Silver miners ETF", "AUD", "Silver miners"),
   SIL: benchmarkInstrument("SIL", "AMEX", "Global X Silver Miners ETF", "USD", "Silver miners"),

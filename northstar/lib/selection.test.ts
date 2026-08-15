@@ -37,3 +37,19 @@ test("empty and malformed values are rejected rather than half-parsed", () => {
   assert.equal(parseSelectionValue(":reserve:gold"), null, "no kind");
   assert.equal(parseSelectionValue("something:else"), null, "unknown kind");
 });
+
+test("benchmark TradingView symbols carry a venue that TradingView actually lists them on", () => {
+  // TVC lists GOLD, SILVER and USOIL but not platinum, so PLATINUM must name a venue that
+  // quotes it. The prefix is not cosmetic: historyForBenchmark and backfillKeyForBenchmark
+  // both derive the price-store exchange from it.
+  for (const node of RESEARCH_BENCHMARKS) {
+    if (!node.tradingViewSymbol) continue;
+    const [venue, ticker] = node.tradingViewSymbol.split(":");
+    assert.ok(venue && ticker, `${node.id} needs a VENUE:TICKER TradingView symbol`);
+    // Currency benchmarks quote a pair, so the ticker legitimately differs from the symbol.
+    if (node.role !== "reserve" || node.symbol === "GOLD") {
+      assert.equal(ticker, node.symbol, `${node.id} TradingView ticker must match its symbol`);
+    }
+    if (node.symbol === "PLATINUM") assert.equal(venue, "ACTIVTRADES");
+  }
+});

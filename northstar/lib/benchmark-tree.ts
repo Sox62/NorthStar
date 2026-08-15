@@ -54,7 +54,7 @@ export const RESEARCH_BENCHMARKS: BenchmarkNode[] = [
   sectorEtf("qqq", "NASDAQ 100", "QQQ", "NASDAQ:QQQ"),
   currencyBenchmark("usd", "US dollar", "USD", "FX_IDC:USDAUD"),
   commodity("silver", "Silver", "SILVER", "TVC:SILVER"),
-  commodity("platinum", "Platinum", "PLATINUM", "TVC:PLATINUM"),
+  commodity("platinum", "Platinum", "PLATINUM", "ACTIVTRADES:PLATINUM"),
   commodity("oil", "Oil", "USOIL", "TVC:USOIL"),
   sectorEtf("gdx", "Gold miners ETF", "GDX", "AMEX:GDX"),
   sectorEtf("slvm", "Silver miners ETF", "SLVM", "ASX:SLVM", "AUD"),
@@ -110,7 +110,7 @@ const TEMPLATES: Record<Sector, BenchmarkTemplate> = {
     peers: [sectorEtf("xop", "Oil & gas exploration ETF", "XOP", "AMEX:XOP"), leader("cvx", "Integrated energy peer", "CVX", "NYSE:CVX")],
   },
   "Platinum bullion": {
-    path: [commodity("platinum", "Platinum", "PLATINUM", "TVC:PLATINUM")],
+    path: [commodity("platinum", "Platinum", "PLATINUM", "ACTIVTRADES:PLATINUM")],
     notes: ["Label physical holdings as strategic metal holding or physical platinum, not gold reserve."],
   },
   "Silver bullion": {
