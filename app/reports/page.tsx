@@ -47,8 +47,8 @@ const downloads: ReportDownload[] = [
     downloadLabel: "Download XLSX",
     secondaryHref: "/api/reports/eofy?scope=personal&format=csv",
     secondaryLabel: "CSV",
-    detail: "Sharesight-style XLSX tabs for CGT, taxable income, all trades, historical cost and unrealised CGT, plus NorthStar reconciliation.",
-    rows: "Personal tax only",
+    detail: "AU Personal tax pack with Sharesight-style XLSX tabs for CGT, taxable income, all trades, historical cost and unrealised CGT, plus NorthStar reconciliation.",
+    rows: "AU Personal tax only",
   },
   {
     title: "Estate summary",
@@ -72,7 +72,7 @@ export default function ReportsPage() {
     <main className="shell">
       <PageHeader
         title="Reports"
-        description="Download CSV outputs or open print-ready report pages. The EOFY accountant tax pack is Personal only; SMSF remains separate."
+        description="Download CSV outputs or open print-ready report pages. The EOFY accountant tax pack is AU Personal only; SMSF remains separate."
         links={[
           { href: "/", label: "Dashboard" },
           { href: "/tax", label: "Tax lots" },
@@ -85,11 +85,12 @@ export default function ReportsPage() {
         <Card className={styles.summaryCard}>
           <p className="eyebrow">Report set</p>
           <h2 className="cardTitle">CSV, PDF-ready and personal tax reports</h2>
-          <p className="cardIntro">Generated directly from stored NorthStar portfolio data. Open report pages can be printed or saved as PDFs from the browser.</p>
+          <p className="cardIntro">Generated directly from stored NorthStar portfolio data. AU is live for the Personal accountant pack; UK and US are reserved as separate tax jurisdictions for future reporting.</p>
           <SummaryGrid
             entries={[
               ["Exports", downloads.length],
               ["Format", "CSV + print"],
+              ["Tax", "AU live, UK/US reserved"],
               ["Scopes", "Overall, Personal, SMSF"],
               ["Estate", "Ownership-aware"],
             ]}
@@ -103,7 +104,8 @@ export default function ReportsPage() {
             <span>Wealth statement</span>
             <span>Personal report</span>
             <span>SMSF report</span>
-            <span>Personal EOFY accountant pack</span>
+            <span>AU Personal EOFY accountant pack</span>
+            <span>Jurisdiction metadata in CSV/XLSX</span>
             <span>Print / Save PDF views</span>
             <span>Estate summary</span>
             <span>Tax position</span>
