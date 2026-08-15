@@ -21,12 +21,19 @@ const tradingViewOverrides: Record<string, string> = {
   "URA:ARCA": "AMEX:URA",
   "URA:NYSEARCA": "AMEX:URA",
   "UUUU:US": "AMEX:UUUU",
+  // Physical metal has no listing of its own, so chart it against the spot benchmark.
+  "PLATINUM:PHYSICAL": "ACTIVTRADES:PLATINUM",
 };
 
-const usTradingViewExchanges = new Set(["NYSE", "NASDAQ", "AMEX", "ARCA", "NYSEARCA", "BATS"]);
+const usTradingViewExchanges = new Set([
+  "NYSE", "NASDAQ", "AMEX", "ARCA", "NYSEARCA", "BATS", "NYSEAMERICAN", "NYSEMKT",
+]);
+const tsxVentureExchanges = new Set(["TSXV", "TSX-V", "CVE", "VENTURE"]);
+const canadianExchanges = new Set(["TSX", "TSE", "CA", "CANADA", "TSX/TSXV", "NEO"]);
+const londonExchanges = new Set(["LSE", "LON", "GB", "LONDON"]);
 
 function normaliseUsTradingViewExchange(exchange: string) {
-  return exchange === "ARCA" || exchange === "NYSEARCA" ? "AMEX" : exchange;
+  return ["ARCA", "NYSEARCA", "NYSEAMERICAN", "NYSEMKT"].includes(exchange) ? "AMEX" : exchange;
 }
 
 function tradingViewFxPairSymbol(symbol: string, exchange: string) {
@@ -61,10 +68,11 @@ export function tradingViewSymbolForInstrument(instrument: TradingViewInstrument
   if (exchange.includes("ASX")) return `ASX:${symbol}`;
   if (usTradingViewExchanges.has(exchange)) return `${normaliseUsTradingViewExchange(exchange)}:${symbol}`;
   if (exchange === "US") return tradingViewOverrides[`${symbol}:US`] ?? symbol;
-  if (exchange === "TSX/TSXV") return `TSX:${symbol}`;
-  if (exchange.includes("TSXV") || exchange.includes("VENTURE")) return `TSXV:${symbol}`;
-  if (exchange.includes("TSX") || exchange.includes("CA")) return `TSX:${symbol}`;
-  if (exchange.includes("LSE") || exchange.includes("GB")) return `LSE:${symbol}`;
+  // Matched against explicit sets, not substrings: exchange.includes("CA") also matched
+  // PHYSICAL and NYSEAMERICAN, sending bullion and every NYSE American holding to TSX.
+  if (tsxVentureExchanges.has(exchange)) return `TSXV:${symbol}`;
+  if (canadianExchanges.has(exchange)) return `TSX:${symbol}`;
+  if (londonExchanges.has(exchange)) return `LSE:${symbol}`;
   return exchange ? `${exchange}:${symbol}` : symbol;
 }
 
