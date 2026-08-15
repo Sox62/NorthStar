@@ -1,4 +1,5 @@
 import type { OwnerType, StoredTransaction } from "@/lib/storage";
+import { taxJurisdiction, type TaxJurisdictionCode } from "@/lib/tax-jurisdictions";
 import type { EofyScope } from "./types";
 
 export function ownerTypeForEofyScope(_scope: EofyScope): OwnerType {
@@ -9,25 +10,44 @@ export function ownerLabelForEofyScope(_scope: EofyScope) {
   return "Personal";
 }
 
-export function defaultFinancialYearEnding(today = new Date()) {
+export function defaultTaxYearEnding(jurisdictionCode: TaxJurisdictionCode, today = new Date()) {
+  const jurisdiction = taxJurisdiction(jurisdictionCode);
   const year = today.getUTCFullYear();
   const month = today.getUTCMonth() + 1;
-  return month >= 7 ? year : year - 1;
+  const day = today.getUTCDate();
+  const startsInJanuary = jurisdiction.yearStartMonth === 1;
+  const hasReachedTaxYearStart = month > jurisdiction.yearStartMonth || (month === jurisdiction.yearStartMonth && day >= jurisdiction.yearStartDay);
+  return startsInJanuary || hasReachedTaxYearStart ? year : year - 1;
 }
 
-export function financialYearFromRequest(value: string | null, today = new Date()) {
-  const parsed = value ? Number(value) : defaultFinancialYearEnding(today);
-  if (!Number.isInteger(parsed) || parsed < 2000 || parsed > 2100) return defaultFinancialYearEnding(today);
+export function defaultFinancialYearEnding(today = new Date()) {
+  return defaultTaxYearEnding("AU", today);
+}
+
+export function taxYearFromRequest(jurisdictionCode: TaxJurisdictionCode, value: string | null, today = new Date()) {
+  const fallback = defaultTaxYearEnding(jurisdictionCode, today);
+  const parsed = value ? Number(value) : fallback;
+  if (!Number.isInteger(parsed) || parsed < 2000 || parsed > 2100) return fallback;
   return parsed;
 }
 
-export function financialYear(year: number) {
+export function financialYearFromRequest(value: string | null, today = new Date()) {
+  return taxYearFromRequest("AU", value, today);
+}
+
+export function taxYear(jurisdictionCode: TaxJurisdictionCode, year: number) {
+  const jurisdiction = taxJurisdiction(jurisdictionCode);
+  const startYear = jurisdiction.yearStartMonth === 1 ? year : year - 1;
   return {
     year,
-    label: `FY${year}`,
-    startDate: `${year - 1}-07-01`,
-    endDate: `${year}-06-30`,
+    label: jurisdiction.taxYearBasis === "calendar_year" ? String(year) : `FY${year}`,
+    startDate: `${startYear}-${String(jurisdiction.yearStartMonth).padStart(2, "0")}-${String(jurisdiction.yearStartDay).padStart(2, "0")}`,
+    endDate: `${year}-${String(jurisdiction.yearEndMonth).padStart(2, "0")}-${String(jurisdiction.yearEndDay).padStart(2, "0")}`,
   };
+}
+
+export function financialYear(year: number) {
+  return taxYear("AU", year);
 }
 
 export function dateInRange(value: string | null | undefined, startDate: string, endDate: string) {
