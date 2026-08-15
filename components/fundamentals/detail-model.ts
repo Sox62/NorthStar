@@ -10,13 +10,20 @@ export type RiskRow = {
   note: string;
   level: string;
   tone: RiskTone;
+  /** 0-1 across the 0-5 research scale, so the score can be drawn rather than only named. */
+  score: number | null;
 };
 
 export type DetailField = { key: string; label: string; value: string };
 export type ValuationRow = { key: string; label: string; value: string; tone?: "positive" | "negative"; emphasis?: boolean };
 
 /** Scores are captured 0-5 on the research form, higher being better. */
-export function riskLevel(score: number | null | undefined): { level: string; tone: RiskTone } {
+export function riskLevel(score: number | null | undefined): { level: string; tone: RiskTone; score: number | null } {
+  const normalised = score == null ? null : Math.min(1, Math.max(0, score / 5));
+  return { ...riskBand(score), score: normalised };
+}
+
+function riskBand(score: number | null | undefined): { level: string; tone: RiskTone } {
   if (score == null) return { level: "Not scored", tone: "warning" };
   if (score >= 4.5) return { level: "Low", tone: "good" };
   if (score >= 3.5) return { level: "Low to moderate", tone: "good" };
@@ -97,6 +104,7 @@ export function riskRows(fundamentals: MinerFundamentals | undefined): RiskRow[]
       note: fundamentals?.projectStage || "No stage recorded",
       level: fundamentals?.productionOz ? "Producing" : fundamentals?.projectStage ? "Pre-production" : "Not scored",
       tone: fundamentals?.productionOz ? "good" : "warning",
+      score: fundamentals?.productionOz ? 1 : fundamentals?.projectStage ? 0.5 : null,
     },
     {
       key: "funding",
@@ -106,6 +114,7 @@ export function riskRows(fundamentals: MinerFundamentals | undefined): RiskRow[]
         : `Enterprise value is ${capexCover.toFixed(2)}x capex`,
       level: capexCover == null ? "Not scored" : capexCover >= 1 ? "Self-fundable" : "Funding gap",
       tone: capexCover == null ? "warning" : capexCover >= 1 ? "good" : "bad",
+      score: capexCover == null ? null : Math.min(1, capexCover),
     },
   ];
 }

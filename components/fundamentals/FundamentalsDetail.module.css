@@ -102,10 +102,7 @@
 }
 
 .riskRow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 14px;
+  display: block;
   padding: 11px 0;
   border-bottom: 1px solid rgba(33, 50, 68, 0.5);
 }
@@ -239,3 +236,29 @@
     justify-content: flex-start;
   }
 }
+
+.riskHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Score first, badge as the backup label. */
+.riskMeter {
+  height: 8px;
+  margin: 8px 0 6px;
+  border-radius: 999px;
+  background: rgba(122, 149, 178, 0.14);
+  overflow: hidden;
+}
+
+.riskFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.riskFill.good { background: var(--status-positive); }
+.riskFill.warning { background: var(--status-warning); }
+.riskFill.bad { background: var(--status-negative); }

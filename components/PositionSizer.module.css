@@ -136,3 +136,51 @@
     grid-template-columns: 1fr;
   }
 }
+
+.check {
+  display: block;
+}
+
+.checkHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* The bar carries the magnitude; the badge behind it is the backup reading. */
+.meter {
+  position: relative;
+  height: 8px;
+  margin: 8px 0 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(122, 149, 178, 0.14);
+  overflow: hidden;
+}
+
+.meterFill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+}
+
+.meterFill.good { background: var(--status-positive); }
+.meterFill.warning { background: var(--status-warning); }
+.meterFill.bad { background: var(--status-negative); }
+
+.meterOver {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 4px;
+  background: var(--status-negative);
+}
+
+.meterLimit {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  right: 0;
+  width: 1px;
+  background: var(--text-muted);
+  opacity: 0.55;
+}

@@ -32,10 +32,17 @@ const base: MinerFundamentals = {
 };
 
 test("riskLevel maps the 0-5 research scores onto severities", () => {
-  assert.deepEqual(riskLevel(5), { level: "Low", tone: "good" });
-  assert.deepEqual(riskLevel(3), { level: "Moderate", tone: "warning" });
-  assert.deepEqual(riskLevel(0), { level: "High", tone: "bad" });
-  assert.deepEqual(riskLevel(null), { level: "Not scored", tone: "warning" });
+  assert.deepEqual(riskLevel(5), { level: "Low", tone: "good", score: 1 });
+  assert.deepEqual(riskLevel(3), { level: "Moderate", tone: "warning", score: 0.6 });
+  assert.deepEqual(riskLevel(0), { level: "High", tone: "bad", score: 0 });
+  assert.deepEqual(riskLevel(null), { level: "Not scored", tone: "warning", score: null });
+});
+
+test("the score is normalised for drawing and clamped to the 0-5 scale", () => {
+  // The bar reads as a fraction of the scale, so an out-of-range entry cannot overflow it.
+  assert.equal(riskLevel(4)?.score, 0.8);
+  assert.equal(riskLevel(9)?.score, 1);
+  assert.equal(riskLevel(-2)?.score, 0);
 });
 
 test("net cash and enterprise value follow cash and debt", () => {

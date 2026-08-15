@@ -95,11 +95,16 @@ export function FundamentalsDetail({ holding, fundamentals, onClose, onEdit }: {
             <div className={styles.riskRows}>
               {risks.map((risk) => (
                 <div className={styles.riskRow} key={risk.key}>
-                  <div>
+                  <div className={styles.riskHead}>
                     <p className={styles.riskLabel}>{risk.label}</p>
-                    <p className={styles.riskNote}>{risk.note}</p>
+                    <StatusBadge tone={risk.tone}>{risk.level}</StatusBadge>
                   </div>
-                  <StatusBadge tone={risk.tone}>{risk.level}</StatusBadge>
+                  {risk.score == null ? null : (
+                    <div className={styles.riskMeter} role="img" aria-label={`${risk.label}: ${risk.level}`}>
+                      <span className={`${styles.riskFill} ${styles[risk.tone]}`} style={{ width: `${risk.score * 100}%` }} />
+                    </div>
+                  )}
+                  <p className={styles.riskNote}>{risk.note}</p>
                 </div>
               ))}
             </div>

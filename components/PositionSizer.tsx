@@ -158,11 +158,23 @@ export default function PositionSizer() {
             <div className={styles.checks}>
               {checks.map((check) => (
                 <div className={styles.check} key={check.key}>
-                  <div>
+                  <div className={styles.checkHead}>
                     <p className={styles.checkLabel}>{check.label}</p>
-                    <p className={styles.checkDetail}>{check.detail}</p>
+                    <StatusBadge tone={check.tone}>{check.status}</StatusBadge>
                   </div>
-                  <StatusBadge tone={check.tone}>{check.status}</StatusBadge>
+                  {check.ratio == null ? null : (
+                    <div className={styles.meter} role="img" aria-label={`${check.detail}. ${check.limitLabel ?? ""}`}>
+                      <span
+                        className={`${styles.meterFill} ${styles[check.tone]}`}
+                        style={{ width: `${Math.min(100, Math.max(0, check.ratio * 100))}%` }}
+                      />
+                      {check.ratio > 1 ? <span className={styles.meterOver} aria-hidden="true" /> : null}
+                      <span className={styles.meterLimit} aria-hidden="true" />
+                    </div>
+                  )}
+                  <p className={styles.checkDetail}>
+                    {check.detail}{check.limitLabel ? ` · ${check.limitLabel}` : ""}
+                  </p>
                 </div>
               ))}
             </div>

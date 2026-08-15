@@ -32,6 +32,14 @@ export type PreTradeCheck = {
   detail: string;
   status: string;
   tone: CheckTone;
+  /**
+   * Fraction of this check's limit consumed, so the UI can draw the magnitude rather than only
+   * print it. 1 is exactly at the limit; above 1 is over. Null when the check has no limit to
+   * measure against.
+   */
+  ratio: number | null;
+  /** What the bar is measured against, for the axis caption. */
+  limitLabel: string | null;
 };
 
 const round = (value: number, places = 2) => {
@@ -80,6 +88,9 @@ export function deriveSize(input: SizerInput): SizerResult {
   };
 }
 
+const WIDE_STOP_PERCENT = 35;
+const MAX_RISK_PERCENT = 2;
+
 const aud = (value: number) =>
   new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value);
 
@@ -93,8 +104,10 @@ export function preTradeChecks(input: SizerInput, result: SizerResult): PreTrade
         detail: `Stop is ${result.stopDistancePercent.toFixed(2)}% below entry`,
         status: result.stopDistancePercent < 1 ? "Very tight" : result.stopDistancePercent > 35 ? "Very wide" : "Workable",
         tone: result.stopDistancePercent < 1 ? "warning" : result.stopDistancePercent > 35 ? "warning" : "good",
+        ratio: result.stopDistancePercent / WIDE_STOP_PERCENT,
+        limitLabel: `${WIDE_STOP_PERCENT}% is a very wide stop`,
       }
-    : { key: "invalidation", label: "Invalidation below entry", detail: result.blocker ?? "No stop distance", status: "Blocked", tone: "bad" });
+    : { key: "invalidation", label: "Invalidation below entry", detail: result.blocker ?? "No stop distance", status: "Blocked", tone: "bad", ratio: null, limitLabel: null });
 
   const fundable = result.positionValueAud <= input.availableCashAud;
   checks.push({
@@ -103,6 +116,8 @@ export function preTradeChecks(input: SizerInput, result: SizerResult): PreTrade
     detail: `${aud(result.positionValueAud)} against ${aud(input.availableCashAud)} available`,
     status: fundable ? "Funded" : "Short of cash",
     tone: fundable ? "good" : "bad",
+    ratio: input.availableCashAud > 0 ? result.positionValueAud / input.availableCashAud : null,
+    limitLabel: `${aud(input.availableCashAud)} deployable`,
   });
 
   const withinCap = result.positionPercentOfNav <= input.maxPositionPercent;
@@ -112,6 +127,8 @@ export function preTradeChecks(input: SizerInput, result: SizerResult): PreTrade
     detail: `${result.positionPercentOfNav.toFixed(2)}% of family NAV against a ${input.maxPositionPercent}% cap`,
     status: withinCap ? "Within cap" : "Over cap",
     tone: withinCap ? "good" : "bad",
+    ratio: input.maxPositionPercent > 0 ? result.positionPercentOfNav / input.maxPositionPercent : null,
+    limitLabel: `${input.maxPositionPercent}% ceiling`,
   });
 
   const themeAfter = input.familyNavAud
@@ -126,6 +143,8 @@ export function preTradeChecks(input: SizerInput, result: SizerResult): PreTrade
       : `${themeAfter.toFixed(2)}% of NAV against a ${themeTarget.toFixed(2)}% target`,
     status: themeTarget == null ? "No target" : themeAfter > themeTarget ? "Over target" : "Within target",
     tone: themeTarget == null ? "warning" : themeAfter > themeTarget ? "warning" : "good",
+    ratio: themeTarget ? themeAfter / themeTarget : null,
+    limitLabel: themeTarget ? `${themeTarget.toFixed(2)}% target` : null,
   });
 
   checks.push({
@@ -134,6 +153,8 @@ export function preTradeChecks(input: SizerInput, result: SizerResult): PreTrade
     detail: `${aud(result.riskBudgetAud)} is ${input.riskPercent.toFixed(2)}% of family NAV`,
     status: result.sizeable ? "Accepted" : "No size",
     tone: result.sizeable ? "good" : "bad",
+    ratio: MAX_RISK_PERCENT > 0 ? input.riskPercent / MAX_RISK_PERCENT : null,
+    limitLabel: `${MAX_RISK_PERCENT}% is the widest budget`,
   });
 
   return checks;

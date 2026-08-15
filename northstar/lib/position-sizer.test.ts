@@ -110,3 +110,32 @@ test("a tight stop cautions on its own, but its derived size can still hard-bloc
   assert.equal(checks.find((check) => check.key === "invalidation")?.tone, "warning");
   assert.equal(sizerVerdict(checks, result).armable, false, "blocked by cash and weight, not by the stop itself");
 });
+
+test("checks carry the magnitude, not just a verdict", () => {
+  const checks = preTradeChecks(base, deriveSize(base));
+  const byKey = new Map(checks.map((check) => [check.key, check]));
+
+  // $50k position against $100k deployable — half the bar.
+  assert.equal(byKey.get("liquidity")?.ratio, 0.5);
+  // 5% of NAV against a 20% ceiling — a quarter.
+  assert.equal(byKey.get("weight")?.ratio, 0.25);
+  // 15% theme exposure after the trade against a 30% target.
+  assert.equal(byKey.get("theme")?.ratio, 0.5);
+  assert.ok((byKey.get("liquidity")?.limitLabel ?? "").includes("deployable"));
+});
+
+test("a breach reads above 1 so the bar can show the overshoot", () => {
+  const over = { ...base, availableCashAud: 25_000 };
+  const liquidity = preTradeChecks(over, deriveSize(over)).find((check) => check.key === "liquidity");
+
+  assert.equal(liquidity?.ratio, 2, "a $50k position on $25k cash is double the limit");
+  assert.equal(liquidity?.tone, "bad");
+});
+
+test("a check with no limit to measure against reports no ratio", () => {
+  const untargeted = { ...base, themeTargetPercent: null };
+  const theme = preTradeChecks(untargeted, deriveSize(untargeted)).find((check) => check.key === "theme");
+
+  assert.equal(theme?.ratio, null);
+  assert.equal(theme?.limitLabel, null);
+});
