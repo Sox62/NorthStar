@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
+import { PriceSparklines } from "@/components/PriceSparklines";
 
 type PriceableInstrument = {
   symbol: string;
@@ -218,6 +219,8 @@ export default function PricesPage() {
           { href: "/roadmap", label: "Roadmap" },
         ]}
       />
+
+      <PriceSparklines prices={book.prices} instruments={book.instruments} />
 
       <section className="priceEngineGrid">
         <Card className="priceEngineCard">
