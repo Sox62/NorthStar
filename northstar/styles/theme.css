@@ -2726,10 +2726,6 @@ body.northstar .nsOverview > .nsPositionsPanel .nsHoldingRow {
   grid-template-columns:minmax(150px, 1fr) minmax(150px, 0.9fr) minmax(72px, 0.42fr) minmax(126px, 0.72fr) minmax(96px, 0.54fr) minmax(132px, 0.72fr);
 }
 
-body.northstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader span:nth-child(2)::before {
-  content:"Class / theme";
-}
-
 body.northstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader span:nth-child(2) button {
   font-size:0;
 }
