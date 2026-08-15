@@ -164,7 +164,7 @@ export function preTradeChecks(input: SizerInput, result: SizerResult): PreTrade
 export function sizerVerdict(checks: PreTradeCheck[], result: SizerResult) {
   if (!result.sizeable) return { armable: false, text: result.blocker ?? "Inputs do not produce a position." };
   const blocked = checks.filter((check) => check.tone === "bad");
-  if (blocked.length) return { armable: false, text: `Blocked by ${blocked.map((check) => check.label.toLowerCase()).join(" and ")}.` };
+  if (blocked.length) return { armable: false, text: `Blocked: ${blocked.map((check) => check.status.toLowerCase()).join(", ")}.` };
   const warnings = checks.filter((check) => check.tone === "warning");
   if (warnings.length) return { armable: true, text: `Armable with ${warnings.length} caution${warnings.length === 1 ? "" : "s"} to weigh.` };
   return { armable: true, text: "All pre-trade checks pass." };

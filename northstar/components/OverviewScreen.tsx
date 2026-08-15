@@ -544,8 +544,6 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], accountBre
               <button className="nsReportButton" type="button" onClick={() => void syncEverything()} disabled={syncingAll}>
                 {syncingAll ? "Syncing..." : "Sync everything"}
               </button>
-              <a className="nsReportLink" href={`/api/reports/wealth-statement?scope=${scope}`}>Wealth CSV</a>
-              <a className="nsReportLink" href="/api/reports/estate-summary">Estate CSV</a>
               <button className="nsReportButton" type="button" onClick={() => setShowIntentInfo(true)}>About</button>
               <button className="nsReportButton" type="button" onClick={() => void signOut()}>Sign out</button>
             </div>
