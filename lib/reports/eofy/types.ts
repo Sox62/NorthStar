@@ -1,5 +1,6 @@
 import type { OpenTaxLot, RealisedTaxLot } from "@/lib/tax-lots";
 import type { OwnerType } from "@/lib/storage";
+import type { TaxJurisdiction, TaxJurisdictionCode } from "@/lib/tax-jurisdictions";
 
 export type EofyScope = "personal";
 
@@ -7,6 +8,8 @@ export type EofyReport = {
   scope: EofyScope;
   ownerType: OwnerType;
   ownerLabel: string;
+  taxJurisdictionCode: TaxJurisdictionCode;
+  taxJurisdiction: TaxJurisdiction;
   financialYear: {
     year: number;
     label: string;

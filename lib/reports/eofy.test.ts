@@ -65,6 +65,14 @@ function dashboard(holdings: DashboardHolding[]): DashboardData {
   };
 }
 
+test("buildEofyReport declares its Australian tax jurisdiction", () => {
+  const report = buildEofyReport("personal", dashboard([]), [], 2026, new Date("2026-07-18T00:00:00.000Z"));
+  assert.equal(report.taxJurisdictionCode, "AU");
+  assert.equal(report.taxJurisdiction.label, "Australia");
+  assert.equal(report.taxJurisdiction.taxCurrency, "AUD");
+  assert.equal(report.taxJurisdiction.taxYearBasis, "australian_financial_year");
+});
+
 test("buildEofyReport values historical cost rows from EOFY price book", () => {
   const holdings = [
     holding({ id: "h-CMM", symbol: "CMM", name: "Capricorn Metals", exchange: "ASX", currency: "AUD", quantity: 100, costAud: 1000, marketValueAud: 2500 }),

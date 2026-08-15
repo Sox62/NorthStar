@@ -1,4 +1,5 @@
 import { buildTaxLots } from "@/lib/tax-lots";
+import { taxJurisdiction } from "@/lib/tax-jurisdictions";
 import type { DashboardData, PriceBook, StoredTransaction } from "@/lib/storage";
 import { accountSummaries } from "./eofy/accounts";
 import { capitalGainsReport, eofyPricedOpenLots, realisedSummary, unrealisedCgtReport } from "./eofy/cgt";
@@ -36,6 +37,7 @@ export { financialYear, financialYearFromRequest, ownerLabelForEofyScope, ownerT
 
 export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, transactions: StoredTransaction[], year: number, generatedAt = new Date(), priceBook?: PriceBook): EofyReport {
   const fy = financialYear(year);
+  const jurisdiction = taxJurisdiction("AU");
   const transactionsThroughEofy = transactions.filter((transaction) => transaction.tradeDate <= fy.endDate);
   const income = incomeRows(transactions, fy.startDate, fy.endDate);
   const taxableIncome = taxableIncomeRows(transactions, fy.startDate, fy.endDate);
@@ -94,6 +96,8 @@ export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, tran
     scope,
     ownerType: ownerTypeForEofyScope(scope),
     ownerLabel: ownerLabelForEofyScope(scope),
+    taxJurisdictionCode: jurisdiction.code,
+    taxJurisdiction: jurisdiction,
     financialYear: fy,
     generatedAt: generatedAt.toISOString(),
     valuationAsOf: dashboard.lastUpdated,
