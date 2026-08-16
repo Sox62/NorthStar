@@ -2566,3 +2566,11 @@ button:disabled { opacity: .55; cursor: wait; }
     grid-column: auto;
   }
 }
+
+/* The fixed NorthStar bar already carries the brand and the menu on small screens, so the
+   masthead's own bar would repeat both. Its page links are hidden at this width anyway. */
+@media (max-width: 760px) {
+  .pageMastheadBar {
+    display: none;
+  }
+}

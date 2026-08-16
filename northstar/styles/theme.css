@@ -1268,13 +1268,14 @@ body.northstar .nsHoldingRow:focus-visible {
   outline-offset:3px;
 }
 
+/* The cell label names the column; only the figure itself carries the gain/loss colour. */
 body.northstar .nsHoldingRow .isPositive strong,
-body.northstar .nsHoldingRow .isPositive span {
+body.northstar .nsHoldingRow .isPositive span:not(.nsCellLabel) {
   color:var(--pos) !important;
 }
 
 body.northstar .nsHoldingRow .isNegative strong,
-body.northstar .nsHoldingRow .isNegative span {
+body.northstar .nsHoldingRow .isNegative span:not(.nsCellLabel) {
   color:var(--neg) !important;
 }
 
@@ -3030,4 +3031,37 @@ body.northstar .nsOverlayActions {
   align-items:center;
   gap:10px;
   flex-wrap:wrap;
+}
+
+/* Per-cell labels for the holdings table. Hidden while the column headers are visible; shown
+   once the grid stacks, since a bare "+$2,423" says nothing about which column it came from. */
+body.northstar .nsHoldingRow > div > span.nsCellLabel {
+  display:none;
+}
+
+@media (max-width: 760px) {
+  body.northstar .nsHoldingRow > div > span.nsCellLabel {
+    display:block;
+    margin:0 0 2px;
+    color:var(--text-muted);
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+  }
+}
+
+/* Two-column mobile grids strand a lone final item — three header buttons leave "Sign out"
+   by itself, seven market tiles leave SPX. Let the odd one out take the full row so it reads
+   as deliberate rather than dropped. */
+@media (max-width: 760px) {
+  body.northstar .nsReportLinks > :last-child:nth-child(odd) {
+    grid-column:1 / -1;
+  }
+}
+
+/* Seven tiles into an even column count always strands the last one. Let it fill the row at
+   whatever width that happens, rather than only on phones. */
+body.northstar .nsMetalsGrid > :last-child:nth-child(odd) {
+  grid-column:1 / -1;
 }

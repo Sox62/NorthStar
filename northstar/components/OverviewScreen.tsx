@@ -334,18 +334,24 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
           <strong>{fmtPct(pct(holding.marketValueAud, total))}</strong>
         </div>
         <div>
+          {/* The header row is hidden once the grid stacks, so each figure carries its own
+              label on narrow screens. Real text rather than CSS content, so it is announced. */}
+          <span className="nsCellLabel">Price</span>
           <strong>{fmtLatestPrice(holding)}</strong>
           <span>{holding.priceAsOfDate ?? holding.exchange ?? "Latest stored close"}</span>
         </div>
         <div>
+          <span className="nsCellLabel">Value</span>
           <strong>{fmtAud(holding.marketValueAud)}</strong>
           <span>{fmtPct(pct(holding.marketValueAud, total))} of NAV</span>
         </div>
         <div className={dailyGain >= 0 ? "isPositive" : "isNegative"}>
+          <span className="nsCellLabel">Day P/L</span>
           <strong>{fmtSignedAud(dailyGain)}</strong>
           <span>{dailyPercent == null ? "n/a" : fmtSignedPct(dailyPercent)}</span>
         </div>
         <div className={holding.pnlAud >= 0 ? "isPositive" : "isNegative"}>
+          <span className="nsCellLabel">Total P/L</span>
           <strong>{fmtSignedAud(holding.pnlAud)}</strong>
           <span>{fmtSignedPct(holding.pnlPercent)} position P/L</span>
         </div>
