@@ -3065,3 +3065,26 @@ body.northstar .nsHoldingRow > div > span.nsCellLabel {
 body.northstar .nsMetalsGrid > :last-child:nth-child(odd) {
   grid-column:1 / -1;
 }
+
+/* The row opens a chart, but nothing said so. A small TV cue makes it discoverable without
+   competing with the figures. */
+body.northstar .nsHoldingChartCue {
+  display:inline-block;
+  margin-top:6px;
+  padding:2px 7px;
+  border:1px solid var(--border-default);
+  border-radius:var(--radius-pill);
+  background:transparent;
+  color:var(--text-muted);
+  font:inherit;
+  font-size:10px;
+  letter-spacing:0.08em;
+  cursor:pointer;
+}
+
+body.northstar .nsHoldingRow:hover .nsHoldingChartCue,
+body.northstar .nsHoldingChartCue:hover,
+body.northstar .nsHoldingChartCue:focus-visible {
+  border-color:var(--accent);
+  color:var(--accent);
+}
