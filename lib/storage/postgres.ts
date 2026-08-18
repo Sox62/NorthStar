@@ -4,9 +4,10 @@ import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib
 import { buildDashboardModel, buildManualAssetValuation, maskAccount, numberValue, ownerForScope } from "@/lib/core/accounting";
 import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
+import type { Sector } from "@/northstar/types";
 import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
-import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, Scope, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
+import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 const optionalNumber = (value: unknown) => value == null ? undefined : Number(value);
 
@@ -704,6 +705,41 @@ export class PostgresStorageAdapter implements StorageAdapter {
     return result.rows.map(syncRunFromRow);
   }
 
+  async listSectorOverrides(): Promise<SectorOverride[]> {
+    // Tolerate the table not existing yet, the same way allocation targets do, so a deploy that
+    // has not run migrations still serves the dashboard instead of failing outright.
+    const result = await getPool().query(`
+      SELECT symbol, sector, updated_at::text
+      FROM sector_overrides
+      ORDER BY symbol
+    `).catch((error: unknown) => {
+      if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "42P01") return null;
+      throw error;
+    });
+    if (!result) return [];
+    return result.rows.map(row => ({
+      symbol: String(row.symbol).toUpperCase(),
+      sector: row.sector as Sector,
+      updatedAt: String(row.updated_at),
+    }));
+  }
+
+  async setSectorOverride(symbol: string, sector: Sector): Promise<SectorOverride> {
+    const key = symbol.trim().toUpperCase();
+    const result = await getPool().query(`
+      INSERT INTO sector_overrides (symbol, sector, updated_at)
+      VALUES ($1,$2,NOW())
+      ON CONFLICT (symbol) DO UPDATE SET sector=EXCLUDED.sector, updated_at=NOW()
+      RETURNING symbol, sector, updated_at::text
+    `, [key, sector]);
+    const row = result.rows[0];
+    return { symbol: String(row.symbol).toUpperCase(), sector: row.sector as Sector, updatedAt: String(row.updated_at) };
+  }
+
+  async clearSectorOverride(symbol: string): Promise<void> {
+    await getPool().query(`DELETE FROM sector_overrides WHERE symbol=$1`, [symbol.trim().toUpperCase()]);
+  }
+
   async listAllocationTargets(): Promise<AllocationTarget[]> {
     const result = await getPool().query(`
       SELECT sector,target_percent,updated_at::text
@@ -866,8 +902,10 @@ export class PostgresStorageAdapter implements StorageAdapter {
     `,values);
     const syncRuns = await this.listSyncRuns(8, ownerType);
     const allocationTargets = await this.listAllocationTargets();
+    const sectorOverrides = await this.listSectorOverrides();
 
     return buildDashboardModel({
+      sectorOverrides,
       scope,
       storageMode: "postgresql",
       positions,

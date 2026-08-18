@@ -1,7 +1,15 @@
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
 import type { AllocationTarget } from "@/northstar/lib/allocation-drift";
+import type { Sector } from "@/northstar/types";
 
 export type { AllocationTarget };
+
+/** A user-set sector for one symbol. Overrides both the built-in map and the keyword rules. */
+export type SectorOverride = {
+  symbol: string;
+  sector: Sector;
+  updatedAt: string;
+};
 
 export type OwnerType = "PERSONAL" | "SMSF";
 export type Scope = "overall" | "personal" | "smsf";
@@ -352,6 +360,7 @@ export type LocalStore = {
   snapshots: Snapshot[];
   syncRuns: SyncRun[];
   allocationTargets: AllocationTarget[];
+  sectorOverrides: SectorOverride[];
   minerFundamentals: MinerFundamentals[];
   structuralLevels: StructuralLevel[];
   imports: Array<{
@@ -382,6 +391,7 @@ export type DashboardData = {
   xirr: XirrSummary;
   income: IncomeSummary;
   allocationTargets: AllocationTarget[];
+  sectorOverrides?: SectorOverride[];
   currencyExposure: CurrencyExposure[];
   accounts: Array<{ name: string; detail: string; status: string; ownerType: OwnerType }>;
   syncRuns: SyncRun[];
@@ -422,6 +432,9 @@ export interface StorageAdapter {
   recordPlatinumPrice(price: PlatinumPrice): Promise<PlatinumPrice>;
   recordSyncRun(input: NewSyncRun): Promise<SyncRun>;
   listSyncRuns(limit?: number, ownerType?: OwnerType): Promise<SyncRun[]>;
+  listSectorOverrides(): Promise<SectorOverride[]>;
+  setSectorOverride(symbol: string, sector: Sector): Promise<SectorOverride>;
+  clearSectorOverride(symbol: string): Promise<void>;
   listAllocationTargets(): Promise<AllocationTarget[]>;
   upsertAllocationTargets(targets: Array<Omit<AllocationTarget, "updatedAt">>): Promise<AllocationTarget[]>;
   listMinerFundamentals(symbols?: string[]): Promise<MinerFundamentals[]>;

@@ -15,8 +15,10 @@ const SYMBOL_SECTORS: Record<string, Sector> = {
   SVM: "Silver miners",
 
   B: "Gold miners",
+  GGP: "Gold miners",
   GDX: "Gold miners",
   NEM: "Gold miners",
+  HSTR: "Gold miners",
   NST: "Gold miners",
   RRL: "Gold miners",
   VAU: "Gold miners",
@@ -42,6 +44,7 @@ const SYMBOL_SECTORS: Record<string, Sector> = {
   VELO: "Technology",
 
   EC: "Oil",
+  XOP: "Oil",
   XOM: "Oil",
 
   DBA: "Broad equities",
@@ -56,8 +59,15 @@ function normaliseSymbol(value: string) {
   return value.trim().toUpperCase();
 }
 
-export function classifyAsset(symbol: string, name: string): Sector {
+/**
+ * A user override always wins. The built-in map and the keyword rules only ever see a ticker and
+ * a name, so anything they cannot recognise falls to "Broad equities" until someone says
+ * otherwise — and saying otherwise should not require a deploy.
+ */
+export function classifyAsset(symbol: string, name: string, overrides?: Record<string, Sector>): Sector {
   const normalisedSymbol = normaliseSymbol(symbol);
+  const override = overrides?.[normalisedSymbol];
+  if (override) return override;
   const mapped = SYMBOL_SECTORS[normalisedSymbol];
   if (mapped) return mapped;
 

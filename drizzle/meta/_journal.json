@@ -85,6 +85,13 @@
       "when": 1786752000000,
       "tag": "0011_structural_levels",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786838400000,
+      "tag": "0012_sector_overrides",
+      "breakpoints": true
     }
   ]
 }

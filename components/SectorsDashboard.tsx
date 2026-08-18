@@ -5,6 +5,7 @@ import type { DashboardData } from "@/lib/storage";
 import { Card, Notice, SectorsScreen } from "@/northstar/components";
 import type { Holding } from "@/northstar/types";
 import { dashboardToNorthstarHoldings } from "./northstar-adapter";
+import { SectorOverrides } from "./SectorOverrides";
 
 async function loadDashboard(scope: "personal" | "smsf"): Promise<DashboardData> {
   const response = await fetch(`/api/dashboard?scope=${scope}`, { cache: "no-store" });
@@ -18,26 +19,21 @@ export default function SectorsDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-      setError("");
-      try {
-        const [personal, smsf] = await Promise.all([loadDashboard("personal"), loadDashboard("smsf")]);
-        if (!cancelled) setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
-      } catch (reason) {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load sectors");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  async function load() {
+    setError("");
+    try {
+      const [personal, smsf] = await Promise.all([loadDashboard("personal"), loadDashboard("smsf")]);
+      setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to load sectors");
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     void load();
-    return () => {
-      cancelled = true;
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {
@@ -56,5 +52,14 @@ export default function SectorsDashboard() {
     );
   }
 
-  return <SectorsScreen holdings={holdings} />;
+  return (
+    <>
+      <SectorsScreen holdings={holdings} />
+      <div className="nsScreenMain">
+        {/* Reloading the dashboard after a change is what makes the new sector show up in the
+            donut and the allocation rows immediately, rather than on the next visit. */}
+        <SectorOverrides holdings={holdings} onChanged={() => void load()} />
+      </div>
+    </>
+  );
 }

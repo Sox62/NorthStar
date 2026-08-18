@@ -12,6 +12,7 @@ import {
 } from "@/lib/core/accounting";
 import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
+import type { Sector } from "@/northstar/types";
 import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import type {
   CashAccount,
@@ -21,6 +22,7 @@ import type {
   LocalStore,
   ManualAsset,
   MinerFundamentals,
+  SectorOverride,
   MinerFundamentalsInput,
   StructuralLevel,
   StructuralLevelInput,
@@ -42,7 +44,7 @@ import type {
 } from "./types";
 
 const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".north-star", "data.json");
-const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), minerFundamentals: [], structuralLevels: [], imports: [] };
+const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], structuralLevels: [], imports: [] };
 
 function normalisePhysicalMetalType(value: unknown) {
   return value === "GOLD" || value === "SILVER" || value === "PLATINUM" || value === "PALLADIUM" ? value : "PLATINUM";
@@ -60,6 +62,7 @@ async function readStore(): Promise<LocalStore> {
         fxRates: (parsed.fxRates as StoredFxRate[] | undefined) ?? [],
         syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
         allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
+        sectorOverrides: (parsed.sectorOverrides as SectorOverride[] | undefined) ?? [],
         minerFundamentals: (parsed.minerFundamentals as MinerFundamentals[] | undefined) ?? [],
         structuralLevels: (parsed.structuralLevels as StructuralLevel[] | undefined) ?? [],
       };
@@ -111,10 +114,10 @@ async function readStore(): Promise<LocalStore> {
           priceRetrievedAt: String(asset.updatedAt ?? new Date().toISOString()), updatedAt: String(asset.updatedAt ?? new Date().toISOString()),
         };
       });
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets, platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), minerFundamentals: [], structuralLevels: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets, platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], structuralLevels: [] };
     }
     if (parsed.version === 2) {
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets: [], platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), minerFundamentals: [], structuralLevels: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets: [], platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], structuralLevels: [] };
     }
     return structuredClone(EMPTY);
   } catch (error) {
@@ -350,6 +353,7 @@ function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
   const imports = store.imports.filter(record => !ownerType || record.ownerType === ownerType);
 
   return buildDashboardModel({
+    sectorOverrides: store.sectorOverrides,
     scope,
     storageMode: "local-file",
     positions: importedPositions,
@@ -704,6 +708,29 @@ export class LocalStorageAdapter implements StorageAdapter {
       .filter(run => !ownerType || !run.ownerType || run.ownerType === ownerType)
       .sort((a, b) => b.finishedAt.localeCompare(a.finishedAt))
       .slice(0, limit);
+  }
+
+  async listSectorOverrides(): Promise<SectorOverride[]> {
+    const store = await readStore();
+    return [...store.sectorOverrides].sort((left, right) => left.symbol.localeCompare(right.symbol));
+  }
+
+  async setSectorOverride(symbol: string, sector: Sector): Promise<SectorOverride> {
+    const store = await readStore();
+    const key = symbol.trim().toUpperCase();
+    const record: SectorOverride = { symbol: key, sector, updatedAt: new Date().toISOString() };
+    const existing = store.sectorOverrides.findIndex((item) => item.symbol.toUpperCase() === key);
+    if (existing >= 0) store.sectorOverrides[existing] = record;
+    else store.sectorOverrides.push(record);
+    await writeStore(store);
+    return record;
+  }
+
+  async clearSectorOverride(symbol: string): Promise<void> {
+    const store = await readStore();
+    const key = symbol.trim().toUpperCase();
+    store.sectorOverrides = store.sectorOverrides.filter((item) => item.symbol.toUpperCase() !== key);
+    await writeStore(store);
   }
 
   async listAllocationTargets(): Promise<AllocationTarget[]> {

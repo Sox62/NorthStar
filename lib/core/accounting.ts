@@ -5,6 +5,7 @@ import { buildIncomeSummary } from "@/lib/storage/income";
 import { buildPeriodReturns, type NavPoint } from "@/lib/storage/returns";
 import { buildXirrSummary } from "@/lib/storage/xirr";
 import { classifyAsset } from "@/lib/storage/classify";
+import type { Sector } from "@/northstar/types";
 import type {
   AllocationTarget,
   CashAccount,
@@ -12,6 +13,7 @@ import type {
   ManualAsset,
   OwnerType,
   Scope,
+  SectorOverride,
   StoredPosition,
   StoredTransaction,
   SyncRun,
@@ -181,9 +183,14 @@ function navSeriesForScope(performance: DashboardData["performance"], ownerType:
   });
 }
 
-function normalisePositionClassification(position: StoredPosition): StoredPosition {
-  const assetClass = classifyAsset(position.symbol, `${position.name} ${position.assetClass}`);
+function normalisePositionClassification(position: StoredPosition, overrides?: Record<string, Sector>): StoredPosition {
+  const assetClass = classifyAsset(position.symbol, `${position.name} ${position.assetClass}`, overrides);
   return assetClass === position.assetClass ? position : { ...position, assetClass };
+}
+
+/** Overrides are keyed by uppercase symbol so lookup matches however the broker cased it. */
+export function sectorOverrideMap(overrides: SectorOverride[] = []): Record<string, Sector> {
+  return Object.fromEntries(overrides.map((item) => [item.symbol.trim().toUpperCase(), item.sector]));
 }
 
 
@@ -278,6 +285,8 @@ function buildAccountRows(input: {
 export function buildDashboardModel(input: {
   scope: Scope;
   storageMode: DashboardData["storageMode"];
+  /** User-set sectors, applied over the classifier at read time so imports cannot clobber them. */
+  sectorOverrides?: SectorOverride[];
   positions: StoredPosition[];
   manualAssets: ManualAsset[];
   cashAccounts: CashAccount[];
@@ -297,7 +306,8 @@ export function buildDashboardModel(input: {
   const imports = input.imports.filter((record) => !ownerType || record.ownerType === ownerType);
   const snapshots = input.snapshots.filter((snapshot) => !ownerType || snapshot.ownerType === ownerType);
   const manualPositions = manualAssets.map(manualAssetPosition);
-  const positions = [...importedPositions, ...manualPositions].map(normalisePositionClassification);
+  const overrideMap = sectorOverrideMap(input.sectorOverrides);
+  const positions = [...importedPositions, ...manualPositions].map((position) => normalisePositionClassification(position, overrideMap));
   const investedValue = positions.reduce((sum, position) => sum + position.marketValueAud, 0);
   const cashValue = navCashAccounts.reduce((sum, account) => sum + account.balanceAud, 0);
   const totalValue = investedValue + cashValue;
