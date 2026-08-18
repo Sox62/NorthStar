@@ -328,15 +328,6 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
         <div className="nsHoldingIdentity">
           <strong>{holding.symbol}</strong>
           <span>{holding.name}</span>
-          {/* The row itself opens the chart, but nothing said so — this is the affordance. */}
-          <button
-            type="button"
-            className="nsHoldingChartCue"
-            aria-label={`Chart ${holding.symbol} on TradingView`}
-            onClick={(event) => { event.stopPropagation(); setChartHolding(holding); }}
-          >
-            TV
-          </button>
         </div>
         <div className="nsSectorWeightCell">
           <em style={{ background: `${SECTOR_COLORS[holding.sector]}30`, color: SECTOR_COLORS[holding.sector] }}>{sectorShortName(holding.sector)}</em>
@@ -390,11 +381,7 @@ function HoldingsTable({ holdings, total, scope, healthTone }: { holdings: Holdi
           )}
         </div>
       </div>
-      {chartHolding ? (
-        <ChartOverlay title={`${chartHolding.symbol} · ${chartHolding.name}`} onClose={() => setChartHolding(null)}>
-          <OverviewStockChartPanel holding={chartHolding} />
-        </ChartOverlay>
-      ) : null}
+      {chartHolding ? <OverviewStockChartPanel holding={chartHolding} /> : null}
       {showFxAudit ? (
         <section className="nsFxAuditPanel" aria-label="Foreign-currency P/L audit">
           <div>
