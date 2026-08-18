@@ -14,6 +14,9 @@ export type Sector =
   | "Uranium miners"
   | "Uranium explorers"
   | "Technology"
+  | "Copper miners"
+  | "Coal"
+  | "Soft commodities"
   | "Broad equities"
   | "Platinum bullion"
   | "Rhodium metal"
@@ -58,6 +61,9 @@ export const SECTOR_COLORS: Record<Sector, string> = {
   "Uranium miners": "#8dc6a0",
   "Uranium explorers": "#5fbf8f",
   Technology: "#77a9d8",
+  "Copper miners": "#b87333",
+  Coal: "#6f7b86",
+  "Soft commodities": "#b5c88f",
   "Broad equities": "#9aa9ba",
   "Platinum bullion": "#8fa6bf",
   "Rhodium metal": "#c78db8",
@@ -72,6 +78,9 @@ export const COMPOSITION_OF: Record<Sector, CompositionGroup> = {
   "Uranium miners": "miners",
   "Uranium explorers": "miners",
   Technology: "other",
+  "Copper miners": "miners",
+  Coal: "miners",
+  "Soft commodities": "other",
   "Broad equities": "other",
   "Platinum bullion": "metals",
   "Rhodium metal": "metals",

@@ -35,3 +35,26 @@ test("no overrides leaves the classifier untouched", () => {
   assert.equal(classifyAsset("XOP", "XOP", sectorOverrideMap([])), "Oil");
   assert.equal(classifyAsset("XOP", "XOP", sectorOverrideMap()), "Oil");
 });
+
+test("the new categories exist and classify by symbol and by keyword", () => {
+  assert.equal(classifyAsset("DBA", "Invesco DB Agriculture Fund"), "Soft commodities");
+  assert.equal(classifyAsset("ZZZ", "Global Copper Mining Corp"), "Copper miners");
+  assert.equal(classifyAsset("ZZZ", "Whitehaven Coal"), "Coal");
+  assert.equal(classifyAsset("ZZZ", "Wheat and Corn Basket"), "Soft commodities");
+});
+
+test("coal matches as a word, not inside another one", () => {
+  // "Coalition" and "Charcoal" must not become coal holdings.
+  assert.notEqual(classifyAsset("ZZZ", "Coalition Resources Group"), "Coal");
+  assert.equal(classifyAsset("ZZZ", "Peabody Energy"), "Coal");
+});
+
+test("every sector has a colour, a composition group and a benchmark template", async () => {
+  const { SECTOR_COLORS, COMPOSITION_OF } = await import("@/northstar/types");
+  const { defaultTargetAllocation } = await import("@/northstar/lib/allocation-drift");
+  for (const sector of ["Copper miners", "Coal", "Soft commodities"] as const) {
+    assert.ok(SECTOR_COLORS[sector], `${sector} needs a colour`);
+    assert.ok(COMPOSITION_OF[sector], `${sector} needs a composition group`);
+    assert.equal(typeof defaultTargetAllocation[sector], "number", `${sector} needs a default target`);
+  }
+});

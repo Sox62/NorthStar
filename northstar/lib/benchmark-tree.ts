@@ -122,6 +122,22 @@ const TEMPLATES: Record<Sector, BenchmarkTemplate> = {
   Technology: {
     path: [sectorEtf("qqq", "NASDAQ 100 proxy", "QQQ", "NASDAQ:QQQ")],
   },
+  "Copper miners": {
+    path: [
+      commodity("copper", "Copper", "COPPER", "CAPITALCOM:COPPER"),
+      sectorEtf("copx", "Copper miners ETF", "COPX", "AMEX:COPX"),
+    ],
+    peers: [leader("fcx", "Copper miner leader", "FCX", "NYSE:FCX")],
+  },
+  Coal: {
+    path: [sectorEtf("btu", "Coal producer proxy", "BTU", "NYSE:BTU")],
+    peers: [leader("whc", "Coal peer", "WHC", "ASX:WHC", "AUD")],
+    notes: ["No coal spot benchmark is carried; the producer proxy stands in for the commodity."],
+  },
+  "Soft commodities": {
+    path: [sectorEtf("dba", "Agriculture basket", "DBA", "AMEX:DBA")],
+    notes: ["Softs track an agriculture basket rather than a mined commodity."],
+  },
   "Broad equities": {
     path: [sectorEtf("spy", "Global equities proxy", "SPY", "AMEX:SPY")],
   },

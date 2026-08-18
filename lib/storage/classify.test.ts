@@ -18,7 +18,7 @@ test("classifyAsset maps known NorthStar resource holdings and unknown broad ass
   assert.equal(classifyAsset("ASL", "Andean Silver"), "Silver miners");
   assert.equal(classifyAsset("B", "B"), "Gold miners");
   assert.equal(classifyAsset("WRN", "WRN"), "Gold miners");
-  assert.equal(classifyAsset("DBA", "Invesco DB Agriculture Fund"), "Broad equities");
+  assert.equal(classifyAsset("DBA", "Invesco DB Agriculture Fund"), "Soft commodities");
   assert.equal(classifyAsset("XRH0", "Xtrackers Physical Rhodium"), "Rhodium metal");
   assert.equal(classifyAsset("EU", "enCore Energy Corp"), "Uranium miners");
   assert.equal(classifyAsset("EU", "Encore Energy"), "Uranium miners");

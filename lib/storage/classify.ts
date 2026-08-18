@@ -43,11 +43,12 @@ const SYMBOL_SECTORS: Record<string, Sector> = {
 
   VELO: "Technology",
 
+  DBA: "Soft commodities",
+
   EC: "Oil",
   XOP: "Oil",
   XOM: "Oil",
 
-  DBA: "Broad equities",
 
   ETPMAG: "Silver bullion",
   PLATINUM: "Platinum bullion",
@@ -81,6 +82,9 @@ export function classifyAsset(symbol: string, name: string, overrides?: Record<s
   if (/URANIUM|NUCLEAR|PALADIN|BANNERMAN|ENCORE/.test(text)) return "Uranium miners";
   if (/SILVER|COEUR|HECLA/.test(text)) return "Silver miners";
   if (/GOLD|BARRICK|VAULT|WESTERN COPPER/.test(text)) return "Gold miners";
+  if (/COPPER|CUPRIC/.test(text)) return "Copper miners";
+  if (/\bCOAL\b|COKING|THERMAL COAL|WHITEHAVEN|PEABODY/.test(text)) return "Coal";
+  if (/AGRICULTUR|WHEAT|CORN|SOYBEAN|SUGAR|COTTON|COFFEE|LIVESTOCK/.test(text)) return "Soft commodities";
   if (/OIL|ENERGY|EXXON|ECOPETROL|PETROL/.test(text)) return "Oil";
   return "Broad equities";
 }
