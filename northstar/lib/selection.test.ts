@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { RESEARCH_BENCHMARKS } from "./benchmark-tree";
-import { parseSelectionValue, selectionValue } from "./selection";
+import { customBenchmarkNode, parseSelectionValue, selectionValue } from "./selection";
 
 test("a namespaced benchmark id survives the round trip", () => {
   // "benchmark:reserve:gold" used to parse to id "reserve", so GOLD could never be selected.
@@ -51,5 +51,24 @@ test("benchmark TradingView symbols carry a venue that TradingView actually list
       assert.equal(ticker, node.symbol, `${node.id} TradingView ticker must match its symbol`);
     }
     if (node.symbol === "PLATINUM") assert.equal(venue, "ACTIVTRADES");
+  }
+});
+
+test("a typed ticker becomes a chartable node, with or without a venue", () => {
+  assert.equal(customBenchmarkNode("XLE")?.tradingViewSymbol, "XLE");
+  assert.equal(customBenchmarkNode("amex:xle")?.tradingViewSymbol, "AMEX:XLE");
+  assert.equal(customBenchmarkNode("amex:xle")?.symbol, "XLE");
+  assert.equal(customBenchmarkNode(" asx:bhp ")?.label, "BHP · ASX");
+});
+
+test("a typed node round-trips through the selection value", () => {
+  // Its id carries colons, the exact shape that broke benchmark selection before.
+  const node = customBenchmarkNode("AMEX:XLE")!;
+  assert.deepEqual(parseSelectionValue(selectionValue("benchmark", node.id)), { kind: "benchmark", id: node.id });
+});
+
+test("junk input is rejected rather than charted", () => {
+  for (const bad of ["", "   ", ":", "a:b:c", "!!", "AMEX:", "toolongsymbolvaluehere"]) {
+    assert.equal(customBenchmarkNode(bad), null, `${JSON.stringify(bad)} must not become a node`);
   }
 });

@@ -2574,3 +2574,21 @@ button:disabled { opacity: .55; cursor: wait; }
     display: none;
   }
 }
+
+/* Typed-ticker entry on relative leadership. Any symbol can be compared; backfilling its history
+   is what lets the in-app ratio draw, so the hint sits with the backfill action. */
+.relativeCustomSymbol {
+  display: flex;
+  gap: 8px;
+}
+
+.relativeCustomSymbol input {
+  flex: 1;
+  min-width: 0;
+}
+
+.relativeCustomError {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--status-negative);
+}

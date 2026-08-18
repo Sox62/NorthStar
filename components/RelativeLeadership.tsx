@@ -8,7 +8,7 @@ import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { RESEARCH_BENCHMARKS, resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
 import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, RATIO_RANGES, type RatioPoint, type RatioRangeKey, type RelativeReturnWindow } from "@/northstar/lib/ratio-engine";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
-import { parseSelectionValue, selectionValue } from "@/northstar/lib/selection";
+import { customBenchmarkNode, parseSelectionValue, selectionValue } from "@/northstar/lib/selection";
 import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
@@ -322,6 +322,9 @@ export default function RelativeLeadership() {
   const [range, setRange] = useState<RangeKey>("all");
   const [loading, setLoading] = useState(true);
   const [backfillBusy, setBackfillBusy] = useState(false);
+  const [customNodes, setCustomNodes] = useState<BenchmarkNode[]>([]);
+  const [customInput, setCustomInput] = useState("");
+  const [customError, setCustomError] = useState("");
   const [operationMessage, setOperationMessage] = useState("");
   const [copiedRatio, setCopiedRatio] = useState(false);
   const [structuralLevels, setStructuralLevels] = useState<StructuralLevel[]>([]);
@@ -374,11 +377,11 @@ export default function RelativeLeadership() {
   const selectedResearchLeftBenchmark = RESEARCH_BENCHMARKS.find((node) => node.id === leftBenchmarkId) ?? null;
   const provisionalLeft = selectedResearchLeftBenchmark ? benchmarkInstrument(selectedResearchLeftBenchmark) : leftHolding ?? holdings[0];
   const provisionalTree = provisionalLeft ? resolveBenchmarkTree({ symbol: provisionalLeft.symbol, name: provisionalLeft.name, sector: sectorForInstrument(provisionalLeft), exchange: provisionalLeft.exchange, currency: provisionalLeft.currency }) : null;
-  const provisionalBenchmarkNodes = provisionalTree ? mergeBenchmarkNodes([...provisionalTree.path, ...provisionalTree.peers, ...RESEARCH_BENCHMARKS]).filter(nodeIsChartable) : RESEARCH_BENCHMARKS.filter(nodeIsChartable);
+  const provisionalBenchmarkNodes = provisionalTree ? mergeBenchmarkNodes([...customNodes, ...provisionalTree.path, ...provisionalTree.peers, ...RESEARCH_BENCHMARKS]).filter(nodeIsChartable) : [...customNodes, ...RESEARCH_BENCHMARKS].filter(nodeIsChartable);
   const selectedLeftBenchmark = provisionalBenchmarkNodes.find((node) => node.id === leftBenchmarkId) ?? selectedResearchLeftBenchmark;
   const left = selectedLeftBenchmark ? benchmarkInstrument(selectedLeftBenchmark) : provisionalLeft;
   const leftTree = left ? resolveBenchmarkTree({ symbol: left.symbol, name: left.name, sector: sectorForInstrument(left), exchange: left.exchange, currency: left.currency }) : null;
-  const benchmarkNodes = leftTree ? mergeBenchmarkNodes([...leftTree.path, ...leftTree.peers, ...RESEARCH_BENCHMARKS]).filter(nodeIsChartable) : provisionalBenchmarkNodes;
+  const benchmarkNodes = leftTree ? mergeBenchmarkNodes([...customNodes, ...leftTree.path, ...leftTree.peers, ...RESEARCH_BENCHMARKS]).filter(nodeIsChartable) : provisionalBenchmarkNodes;
   const selectedBenchmark = benchmarkNodes.find((node) => node.id === rightBenchmarkId) ?? null;
   const rightHolding = holdings.find((holding) => holding.id === rightId) ?? null;
   const right = selectedBenchmark ? benchmarkInstrument(selectedBenchmark) : rightHolding ?? holdings[1] ?? holdings[0];
@@ -604,6 +607,31 @@ export default function RelativeLeadership() {
               </select>
             </label>
             <label className="relativeSelect">
+              <span>Add any ticker</span>
+              <form
+                className="relativeCustomSymbol"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const node = customBenchmarkNode(customInput);
+                  if (!node) { setCustomError("Enter a ticker, optionally as VENUE:TICKER."); return; }
+                  setCustomError("");
+                  setCustomInput("");
+                  // Adding replaces any earlier entry for the same id, then selects it on the right.
+                  setCustomNodes((current) => [node, ...current.filter((item) => item.id !== node.id)].slice(0, 12));
+                  setRightBenchmarkId(node.id);
+                  setRightId("");
+                }}
+              >
+                <input
+                  value={customInput}
+                  onChange={(event) => setCustomInput(event.target.value)}
+                  placeholder="XLE or AMEX:XLE"
+                  aria-label="Ticker to compare"
+                />
+                <button className="button" type="submit">Add</button>
+              </form>
+            </label>
+            <label className="relativeSelect">
               <span>Second asset</span>
               <select
                 value={rightBenchmarkId ? selectionValue("benchmark", rightBenchmarkId) : selectionValue("holding", rightHolding?.id ?? "")}
@@ -628,6 +656,7 @@ export default function RelativeLeadership() {
               </select>
             </label>
           </div>
+          {customError ? <p className="relativeCustomError">{customError}</p> : null}
           <SummaryGrid
             entries={[
               ["Ratio move", percent(ratioChange), ratioChange >= 0 ? "positive" : "negative"],

@@ -62,6 +62,23 @@ function benchmarkRequests(requested: Set<string>) {
   return [...instruments.values()];
 }
 
+/**
+ * A symbol that is neither held nor a known benchmark is still a legitimate request — relative
+ * leadership lets any ticker be compared, and a comparison without history is not much of one.
+ * The provider decides whether it resolves; an unknown ticker simply comes back as a failure.
+ */
+function adHocRequests(requested: Set<string>, known: PriceableInstrument[]) {
+  const covered = new Set(known.map((instrument) => normaliseKey(instrument.symbol)));
+  const instruments = new Map<string, PriceableInstrument>();
+  for (const key of requested) {
+    const [symbol, exchange = ""] = key.split(":");
+    if (!symbol || covered.has(normaliseKey(symbol)) || isFxPairSymbol(symbol)) continue;
+    const instrument = benchmarkInstrument(symbol, exchange, symbol, "USD", "Ad-hoc comparison");
+    instruments.set(normaliseKey(symbol) + ":" + normaliseKey(exchange), instrument);
+  }
+  return [...instruments.values()];
+}
+
 export async function POST(request: Request) {
   const startedAt = new Date().toISOString();
   const storage = getStorage();
@@ -73,7 +90,8 @@ export async function POST(request: Request) {
       ? book.instruments.filter((instrument) => requested.has(normaliseKey(instrument.symbol)) || requested.has(normaliseKey(instrument.symbol) + ":" + normaliseKey(instrument.exchange)))
       : book.instruments).filter(isBackfillableInstrument);
     const benchmarkInstruments = requested.size ? benchmarkRequests(requested) : [];
-    const instruments = [...new Map([...heldInstruments, ...benchmarkInstruments].map((instrument) => [normaliseKey(instrument.symbol) + ":" + normaliseKey(instrument.exchange), instrument])).values()];
+    const adHocInstruments = requested.size ? adHocRequests(requested, [...heldInstruments, ...benchmarkInstruments]) : [];
+    const instruments = [...new Map([...heldInstruments, ...benchmarkInstruments, ...adHocInstruments].map((instrument) => [normaliseKey(instrument.symbol) + ":" + normaliseKey(instrument.exchange), instrument])).values()];
 
     if (!instruments.length) throw new Error("No current instruments or supported benchmark symbols are available for historical price backfill.");
 
