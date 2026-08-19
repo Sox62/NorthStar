@@ -9,10 +9,16 @@ import { dashboardToNorthstarHoldings } from "./northstar-adapter";
 import styles from "./PositionSizer.module.css";
 
 type Scope = "personal" | "smsf";
+type Policy = {
+  deployableCashAud: number;
+  openBuyCommitmentAud: number;
+  liquidityFloorAud: number;
+  foreignOpenBuyCount: number;
+};
 type Loaded = {
   holdings: Holding[];
   navByScope: Record<Scope, number>;
-  cashByScope: Record<Scope, number>;
+  policyByScope: Record<Scope, Policy>;
 };
 
 const RISK_OPTIONS = [0.25, 0.5, 0.75, 1, 1.5, 2];
@@ -28,6 +34,14 @@ async function loadScope(scope: Scope) {
   return payload;
 }
 
+/** Cash that can actually be committed: the balance less the floor and any resting buy orders. */
+async function loadPolicy(scope: Scope): Promise<Policy> {
+  const response = await fetch(`/api/capital-policy?scope=${scope}`, { cache: "no-store" });
+  const payload = await response.json();
+  if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load capital policy");
+  return payload.summary as Policy;
+}
+
 export default function PositionSizer() {
   const [data, setData] = useState<Loaded | null>(null);
   const [error, setError] = useState("");
@@ -41,12 +55,14 @@ export default function PositionSizer() {
     let cancelled = false;
     async function load() {
       try {
-        const [personal, smsf] = await Promise.all([loadScope("personal"), loadScope("smsf")]);
+        const [personal, smsf, personalPolicy, smsfPolicy] = await Promise.all([
+          loadScope("personal"), loadScope("smsf"), loadPolicy("personal"), loadPolicy("smsf"),
+        ]);
         if (cancelled) return;
         setData({
           holdings: [...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)],
           navByScope: { personal: personal.totalValue ?? 0, smsf: smsf.totalValue ?? 0 },
-          cashByScope: { personal: personal.cashValue ?? 0, smsf: smsf.cashValue ?? 0 },
+          policyByScope: { personal: personalPolicy, smsf: smsfPolicy },
         });
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load portfolio");
@@ -57,7 +73,8 @@ export default function PositionSizer() {
   }, []);
 
   const familyNav = (data?.navByScope.personal ?? 0) + (data?.navByScope.smsf ?? 0);
-  const availableCash = data?.cashByScope[account] ?? 0;
+  const policy = data?.policyByScope[account] ?? null;
+  const availableCash = policy?.deployableCashAud ?? 0;
 
   // Theme exposure is measured family-wide: a sector cap is about total exposure, not per account.
   const match = useMemo(
@@ -134,7 +151,10 @@ export default function PositionSizer() {
             </label>
           </div>
           <p className={styles.hint}>
-            Family NAV {aud(familyNav)} · {account === "smsf" ? "SMSF" : "Personal"} cash {aud(availableCash)}
+            Family NAV {aud(familyNav)} · {account === "smsf" ? "SMSF" : "Personal"} deployable {aud(availableCash)}
+            {policy && policy.openBuyCommitmentAud > 0 ? ` (after ${aud(policy.openBuyCommitmentAud)} committed to open buys)` : ""}
+            {policy && policy.liquidityFloorAud > 0 ? ` · ${aud(policy.liquidityFloorAud)} floor held back` : ""}
+            {policy && policy.foreignOpenBuyCount > 0 ? ` · ${policy.foreignOpenBuyCount} non-AUD buy${policy.foreignOpenBuyCount === 1 ? "" : "s"} not counted` : ""}
             {match ? ` · ${match.sector} exposure ${aud(themeValue)}` : ticker ? " · not currently held" : ""}
           </p>
         </Card>
