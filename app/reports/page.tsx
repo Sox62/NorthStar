@@ -47,7 +47,7 @@ const downloads: ReportDownload[] = [
     downloadLabel: "Download XLSX",
     secondaryHref: "/api/reports/eofy?scope=personal&format=csv",
     secondaryLabel: "CSV",
-    detail: "AU Personal tax pack with Sharesight-style XLSX tabs for CGT, taxable income, all trades, historical cost and unrealised CGT, plus NorthStar reconciliation.",
+    detail: "AU Personal tax pack with Sharesight-style XLSX tabs for CGT, taxable income, all trades, historical cost and unrealised CGT, plus SouthernStar reconciliation.",
     rows: "AU Personal tax only",
   },
   {
@@ -85,7 +85,7 @@ export default function ReportsPage() {
         <Card className={styles.summaryCard}>
           <p className="eyebrow">Report set</p>
           <h2 className="cardTitle">CSV, PDF-ready and personal tax reports</h2>
-          <p className="cardIntro">Generated directly from stored NorthStar portfolio data. AU is live for the Personal accountant pack; UK and US are reserved as separate tax jurisdictions for future reporting.</p>
+          <p className="cardIntro">Generated directly from stored SouthernStar portfolio data. AU is live for the Personal accountant pack; UK and US are reserved as separate tax jurisdictions for future reporting.</p>
           <SummaryGrid
             entries={[
               ["Exports", downloads.length],

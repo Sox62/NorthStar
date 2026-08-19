@@ -49,12 +49,12 @@ export default function MobileMenu() {
       {open && <button type="button" className="mobileMenuOverlay" aria-label="Close menu" onClick={() => setOpen(false)} />}
 
       {open && (
-        <aside id="northstar-mobile-menu" className="mobileMenuDrawer isOpen" aria-label="NorthStar mobile navigation">
+        <aside id="northstar-mobile-menu" className="mobileMenuDrawer isOpen" aria-label="SouthernStar mobile navigation">
           <div className="mobileMenuHeader">
             <div className="mobileMenuBrand">
               <span className="miniStar" aria-hidden="true">✦</span>
               <div>
-                <strong>NorthStar</strong>
+                <strong>SouthernStar</strong>
                 <span>Private portfolio operations</span>
               </div>
             </div>

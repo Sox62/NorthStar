@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       : await verifyBootstrapPasswordOnly(input.password);
 
     if (!verified) {
-      return NextResponse.json({ error: input.username ? "Invalid NorthStar username or password." : "Invalid NorthStar password." }, { status: 401 });
+      return NextResponse.json({ error: input.username ? "Invalid SouthernStar username or password." : "Invalid SouthernStar password." }, { status: 401 });
     }
 
     const deleted = await getAuthStore().deletePasskeys(username);

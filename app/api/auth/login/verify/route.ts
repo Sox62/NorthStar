@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const input = inputSchema.parse(await request.json());
     const store = getAuthStore();
     const passkey = await store.getPasskey(input.response.id);
-    if (!passkey) return NextResponse.json({ error: "Passkey is not registered for NorthStar." }, { status: 401 });
+    if (!passkey) return NextResponse.json({ error: "Passkey is not registered for SouthernStar." }, { status: 401 });
 
     let matchedChallengeId: string | null = null;
     const verification = await verifyAuthenticationResponse({

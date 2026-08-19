@@ -313,7 +313,7 @@ export default function SyncPage() {
       </section>
 
       <Notice tone="neutral" title="IBKR valuation">
-        NorthStar uses Open Positions as the base holdings snapshot, then overlays newer IBKR trades that are not yet reflected in that snapshot. Cash Report remains the IBKR cash balance, and trades are deduplicated using IBKR transaction identifiers.
+        SouthernStar uses Open Positions as the base holdings snapshot, then overlays newer IBKR trades that are not yet reflected in that snapshot. Cash Report remains the IBKR cash balance, and trades are deduplicated using IBKR transaction identifiers.
       </Notice>
 
       <SyncStatusOverview
@@ -522,7 +522,7 @@ function Importer({ title, subtitle, accept, multiple = false, owner, result, bu
     <Card className="importCard">
       <p className="eyebrow">{subtitle}</p>
       <h2 className="cardTitle">{title}</h2>
-      <p className="cardIntro">File contents remain inside this private NorthStar instance.</p>
+      <p className="cardIntro">File contents remain inside this private SouthernStar instance.</p>
       <label className="field">
         <span>Legal owner</span>
         <select value={owner} onChange={(event) => onOwner(event.target.value as OwnerType)}>

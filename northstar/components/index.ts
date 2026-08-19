@@ -1,3 +1,4 @@
+export { BrandMark } from "./BrandMark";
 export { Button } from "./Button";
 export { Field } from "./Field";
 export { StatusBadge } from "./StatusBadge";

@@ -27,7 +27,7 @@ function isFullPage(pathname: string) {
   return pathname.startsWith("/login") || pathname.startsWith("/reports/eofy") || pathname.startsWith("/reports/tax") || pathname.startsWith("/reports/wealth");
 }
 
-export default function NorthStarShell({ children }: { children: ReactNode }) {
+export default function SouthernStarShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   if (isFullPage(pathname)) return <>{children}</>;
 

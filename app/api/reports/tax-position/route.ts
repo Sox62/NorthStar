@@ -188,7 +188,7 @@ export async function GET(request: Request) {
     const reportAnchor = dashboards[0];
     const rows: CsvRow[] = [
       header,
-      ["metadata", filenameScope(selectedScopes), "NorthStar tax position", "", "", "", "", "", "", "", "", "", "", "", `Generated ${new Date().toISOString()}; unrealised positions and imported dividend income`, reportAnchor.lastUpdated],
+      ["metadata", filenameScope(selectedScopes), "SouthernStar tax position", "", "", "", "", "", "", "", "", "", "", "", `Generated ${new Date().toISOString()}; unrealised positions and imported dividend income`, reportAnchor.lastUpdated],
     ];
     dashboards.forEach((dashboard, index) => {
       addTaxRows(rows, dashboard);

@@ -247,7 +247,7 @@ function peerGroup(id: string, label: string): TemplateNode {
   return { id: `peer_group:${id}`, label, role: "peer_group", basisCurrency: "AUD" };
 }
 function currencyBenchmark(id: string, label: string, symbol: string, tradingViewSymbol: string): TemplateNode {
-  return { id: `currency:${id}`, label, role: "reserve", symbol, tradingViewSymbol, basisCurrency: "USD", note: "Currency benchmark uses stored FX rates for NorthStar ratio history." };
+  return { id: `currency:${id}`, label, role: "reserve", symbol, tradingViewSymbol, basisCurrency: "USD", note: "Currency benchmark uses stored FX rates for SouthernStar ratio history." };
 }
 
 function dedupeNodes(nodes: BenchmarkNode[]) {

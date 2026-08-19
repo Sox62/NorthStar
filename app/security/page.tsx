@@ -6,7 +6,7 @@ export default function SecurityPage() {
     <main className="shell">
       <PageHeader
         title="Security"
-        description="Manage access methods for the private NorthStar portfolio app."
+        description="Manage access methods for the private SouthernStar portfolio app."
         links={[
           { href: "/", label: "← Dashboard" },
           { href: "/sync", label: "Sync" },

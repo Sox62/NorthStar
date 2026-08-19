@@ -2,12 +2,12 @@ import type { Metadata, Viewport } from "next";
 import "@/northstar/styles/tokens.css";
 import "./globals.css";
 import "@/northstar/styles/theme.css";
-import NorthStarShell from "@/components/NorthStarShell";
+import SouthernStarShell from "@/components/SouthernStarShell";
 
 export const metadata: Metadata = {
-  title: "NorthStar",
+  title: "SouthernStar",
   description: "Private Personal and SMSF portfolio reporting",
-  applicationName: "NorthStar",
+  applicationName: "SouthernStar",
 };
 
 export const viewport: Viewport = {
@@ -19,5 +19,5 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body className="northstar"><NorthStarShell>{children}</NorthStarShell></body></html>;
+  return <html lang="en"><body className="northstar"><SouthernStarShell>{children}</SouthernStarShell></body></html>;
 }

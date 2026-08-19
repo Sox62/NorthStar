@@ -15,7 +15,7 @@ export default function PwaRegistration() {
           await Promise.all(keys.filter((key) => key.startsWith("northstar-")).map((key) => caches.delete(key)));
         }
       } catch (error) {
-        console.warn("NorthStar service worker cleanup failed", error);
+        console.warn("SouthernStar service worker cleanup failed", error);
       }
     };
 

@@ -1,4 +1,4 @@
-// NorthStar shared domain types — data-driven, owner-aware.
+// SouthernStar shared domain types — data-driven, owner-aware.
 // Holdings are supplied by your app (DB / IBKR feed); nothing here is hardcoded.
 
 /** The two legally-separate books. Every position belongs to exactly one. */

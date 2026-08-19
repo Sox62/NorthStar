@@ -94,7 +94,7 @@ export async function GET() {
     ]);
     const rows: CsvRow[] = [
       ["section", "owner", "name", "symbol", "value_aud", "percent", "detail", "as_of"],
-      ["metadata", "Consolidated", "NorthStar estate summary", "", money(overall.totalValue), "100.00", `Generated ${new Date().toISOString()}`, overall.lastUpdated],
+      ["metadata", "Consolidated", "SouthernStar estate summary", "", money(overall.totalValue), "100.00", `Generated ${new Date().toISOString()}`, overall.lastUpdated],
     ];
     addOwnerRows(rows, personal, overall.totalValue);
     addOwnerRows(rows, smsf, overall.totalValue);

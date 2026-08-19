@@ -27,7 +27,7 @@ async function sendJson<T>(url: string, method: "POST", body: unknown): Promise<
     return payload as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("NorthStar did not respond. Try again.");
+      throw new Error("SouthernStar did not respond. Try again.");
     }
     throw error;
   } finally {
@@ -145,7 +145,7 @@ export default function SecurityPasskeys() {
           <div>
             <p className="eyebrow">Passkey</p>
             <h2 className="cardTitle">Face ID / Touch ID access</h2>
-            <p className="cardIntro">Add a device passkey after confirming the current NorthStar password.</p>
+            <p className="cardIntro">Add a device passkey after confirming the current SouthernStar password.</p>
           </div>
           <StatusBadge tone={registered ? "good" : "warning"}>{passkeyLabel}</StatusBadge>
         </div>
@@ -156,7 +156,7 @@ export default function SecurityPasskeys() {
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" />
           </label>
           <label className="field">
-            <span>Current NorthStar password</span>
+            <span>Current SouthernStar password</span>
             <input
               type="password"
               value={password}
@@ -177,7 +177,7 @@ export default function SecurityPasskeys() {
         {registered ? (
           <form className={`${styles.form} ${styles.danger}`} onSubmit={removePasskeys}>
             <label className="field">
-              <span>Current NorthStar password</span>
+              <span>Current SouthernStar password</span>
               <input
                 type="password"
                 value={removePassword}

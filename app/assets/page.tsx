@@ -251,7 +251,7 @@ export default function PhysicalAssetsPage() {
             </label>
             {form.assetType !== "PLATINUM" && (
               <Notice tone="neutral" title={selectedMetal.label + " manual valuation"}>
-                Enter the current AUD/kg value for this metal. NorthStar will store it separately from the ABC platinum feed.
+                Enter the current AUD/kg value for this metal. SouthernStar will store it separately from the ABC platinum feed.
               </Notice>
             )}
             <label className="field">

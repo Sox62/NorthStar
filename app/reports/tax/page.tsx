@@ -131,7 +131,7 @@ export default function TaxReportPage() {
         <article className="printReportPage">
           <header className="printReportHeader">
             <div>
-              <p>NorthStar</p>
+              <p>SouthernStar</p>
               <h1>{scopeTitle(scope)}</h1>
               <span>Generated {dateLabel(generatedAt)} · Position date {dateLabel(taxLots.asOfDate)}</span>
             </div>

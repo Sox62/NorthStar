@@ -41,5 +41,5 @@ export default function PwaInstallButton() {
     setPromptEvent(null);
   };
 
-  return <button type="button" className="installLink" onClick={() => void install()}>Install NorthStar</button>;
+  return <button type="button" className="installLink" onClick={() => void install()}>Install SouthernStar</button>;
 }

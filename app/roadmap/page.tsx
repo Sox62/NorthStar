@@ -16,7 +16,7 @@ export default function RoadmapPage() {
   return (
     <main className="shell">
       <PageHeader
-        title="NorthStar 1.0 roadmap"
+        title="SouthernStar 1.0 roadmap"
         description="Implementation plan for turning the current private portfolio dashboard into a production-grade portfolio operating system."
         links={[
           { href: "/", label: "← Dashboard" },
@@ -48,7 +48,7 @@ export default function RoadmapPage() {
         </Card>
       </section>
 
-      <section className={styles.grid} aria-label="NorthStar roadmap phases">
+      <section className={styles.grid} aria-label="SouthernStar roadmap phases">
         {roadmapPhases.map((phase) => (
           <Card key={phase.id} className={styles.phaseCard}>
             <div className={styles.phaseHeader}>

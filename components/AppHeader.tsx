@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BrandMark } from "@/northstar/components";
 import type { Scope } from "@/lib/storage";
 import { TabBar } from "@/northstar/components";
 import PwaInstallButton from "@/components/PwaInstallButton";
@@ -16,17 +17,17 @@ export default function AppHeader({ scope, onScopeChange }: { scope: Scope; onSc
     <header className="appMasthead">
       <div className="mastheadTopline">
         <div className="brandLockup">
-          <div className="starMark" aria-hidden="true"><span>✦</span></div>
+          <div className="starMark"><BrandMark size={40} /></div>
           <div>
             <div className="brandTitleRow">
-              <h1>NorthStar</h1>
+              <h1>SouthernStar</h1>
               <span className="privateBadge">Private</span>
             </div>
             <p className="motto">In Via Recta Celeriter</p>
           </div>
         </div>
 
-        <nav className="primaryNav" aria-label="NorthStar tools">
+        <nav className="primaryNav" aria-label="SouthernStar tools">
           <Link href="/" className="isActive">Overview</Link>
           <Link href="/sync">Sync</Link>
           <Link href="/cash">Cash</Link>

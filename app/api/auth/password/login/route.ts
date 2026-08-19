@@ -71,7 +71,7 @@ export async function POST(request: Request) {
         response.headers.append("Set-Cookie", clearSessionCookie());
         return response;
       }
-      const response = NextResponse.json({ error: "Invalid NorthStar username or password." }, { status: 401 });
+      const response = NextResponse.json({ error: "Invalid SouthernStar username or password." }, { status: 401 });
       response.headers.append("Set-Cookie", clearSessionCookie());
       return response;
     }

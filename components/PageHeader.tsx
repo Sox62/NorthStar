@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandMark } from "@/northstar/components";
 import type { ReactNode } from "react";
 import MobileMenu from "@/components/MobileMenu";
 
@@ -8,9 +9,9 @@ export default function PageHeader({ title, description, links }: { title: strin
   return (
     <header className="pageMasthead">
       <div className="pageMastheadBar">
-        <Link href="/" className="miniBrand" aria-label="NorthStar dashboard">
-          <span className="miniStar" aria-hidden="true">✦</span>
-          <span>NorthStar</span>
+        <Link href="/" className="miniBrand" aria-label="SouthernStar dashboard">
+          <BrandMark size={22} />
+          <span>SouthernStar</span>
         </Link>
         <nav className="pageNav" aria-label="Page navigation">
           {links.map((link) => <Link key={link.href} href={link.href}>{link.label}</Link>)}

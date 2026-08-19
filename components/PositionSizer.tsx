@@ -185,7 +185,7 @@ export default function PositionSizer() {
               <span>{verdict.text}</span>
             </div>
             <p className={styles.hint}>
-              Arming records intent only. NorthStar does not place orders.
+              Arming records intent only. SouthernStar does not place orders.
             </p>
           </Card>
         </div>

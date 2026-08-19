@@ -696,7 +696,7 @@ export default function RelativeLeadership() {
 
           <div className="relativePeriodEvidence" aria-label="Relative return evidence by period">
             <div className="relativePeriodHeader">
-              <p className="eyebrow">NorthStar evidence</p>
+              <p className="eyebrow">SouthernStar evidence</p>
               <span>AUD-adjusted stored closes. Positive means {left.symbol} outperformed {right.symbol}.</span>
             </div>
             <div className="relativePeriodGrid">
@@ -726,7 +726,7 @@ export default function RelativeLeadership() {
             ) : (
               <div className="relativeEmpty">
                 <strong>No overlapping stored closes</strong>
-                <span>NorthStar has fewer than two usable comparison dates. Use Backfill history or choose another pair.</span>
+                <span>SouthernStar has fewer than two usable comparison dates. Use Backfill history or choose another pair.</span>
               </div>
             )}
           </details>

@@ -110,7 +110,7 @@ export default function WealthReportPage() {
         <article className="printReportPage">
           <header className="printReportHeader">
             <div>
-              <p>NorthStar</p>
+              <p>SouthernStar</p>
               <h1>{scopeTitle(scope)}</h1>
               <span>Generated {dateLabel(generatedAt)} · Valuations {dateLabel(data.lastUpdated)}</span>
             </div>

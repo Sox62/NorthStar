@@ -118,7 +118,7 @@ export default function FundamentalsRisk() {
     <main className="shell">
       <PageHeader
         title="Fundamentals & risk"
-        description="A disciplined miner checklist and data capture surface. Edge scores stay blank until NorthStar has source fundamentals, so this screen does not invent conviction."
+        description="A disciplined miner checklist and data capture surface. Edge scores stay blank until SouthernStar has source fundamentals, so this screen does not invent conviction."
         links={[
           { href: "/", label: "State of play" },
           { href: "/holdings", label: "Capital" },

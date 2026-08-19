@@ -374,7 +374,7 @@ function NativePriceChart({ holding, storedPrices, priceError }: { holding: Dash
     <div className="nativeStockChart">
       <div className="nativeChartHeader">
         <div>
-          <p className="eyebrow">NorthStar price history</p>
+          <p className="eyebrow">SouthernStar price history</p>
           <h3>{last ? price(last.close, currency) : "No stored close"}</h3>
           <span>{series.length ? `${series.length} stored close${series.length === 1 ? "" : "s"} · ${dateLabel(first.priceDate)} to ${dateLabel(last!.priceDate)}` : priceError || "No stored price history for this holding yet."}</span>
         </div>
@@ -422,7 +422,7 @@ function TradingViewPanel({ holding, storedPrices, priceError }: { holding: Dash
         <div>
           <p className="eyebrow">Stock chart</p>
           <h2 className="cardTitle">{holding.symbol} · {holding.name}</h2>
-          <p className="cardIntro">NorthStar stored closes · {tvSymbol} · {holding.exchange} · {holding.currency}</p>
+          <p className="cardIntro">SouthernStar stored closes · {tvSymbol} · {holding.exchange} · {holding.currency}</p>
         </div>
         <a className="button" href={tradingViewUrl(holding)} target="_blank" rel="noreferrer">Open in TradingView</a>
       </div>

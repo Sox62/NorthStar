@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { BrandMark } from "./BrandMark";
 import MobileMenu from "@/components/MobileMenu";
 
 type RailItem = {
@@ -79,9 +80,9 @@ export function NavRail({ active = "overview", logoSrc, owner = "Stephen", onNav
     <>
       <div className="nsMobileBar">
         <div className="mobileMenuBrand">
-          <span className="miniStar" aria-hidden="true">✦</span>
+          <BrandMark size={22} />
           <div>
-            <strong>NorthStar</strong>
+            <strong>SouthernStar</strong>
             <span>Private portfolio operations</span>
           </div>
         </div>
@@ -90,10 +91,10 @@ export function NavRail({ active = "overview", logoSrc, owner = "Stephen", onNav
       <aside className="nsRail">
         <div className="nsRailBrand">
           {logoSrc
-            ? <img src={logoSrc} alt="NorthStar" className="nsRailLogo" />
-            : <div className="nsRailMark"><span>✦</span><small>NS</small></div>}
+            ? <img src={logoSrc} alt="SouthernStar" className="nsRailLogo" />
+            : <div className="nsRailMark"><BrandMark size={34} /></div>}
           <div>
-            <div className="nsRailTitle">NorthStar</div>
+            <div className="nsRailTitle">SouthernStar</div>
             <div className="nsRailMotto">In Via Recta Celeriter</div>
           </div>
         </div>

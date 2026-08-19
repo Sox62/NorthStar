@@ -82,7 +82,7 @@ export function SectorOverrides({ holdings, onChanged }: { holdings: Holding[]; 
         </StatusBadge>
       </div>
       <p className="cardIntro">
-        NorthStar classifies from the ticker and name alone, so anything it does not recognise lands in
+        SouthernStar classifies from the ticker and name alone, so anything it does not recognise lands in
         Broad equities. Set it here and the choice sticks — imports and syncs never overwrite it.
       </p>
 

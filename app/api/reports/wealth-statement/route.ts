@@ -139,7 +139,7 @@ export async function GET(request: Request) {
     const reportAnchor = dashboards[0];
     const rows: CsvRow[] = [
       ["section", "scope", "name", "symbol", "value_aud", "percent", "detail", "as_of"],
-      ["metadata", filenameScope(selectedScopes), "NorthStar wealth statement", "", "", "", `Generated ${new Date().toISOString()}`, reportAnchor.lastUpdated],
+      ["metadata", filenameScope(selectedScopes), "SouthernStar wealth statement", "", "", "", `Generated ${new Date().toISOString()}`, reportAnchor.lastUpdated],
     ];
     for (const dashboard of dashboards) addDashboardRows(rows, dashboard);
 

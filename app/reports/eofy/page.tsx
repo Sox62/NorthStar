@@ -125,7 +125,7 @@ export default function EofyReportPage() {
         <article className="printReportPage accountantReportPage">
           <header className="printReportHeader">
             <div>
-              <p>NorthStar</p>
+              <p>SouthernStar</p>
               <h1>{data.ownerLabel} EOFY Accountant Pack</h1>
               <span>{data.financialYear.label}: {dateLabel(data.financialYear.startDate)} to {dateLabel(data.financialYear.endDate)} · Generated {dateLabel(data.generatedAt)}</span>
             </div>
@@ -188,7 +188,7 @@ export default function EofyReportPage() {
                 <tr>
                   <th>Area</th>
                   <th>Check</th>
-                  <th className="numeric">NorthStar</th>
+                  <th className="numeric">SouthernStar</th>
                   <th className="numeric">Reference</th>
                   <th className="numeric">Variance</th>
                   <th>Status</th>

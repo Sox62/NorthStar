@@ -35,7 +35,7 @@ export default function Dashboard() {
       setFreshnessByScope({ overall: overall.freshness ?? [], personal: personal.freshness ?? [], smsf: smsf.freshness ?? [] });
       setLastUpdatedByScope({ overall: overall.lastUpdated ?? null, personal: personal.lastUpdated ?? null, smsf: smsf.lastUpdated ?? null });
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to load NorthStar");
+      setError(reason instanceof Error ? reason.message : "Unable to load SouthernStar");
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -48,7 +48,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <main className="nsScreenMain nsLoadingState">
-        <Card>Loading NorthStar...</Card>
+        <Card>Loading SouthernStar...</Card>
       </main>
     );
   }
@@ -56,7 +56,7 @@ export default function Dashboard() {
   if (error) {
     return (
       <main className="nsScreenMain nsLoadingState">
-        <Notice tone="error" title="Unable to load NorthStar">{error}</Notice>
+        <Notice tone="error" title="Unable to load SouthernStar">{error}</Notice>
       </main>
     );
   }

@@ -28,14 +28,14 @@ export async function POST(request: Request) {
       ? await verifyBootstrapPassword(input.username, input.password)
       : await verifyBootstrapPasswordOnly(input.password);
     if (!verified) {
-      return NextResponse.json({ error: input.username ? "Invalid NorthStar username or password." : "Invalid NorthStar password." }, { status: 401 });
+      return NextResponse.json({ error: input.username ? "Invalid SouthernStar username or password." : "Invalid SouthernStar password." }, { status: 401 });
     }
 
     const store = getAuthStore();
     const user = await store.getOrCreateUser(username, input.displayName ?? username);
     const existingPasskeys = await store.listPasskeys(username);
     const options = await generateRegistrationOptions({
-      rpName: "NorthStar",
+      rpName: "SouthernStar",
       rpID: requestRpId(request),
       userName: user.username,
       userDisplayName: user.displayName,

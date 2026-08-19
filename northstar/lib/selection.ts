@@ -49,6 +49,6 @@ export function customBenchmarkNode(input: string): BenchmarkNode | null {
     symbol,
     tradingViewSymbol: venue ? `${venue}:${symbol}` : symbol,
     basisCurrency: "USD",
-    note: "Typed comparison. Backfill history to chart the ratio in NorthStar.",
+    note: "Typed comparison. Backfill history to chart the ratio in SouthernStar.",
   };
 }
