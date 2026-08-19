@@ -142,7 +142,6 @@ export function MarketsPanel() {
     <section className="nsMetalsPanel" aria-label="Market prices">
       <div className="nsMetalsHeader">
         <p className="nsEyebrow">Markets</p>
-        <strong>Metals, ratios and the index. Gold is the numeraire here, not a holding.</strong>
       </div>
       <div className="nsMetalsGrid">
         {TILES.map((tile) => {

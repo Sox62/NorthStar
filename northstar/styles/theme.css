@@ -715,18 +715,7 @@ body.northstar .nsMetalsPanel {
 }
 
 body.northstar .nsMetalsHeader {
-  display:flex;
-  align-items:flex-end;
-  justify-content:space-between;
-  gap:18px;
   margin-bottom:12px;
-}
-
-body.northstar .nsMetalsHeader strong {
-  color:#dfe7ef;
-  font-size:12px;
-  font-weight:700;
-  text-align:right;
 }
 
 body.northstar .nsMetalsGrid {
