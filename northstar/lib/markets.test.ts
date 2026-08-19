@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { dailyMove, describeMove, formatMarketPrice, formatMove, ratioMove } from "./markets";
 
-const reading = (price: number, previousClose: number | null, currency = "USD", unit: "oz" | "lb" | "index" | "unit" = "oz") =>
-  ({ price, previousClose, currency, unit });
+const reading = (price: number, previousClose: number | null, currency = "USD") =>
+  ({ price, previousClose, currency });
 
 test("a daily move is signed against the prior close", () => {
   const up = dailyMove(4410.4, 4366)!;
@@ -42,17 +42,22 @@ test("the ratio move needs both legs before it will print", () => {
   assert.equal(ratioMove(reading(4410.4, 4366), reading(63.205, 0)), null);
 });
 
+test("a price is a currency and a figure, with no unit appended", () => {
+  assert.equal(formatMarketPrice(reading(4410.4, null)), "USD 4,410.40");
+  assert.equal(formatMarketPrice(reading(6.467, null, "USD")), "USD 6.467");
+});
+
 test("prices carry their own currency, not an assumed USD", () => {
-  assert.equal(formatMarketPrice(reading(4410.4, null)), "USD 4,410.40/oz");
+  assert.equal(formatMarketPrice(reading(4410.4, null)), "USD 4,410.40");
   // Sprott is a CAD listing; showing it as USD would misprice the tile by the cross rate.
-  assert.equal(formatMarketPrice(reading(26.76, null, "CAD", "unit")), "CAD 26.76");
-  assert.equal(formatMarketPrice(reading(7691.76, null, "USD", "index")), "USD 7,691.76");
+  assert.equal(formatMarketPrice(reading(26.76, null, "CAD")), "CAD 26.76");
+  assert.equal(formatMarketPrice(reading(7691.76, null, "USD")), "USD 7,691.76");
 });
 
 test("sub-ten prices keep a third decimal so the day is visible", () => {
   // Copper's whole daily move lives in the third decimal: 6.47 would show nothing moving.
-  assert.equal(formatMarketPrice(reading(6.467, null, "USD", "lb")), "USD 6.467/lb");
-  assert.equal(formatMarketPrice(reading(63.205, null)), "USD 63.21/oz");
+  assert.equal(formatMarketPrice(reading(6.467, null, "USD")), "USD 6.467");
+  assert.equal(formatMarketPrice(reading(63.205, null)), "USD 63.21");
 });
 
 test("an absent price prints nothing rather than a zero", () => {

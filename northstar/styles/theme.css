@@ -731,8 +731,14 @@ body.northstar .nsMetalsHeader strong {
 
 body.northstar .nsMetalsGrid {
   display:grid;
-  /* Auto-fit rather than a fixed count: the tile list grows as reference markets are added. */
-  grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));
+  /*
+   * Auto-fit rather than a fixed count: the tile list grows as reference markets are added, and
+   * collapsing the empty tracks is what lets the stranded last tile span the row cleanly (see the
+   * :last-child:nth-child(odd) rule). auto-fill would reserve that track and leave a hole instead.
+   * The floor sets the column count, and 150px is what keeps a normal desktop at six per row: at
+   * 130px a seventh track opened up, stranding SPX and leaving a gap at the end of the first row.
+   */
+  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
   gap:10px;
 }
 

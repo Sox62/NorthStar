@@ -21,6 +21,7 @@ type MarketTileApiQuote = {
   price: number;
   previousClose: number | null;
   currency: string;
+  /** Carried by the feed for completeness; the tile prints currency and figure only. */
   unit: "oz" | "lb" | "index" | "unit";
   priceDate: string;
 };
@@ -32,7 +33,8 @@ type Tile = {
   metal?: SpotMetal;
   tradingViewSymbol: string;
   color: string;
-  /** Appended after the daily move, only where the tile prices a proxy rather than the thing itself. */
+  /** Appended after the daily move, only where the tile prices a proxy rather than the thing itself.
+   *  Kept scarce: a note on every tile wraps the caption onto a second line and buries the move. */
   note?: string;
 };
 
@@ -43,9 +45,9 @@ const TILES: Tile[] = [
   { key: "silver", label: "Silver", metal: "silver", tradingViewSymbol: "TVC:SILVER", color: SECTOR_COLORS["Silver bullion"] },
   // The computed expression rather than the TVC:GOLDSILVER index, so the ratio is built from the
   // same two legs charted above it and matches how relative leadership expresses ratios.
-  { key: "gsr", label: "GSR", tradingViewSymbol: tradingViewRatioExpression("TVC:GOLD", "TVC:SILVER"), color: SECTOR_COLORS["Silver miners"], note: "Gold / silver" },
+  { key: "gsr", label: "GSR", tradingViewSymbol: tradingViewRatioExpression("TVC:GOLD", "TVC:SILVER"), color: SECTOR_COLORS["Silver miners"] },
   { key: "platinum", label: "Platinum", metal: "platinum", tradingViewSymbol: "ACTIVTRADES:PLATINUM", color: SECTOR_COLORS["Platinum bullion"] },
-  { key: "copper", label: "Copper", tradingViewSymbol: "CAPITALCOM:COPPER", color: SECTOR_COLORS.Oil, note: "Front month" },
+  { key: "copper", label: "Copper", tradingViewSymbol: "CAPITALCOM:COPPER", color: SECTOR_COLORS.Oil },
   { key: "uranium", label: "Uranium", tradingViewSymbol: "TSX:U.UN", color: SECTOR_COLORS["Uranium miners"], note: "Sprott" },
   { key: "spx", label: "SPX", tradingViewSymbol: "SP:SPX", color: SECTOR_COLORS["Broad equities"] },
 ];
@@ -95,12 +97,14 @@ export function MarketsPanel() {
   /**
    * Daily moves are taken wholly from the futures leg, so the price and the close behind a
    * percentage always share one basis. Measuring live spot against a futures close instead would
-   * fold the carry — around nine dollars on gold — straight into the day's move.
+   * fold the carry straight into the day's move, and that carry is not always small: silver and
+   * platinum sat 0.02% and 0.36% apart while gold's EFP basis was over 1%, wider than most of the
+   * daily moves this panel exists to show.
    */
   const moveReadings = useMemo(() => {
     const byKey = new Map<string, MarketReading>();
     for (const [key, quote] of tiles) {
-      byKey.set(key, { price: quote.price, previousClose: quote.previousClose, currency: quote.currency, unit: quote.unit });
+      byKey.set(key, { price: quote.price, previousClose: quote.previousClose, currency: quote.currency });
     }
     return byKey;
   }, [tiles]);
@@ -110,7 +114,7 @@ export function MarketsPanel() {
     const byKey = new Map(moveReadings);
     for (const metal of ["gold", "silver", "platinum"] as const) {
       const quote = spot.get(metal);
-      if (quote?.price) byKey.set(metal, { price: quote.price, previousClose: null, currency: "USD", unit: "oz" });
+      if (quote?.price) byKey.set(metal, { price: quote.price, previousClose: null, currency: "USD" });
     }
     return byKey;
   }, [moveReadings, spot]);

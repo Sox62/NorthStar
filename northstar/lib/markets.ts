@@ -1,10 +1,7 @@
-export type MarketUnit = "oz" | "lb" | "index" | "unit";
-
 export type MarketReading = {
   price: number;
   previousClose: number | null;
   currency: string;
-  unit: MarketUnit;
 };
 
 export type MarketMove = { percent: number; direction: "up" | "down" | "flat" };
@@ -53,8 +50,9 @@ export function formatMarketPrice(reading: MarketReading | null): string | null 
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
-  const suffix = reading.unit === "oz" ? "/oz" : reading.unit === "lb" ? "/lb" : "";
-  return `${reading.currency} ${amount}${suffix}`;
+  // Currency and figure only. The unit is carried by the feed but never printed: the desk knows
+  // what an ounce of gold or a pound of copper costs, and the suffix only crowded the tile.
+  return `${reading.currency} ${amount}`;
 }
 
 export const MOVE_ARROWS = { up: "▲", down: "▼", flat: "–" } as const;
