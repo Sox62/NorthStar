@@ -324,6 +324,28 @@ export type MinerFundamentals = {
   updatedAt: string;
 };
 
+export type PastedOpenOrder = {
+  accountKey: string;
+  orderId: string;
+  conid: string;
+  symbol: string;
+  name: string;
+  exchange: string;
+  currency: string;
+  side: string;
+  status: string;
+  orderType: string;
+  timeInForce: string;
+  totalQuantity: number | null;
+  filledQuantity: number | null;
+  remainingQuantity: number | null;
+  limitPrice: number | null;
+  stopPrice: number | null;
+  averagePrice: number | null;
+  description: string;
+  raw: Record<string, unknown>;
+};
+
 export type MinerFundamentalsInput = Omit<MinerFundamentals, "updatedAt">;
 
 export type StructuralLevelStatus = "watching" | "broken" | "retest_held" | "failed" | "invalidated";
@@ -421,6 +443,8 @@ export interface StorageAdapter {
   importDirectsharesTransactions(transactions: ImportedTransaction[], ownerType: OwnerType, importSource?: string): Promise<ImportResult>;
   listTransactions(ownerType?: OwnerType): Promise<StoredTransaction[]>;
   listOpenOrders(ownerType?: OwnerType): Promise<StoredOpenOrder[]>;
+  /** Replaces the pasted order set for one owner. Kept separate from the Flex-sourced rows. */
+  replacePastedOpenOrders(ownerType: OwnerType, orders: PastedOpenOrder[]): Promise<number>;
   listCashAccounts(ownerType?: OwnerType, options?: CashAccountListOptions): Promise<CashAccount[]>;
   upsertCashAccount(input: Omit<CashAccount, "id" | "updatedAt" | "balanceAud"> & { id?: string }): Promise<CashAccount>;
   listManualAssets(ownerType?: OwnerType): Promise<ManualAsset[]>;

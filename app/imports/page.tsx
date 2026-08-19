@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
+import { OpenOrdersPaste } from "@/components/OpenOrdersPaste";
 import { dataHealth } from "@/northstar/lib/data-health";
 import type { DashboardData } from "@/lib/storage";
 import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
@@ -162,6 +163,8 @@ export default function SyncPage() {
           { href: "/roadmap", label: "Roadmap" },
         ]}
       />
+
+      <OpenOrdersPaste />
 
       <Card className="syncCard">
         <div>

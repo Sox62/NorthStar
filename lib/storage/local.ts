@@ -22,6 +22,7 @@ import type {
   LocalStore,
   ManualAsset,
   MinerFundamentals,
+  PastedOpenOrder,
   SectorOverride,
   MinerFundamentalsInput,
   StructuralLevel,
@@ -44,6 +45,8 @@ import type {
 } from "./types";
 
 const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".north-star", "data.json");
+export const PASTED_ORDER_SOURCE = "IBKR paste";
+
 const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], structuralLevels: [], imports: [] };
 
 function normalisePhysicalMetalType(value: unknown) {
@@ -693,6 +696,30 @@ export class LocalStorageAdapter implements StorageAdapter {
     store.syncRuns = store.syncRuns.sort((a, b) => a.finishedAt.localeCompare(b.finishedAt)).slice(-500);
     await writeStore(store);
     return run;
+  }
+
+  async replacePastedOpenOrders(ownerType: OwnerType, orders: PastedOpenOrder[]): Promise<number> {
+    const store = await readStore();
+    // Only the pasted set is replaced; Flex-sourced rows are left alone, and the Flex import
+    // likewise only clears its own source, so the two cannot wipe each other.
+    store.openOrders = store.openOrders.filter(order => !(order.ownerType === ownerType && order.source === PASTED_ORDER_SOURCE));
+    const asOfDate = new Date().toISOString().slice(0, 10);
+    const updatedAt = new Date().toISOString();
+    for (const order of orders) {
+      store.openOrders.push({
+        id: randomUUID(), ownerType, broker: "IBKR", accountKey: order.accountKey,
+        orderId: order.orderId, conid: order.conid, symbol: order.symbol, name: order.name,
+        exchange: order.exchange, currency: order.currency, side: order.side, status: order.status,
+        orderType: order.orderType, timeInForce: order.timeInForce,
+        totalQuantity: order.totalQuantity, filledQuantity: order.filledQuantity,
+        remainingQuantity: order.remainingQuantity, limitPrice: order.limitPrice,
+        stopPrice: order.stopPrice, averagePrice: order.averagePrice,
+        description: order.description, createdAt: null, updatedAt, asOfDate,
+        source: PASTED_ORDER_SOURCE, raw: order.raw,
+      });
+    }
+    await writeStore(store);
+    return orders.length;
   }
 
   async listOpenOrders(ownerType?: OwnerType): Promise<StoredOpenOrder[]> {

@@ -5,9 +5,10 @@ import { buildDashboardModel, buildManualAssetValuation, maskAccount, numberValu
 import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
 import type { Sector } from "@/northstar/types";
+import { PASTED_ORDER_SOURCE } from "./local";
 import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
-import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
+import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, PastedOpenOrder, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 const optionalNumber = (value: unknown) => value == null ? undefined : Number(value);
 
@@ -654,6 +655,46 @@ export class PostgresStorageAdapter implements StorageAdapter {
     return syncRunFromRow(result.rows[0]);
   }
 
+
+  async replacePastedOpenOrders(ownerType: OwnerType, orders: PastedOpenOrder[]): Promise<number> {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      const portfolioId = await ensurePortfolio(client, ownerType);
+      // Only the pasted source is cleared, so a Flex sync and a paste cannot erase each other.
+      await client.query(
+        `DELETE FROM ibkr_open_orders oo USING broker_accounts ba
+         WHERE oo.account_id=ba.id AND oo.portfolio_id=$1 AND oo.source=$2`,
+        [portfolioId, PASTED_ORDER_SOURCE],
+      );
+      const asOfDate = new Date().toISOString().slice(0, 10);
+      for (const order of orders) {
+        const accountId = await ensureBrokerAccount(client, portfolioId, "IBKR", order.accountKey, order.currency || "AUD");
+        await client.query(`
+          INSERT INTO ibkr_open_orders (
+            portfolio_id,account_id,order_id,conid,symbol,name,exchange,currency,side,status,order_type,time_in_force,
+            total_quantity,filled_quantity,remaining_quantity,limit_price,stop_price,average_price,description,source,raw,as_of_date,updated_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW())
+          ON CONFLICT (account_id, order_id, source) DO UPDATE SET
+            conid=EXCLUDED.conid,symbol=EXCLUDED.symbol,name=EXCLUDED.name,exchange=EXCLUDED.exchange,currency=EXCLUDED.currency,
+            side=EXCLUDED.side,status=EXCLUDED.status,order_type=EXCLUDED.order_type,time_in_force=EXCLUDED.time_in_force,
+            total_quantity=EXCLUDED.total_quantity,filled_quantity=EXCLUDED.filled_quantity,remaining_quantity=EXCLUDED.remaining_quantity,
+            limit_price=EXCLUDED.limit_price,stop_price=EXCLUDED.stop_price,average_price=EXCLUDED.average_price,
+            description=EXCLUDED.description,raw=EXCLUDED.raw,as_of_date=EXCLUDED.as_of_date,updated_at=NOW()
+        `, [portfolioId, accountId, order.orderId, order.conid, order.symbol, order.name, order.exchange, order.currency,
+          order.side, order.status, order.orderType, order.timeInForce, order.totalQuantity, order.filledQuantity,
+          order.remainingQuantity, order.limitPrice, order.stopPrice, order.averagePrice, order.description,
+          PASTED_ORDER_SOURCE, order.raw, asOfDate]);
+      }
+      await client.query("COMMIT");
+      return orders.length;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 
   async listOpenOrders(ownerType?: OwnerType): Promise<StoredOpenOrder[]> {
     const values: unknown[] = [];
