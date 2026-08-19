@@ -819,6 +819,23 @@ body.northstar .nsMetalTile em {
   overflow-wrap:anywhere;
 }
 
+/* The daily move carries the tile's colour, so it is set on the caption line itself. */
+body.northstar .nsMetalTile em.nsMetalUp { color:var(--pos); }
+body.northstar .nsMetalTile em.nsMetalDown { color:var(--neg); }
+body.northstar .nsMetalTile em.nsMetalFlat { color:var(--muted-dim); }
+
+/* Scoped to em so the dot rules under .nsMetalTile span i cannot claim this qualifier. */
+body.northstar .nsMetalTile em i.nsMetalNote {
+  display:inline;
+  width:auto;
+  height:auto;
+  margin-left:6px;
+  border-radius:0;
+  background:none;
+  color:var(--muted-dim);
+  font-style:normal;
+}
+
 body.northstar .nsMetalsError {
   margin:10px 0 0;
   color:var(--muted-dim);

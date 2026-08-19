@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { dailyMove, describeMove, formatMarketPrice, formatMove, ratioMove, type MarketReading } from "../lib/markets";
 import { tradingViewChartUrl, tradingViewRatioExpression } from "../lib/tradingview";
 import { SECTOR_COLORS } from "../types";
 
@@ -14,6 +15,16 @@ type MetalSpotApiQuote = {
   source: string;
 };
 
+type MarketTileApiQuote = {
+  key: string;
+  label: string;
+  price: number;
+  previousClose: number | null;
+  currency: string;
+  unit: "oz" | "lb" | "index" | "unit";
+  priceDate: string;
+};
+
 type Tile = {
   key: string;
   label: string;
@@ -21,76 +32,106 @@ type Tile = {
   metal?: SpotMetal;
   tradingViewSymbol: string;
   color: string;
-  /** Shown instead of a price for tiles the spot feed does not cover. */
-  note: string;
+  /** Appended after the daily move, only where the tile prices a proxy rather than the thing itself. */
+  note?: string;
 };
 
 // Venues verified against TradingView symbol pages: TVC carries GOLD, SILVER and GOLDSILVER but
 // not platinum or copper, which is why those two sit on other venues.
 const TILES: Tile[] = [
-  { key: "gold", label: "Gold", metal: "gold", tradingViewSymbol: "TVC:GOLD", color: SECTOR_COLORS["Gold miners"], note: "Spot" },
-  { key: "silver", label: "Silver", metal: "silver", tradingViewSymbol: "TVC:SILVER", color: SECTOR_COLORS["Silver bullion"], note: "Spot" },
+  { key: "gold", label: "Gold", metal: "gold", tradingViewSymbol: "TVC:GOLD", color: SECTOR_COLORS["Gold miners"] },
+  { key: "silver", label: "Silver", metal: "silver", tradingViewSymbol: "TVC:SILVER", color: SECTOR_COLORS["Silver bullion"] },
   // The computed expression rather than the TVC:GOLDSILVER index, so the ratio is built from the
   // same two legs charted above it and matches how relative leadership expresses ratios.
   { key: "gsr", label: "GSR", tradingViewSymbol: tradingViewRatioExpression("TVC:GOLD", "TVC:SILVER"), color: SECTOR_COLORS["Silver miners"], note: "Gold / silver" },
-  { key: "platinum", label: "Platinum", metal: "platinum", tradingViewSymbol: "ACTIVTRADES:PLATINUM", color: SECTOR_COLORS["Platinum bullion"], note: "Spot" },
-  { key: "copper", label: "Copper", tradingViewSymbol: "CAPITALCOM:COPPER", color: SECTOR_COLORS.Oil, note: "Chart only" },
-  { key: "uranium", label: "Uranium", tradingViewSymbol: "TSX:U.UN", color: SECTOR_COLORS["Uranium miners"], note: "Sprott proxy" },
-  { key: "spx", label: "SPX", tradingViewSymbol: "SP:SPX", color: SECTOR_COLORS["Broad equities"], note: "Chart only" },
+  { key: "platinum", label: "Platinum", metal: "platinum", tradingViewSymbol: "ACTIVTRADES:PLATINUM", color: SECTOR_COLORS["Platinum bullion"] },
+  { key: "copper", label: "Copper", tradingViewSymbol: "CAPITALCOM:COPPER", color: SECTOR_COLORS.Oil, note: "Front month" },
+  { key: "uranium", label: "Uranium", tradingViewSymbol: "TSX:U.UN", color: SECTOR_COLORS["Uranium miners"], note: "Sprott" },
+  { key: "spx", label: "SPX", tradingViewSymbol: "SP:SPX", color: SECTOR_COLORS["Broad equities"] },
 ];
 
-const fmtSpot = (value: number) =>
-  `USD ${value.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/oz`;
-
-const fmtDate = (value: string | null) => {
-  if (!value) return "";
-  const date = new Date(`${value.slice(0, 10)}T12:00:00Z`);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en-AU", { day: "2-digit", month: "short" }).format(date);
-};
+const MOVE_CLASS = { up: "nsMetalUp", down: "nsMetalDown", flat: "nsMetalFlat" } as const;
 
 export function MarketsPanel() {
-  const [quotes, setQuotes] = useState<Map<SpotMetal, MetalSpotApiQuote>>(new Map());
+  const [spot, setSpot] = useState<Map<SpotMetal, MetalSpotApiQuote>>(new Map());
+  const [tiles, setTiles] = useState<Map<string, MarketTileApiQuote>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    async function loadMetals() {
+
+    async function loadJson<T>(url: string, fallback: string): Promise<T & { errors?: string[] }> {
       try {
-        const response = await fetch("/api/prices/metals", { cache: "no-store" });
-        const payload = await response.json() as { quotes?: MetalSpotApiQuote[]; errors?: string[] };
-        if (cancelled) return;
-        setQuotes(new Map((payload.quotes ?? []).map((quote) => [quote.metal, quote])));
-        setError((payload.errors ?? []).join("; "));
+        const response = await fetch(url, { cache: "no-store" });
+        return await response.json();
       } catch (reason) {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load metals spot prices.");
-      } finally {
-        if (!cancelled) setLoading(false);
+        return { errors: [reason instanceof Error ? reason.message : fallback] } as T & { errors?: string[] };
       }
     }
-    void loadMetals();
+
+    async function load() {
+      const [metals, markets] = await Promise.all([
+        loadJson<{ quotes?: MetalSpotApiQuote[] }>("/api/prices/metals", "Unable to load metals spot prices."),
+        loadJson<{ quotes?: MarketTileApiQuote[] }>("/api/prices/markets", "Unable to load market quotes."),
+      ]);
+      if (cancelled) return;
+      setSpot(new Map((metals.quotes ?? []).map((quote) => [quote.metal, quote])));
+      setTiles(new Map((markets.quotes ?? []).map((quote) => [quote.key, quote])));
+      // Six tiles failing one provider would print six near-identical lines, so the daily-move
+      // feed is reported as a single sentence and the spot errors are kept verbatim.
+      const moveErrors = markets.errors ?? [];
+      setErrors([
+        ...(metals.errors ?? []),
+        ...(moveErrors.length ? [`Daily moves unavailable for ${moveErrors.length} of ${TILES.length - 1} markets.`] : []),
+      ]);
+      setLoading(false);
+    }
+
+    void load();
     return () => { cancelled = true; };
   }, []);
 
-  const gold = quotes.get("gold")?.price ?? null;
-  const silver = quotes.get("silver")?.price ?? null;
-  const gsr = gold && silver ? gold / silver : null;
+  /**
+   * Daily moves are taken wholly from the futures leg, so the price and the close behind a
+   * percentage always share one basis. Measuring live spot against a futures close instead would
+   * fold the carry — around nine dollars on gold — straight into the day's move.
+   */
+  const moveReadings = useMemo(() => {
+    const byKey = new Map<string, MarketReading>();
+    for (const [key, quote] of tiles) {
+      byKey.set(key, { price: quote.price, previousClose: quote.previousClose, currency: quote.currency, unit: quote.unit });
+    }
+    return byKey;
+  }, [tiles]);
 
-  const readingFor = (tile: Tile) => {
-    if (tile.key === "gsr") return gsr == null ? "n/a" : gsr.toFixed(1);
-    if (!tile.metal) return "Chart";
-    const quote = quotes.get(tile.metal);
-    if (quote) return fmtSpot(quote.price);
-    return loading ? "..." : "n/a";
+  /** On screen the three metals keep their live spot price: it is the number the desk trades against. */
+  const priceReadings = useMemo(() => {
+    const byKey = new Map(moveReadings);
+    for (const metal of ["gold", "silver", "platinum"] as const) {
+      const quote = spot.get(metal);
+      if (quote?.price) byKey.set(metal, { price: quote.price, previousClose: null, currency: "USD", unit: "oz" });
+    }
+    return byKey;
+  }, [moveReadings, spot]);
+
+  const gsr = useMemo(() => {
+    const gold = priceReadings.get("gold");
+    const silver = priceReadings.get("silver");
+    if (!gold?.price || !silver?.price) return null;
+    return gold.price / silver.price;
+  }, [priceReadings]);
+
+  const moveFor = (tile: Tile) => {
+    // The ratio moves on both legs' closes, so it is computed rather than read off a feed.
+    if (tile.key === "gsr") return ratioMove(moveReadings.get("gold") ?? null, moveReadings.get("silver") ?? null);
+    const reading = moveReadings.get(tile.key);
+    return dailyMove(reading?.price ?? null, reading?.previousClose ?? null);
   };
 
-  const captionFor = (tile: Tile) => {
-    if (tile.key === "gsr") return gsr == null ? "Needs gold + silver" : tile.note;
-    if (!tile.metal) return tile.note;
-    const quote = quotes.get(tile.metal);
-    if (quote) return `${quote.source.replace(" spot mid", "")} · ${fmtDate(quote.priceDate)}`;
-    return loading ? "Loading" : "No spot quote";
+  const priceFor = (tile: Tile) => {
+    if (tile.key === "gsr") return gsr == null ? null : gsr.toFixed(1);
+    return formatMarketPrice(priceReadings.get(tile.key) ?? null);
   };
 
   return (
@@ -100,26 +141,34 @@ export function MarketsPanel() {
         <strong>Metals, ratios and the index. Gold is the numeraire here, not a holding.</strong>
       </div>
       <div className="nsMetalsGrid">
-        {TILES.map((tile) => (
-          <a
-            key={tile.key}
-            className={`nsMetalTile${tile.key === "gsr" ? " nsMetalRatio" : ""}`}
-            style={{ borderColor: `${tile.color}42` }}
-            href={tradingViewChartUrl(tile.tradingViewSymbol)}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`Open ${tile.label} on TradingView`}
-          >
-            <span>
-              <i style={{ background: tile.color }} />{tile.label}
-              <b aria-hidden="true">TV</b>
-            </span>
-            <strong>{readingFor(tile)}</strong>
-            <em>{captionFor(tile)}</em>
-          </a>
-        ))}
+        {TILES.map((tile) => {
+          const price = priceFor(tile);
+          const move = moveFor(tile);
+          const moveText = formatMove(move);
+          return (
+            <a
+              key={tile.key}
+              className={`nsMetalTile${tile.key === "gsr" ? " nsMetalRatio" : ""}`}
+              style={{ borderColor: `${tile.color}42` }}
+              href={tradingViewChartUrl(tile.tradingViewSymbol)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Open ${tile.label} on TradingView. ${price ?? "Price unavailable"}, ${describeMove(move)}.`}
+            >
+              <span>
+                <i style={{ background: tile.color }} />{tile.label}
+                <b aria-hidden="true">TV</b>
+              </span>
+              <strong>{price ?? (loading ? "..." : "n/a")}</strong>
+              <em className={MOVE_CLASS[move?.direction ?? "flat"]} aria-hidden="true">
+                {moveText ?? (loading ? "Loading" : "No move")}
+                {tile.note ? <i className="nsMetalNote">{tile.note}</i> : null}
+              </em>
+            </a>
+          );
+        })}
       </div>
-      {error ? <p className="nsMetalsError">{error}</p> : null}
+      {errors.length ? <p className="nsMetalsError">{errors.join(" ")}</p> : null}
     </section>
   );
 }

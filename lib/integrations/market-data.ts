@@ -58,7 +58,7 @@ type FrankfurterRateResponse = {
   message?: string;
 };
 
-type YahooChartResponse = {
+export type YahooChartResponse = {
   chart?: {
     result?: Array<{
       meta?: {
@@ -91,7 +91,7 @@ const MARKETDATA_TIMEOUT_MS = 12_000;
 const EODHD_BASE_URL = "https://eodhd.com/api/real-time";
 const FRANKFURTER_BASE_URL = "https://api.frankfurter.dev/v2/rate";
 const STOOQ_DAILY_URL = "https://stooq.com/q/d/l/";
-const YAHOO_CHART_BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
+export const YAHOO_CHART_BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
 const SWISSQUOTE_BBO_BASE_URL = "https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument";
 const GLOBAL_X_FUNDS_BASE_URL = "https://www.globalxetfs.com.au/funds";
 const GLOBAL_X_FUNDS: Record<string, { slug: string; currency: string }> = {
@@ -137,7 +137,7 @@ function yyyymmdd(value: Date) {
   return value.toISOString().slice(0, 10).replaceAll("-", "");
 }
 
-function numberValue(value: unknown) {
+export function numberValue(value: unknown) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : null;
 }
@@ -267,7 +267,7 @@ async function fetchRateJson(url: string) {
   return response.json() as Promise<FrankfurterRateResponse>;
 }
 
-async function fetchYahooJson(url: string) {
+export async function fetchYahooJson(url: string) {
   const response = await fetch(url, {
     headers: { "user-agent": "NorthStar/0.3.7 private portfolio quote refresh" },
     signal: AbortSignal.timeout(MARKETDATA_TIMEOUT_MS),
@@ -343,7 +343,7 @@ export async function fetchMetalSpotQuotes(): Promise<MetalSpotResult> {
   return { quotes, errors, source: "Swissquote" };
 }
 
-function dateFromUnixSeconds(seconds: number, timeZone?: string) {
+export function dateFromUnixSeconds(seconds: number, timeZone?: string) {
   try {
     return new Intl.DateTimeFormat("en-CA", {
       timeZone: timeZone || "UTC",
