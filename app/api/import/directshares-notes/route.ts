@@ -4,6 +4,7 @@ import {
   parseDirectsharesConfirmationPdf,
   parseDirectsharesConfirmationText,
 } from "@/lib/integrations/directshares";
+import { looksLikeDirectsharesAllTrades, parseDirectsharesAllTradesCsv } from "@/lib/integrations/directshares-trades";
 import { getStorage, type ImportResult, type OwnerType } from "@/lib/storage";
 import type { ImportedTransaction } from "@/lib/integrations/types";
 
@@ -45,6 +46,17 @@ function groupByAccount(transactions: ImportedTransaction[]) {
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
 }
 
+/**
+ * Two different CSVs arrive here. A contract note covers one trade; the All Trades Report covers
+ * the whole history and is the only export that dates a Directshares holding, so it is detected by
+ * its own header rather than asking the user to pick the right upload box.
+ */
+function transactionsFromCsv(csv: string) {
+  return looksLikeDirectsharesAllTrades(csv)
+    ? parseDirectsharesAllTradesCsv(csv)
+    : parseDirectsharesConfirmationCsv(csv);
+}
+
 function isCsv(contentType: string, filename = "") {
   return contentType.includes("text/csv")
     || contentType.includes("application/csv")
@@ -61,7 +73,7 @@ async function transactionsFromForm(request: Request) {
     const bytes = Buffer.from(await file.arrayBuffer());
     const lowerName = file.name.toLowerCase();
     if (isCsv(file.type, lowerName)) {
-      transactions.push(...parseDirectsharesConfirmationCsv(bytes.toString("utf8")));
+      transactions.push(...transactionsFromCsv(bytes.toString("utf8")));
     } else if (file.type === "application/pdf" || lowerName.endsWith(".pdf")) {
       transactions.push(await parseDirectsharesConfirmationPdf(bytes));
     } else {
@@ -74,7 +86,7 @@ async function transactionsFromForm(request: Request) {
 async function transactionsFromBody(request: Request) {
   const bytes = Buffer.from(await request.arrayBuffer());
   const contentType = request.headers.get("content-type") || "";
-  if (isCsv(contentType)) return parseDirectsharesConfirmationCsv(bytes.toString("utf8"));
+  if (isCsv(contentType)) return transactionsFromCsv(bytes.toString("utf8"));
   if (contentType.includes("application/pdf")) return [await parseDirectsharesConfirmationPdf(bytes)];
   return [parseDirectsharesConfirmationText(bytes.toString("utf8"))];
 }

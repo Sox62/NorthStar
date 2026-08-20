@@ -120,6 +120,22 @@ function audAmount(value: number | null | undefined, fxRateToBase: number | null
   return (value ?? 0) * (fxRateToBase || 1);
 }
 
+/**
+ * The same identity without the account.
+ *
+ * A trade file need not name the account it came from: the Directshares All Trades Report is
+ * titled with a person, and its holdings export takes the account from a column the trades export
+ * does not have. When those two disagree the account-qualified key misses, every lot falls back to
+ * cost basis, and the positions read as undated even though their trades are sitting in storage.
+ */
+function brokerKey(input: { ownerType: string; broker: string; instrumentKey?: string; symbol: string; exchange: string }) {
+  return [
+    input.ownerType,
+    input.broker,
+    input.instrumentKey || `${input.symbol}:${input.exchange}`,
+  ].join("|");
+}
+
 function holdingKey(input: Pick<DashboardHolding, "ownerType" | "broker" | "accountKey" | "instrumentKey" | "symbol" | "exchange">) {
   return [
     input.ownerType,
@@ -168,6 +184,8 @@ function makeRealisedLot(input: Omit<RealisedTaxLot, "taxableGainAud" | "discoun
 
 function buildWorkingLots(transactions: StoredTransaction[]) {
   const lots = new Map<string, WorkingLot[]>();
+  // Second index on the same lot objects, so a fallback lookup shares their consumed quantities.
+  const byBroker = new Map<string, WorkingLot[]>();
   const realised: RealisedTaxLot[] = [];
   const sorted = [...transactions]
     .filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL")
@@ -197,6 +215,9 @@ function buildWorkingLots(transactions: StoredTransaction[]) {
         note: "Matched from imported BUY transaction.",
       });
       lots.set(key, lotRows);
+      const brokerRows = byBroker.get(brokerKey(transaction)) ?? [];
+      brokerRows.push(lotRows[lotRows.length - 1]);
+      byBroker.set(brokerKey(transaction), brokerRows);
       continue;
     }
 
@@ -253,7 +274,7 @@ function buildWorkingLots(transactions: StoredTransaction[]) {
     }
   }
 
-  return { lots, realised };
+  return { lots, byBroker, realised };
 }
 
 function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfDate: string): OpenTaxLot[] {
@@ -338,10 +359,14 @@ function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfD
 
 export function buildTaxLots(data: DashboardData, transactions: StoredTransaction[], generatedAt = new Date()): TaxLotsResponse {
   const asOfDate = (data.lastUpdated ?? generatedAt.toISOString()).slice(0, 10);
-  const { lots, realised } = buildWorkingLots(transactions);
+  const { lots, byBroker, realised } = buildWorkingLots(transactions);
   const openLots = data.holdings
     .filter(isTaxableHolding)
-    .flatMap((holding) => openLotsForHolding(holding, lots.get(holdingKey(holding)) ?? [], asOfDate))
+    .flatMap((holding) => openLotsForHolding(
+      holding,
+      lots.get(holdingKey(holding)) ?? byBroker.get(brokerKey(holding)) ?? [],
+      asOfDate,
+    ))
     .sort((a, b) => b.unrealisedGainAud - a.unrealisedGainAud);
   const realisedLots = realised.sort((a, b) => b.saleDate.localeCompare(a.saleDate));
   const realisedGainAud = realisedLots.reduce((sum, lot) => lot.realisedGainAud > 0 ? sum + lot.realisedGainAud : sum, 0);
