@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import CapitalSummary from "@/components/CapitalSummary";
 import PageHeader from "@/components/PageHeader";
 import TradingViewWidget from "@/components/TradingViewWidget";
+import { CompanyNewsList, NewsBadge } from "@/components/CompanyNews";
+import type { CompanyNewsItem } from "@/lib/integrations/company-news/types";
 import type { DashboardData, DashboardHolding, Scope } from "@/lib/storage";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
@@ -49,6 +51,18 @@ async function loadDashboard(scope: Scope): Promise<DashboardData> {
   const payload = await response.json();
   if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load holdings");
   return payload as DashboardData;
+}
+
+/** Announcements are keyed by symbol and exchange, because the exchange decides the provider. */
+async function loadCompanyNews(holdings: DashboardHolding[]): Promise<Record<string, CompanyNewsItem[]>> {
+  const instruments = holdings
+    .filter((holding) => !isCashHolding(holding))
+    .map((holding) => `${holding.symbol}:${holding.exchange}:${holding.name.replace(/,/g, " ")}`);
+  if (!instruments.length) return {};
+  const response = await fetch(`/api/news?instruments=${encodeURIComponent(instruments.join(","))}`, { cache: "no-store" });
+  const payload = await response.json() as { bySymbol?: Record<string, CompanyNewsItem[]>; errors?: string[] };
+  if (!response.ok) throw new Error(payload.errors?.[0] || "Unable to load company news");
+  return payload.bySymbol ?? {};
 }
 
 function includesQuery(holding: DashboardHolding, query: string) {
@@ -108,6 +122,8 @@ export default function HoldingsPage() {
   const [scope, setScope] = useState<Scope>("overall");
   const [query, setQuery] = useState("");
   const [chartHolding, setChartHolding] = useState<DashboardHolding | null>(null);
+  const [news, setNews] = useState<Record<string, CompanyNewsItem[]>>({});
+  const [newsLoading, setNewsLoading] = useState(true);
   const [sort, setSort] = useState<HoldingsSortState>({ key: "value", direction: "desc" });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -122,6 +138,14 @@ export default function HoldingsPage() {
         if (!cancelled) {
           setDashboards({ overall, personal, smsf });
           setLoading(false);
+        }
+        try {
+          const items = await loadCompanyNews(overall.holdings);
+          if (!cancelled) setNews(items);
+        } catch {
+          // The position book is the point of this screen; a missing feed must not disturb it.
+        } finally {
+          if (!cancelled) setNewsLoading(false);
         }
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load holdings");
@@ -215,7 +239,7 @@ export default function HoldingsPage() {
               ]}
             />
 
-            {chartHolding ? <TradingViewPanel holding={chartHolding} /> : null}
+            {chartHolding ? <TradingViewPanel holding={chartHolding} news={news[chartHolding.symbol.toUpperCase()] ?? []} newsLoading={newsLoading} /> : null}
 
             <div className="holdingsTableWrap">
               <table className="holdingsTable">
@@ -250,7 +274,7 @@ export default function HoldingsPage() {
                       }}
                     >
                       <td>
-                        <strong>{holding.symbol}</strong>
+                        <strong>{holding.symbol}<NewsBadge items={news[holding.symbol.toUpperCase()] ?? []} /></strong>
                         <span>{holding.name}</span>
                         <small>{holding.exchange} · {holding.currency} · {holding.valuationBasis === "market" ? "Market" : "Cost basis"}</small>
                       </td>
@@ -294,7 +318,7 @@ export default function HoldingsPage() {
   );
 }
 
-function TradingViewPanel({ holding }: { holding: DashboardHolding }) {
+function TradingViewPanel({ holding, news, newsLoading }: { holding: DashboardHolding; news: CompanyNewsItem[]; newsLoading: boolean }) {
   const tvSymbol = tradingViewSymbol(holding);
 
   return (
@@ -308,6 +332,10 @@ function TradingViewPanel({ holding }: { holding: DashboardHolding }) {
         <a className="button" href={tradingViewUrl(holding)} target="_blank" rel="noreferrer">Open in TradingView</a>
       </div>
       <TradingViewWidget symbol={tvSymbol} />
+      <div className="newsPanel">
+        <p className="eyebrow">Announcements &amp; filings</p>
+        <CompanyNewsList items={news} loading={newsLoading} />
+      </div>
     </section>
   );
 }

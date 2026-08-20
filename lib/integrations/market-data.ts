@@ -176,7 +176,7 @@ function eodhdExchangeSuffixes(exchange: string) {
   return [value || "US"];
 }
 
-function yahooSuffixes(exchange: string) {
+export function yahooSuffixes(exchange: string) {
   const value = normaliseExchange(exchange);
   if (["ASX", "AU", "AUS", "CHIXAU"].includes(value)) return ["AX"];
   if (["TSXV", "TSXVENTURE", "VENTURE", "V"].includes(value)) return ["V", "TO"];
