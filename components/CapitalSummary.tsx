@@ -22,8 +22,14 @@ function percent(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toLocaleString("en-AU", { maximumFractionDigits: 1 })}%`;
 }
 
+/** Day-month-year, matching the position book so Capital never mixes two date orders. */
 function dateLabel(value: string | null) {
-  return value ? new Date(value).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" }) : "Not recorded";
+  if (!value) return "Not recorded";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const parts = new Intl.DateTimeFormat("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("day")}-${part("month")}-${part("year")}`;
 }
 
 function pnlTone(value: number) {

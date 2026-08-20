@@ -13,7 +13,7 @@ import { compareNumber, compareText, nextSort, sortIndicator, type SortState } f
 import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
-type HoldingsSortKey = "holding" | "owner" | "sector" | "units" | "price" | "value" | "weight" | "day" | "pnl";
+type HoldingsSortKey = "holding" | "owner" | "sector" | "units" | "entry" | "price" | "value" | "weight" | "day" | "pnl" | "relative";
 type HoldingsSortState = SortState<HoldingsSortKey>;
 
 const scopes: Array<{ key: Scope; label: string }> = [
@@ -38,8 +38,42 @@ const price = (value: number | null, currency: string) =>
       maximumFractionDigits: value >= 100 ? 2 : 4,
     })}`;
 
+/** Day-month-year throughout Capital: the stored ISO date reads year-first and inverts on sight. */
+const dayMonthYear = (value: string | null | undefined) => {
+  if (!value) return "Not recorded";
+  const date = new Date(`${String(value).slice(0, 10)}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const parts = new Intl.DateTimeFormat("en-AU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" })
+    .formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("day")}-${part("month")}-${part("year")}`;
+};
+
 const percent = (value: number) =>
   `${value >= 0 ? "+" : ""}${value.toLocaleString("en-AU", { maximumFractionDigits: 1 })}%`;
+
+/** Percentage points, not percent: this is the gap between two returns, not a return itself. */
+const relativeToBook = (value: number) =>
+  `${value >= 0 ? "+" : ""}${value.toLocaleString("en-AU", { maximumFractionDigits: 1 })} pp`;
+
+/**
+ * The book's own return, as the baseline each position is measured against.
+ *
+ * Taken from the share positions rather than the headline portfolio return, which carries cash and
+ * would drag the baseline down by an amount that has nothing to do with how the shares did. The
+ * filtered rows are deliberately not used either: a baseline that moved as you typed in the search
+ * box would make every number on screen mean something different.
+ */
+function bookReturn(holdings: DashboardHolding[]) {
+  let cost = 0;
+  let gain = 0;
+  for (const holding of holdings) {
+    if (isCashHolding(holding) || !holding.costAud) continue;
+    cost += holding.costAud;
+    gain += holding.pnlAud;
+  }
+  return cost ? (gain / cost) * 100 : 0;
+}
 
 function dailyPercent(holding: DashboardHolding) {
   const previousValue = holding.marketValueAud - holding.dayGainAud;
@@ -106,6 +140,8 @@ function sortHoldings(rows: DashboardHolding[], sort: HoldingsSortState) {
     const valueFor = (holding: DashboardHolding) => {
       switch (sort.key) {
         case "units": return holding.quantity;
+        case "entry": return holding.averageCostAud || Number.NEGATIVE_INFINITY;
+        case "relative": return holding.pnlPercent;
         case "price": return holding.lastPrice ?? Number.NEGATIVE_INFINITY;
         case "value": return holding.marketValueAud;
         case "weight": return holding.weight;
@@ -178,6 +214,7 @@ export default function HoldingsPage() {
   );
 
   const fallbackCount = rows.filter((holding) => holding.valuationBasis === "cost_basis").length;
+  const bookReturnPercent = bookReturn(selected?.holdings ?? []);
   const scopeLabel = scopes.find((item) => item.key === scope)?.label ?? "Overall";
 
   useEffect(() => {
@@ -249,11 +286,13 @@ export default function HoldingsPage() {
                     <th>{sortButton("owner", "Owner")}</th>
                     <th>{sortButton("sector", "Sector")}</th>
                     <th className="numeric">{sortButton("units", "Units")}</th>
+                    <th className="numeric">{sortButton("entry", "Avg entry (AUD)")}</th>
                     <th className="numeric">{sortButton("price", "Latest price (local)")}</th>
                     <th className="numeric">{sortButton("value", "Value (AUD)")}</th>
                     <th className="numeric">{sortButton("weight", "Weight")}</th>
                     <th className="numeric">{sortButton("day", "Day P/L")}</th>
                     <th className="numeric">{sortButton("pnl", "Position P/L")}</th>
+                    <th className="numeric">{sortButton("relative", "vs book")}</th>
                     <th>Chart</th>
                   </tr>
                 </thead>
@@ -282,8 +321,12 @@ export default function HoldingsPage() {
                       <td>{sectorForInstrument(holding)}</td>
                       <td className="numeric">{number(holding.quantity)}</td>
                       <td className="numeric">
+                        {holding.averageCostAud ? price(holding.averageCostAud, "AUD") : "n/a"}
+                        <span>{holding.averageCostAud ? money(holding.costAud) : "No cost basis"}</span>
+                      </td>
+                      <td className="numeric">
                         {price(holding.lastPrice, holding.currency)}
-                        <span>{holding.asOfDate}</span>
+                        <span>{dayMonthYear(holding.asOfDate)}</span>
                       </td>
                       <td className="numeric">{money(holding.marketValueAud)}</td>
                       <td className="numeric">{holding.weight.toLocaleString("en-AU", { maximumFractionDigits: 1 })}%</td>
@@ -294,6 +337,10 @@ export default function HoldingsPage() {
                       <td className={`numeric ${pnlTone(holding.pnlAud)}`}>
                         {signedMoney(holding.pnlAud)}
                         <span>{percent(holding.pnlPercent)}</span>
+                      </td>
+                      <td className={`numeric ${pnlTone(holding.pnlPercent - bookReturnPercent)}`}>
+                        {relativeToBook(holding.pnlPercent - bookReturnPercent)}
+                        <span>book {percent(bookReturnPercent)}</span>
                       </td>
                       <td>
                         {isCashHolding(holding) ? (
