@@ -5,6 +5,7 @@ import CapitalSummary from "@/components/CapitalSummary";
 import PageHeader from "@/components/PageHeader";
 import TradingViewWidget from "@/components/TradingViewWidget";
 import { CompanyNewsList, NewsBadge } from "@/components/CompanyNews";
+import { acquisitionsByHolding, heldLabel, ownerSymbolKey, type Acquisition, type OpenLotRow } from "@/components/holdings/acquisition";
 import type { CompanyNewsItem } from "@/lib/integrations/company-news/types";
 import type { DashboardData, DashboardHolding, Scope } from "@/lib/storage";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
@@ -13,7 +14,7 @@ import { compareNumber, compareText, nextSort, sortIndicator, type SortState } f
 import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
-type HoldingsSortKey = "holding" | "owner" | "sector" | "units" | "entry" | "price" | "value" | "weight" | "day" | "pnl" | "relative";
+type HoldingsSortKey = "holding" | "owner" | "sector" | "units" | "entry" | "acquired" | "price" | "value" | "weight" | "day" | "pnl" | "relative";
 type HoldingsSortState = SortState<HoldingsSortKey>;
 
 const scopes: Array<{ key: Scope; label: string }> = [
@@ -52,6 +53,14 @@ const dayMonthYear = (value: string | null | undefined) => {
 const percent = (value: number) =>
   `${value >= 0 ? "+" : ""}${value.toLocaleString("en-AU", { maximumFractionDigits: 1 })}%`;
 
+/** The second line under an acquisition date: how long held, and whether it was built from several buys. */
+function acquisitionNote(acquisition: Acquisition | null) {
+  if (!acquisition) return "No lot history";
+  if (!acquisition.firstAcquired) return "No trade history";
+  const held = heldLabel(acquisition.firstAcquired);
+  return acquisition.lots > 1 ? `${held} · ${acquisition.lots} lots` : held;
+}
+
 /** Percentage points, not percent: this is the gap between two returns, not a return itself. */
 const relativeToBook = (value: number) =>
   `${value >= 0 ? "+" : ""}${value.toLocaleString("en-AU", { maximumFractionDigits: 1 })} pp`;
@@ -85,6 +94,17 @@ async function loadDashboard(scope: Scope): Promise<DashboardData> {
   const payload = await response.json();
   if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load holdings");
   return payload as DashboardData;
+}
+
+/**
+ * Acquisition dates come from the CGT lots, which are the only place trade history is reconstructed.
+ * Holdings with no imported trades — Directshares and physical metal — come back undated.
+ */
+async function loadAcquisitions(): Promise<{ byId: Map<string, Acquisition>; byOwnerSymbol: Map<string, Acquisition> }> {
+  const response = await fetch("/api/tax-lots?scope=overall", { cache: "no-store" });
+  const payload = await response.json() as { openLots?: OpenLotRow[]; error?: string };
+  if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load acquisition history");
+  return acquisitionsByHolding(payload.openLots ?? []);
 }
 
 /** Announcements are keyed by symbol and exchange, because the exchange decides the provider. */
@@ -122,8 +142,15 @@ function tradingViewUrl(holding: DashboardHolding) {
 
 const holdingsAscendingSorts: HoldingsSortKey[] = ["holding", "owner", "sector"];
 
-function sortHoldings(rows: DashboardHolding[], sort: HoldingsSortState) {
+function sortHoldings(rows: DashboardHolding[], sort: HoldingsSortState, acquiredOn: (holding: DashboardHolding) => string) {
   return [...rows].sort((left, right) => {
+    if (sort.key === "acquired") {
+      // Undated holdings sort together at the end rather than ahead of everything as empty strings.
+      const dateFor = (holding: DashboardHolding) => acquiredOn(holding) || "9999-12-31";
+      return compareText(dateFor(left), dateFor(right)) * (sort.direction === "asc" ? 1 : -1)
+        || compareText(left.symbol, right.symbol);
+    }
+
     if (sort.key === "holding") {
       const result = compareText(left.symbol, right.symbol) || compareText(left.name, right.name);
       return sort.direction === "desc" ? -result : result;
@@ -158,6 +185,7 @@ export default function HoldingsPage() {
   const [scope, setScope] = useState<Scope>("overall");
   const [query, setQuery] = useState("");
   const [chartHolding, setChartHolding] = useState<DashboardHolding | null>(null);
+  const [acquisitions, setAcquisitions] = useState<{ byId: Map<string, Acquisition>; byOwnerSymbol: Map<string, Acquisition> }>({ byId: new Map(), byOwnerSymbol: new Map() });
   const [news, setNews] = useState<Record<string, CompanyNewsItem[]>>({});
   const [newsLoading, setNewsLoading] = useState(true);
   const [sort, setSort] = useState<HoldingsSortState>({ key: "value", direction: "desc" });
@@ -174,6 +202,12 @@ export default function HoldingsPage() {
         if (!cancelled) {
           setDashboards({ overall, personal, smsf });
           setLoading(false);
+        }
+        try {
+          const lots = await loadAcquisitions();
+          if (!cancelled) setAcquisitions(lots);
+        } catch {
+          // Dates are a nicety here; the tax page is where a lot failure actually matters.
         }
         try {
           const items = await loadCompanyNews(overall.holdings);
@@ -200,11 +234,17 @@ export default function HoldingsPage() {
     return [dashboards.personal, dashboards.smsf].filter((item): item is DashboardData => Boolean(item));
   }, [dashboards.personal, dashboards.smsf]);
 
+  /** Lot ids carry the holding id, but fall back to owner and symbol if a position was rebuilt. */
+  const acquisitionFor = (holding: DashboardHolding) =>
+    acquisitions.byId.get(holding.id)
+    ?? acquisitions.byOwnerSymbol.get(ownerSymbolKey(holding.ownerType, holding.symbol))
+    ?? null;
+
   const rows = useMemo(() => {
     const visible = (selected?.holdings ?? [])
       .filter((holding) => !query.trim() || includesQuery(holding, query.trim()));
-    return sortHoldings(visible, sort);
-  }, [selected, query, sort]);
+    return sortHoldings(visible, sort, (holding) => acquisitionFor(holding)?.firstAcquired ?? "");
+  }, [selected, query, sort, acquisitions]);
 
   const sortButton = (key: HoldingsSortKey, label: string) => (
     <button className={sort.key === key ? "isActive" : ""} type="button" onClick={() => setSort((current) => nextSort(current, key, holdingsAscendingSorts))} aria-sort={sort.key === key ? (sort.direction === "desc" ? "descending" : "ascending") : "none"}>
@@ -215,6 +255,7 @@ export default function HoldingsPage() {
 
   const fallbackCount = rows.filter((holding) => holding.valuationBasis === "cost_basis").length;
   const bookReturnPercent = bookReturn(selected?.holdings ?? []);
+
   const scopeLabel = scopes.find((item) => item.key === scope)?.label ?? "Overall";
 
   useEffect(() => {
@@ -287,6 +328,7 @@ export default function HoldingsPage() {
                     <th>{sortButton("sector", "Sector")}</th>
                     <th className="numeric">{sortButton("units", "Units")}</th>
                     <th className="numeric">{sortButton("entry", "Avg entry (AUD)")}</th>
+                    <th>{sortButton("acquired", "Acquired")}</th>
                     <th className="numeric">{sortButton("price", "Latest price (local)")}</th>
                     <th className="numeric">{sortButton("value", "Value (AUD)")}</th>
                     <th className="numeric">{sortButton("weight", "Weight")}</th>
@@ -323,6 +365,12 @@ export default function HoldingsPage() {
                       <td className="numeric">
                         {holding.averageCostAud ? price(holding.averageCostAud, "AUD") : "n/a"}
                         <span>{holding.averageCostAud ? money(holding.costAud) : "No cost basis"}</span>
+                      </td>
+                      <td>
+                        {acquisitionFor(holding)?.firstAcquired
+                          ? dayMonthYear(acquisitionFor(holding)!.firstAcquired)
+                          : "Unknown"}
+                        <span>{acquisitionNote(acquisitionFor(holding))}</span>
                       </td>
                       <td className="numeric">
                         {price(holding.lastPrice, holding.currency)}

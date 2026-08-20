@@ -16,7 +16,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 .shell {
-  width: min(100%, 1480px);
+  /* Wide enough for the position book's thirteen columns and the tax table's 1280px floor to sit
+     inside the pane rather than scrolling within it on a large display. */
+  width: min(100%, 1760px);
   margin: 0 auto;
   padding: 28px;
 }
