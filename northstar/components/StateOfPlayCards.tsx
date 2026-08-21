@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { fmtAud } from "../lib/portfolio-metrics";
 import type { Holding, PortfolioScope } from "../types";
 
@@ -21,14 +21,6 @@ type PortfolioTotal = {
   pnl: number;
 };
 
-type MetalSpotApiQuote = {
-  metal: "gold" | "silver" | "platinum";
-  label: string;
-  price: number;
-  priceDate: string;
-  source: string;
-};
-
 function fmtSignedAud(value: number) {
   return `${value >= 0 ? "+" : ""}${fmtAud(value)}`;
 }
@@ -36,31 +28,6 @@ function fmtSignedAud(value: number) {
 function fmtSignedPct(value: number | null) {
   if (value == null) return "n/a";
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
-}
-
-function useGoldSpot() {
-  const [gold, setGold] = useState<MetalSpotApiQuote | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    async function loadGold() {
-      try {
-        const response = await fetch("/api/prices/metals", { cache: "no-store" });
-        const payload = await response.json() as { quotes?: MetalSpotApiQuote[] };
-        const quote = (payload.quotes ?? []).find((item) => item.metal === "gold") ?? null;
-        if (!cancelled) setGold(quote);
-      } catch {
-        if (!cancelled) setGold(null);
-      }
-    }
-    void loadGold();
-    return () => { cancelled = true; };
-  }, []);
-  return gold;
-}
-
-function fmtGoldOz(navAud: number, gold?: MetalSpotApiQuote | null) {
-  if (!gold?.price) return "Gold numeraire pending";
-  return `${(navAud / gold.price).toLocaleString("en-AU", { maximumFractionDigits: 1 })} oz of gold · ${fmtAud(gold.price)}/oz`;
 }
 
 function StateValueRow({ label, value, note, tone }: { label: string; value: React.ReactNode; note?: React.ReactNode; tone?: "positive" | "negative" }) {
@@ -80,7 +47,6 @@ export function StateOfPlayCards({ total, dailyPnl, accounts, holdings, scope }:
   holdings: Holding[];
   scope: PortfolioScope;
 }) {
-  const gold = useGoldSpot();
   const visibleAccounts = scope === "overall" ? accounts : accounts.filter((account) => account.scope === scope);
   const personal = accounts.find((account) => account.scope === "personal");
   const smsf = accounts.find((account) => account.scope === "smsf");
@@ -99,7 +65,6 @@ export function StateOfPlayCards({ total, dailyPnl, accounts, holdings, scope }:
       <article className="nsPanel nsStateCard nsStateNavCard">
         <p className="nsEyebrow">Total NAV — {scope === "overall" ? "Overall" : scope === "smsf" ? "SMSF" : "Personal"}</p>
         <div className="nsStateNavValue">{fmtAud(total.marketValue)}</div>
-        <p className="nsStateGoldLine">{fmtGoldOz(total.marketValue, gold)}</p>
         <div className="nsStateTwoStats">
           <StateValueRow label="Day P/L" value={fmtSignedAud(dailyPnl)} note={`${fmtSignedPct(dailyPercent)} of NAV`} tone={dailyPnl >= 0 ? "positive" : "negative"} />
           <StateValueRow label="Total open P/L" value={fmtSignedAud(total.pnl)} note="FX-aware · AUD basis" tone={total.pnl >= 0 ? "positive" : "negative"} />

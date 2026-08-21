@@ -2578,12 +2578,6 @@ body.northstar .nsStateNavValue {
   font-variant-numeric:tabular-nums;
 }
 
-body.northstar .nsStateGoldLine {
-  margin:10px 0 0;
-  color:var(--gold);
-  font-size:13px;
-  font-weight:800;
-}
 
 body.northstar .nsStateTwoStats {
   display:grid;
@@ -3008,10 +3002,6 @@ body.northstar .nsShellContent > .nsScreenMain {
     overflow-wrap:anywhere;
   }
 
-  body.northstar .nsStateGoldLine {
-    max-width:100%;
-    overflow-wrap:anywhere;
-  }
 
   body.northstar .nsStateTwoStats {
     grid-template-columns:1fr;
