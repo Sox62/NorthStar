@@ -7,7 +7,7 @@ import TradingViewWidget from "@/components/TradingViewWidget";
 import type { DashboardData, DashboardHolding, MinerFundamentals, OwnerType, Scope, StoredDailyPrice, StoredFxRate, StructuralLevel } from "@/lib/storage";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { RESEARCH_BENCHMARKS, resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
-import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, relativeStrengthScore, RATIO_RANGES, type RatioPoint, type RatioRangeKey, type RelativeReturnWindow } from "@/northstar/lib/ratio-engine";
+import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, scoreRatioTrend, scoreRatioTrendVelocity, RATIO_RANGES, type RatioPoint, type RatioRangeKey, type RelativeReturnWindow, type RelativeScoreCheck, type RelativeScoreComponent } from "@/northstar/lib/ratio-engine";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
 import { customBenchmarkNode, parseSelectionValue, selectionValue } from "@/northstar/lib/selection";
 import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
@@ -21,6 +21,8 @@ type PriceBookResponse = {
 type StructuralLevelsResponse = { levels?: StructuralLevel[]; error?: string };
 type FundamentalsResponse = { fundamentals?: MinerFundamentals[]; error?: string };
 type IdeaGroup = { label: string; nodes: BenchmarkNode[] };
+type RelativeLayer = { label: string; target: string; score: number; max: number; component: RelativeScoreComponent; velocity: number | null };
+type RelativeEngineScore = { score: number; velocity: number | null; reserve: RelativeLayer; sector: RelativeLayer | null; peers: RelativeLayer; peerCount: number; peerWins: number; sentence: string };
 type StructuralLevelForm = {
   id: string;
   symbol: string;
@@ -266,6 +268,132 @@ function strengthTone(score: number | null) {
   return undefined;
 }
 
+function scoreBadge(score: number | null) {
+  if (score == null) return "n/a";
+  if (score >= 75) return "Strong";
+  if (score >= 60) return "Leading";
+  if (score >= 45) return "Neutral";
+  if (score >= 30) return "Lagging";
+  return "Weak";
+}
+
+function velocityLabel(value: number | null) {
+  if (value == null) return "n/a";
+  const rounded = Math.round(value);
+  if (rounded === 0) return "0 over 30d";
+  return rounded > 0 ? "up +" + rounded + " over 30d" : "down " + rounded + " over 30d";
+}
+
+function componentWins(component: RelativeScoreComponent) {
+  return component.score >= component.max * 0.55;
+}
+
+function layerScore(label: string, target: DashboardHolding, max: number, series: RatioPoint[]): RelativeLayer {
+  const component = scoreRatioTrend(series, max);
+  return {
+    label,
+    target: target.symbol,
+    score: component.score,
+    max,
+    component,
+    velocity: scoreRatioTrendVelocity(series, max),
+  };
+}
+
+function categoryForAsset(asset: DashboardHolding) {
+  const sector = sectorForInstrument(asset);
+  if (sector === "Gold miners") return "Gold Producers";
+  if (sector === "Silver miners" || sector === "Silver bullion") return "Silver";
+  if (sector === "Uranium miners" || sector === "Uranium explorers") return "Uranium";
+  if (sector === "Copper miners") return "Copper";
+  return sector;
+}
+
+function sectorBenchmarkFor(asset: DashboardHolding, benchmarkNodes: BenchmarkNode[]) {
+  const tree = resolveBenchmarkTree({ symbol: asset.symbol, name: asset.name, sector: sectorForInstrument(asset), exchange: asset.exchange, currency: asset.currency });
+  const node = tree.path.find((item) => item.role === "sector_etf" && item.symbol !== asset.symbol)
+    ?? tree.path.find((item) => item.role === "commodity" && item.symbol !== asset.symbol)
+    ?? null;
+  if (!node) return null;
+  return benchmarkNodes.find((item) => item.id === node.id) ?? node;
+}
+
+function peerNodesFor(asset: DashboardHolding, holdings: DashboardHolding[], savedIdeaNodes: BenchmarkNode[], benchmarkNodes: BenchmarkNode[]) {
+  const sector = sectorForInstrument(asset);
+  const category = categoryForAsset(asset);
+  const tree = resolveBenchmarkTree({ symbol: asset.symbol, name: asset.name, sector, exchange: asset.exchange, currency: asset.currency });
+  const heldPeers = holdings
+    .filter((holding) => holding.symbol !== asset.symbol && sectorForInstrument(holding) === sector)
+    .map((holding): BenchmarkNode => ({
+      id: "peer_holding:" + holding.id,
+      label: holding.name,
+      role: "candidate",
+      symbol: holding.symbol,
+      tradingViewSymbol: tradingViewSymbolForInstrument(holding),
+      basisCurrency: holding.currency === "USD" || holding.currency === "CAD" || holding.currency === "GBP" ? holding.currency : "AUD",
+    }));
+  const savedPeers = savedIdeaNodes.filter((node) => node.symbol !== asset.symbol && (node.note?.split(" · ")[0] ?? "") === category);
+  const templatePeers = tree.peers.filter((node) => node.symbol && node.symbol !== asset.symbol && node.tradingViewSymbol);
+  return mergeBenchmarkNodes([...heldPeers, ...savedPeers, ...templatePeers])
+    .map((node) => benchmarkNodes.find((item) => item.id === node.id) ?? node)
+    .filter(nodeIsChartable)
+    .slice(0, 12);
+}
+
+function buildRelativeEngineScore(input: {
+  asset: DashboardHolding;
+  prices: StoredDailyPrice[];
+  fxRates: StoredFxRate[];
+  holdings: DashboardHolding[];
+  savedIdeaNodes: BenchmarkNode[];
+  benchmarkNodes: BenchmarkNode[];
+}): RelativeEngineScore {
+  const assetHistory = historyForHolding(input.prices, input.fxRates, input.asset);
+  const reserveNode = input.benchmarkNodes.find((node) => node.id === "reserve:gold") ?? RESEARCH_BENCHMARKS.find((node) => node.id === "reserve:gold")!;
+  const reserveInstrument = benchmarkInstrument(reserveNode);
+  const reserveSeries = buildRatioSeries(assetHistory, historyForBenchmark(input.prices, input.fxRates, reserveNode));
+  const reserve = layerScore("Reserve", reserveInstrument, 50, reserveSeries);
+
+  const sectorNode = sectorBenchmarkFor(input.asset, input.benchmarkNodes);
+  const sectorInstrument = sectorNode ? benchmarkInstrument(sectorNode) : null;
+  const sectorSeries = sectorNode ? buildRatioSeries(assetHistory, historyForBenchmark(input.prices, input.fxRates, sectorNode)) : [];
+  const sector = sectorInstrument ? layerScore("Sector", sectorInstrument, 30, sectorSeries) : null;
+
+  const peerNodes = peerNodesFor(input.asset, input.holdings, input.savedIdeaNodes, input.benchmarkNodes);
+  const peerLayers = peerNodes.map((node) => {
+    const peerInstrument = benchmarkInstrument(node);
+    const peerSeries = buildRatioSeries(assetHistory, historyForBenchmark(input.prices, input.fxRates, node));
+    return layerScore("Peer", peerInstrument, 20, peerSeries);
+  });
+  const peerScore = peerLayers.length ? peerLayers.reduce((sum, layer) => sum + layer.score, 0) / peerLayers.length : 0;
+  const peerVelocityValues = peerLayers.map((layer) => layer.velocity).filter((value): value is number => value != null);
+  const peerVelocity = peerVelocityValues.length ? peerVelocityValues.reduce((sum, value) => sum + value, 0) / peerVelocityValues.length : null;
+  const peerWins = peerLayers.filter((layer) => componentWins(layer.component)).length;
+  const peers: RelativeLayer = {
+    label: "Peers",
+    target: peerLayers.length ? String(peerLayers.length) + " peers" : "No peers",
+    score: peerScore,
+    max: 20,
+    component: { score: peerScore, max: 20, checks: peerLayers.flatMap((layer) => layer.component.checks), availableChecks: peerLayers.reduce((sum, layer) => sum + layer.component.availableChecks, 0) },
+    velocity: peerVelocity,
+  };
+
+  const velocityParts = [reserve.velocity, sector?.velocity ?? null, peers.velocity].filter((value): value is number => value != null);
+  const score = reserve.score + (sector?.score ?? 0) + peers.score;
+  const velocity = velocityParts.length ? velocityParts.reduce((sum, value) => sum + value, 0) : null;
+  const sectorText = sector ? sector.target : "sector benchmark";
+  const peerText = peerLayers.length ? String(Math.round(peerWins / peerLayers.length * 100)) + "% of peers" : "no comparable peers yet";
+  const reserveText = componentWins(reserve.component) ? "beating " + reserve.target : "not yet beating " + reserve.target;
+  const sectorOutcome = sector && componentWins(sector.component) ? "beating " + sectorText : "not yet beating " + sectorText;
+  const sentence = "Reserve: " + reserveText + " · Sector: " + sectorOutcome + " · Peers: " + peerText;
+  return { score, velocity, reserve, sector, peers, peerCount: peerLayers.length, peerWins, sentence };
+}
+
+function checkMark(check: RelativeScoreCheck) {
+  if (!check.available) return "-";
+  return check.passed ? "yes" : "no";
+}
+
 function formatAxisTick(value: number, mode: RatioMode) {
   if (mode !== "ratio") return value.toFixed(1);
   if (value >= 10) return value.toFixed(1);
@@ -398,6 +526,48 @@ function ComparisonOptionGroups({ permanent, custom, savedGroups, side }: { perm
     </>
   );
 }
+function RelativeScorePanel({ score }: { score: RelativeEngineScore }) {
+  const layers = [score.reserve, score.sector, score.peers].filter((layer): layer is RelativeLayer => Boolean(layer));
+  return (
+    <div className="relativeScorePanel">
+      <div className="relativeScoreHero">
+        <div>
+          <p className="eyebrow">Relative ranking engine</p>
+          <h3>Relative Score {Math.round(score.score)} <span>{scoreBadge(score.score)}</span></h3>
+          <p>{score.sentence}</p>
+        </div>
+        <div>
+          <strong>{velocityLabel(score.velocity)}</strong>
+          <span>Score velocity</span>
+        </div>
+      </div>
+      <div className="relativeScoreLayers">
+        {layers.map((layer) => (
+          <div className="relativeScoreLayer" key={layer.label}>
+            <div className="relativeScoreLayerHead">
+              <span>{layer.label} vs {layer.target}</span>
+              <strong>{Math.round(layer.score)}/{layer.max}</strong>
+            </div>
+            {layer.label === "Peers" ? (
+              <p>{score.peerCount ? "Outperforming " + score.peerWins + " of " + score.peerCount + " comparable peers." : "No comparable peer history yet."}</p>
+            ) : (
+              <ul>
+                {layer.component.checks.map((check) => (
+                  <li key={layer.label + check.key}>
+                    <span>{checkMark(check)}</span>
+                    <div><strong>{check.label}</strong><em>{check.detail}</em></div>
+                    <b>{Math.round(check.points)}/{Math.round(check.max)}</b>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="relativeScoreNote">Relative Score identifies what is earning capital. Entry Score is deliberately separate and not inferred here.</p>
+    </div>
+  );
+}
 export default function RelativeLeadership() {
   const [dashboards, setDashboards] = useState<DashboardMap>({});
   const [prices, setPrices] = useState<StoredDailyPrice[]>([]);
@@ -495,7 +665,8 @@ export default function RelativeLeadership() {
   const fullSeries = left && right ? buildRatioSeries(leftHistory, rightHistory) : [];
   const series = applyRatioRange(fullSeries, range);
   const evidenceWindows = useMemo(() => relativeReturnWindows(fullSeries, evidenceRanges), [fullSeries]);
-  const strengthScore = useMemo(() => relativeStrengthScore(evidenceWindows), [evidenceWindows]);
+  const pairThreeMonth = evidenceWindows.find((item) => item.key === "3m")?.ratioReturnPercent ?? null;
+  const relativeEngine = useMemo(() => left ? buildRelativeEngineScore({ asset: left, prices, fxRates, holdings, savedIdeaNodes, benchmarkNodes }) : null, [left, prices, fxRates, holdings, savedIdeaNodes, benchmarkNodes]);
   const first = series[0];
   const last = series.at(-1);
   const ratioChange = first && last ? last.ratio / first.ratio * 100 - 100 : 0;
@@ -509,10 +680,12 @@ export default function RelativeLeadership() {
   const ratioTv = ratioTvExpression ? tradingViewRatioChartUrl(leftTvSymbol, rightTvSymbol) : "";
   const currentPairSymbols = [left?.symbol, right?.symbol].filter(Boolean) as string[];
   const pairStructuralLevels = structuralLevels.filter((level) => currentPairSymbols.includes(level.symbol) || currentPairSymbols.includes(level.comparisonSymbol));
-  const strengthToneValue = strengthTone(strengthScore);
+  const relativeScoreValue = relativeEngine?.score ?? null;
+  const strengthToneValue = strengthTone(relativeScoreValue);
   const strengthEntry: [string, ReactNode] | [string, ReactNode, "positive" | "negative"] = strengthToneValue
-    ? ["RS score", strengthScore == null ? "n/a" : Math.round(strengthScore), strengthToneValue]
-    : ["RS score", strengthScore == null ? "n/a" : Math.round(strengthScore)];
+    ? ["Relative Score", relativeScoreValue == null ? "n/a" : Math.round(relativeScoreValue), strengthToneValue]
+    : ["Relative Score", relativeScoreValue == null ? "n/a" : Math.round(relativeScoreValue)];
+  const velocityEntry: [string, ReactNode] = ["Velocity", relativeEngine ? velocityLabel(relativeEngine.velocity) : "n/a"];
 
   useEffect(() => {
     let cancelled = false;
@@ -789,8 +962,11 @@ export default function RelativeLeadership() {
               [`${right.symbol} move`, percent(rightChange), rightChange >= 0 ? "positive" : "negative"],
               ["Shared closes", series.length],
               strengthEntry,
+              velocityEntry,
             ]}
           />
+
+          {relativeEngine ? <RelativeScorePanel score={relativeEngine} /> : null}
 
           {ratioTvExpression ? (
             <div className="relativeTvPanel isPrimary">
@@ -823,7 +999,7 @@ export default function RelativeLeadership() {
           <div className="relativePeriodEvidence" aria-label="Relative return evidence by period">
             <div className="relativePeriodHeader">
               <p className="eyebrow">SouthernStar evidence</p>
-              <span>AUD-adjusted stored closes. Positive means {left.symbol} outperformed {right.symbol}. RS score: {strengthLabel(strengthScore)}</span>
+              <span>AUD-adjusted stored closes. Positive means {left.symbol} outperformed {right.symbol}. 3M pair trend: {periodPercent(pairThreeMonth)}</span>
             </div>
             <div className="relativePeriodGrid">
               {evidenceWindows.map((window) => (

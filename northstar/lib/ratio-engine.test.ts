@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { StoredDailyPrice, StoredFxRate } from "@/lib/storage";
-import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, relativeStrengthScore } from "./ratio-engine";
+import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, relativeStrengthScore, scoreRatioTrend, scoreRatioTrendVelocity } from "./ratio-engine";
 
 function closeTo(actual: number | null | undefined, expected: number, delta = 0.000001) {
   assert.ok(actual != null && Math.abs(actual - expected) <= delta, `expected ${actual} to be within ${delta} of ${expected}`);
@@ -139,4 +139,38 @@ test("relativeStrengthScore weights recent ratio leadership", () => {
 
   closeTo(score, 60.625);
   assert.equal(relativeStrengthScore([{ key: "1m", label: "1M", days: 31, startDate: null, endDate: null, ratioReturnPercent: null, leftReturnPercent: null, rightReturnPercent: null, points: 0 }]), null);
+});
+
+function ratioSeries(values: number[]) {
+  return values.map((ratio, index) => ({
+    date: new Date(Date.UTC(2026, 0, index + 1)).toISOString().slice(0, 10),
+    left: ratio,
+    right: 1,
+    leftAud: ratio,
+    rightAud: 1,
+    leftIndexed: ratio,
+    rightIndexed: 100,
+    ratio,
+  }));
+}
+
+test("scoreRatioTrend rewards trend, persistence and breakout transparently", () => {
+  const series = ratioSeries(Array.from({ length: 240 }, (_, index) => 100 + index * 0.5));
+  const score = scoreRatioTrend(series, 50);
+
+  assert.equal(Math.round(score.score), 50);
+  assert.deepEqual(score.checks.map((check) => check.passed), [true, true, true, true, true]);
+  assert.equal(score.checks[0].max, 20);
+  assert.match(score.checks[0].detail, /200D/);
+});
+
+test("scoreRatioTrendVelocity compares the current score with 30 days ago", () => {
+  const series = ratioSeries([
+    ...Array.from({ length: 170 }, (_, index) => 120 - index * 0.25),
+    ...Array.from({ length: 70 }, (_, index) => 78 + index * 0.9),
+  ]);
+
+  const velocity = scoreRatioTrendVelocity(series, 50);
+  assert.ok(velocity != null);
+  assert.ok(velocity >= 0, "improving relative trend should not have negative velocity");
 });

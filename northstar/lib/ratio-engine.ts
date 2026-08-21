@@ -45,6 +45,23 @@ export type RelativeReturnWindow = {
   points: number;
 };
 
+export type RelativeScoreCheck = {
+  key: "long_trend" | "medium_trend" | "momentum_3m" | "confirmation_6m" | "breakout";
+  label: string;
+  points: number;
+  max: number;
+  passed: boolean;
+  available: boolean;
+  detail: string;
+};
+
+export type RelativeScoreComponent = {
+  score: number;
+  max: number;
+  checks: RelativeScoreCheck[];
+  availableChecks: number;
+};
+
 export const RATIO_RANGES: Array<{ key: RatioRangeKey; label: string; days: number | null }> = [
   { key: "all", label: "All", days: null },
   { key: "5y", label: "5Y", days: 365 * 5 + 2 },
@@ -165,6 +182,111 @@ export function relativeStrengthScore(windows: RelativeReturnWindow[]) {
     totalWeight += weight;
   }
   return totalWeight ? weighted / totalWeight : null;
+}
+
+export function scoreRatioTrend(series: RatioPoint[], max = 50): RelativeScoreComponent {
+  const scale = max / 50;
+  const checks: RelativeScoreCheck[] = [
+    trendCheck(series, scale),
+    mediumTrendCheck(series, scale),
+    momentumCheck(series, "3m", "momentum_3m", "3M", 10 * scale),
+    momentumCheck(series, "6m", "confirmation_6m", "6M", 5 * scale),
+    breakoutCheck(series, scale),
+  ];
+  const score = checks.reduce((sum, check) => sum + check.points, 0);
+  return { score, max, checks, availableChecks: checks.filter((check) => check.available).length };
+}
+
+export function scoreRatioTrendVelocity(series: RatioPoint[], max = 50, days = 30) {
+  const latest = series.at(-1);
+  if (!latest) return null;
+  const cutoff = dateTime(latest.date) - days * 24 * 60 * 60 * 1000;
+  const priorSeries = series.filter((point) => dateTime(point.date) <= cutoff);
+  if (priorSeries.length < 2) return null;
+  return scoreRatioTrend(series, max).score - scoreRatioTrend(priorSeries, max).score;
+}
+
+function trendCheck(series: RatioPoint[], scale: number): RelativeScoreCheck {
+  const max = 20 * scale;
+  const long = movingAverage(series, 200);
+  const last = series.at(-1);
+  const available = Boolean(last && long != null);
+  const passed = available && last!.ratio > long!;
+  return {
+    key: "long_trend",
+    label: "Ratio above 200-day average",
+    max,
+    points: passed ? max : 0,
+    passed,
+    available,
+    detail: available ? "latest " + formatRatio(last!.ratio) + " vs 200D " + formatRatio(long!) : "needs roughly 200 stored closes",
+  };
+}
+
+function mediumTrendCheck(series: RatioPoint[], scale: number): RelativeScoreCheck {
+  const max = 10 * scale;
+  const medium = movingAverage(series, 50);
+  const long = movingAverage(series, 200);
+  const available = medium != null && long != null;
+  const passed = available && medium! > long!;
+  return {
+    key: "medium_trend",
+    label: "50-day average above 200-day",
+    max,
+    points: passed ? max : 0,
+    passed,
+    available,
+    detail: available ? "50D " + formatRatio(medium!) + " vs 200D " + formatRatio(long!) : "needs roughly 200 stored closes",
+  };
+}
+
+function momentumCheck(series: RatioPoint[], range: RatioRangeKey, key: RelativeScoreCheck["key"], label: string, max: number): RelativeScoreCheck {
+  const window = relativeReturnWindows(series, RATIO_RANGES.filter((item) => item.key === range))[0];
+  const available = Boolean(window && window.points >= 2 && window.ratioReturnPercent != null);
+  const passed = available && window.ratioReturnPercent! > 0;
+  return {
+    key,
+    label: "Ratio rising over " + label,
+    max,
+    points: passed ? max : 0,
+    passed,
+    available,
+    detail: available ? formatPercent(window.ratioReturnPercent!) + " relative return" : "needs overlapping stored closes",
+  };
+}
+
+function breakoutCheck(series: RatioPoint[], scale: number): RelativeScoreCheck {
+  const max = 5 * scale;
+  const last = series.at(-1);
+  const prior = series.slice(Math.max(0, series.length - 253), Math.max(0, series.length - 20));
+  const priorHigh = prior.length ? Math.max(...prior.map((point) => point.ratio)) : null;
+  const available = Boolean(last && priorHigh != null && Number.isFinite(priorHigh));
+  const passed = available && last!.ratio >= priorHigh! * 0.995;
+  return {
+    key: "breakout",
+    label: "Near or above prior relative high",
+    max,
+    points: passed ? max : 0,
+    passed,
+    available,
+    detail: available ? "latest " + formatRatio(last!.ratio) + " vs prior high " + formatRatio(priorHigh!) : "needs prior relative highs",
+  };
+}
+
+function movingAverage(series: RatioPoint[], lookback: number) {
+  if (series.length < Math.min(lookback, 120)) return null;
+  const slice = series.slice(-lookback);
+  return slice.reduce((sum, point) => sum + point.ratio, 0) / slice.length;
+}
+
+function formatRatio(value: number) {
+  if (value >= 10) return value.toFixed(1);
+  if (value >= 1) return value.toFixed(2);
+  return value.toFixed(3);
+}
+
+function formatPercent(value: number) {
+  return (value >= 0 ? "+" : "") + value.toLocaleString("en-AU", { maximumFractionDigits: 1 }) + "%";
 }
 
 function clamp(value: number, min: number, max: number) {

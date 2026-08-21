@@ -2588,3 +2588,113 @@ button:disabled { opacity: .55; cursor: wait; }
   color: var(--muted-dim);
   font-size: 12px;
 }
+
+.relativeScorePanel {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(106,130,153,.22);
+  border-radius: 16px;
+  background: rgba(4,12,20,.34);
+}
+.relativeScoreHero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.relativeScoreHero h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 22px;
+}
+.relativeScoreHero h3 span {
+  color: var(--accent-gold);
+  font-size: 13px;
+}
+.relativeScoreHero p,
+.relativeScoreHero span,
+.relativeScoreNote {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.relativeScoreHero > div:last-child {
+  min-width: 116px;
+  text-align: right;
+}
+.relativeScoreHero > div:last-child strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.relativeScoreLayers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.relativeScoreLayer {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(106,130,153,.18);
+  border-radius: 12px;
+  background: rgba(2,9,18,.40);
+}
+.relativeScoreLayerHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.relativeScoreLayerHead span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.relativeScoreLayerHead strong {
+  color: var(--text-primary);
+  font-size: 17px;
+}
+.relativeScoreLayer p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.relativeScoreLayer ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.relativeScoreLayer li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+.relativeScoreLayer li > span {
+  color: var(--accent-gold);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.relativeScoreLayer li strong,
+.relativeScoreLayer li em,
+.relativeScoreLayer li b {
+  display: block;
+  font-size: 11px;
+  font-style: normal;
+}
+.relativeScoreLayer li strong { color: var(--text-primary); }
+.relativeScoreLayer li em { color: var(--text-muted); }
+.relativeScoreLayer li b { color: var(--text-muted); font-weight: 700; }
+@media (max-width: 900px) {
+  .relativeScoreHero { flex-direction: column; }
+  .relativeScoreHero > div:last-child { text-align: left; }
+  .relativeScoreLayers { grid-template-columns: 1fr; }
+}
