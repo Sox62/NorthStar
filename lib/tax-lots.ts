@@ -128,11 +128,14 @@ function audAmount(value: number | null | undefined, fxRateToBase: number | null
  * does not have. When those two disagree the account-qualified key misses, every lot falls back to
  * cost basis, and the positions read as undated even though their trades are sitting in storage.
  */
-function brokerKey(input: { ownerType: string; broker: string; instrumentKey?: string; symbol: string; exchange: string }) {
+function brokerKey(input: { ownerType: string; broker: string; symbol: string; exchange: string }) {
+  // Ticker and venue, not the instrument key: the key is not written the same way on both sides.
+  // Postgres stores a Directshares position as "ASL:ASX" while an imported trade carries
+  // "Directshares:ASL:ASX", so keying on it reproduces the very mismatch this exists to survive.
   return [
     input.ownerType,
     input.broker,
-    input.instrumentKey || `${input.symbol}:${input.exchange}`,
+    `${input.symbol}:${input.exchange}`.toUpperCase(),
   ].join("|");
 }
 

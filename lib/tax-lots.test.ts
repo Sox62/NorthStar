@@ -115,3 +115,36 @@ test("buildTaxLots applies FIFO realised and open lots", () => {
   assert.equal(report.openLots[0].marketValueAud, 1200);
   assert.equal(report.openLots[0].taxableGainIfSoldAud, 300);
 });
+
+test("a position is dated even when its trades spell the instrument key differently", () => {
+  // Production stores a Directshares position as "ASL:ASX" while the imported trade carries
+  // "Directshares:ASL:ASX", and the accounts differ too: the holdings export names a real account
+  // number, the All Trades Report names nobody. Keyed strictly, 123 imported trades sat in storage
+  // while every one of those positions still reported "no trade history".
+  const holding = {
+    id: "h1", ownerType: "PERSONAL", broker: "Directshares", accountKey: "4317403",
+    instrumentKey: "ASL:ASX", symbol: "ASL", name: "Andean Silver", exchange: "ASX", currency: "AUD",
+    assetClass: "EQUITY", quantity: 23486, lastPrice: 1.6, averageCostAud: 1.45, costAud: 34055,
+    marketValueAud: 37578, dayGainAud: 0, pnlAud: 3523, pnlPercent: 10.3,
+    valuationBasis: "market", asOfDate: "2026-08-20", source: "Directshares", weight: 1,
+  };
+  const trade = {
+    id: "t1", ownerType: "PERSONAL", broker: "Directshares", accountKey: "DIRECTSHARES",
+    externalId: "DS-TRADE:ASL", tradeDate: "2025-07-14", symbol: "ASL", exchange: "ASX",
+    instrumentKey: "Directshares:ASL:ASX", type: "BUY", quantity: 23486, price: 1.45,
+    cost: 34054.7, currency: "AUD", fees: 59, fxRateToBase: 1,
+    source: "Directshares All Trades Report",
+  };
+  const data = {
+    scope: "overall", storageMode: "postgresql", totalValue: 37578, investedValue: 37578,
+    cashValue: 0, dailyMovement: 0, totalReturn: 3523, totalReturnPercent: 10.3,
+    holdings: [holding], cashAccounts: [], allocations: [], performance: [], periodReturns: [],
+    xirr: {}, income: {}, allocationTargets: [], currencyExposure: [], accounts: [],
+    lastUpdated: "2026-08-20T00:00:00.000Z",
+  };
+
+  const result = buildTaxLots(data as never, [trade as never], new Date("2026-08-20T00:00:00.000Z"));
+  assert.equal(result.summary.fallbackLots, 0, "the trade must date the position");
+  assert.equal(result.openLots[0]?.acquisitionDate, "2025-07-14");
+  assert.equal(result.openLots[0]?.discountEligible, true, "held over a year, so the CGT discount applies");
+});
