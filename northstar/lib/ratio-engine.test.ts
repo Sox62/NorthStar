@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { StoredDailyPrice, StoredFxRate } from "@/lib/storage";
-import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows } from "./ratio-engine";
+import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, relativeStrengthScore } from "./ratio-engine";
 
 function closeTo(actual: number | null | undefined, expected: number, delta = 0.000001) {
   assert.ok(actual != null && Math.abs(actual - expected) <= delta, `expected ${actual} to be within ${delta} of ${expected}`);
@@ -127,4 +127,16 @@ test("buildInstrumentHistory can use stored FX rates as a currency benchmark", (
   );
   assert.deepEqual(history.map((point) => point.valueAud), [1.5, 1.6]);
   assert.deepEqual(history.map((point) => point.close), [1, 1]);
+});
+
+test("relativeStrengthScore weights recent ratio leadership", () => {
+  const score = relativeStrengthScore([
+    { key: "1m", label: "1M", days: 31, startDate: "2026-07-01", endDate: "2026-08-01", ratioReturnPercent: 20, leftReturnPercent: 30, rightReturnPercent: 8, points: 20 },
+    { key: "3m", label: "3M", days: 92, startDate: "2026-05-01", endDate: "2026-08-01", ratioReturnPercent: 10, leftReturnPercent: 18, rightReturnPercent: 7, points: 60 },
+    { key: "6m", label: "6M", days: 183, startDate: "2026-02-01", endDate: "2026-08-01", ratioReturnPercent: 0, leftReturnPercent: 5, rightReturnPercent: 5, points: 120 },
+    { key: "12m", label: "12M", days: 366, startDate: "2025-08-01", endDate: "2026-08-01", ratioReturnPercent: -10, leftReturnPercent: 0, rightReturnPercent: 11, points: 240 },
+  ]);
+
+  closeTo(score, 60.625);
+  assert.equal(relativeStrengthScore([{ key: "1m", label: "1M", days: 31, startDate: null, endDate: null, ratioReturnPercent: null, leftReturnPercent: null, rightReturnPercent: null, points: 0 }]), null);
 });

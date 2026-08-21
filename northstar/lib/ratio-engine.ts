@@ -152,6 +152,25 @@ export function relativeReturnWindows(series: RatioPoint[], ranges = RATIO_RANGE
   });
 }
 
+export function relativeStrengthScore(windows: RelativeReturnWindow[]) {
+  const weights: Partial<Record<RatioRangeKey, number>> = { "1m": 0.35, "3m": 0.3, "6m": 0.2, "12m": 0.15 };
+  let weighted = 0;
+  let totalWeight = 0;
+  for (const window of windows) {
+    const weight = weights[window.key] ?? 0;
+    if (!weight || window.points < 2 || window.ratioReturnPercent == null) continue;
+    // +/-40% relative return spans the full 0-100 score, with 50 reading neutral.
+    const score = clamp(50 + window.ratioReturnPercent * 1.25, 0, 100);
+    weighted += score * weight;
+    totalWeight += weight;
+  }
+  return totalWeight ? weighted / totalWeight : null;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
 function buildCurrencyHistory(fxRates: StoredFxRate[], instrument: RatioInstrument): RatioHistoryPoint[] {
   const symbol = normaliseSymbol(instrument.symbol);
   const currency = normaliseCurrency(instrument.currency);

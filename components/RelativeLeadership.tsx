@@ -1,12 +1,13 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import TradingViewWidget from "@/components/TradingViewWidget";
-import type { DashboardData, DashboardHolding, OwnerType, Scope, StoredDailyPrice, StoredFxRate, StructuralLevel } from "@/lib/storage";
+import type { DashboardData, DashboardHolding, MinerFundamentals, OwnerType, Scope, StoredDailyPrice, StoredFxRate, StructuralLevel } from "@/lib/storage";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { RESEARCH_BENCHMARKS, resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
-import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, RATIO_RANGES, type RatioPoint, type RatioRangeKey, type RelativeReturnWindow } from "@/northstar/lib/ratio-engine";
+import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, relativeStrengthScore, RATIO_RANGES, type RatioPoint, type RatioRangeKey, type RelativeReturnWindow } from "@/northstar/lib/ratio-engine";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
 import { customBenchmarkNode, parseSelectionValue, selectionValue } from "@/northstar/lib/selection";
 import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
@@ -18,6 +19,8 @@ type PriceBookResponse = {
   error?: string;
 };
 type StructuralLevelsResponse = { levels?: StructuralLevel[]; error?: string };
+type FundamentalsResponse = { fundamentals?: MinerFundamentals[]; error?: string };
+type IdeaGroup = { label: string; nodes: BenchmarkNode[] };
 type StructuralLevelForm = {
   id: string;
   symbol: string;
@@ -91,6 +94,13 @@ async function loadStoredPrices(): Promise<{ prices: StoredDailyPrice[]; fxRates
   const payload = await response.json() as PriceBookResponse;
   if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load stored prices");
   return { prices: payload.prices ?? [], fxRates: payload.fxRates ?? [] };
+}
+
+async function loadFundamentals(): Promise<MinerFundamentals[]> {
+  const response = await fetch("/api/fundamentals", { cache: "no-store" });
+  const payload = await response.json() as FundamentalsResponse;
+  if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load saved fundamentals");
+  return payload.fundamentals ?? [];
 }
 
 async function loadStructuralLevels(symbols: string[]): Promise<StructuralLevel[]> {
@@ -202,6 +212,60 @@ function benchmarkOptionLabel(node: BenchmarkNode) {
   return `${symbol} · ${node.label}`;
 }
 
+function savedIdeaNode(item: MinerFundamentals): BenchmarkNode {
+  const symbol = item.symbol.trim().toUpperCase();
+  const category = savedIdeaCategory(item);
+  return {
+    id: `saved_idea:${category.toLowerCase().replace(/[^a-z0-9]+/g, "-")}:${symbol}`,
+    label: item.name?.trim() || symbol,
+    role: "candidate",
+    symbol,
+    tradingViewSymbol: symbol,
+    basisCurrency: "USD",
+    note: [category, item.projectStage, item.jurisdiction].filter(Boolean).join(" · ") || "Saved fundamentals idea",
+  };
+}
+
+function savedIdeaCategory(item: MinerFundamentals) {
+  const metal = (item.primaryMetal ?? "").toLowerCase();
+  const stage = (item.projectStage ?? "").toLowerCase();
+  if (/developer|development|explorer|exploration|pre[- ]?production|permitting|study|feasibility/.test(stage)) return "Developers";
+  if (metal.includes("gold")) return "Gold Producers";
+  if (metal.includes("silver")) return "Silver";
+  if (metal.includes("uranium")) return "Uranium";
+  if (metal.includes("copper")) return "Copper";
+  return "Other Saved Ideas";
+}
+
+function groupSavedIdeaNodes(nodes: BenchmarkNode[]): IdeaGroup[] {
+  const order = ["Gold Producers", "Silver", "Uranium", "Copper", "Developers", "Other Saved Ideas"];
+  const groups = new Map(order.map((label) => [label, [] as BenchmarkNode[]]));
+  for (const node of nodes) {
+    const label = node.note?.split(" · ")[0] || "Other Saved Ideas";
+    const group = groups.get(label) ?? groups.get("Other Saved Ideas")!;
+    group.push(node);
+  }
+  return order
+    .map((label) => ({ label, nodes: (groups.get(label) ?? []).sort((a, b) => (a.symbol ?? a.label).localeCompare(b.symbol ?? b.label)) }))
+    .filter((group) => group.nodes.length);
+}
+
+function strengthLabel(score: number | null) {
+  if (score == null) return "n/a";
+  if (score >= 70) return "Strong";
+  if (score >= 55) return "Leading";
+  if (score > 45) return "Neutral";
+  if (score > 30) return "Lagging";
+  return "Weak";
+}
+
+function strengthTone(score: number | null) {
+  if (score == null) return undefined;
+  if (score >= 55) return "positive";
+  if (score <= 45) return "negative";
+  return undefined;
+}
+
 function formatAxisTick(value: number, mode: RatioMode) {
   if (mode !== "ratio") return value.toFixed(1);
   if (value >= 10) return value.toFixed(1);
@@ -309,9 +373,35 @@ function RelativePeriodCell({ window, left, right }: { window: RelativeReturnWin
     </div>
   );
 }
+function ComparisonOptionGroups({ permanent, custom, savedGroups, side }: { permanent: BenchmarkNode[]; custom: BenchmarkNode[]; savedGroups: IdeaGroup[]; side: "left" | "right" }) {
+  return (
+    <>
+      <optgroup label="Permanent benchmarks">
+        {permanent.map((node) => (
+          <option key={node.id + ":" + side} value={selectionValue("benchmark", node.id)}>{benchmarkOptionLabel(node)}</option>
+        ))}
+      </optgroup>
+      {custom.length ? (
+        <optgroup label="Typed tickers">
+          {custom.map((node) => (
+            <option key={node.id + ":" + side} value={selectionValue("benchmark", node.id)}>{benchmarkOptionLabel(node)}</option>
+          ))}
+        </optgroup>
+      ) : null}
+      {savedGroups.map((group) => (
+        <optgroup key={group.label + ":" + side} label={"Saved ideas — " + group.label}>
+          {group.nodes.map((node) => (
+            <option key={node.id + ":" + side} value={selectionValue("benchmark", node.id)}>{benchmarkOptionLabel(node)}</option>
+          ))}
+        </optgroup>
+      ))}
+    </>
+  );
+}
 export default function RelativeLeadership() {
   const [dashboards, setDashboards] = useState<DashboardMap>({});
   const [prices, setPrices] = useState<StoredDailyPrice[]>([]);
+  const [fundamentals, setFundamentals] = useState<MinerFundamentals[]>([]);
   const [fxRates, setFxRates] = useState<StoredFxRate[]>([]);
   const [scope, setScope] = useState<Scope>("overall");
   const [leftId, setLeftId] = useState("");
@@ -339,16 +429,18 @@ export default function RelativeLeadership() {
       setLoading(true);
       setError("");
       try {
-        const [overall, personal, smsf, storedPrices] = await Promise.all([
+        const [overall, personal, smsf, storedPrices, savedFundamentals] = await Promise.all([
           loadDashboard("overall"),
           loadDashboard("personal"),
           loadDashboard("smsf"),
           loadStoredPrices(),
+          loadFundamentals(),
         ]);
         if (!cancelled) {
           setDashboards({ overall, personal, smsf });
           setPrices(storedPrices.prices);
           setFxRates(storedPrices.fxRates);
+          setFundamentals(savedFundamentals);
         }
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load relative chart");
@@ -374,13 +466,24 @@ export default function RelativeLeadership() {
     if (!rightBenchmarkId && !holdings.some((holding) => holding.id === rightId)) setRightId(defaultSymbol(holdings, 1));
   }, [holdings, leftId, rightId, leftBenchmarkId, rightBenchmarkId]);
 
+  const heldSymbols = useMemo(() => new Set(holdings.map((holding) => holding.symbol.toUpperCase())), [holdings]);
+  const savedIdeaNodes = useMemo(() => {
+    return fundamentals
+      .filter((item) => item.symbol && !heldSymbols.has(item.symbol.toUpperCase()))
+      .map(savedIdeaNode)
+      .filter(nodeIsChartable);
+  }, [fundamentals, heldSymbols]);
+  const savedIdeaGroups = useMemo(() => groupSavedIdeaNodes(savedIdeaNodes), [savedIdeaNodes]);
   const benchmarkNodes = useMemo(() => {
     const holdingBenchmarks = holdings.flatMap((holding) => {
       const tree = resolveBenchmarkTree({ symbol: holding.symbol, name: holding.name, sector: sectorForInstrument(holding), exchange: holding.exchange, currency: holding.currency });
       return tree ? [...tree.path, ...tree.peers] : [];
     });
-    return mergeBenchmarkNodes([...customNodes, ...holdingBenchmarks, ...RESEARCH_BENCHMARKS]).filter(nodeIsChartable);
-  }, [customNodes, holdings]);
+    return mergeBenchmarkNodes([...customNodes, ...savedIdeaNodes, ...holdingBenchmarks, ...RESEARCH_BENCHMARKS]).filter(nodeIsChartable);
+  }, [customNodes, holdings, savedIdeaNodes]);
+  const customNodeIds = useMemo(() => new Set(customNodes.map((node) => node.id)), [customNodes]);
+  const savedIdeaNodeIds = useMemo(() => new Set(savedIdeaNodes.map((node) => node.id)), [savedIdeaNodes]);
+  const permanentBenchmarkNodes = useMemo(() => benchmarkNodes.filter((node) => !customNodeIds.has(node.id) && !savedIdeaNodeIds.has(node.id)), [benchmarkNodes, customNodeIds, savedIdeaNodeIds]);
   const leftHolding = holdings.find((holding) => holding.id === leftId) ?? null;
   const rightHolding = holdings.find((holding) => holding.id === rightId) ?? null;
   const selectedLeftBenchmark = benchmarkNodes.find((node) => node.id === leftBenchmarkId) ?? null;
@@ -392,6 +495,7 @@ export default function RelativeLeadership() {
   const fullSeries = left && right ? buildRatioSeries(leftHistory, rightHistory) : [];
   const series = applyRatioRange(fullSeries, range);
   const evidenceWindows = useMemo(() => relativeReturnWindows(fullSeries, evidenceRanges), [fullSeries]);
+  const strengthScore = useMemo(() => relativeStrengthScore(evidenceWindows), [evidenceWindows]);
   const first = series[0];
   const last = series.at(-1);
   const ratioChange = first && last ? last.ratio / first.ratio * 100 - 100 : 0;
@@ -405,6 +509,10 @@ export default function RelativeLeadership() {
   const ratioTv = ratioTvExpression ? tradingViewRatioChartUrl(leftTvSymbol, rightTvSymbol) : "";
   const currentPairSymbols = [left?.symbol, right?.symbol].filter(Boolean) as string[];
   const pairStructuralLevels = structuralLevels.filter((level) => currentPairSymbols.includes(level.symbol) || currentPairSymbols.includes(level.comparisonSymbol));
+  const strengthToneValue = strengthTone(strengthScore);
+  const strengthEntry: [string, ReactNode] | [string, ReactNode, "positive" | "negative"] = strengthToneValue
+    ? ["RS score", strengthScore == null ? "n/a" : Math.round(strengthScore), strengthToneValue]
+    : ["RS score", strengthScore == null ? "n/a" : Math.round(strengthScore)];
 
   useEffect(() => {
     let cancelled = false;
@@ -614,11 +722,7 @@ export default function RelativeLeadership() {
                 }}
               >
                 <option value="" disabled>Choose first asset</option>
-                <optgroup label="Benchmarks and research tickers">
-                  {benchmarkNodes.map((node) => (
-                    <option key={node.id + ":left"} value={selectionValue("benchmark", node.id)}>{benchmarkOptionLabel(node)}</option>
-                  ))}
-                </optgroup>
+                <ComparisonOptionGroups permanent={permanentBenchmarkNodes} custom={customNodes} savedGroups={savedIdeaGroups} side="left" />
                 <optgroup label="Holdings">
                   {holdings.map((holding) => (
                     <option key={holding.id} value={selectionValue("holding", holding.id)}>{holding.symbol} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
@@ -653,11 +757,7 @@ export default function RelativeLeadership() {
                 }}
               >
                 <option value="" disabled>Choose second asset</option>
-                <optgroup label="Benchmarks and research tickers">
-                  {benchmarkNodes.map((node) => (
-                    <option key={node.id + ":right"} value={selectionValue("benchmark", node.id)}>{benchmarkOptionLabel(node)}</option>
-                  ))}
-                </optgroup>
+                <ComparisonOptionGroups permanent={permanentBenchmarkNodes} custom={customNodes} savedGroups={savedIdeaGroups} side="right" />
                 <optgroup label="Holdings">
                   {holdings.map((holding) => (
                     <option key={holding.id} value={selectionValue("holding", holding.id)}>{holding.symbol} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
@@ -688,6 +788,7 @@ export default function RelativeLeadership() {
               [`${left.symbol} move`, percent(leftChange), leftChange >= 0 ? "positive" : "negative"],
               [`${right.symbol} move`, percent(rightChange), rightChange >= 0 ? "positive" : "negative"],
               ["Shared closes", series.length],
+              strengthEntry,
             ]}
           />
 
@@ -722,7 +823,7 @@ export default function RelativeLeadership() {
           <div className="relativePeriodEvidence" aria-label="Relative return evidence by period">
             <div className="relativePeriodHeader">
               <p className="eyebrow">SouthernStar evidence</p>
-              <span>AUD-adjusted stored closes. Positive means {left.symbol} outperformed {right.symbol}.</span>
+              <span>AUD-adjusted stored closes. Positive means {left.symbol} outperformed {right.symbol}. RS score: {strengthLabel(strengthScore)}</span>
             </div>
             <div className="relativePeriodGrid">
               {evidenceWindows.map((window) => (
