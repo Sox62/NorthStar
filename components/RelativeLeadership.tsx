@@ -1,15 +1,17 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import TradingViewWidget from "@/components/TradingViewWidget";
-import { allocationRead, type SouthernStarAllocationRead } from "@/components/fundamentals/detail-model";
+import { RatioChart, RelativePeriodCell, type RatioMode } from "@/components/relative/RatioChart";
+import { AllocationReadPanel, EntryScorePanel, OpportunityMatrix, RelativeScorePanel, velocityLabel, type OpportunityRow, type OpportunitySortKey, type RelativeEngineScore, type RelativeLayer } from "@/components/relative/ScorePanels";
+import { allocationRead } from "@/components/fundamentals/detail-model";
 import type { DashboardData, DashboardHolding, MinerFundamentals, OwnerType, Scope, StoredDailyPrice, StoredFxRate, StructuralLevel } from "@/lib/storage";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { RESEARCH_BENCHMARKS, resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
-import { scoreEntryCondition, type EntryScoreResult } from "@/northstar/lib/entry-score";
-import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, scoreRatioTrend, scoreRatioTrendVelocity, RATIO_RANGES, type RatioPoint, type RatioRangeKey, type RelativeReturnWindow, type RelativeScoreCheck, type RelativeScoreComponent } from "@/northstar/lib/ratio-engine";
+import { scoreEntryCondition } from "@/northstar/lib/entry-score";
+import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, scoreRatioTrend, scoreRatioTrendVelocity, RATIO_RANGES, type RatioPoint, type RatioRangeKey, type RelativeScoreComponent } from "@/northstar/lib/ratio-engine";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
 import { customBenchmarkNode, parseSelectionValue, selectionValue } from "@/northstar/lib/selection";
 import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
@@ -23,10 +25,6 @@ type PriceBookResponse = {
 type StructuralLevelsResponse = { levels?: StructuralLevel[]; error?: string };
 type FundamentalsResponse = { fundamentals?: MinerFundamentals[]; error?: string };
 type IdeaGroup = { label: string; nodes: BenchmarkNode[] };
-type RelativeLayer = { label: string; target: string; score: number; max: number; component: RelativeScoreComponent; velocity: number | null };
-type RelativeEngineScore = { score: number; velocity: number | null; reserve: RelativeLayer; sector: RelativeLayer | null; peers: RelativeLayer; peerCount: number; peerWins: number; sentence: string };
-type OpportunitySortKey = "allocation" | "fundamental" | "relative" | "velocity" | "valuation" | "entry";
-type OpportunityRow = { symbol: string; name: string; model: string; source: string; fundamental: number | null; relative: number | null; velocity: number | null; valuation: number | null; entry: number | null; allocation: number | null; allocationLabel: string; selectionKind: "holding" | "benchmark"; selectionId: string; };
 type StructuralLevelForm = {
   id: string;
   symbol: string;
@@ -40,7 +38,6 @@ type StructuralLevelForm = {
   notes: string;
   asOfDate: string;
 };
-type RatioMode = "ratio" | "indexed";
 type RangeKey = Extract<RatioRangeKey, "all" | "5y" | "3y" | "12m" | "6m" | "3m" | "1m">;
 
 const scopes: Array<{ key: Scope; label: string }> = [
@@ -70,18 +67,10 @@ const structuralBlank: StructuralLevelForm = {
   asOfDate: "",
 };
 
-const localPrice = (value: number, currency: string) =>
-  `${currency} ${value.toLocaleString("en-AU", {
-    minimumFractionDigits: value >= 100 ? 2 : 3,
-    maximumFractionDigits: value >= 100 ? 2 : 4,
-  })}`;
-
 const percent = (value: number) =>
   `${value >= 0 ? "+" : ""}${value.toLocaleString("en-AU", { maximumFractionDigits: 1 })}%`;
 
 const periodPercent = (value: number | null) => value == null ? "n/a" : percent(value);
-const periodTone = (value: number | null) => value == null ? "isMuted" : value >= 0 ? "isPositive" : "isNegative";
-
 const dateLabel = (value: string) => {
   const date = new Date(`${value}T12:00:00Z`);
   if (Number.isNaN(date.getTime())) return value;
@@ -272,22 +261,6 @@ function strengthTone(score: number | null) {
   return undefined;
 }
 
-function scoreBadge(score: number | null) {
-  if (score == null) return "n/a";
-  if (score >= 75) return "Strong";
-  if (score >= 60) return "Leading";
-  if (score >= 45) return "Neutral";
-  if (score >= 30) return "Lagging";
-  return "Weak";
-}
-
-function velocityLabel(value: number | null) {
-  if (value == null) return "n/a";
-  const rounded = Math.round(value);
-  if (rounded === 0) return "0 over 30d";
-  return rounded > 0 ? "up +" + rounded + " over 30d" : "down " + rounded + " over 30d";
-}
-
 function componentWins(component: RelativeScoreComponent) {
   return component.score >= component.max * 0.55;
 }
@@ -393,118 +366,6 @@ function buildRelativeEngineScore(input: {
   return { score, velocity, reserve, sector, peers, peerCount: peerLayers.length, peerWins, sentence };
 }
 
-function checkMark(check: RelativeScoreCheck) {
-  if (!check.available) return "-";
-  return check.passed ? "yes" : "no";
-}
-
-function formatAxisTick(value: number, mode: RatioMode) {
-  if (mode !== "ratio") return value.toFixed(1);
-  if (value >= 10) return value.toFixed(1);
-  if (value >= 1) return value.toFixed(2);
-  return value.toFixed(3);
-}
-
-function RatioChart({ series, mode, left, right }: { series: RatioPoint[]; mode: RatioMode; left: DashboardHolding; right: DashboardHolding }) {
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const chartRef = useRef<SVGSVGElement | null>(null);
-  const width = 920;
-  const height = 360;
-  const padX = 40;
-  const padTop = 28;
-  const padBottom = 42;
-  const chartWidth = width - padX * 2;
-  const chartHeight = height - padTop - padBottom;
-  const values = mode === "ratio"
-    ? series.map((point) => point.ratio)
-    : series.flatMap((point) => [point.leftIndexed, point.rightIndexed]);
-  const rawMax = values.length ? Math.max(...values) : 1;
-  const rawMin = values.length ? Math.min(...values) : 0;
-  const rawRange = Math.max(0.000001, rawMax - rawMin);
-  const padding = mode === "ratio" ? Math.max(rawRange * 0.08, Math.abs(rawMax) * 0.02, 0.01) : 0;
-  const max = mode === "ratio" ? rawMax + padding : Math.max(rawMax, 100);
-  const min = mode === "ratio" ? Math.max(0, rawMin - padding) : Math.min(rawMin, 100);
-  const range = Math.max(0.000001, max - min);
-  const xy = (point: RatioPoint, index: number, key: "ratio" | "leftIndexed" | "rightIndexed") => ({
-    x: padX + (series.length === 1 ? chartWidth : index / Math.max(1, series.length - 1) * chartWidth),
-    y: padTop + (max - point[key]) / range * chartHeight,
-  });
-  const pathFor = (key: "ratio" | "leftIndexed" | "rightIndexed") =>
-    series.map((point, index) => {
-      const pointXY = xy(point, index, key);
-      return `${index === 0 ? "M" : "L"} ${pointXY.x.toFixed(2)} ${pointXY.y.toFixed(2)}`;
-    }).join(" ");
-  const active = hoverIndex == null ? null : series[hoverIndex];
-  const activeXY = active ? xy(active, hoverIndex!, mode === "ratio" ? "ratio" : "leftIndexed") : null;
-  const ticks = [max, min + range / 2, min];
-  const labels = series.filter((_, index) => {
-    if (series.length <= 6) return true;
-    return index % Math.max(1, Math.floor(series.length / 5)) === 0 || index === series.length - 1;
-  }).slice(-6);
-  const onPointerMove = (event: React.PointerEvent<SVGElement>) => {
-    const rect = chartRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-    setHoverIndex(Math.round(ratio * Math.max(0, series.length - 1)));
-  };
-
-  return (
-    <div className="relativeChartWrap">
-      <svg ref={chartRef} className="relativeChart" width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${left.symbol} versus ${right.symbol}`}>
-        {ticks.map((tick) => {
-          const y = padTop + (max - tick) / range * chartHeight;
-          return (
-            <g key={tick.toFixed(4)}>
-              <line className="relativeChartGrid" x1={padX} x2={padX + chartWidth} y1={y} y2={y} />
-              <text className="relativeChartAxis" x={padX + chartWidth - 5} y={Math.max(12, y - 6)} textAnchor="end">{formatAxisTick(tick, mode)}</text>
-            </g>
-          );
-        })}
-        {mode === "ratio" ? (
-          <path className="relativeChartLine isRatio" d={pathFor("ratio")} />
-        ) : (
-          <>
-            <path className="relativeChartLine isLeft" d={pathFor("leftIndexed")} />
-            <path className="relativeChartLine isRight" d={pathFor("rightIndexed")} />
-          </>
-        )}
-        {active && activeXY ? (
-          <>
-            <line className="relativeChartCrosshair" x1={activeXY.x} x2={activeXY.x} y1={padTop} y2={height - padBottom} />
-            <circle className="relativeChartDot" cx={activeXY.x} cy={activeXY.y} r="5" />
-          </>
-        ) : null}
-        <rect x="0" y="0" width={width} height={height} fill="transparent" onPointerMove={onPointerMove} onPointerLeave={() => setHoverIndex(null)} />
-        {labels.map((point) => {
-          const index = series.indexOf(point);
-          const x = padX + (series.length === 1 ? chartWidth : index / Math.max(1, series.length - 1) * chartWidth);
-          return <text key={point.date} className="relativeChartDate" x={x} y={height - 11} textAnchor={index === 0 ? "start" : index === series.length - 1 ? "end" : "middle"}>{dateLabel(point.date).replace(" 202", " 2")}</text>;
-        })}
-      </svg>
-      {active && activeXY ? (
-        <div className={`relativeTooltip ${activeXY.x > width * 0.66 ? "isLeft" : ""}`} style={{ left: `${activeXY.x / width * 100}%`, top: `${Math.max(10, Math.min(74, activeXY.y / height * 100))}%` }}>
-          <span>{dateLabel(active.date)}</span>
-          {mode === "ratio" ? <strong>{active.ratio.toFixed(2)} ratio</strong> : <strong>{left.symbol} {active.leftIndexed.toFixed(1)} · {right.symbol} {active.rightIndexed.toFixed(1)}</strong>}
-          <em>{localPrice(active.left, left.currency)} / {localPrice(active.right, right.currency)}</em>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function RelativePeriodCell({ window, left, right }: { window: RelativeReturnWindow; left: string; right: string }) {
-  const enoughData = window.points >= 2 && window.ratioReturnPercent != null;
-  const detail = enoughData
-    ? window.points + " closes · " + left + " " + periodPercent(window.leftReturnPercent) + " / " + right + " " + periodPercent(window.rightReturnPercent)
-    : "Not enough overlap";
-  return (
-    <div className="relativePeriodCell">
-      <span>{window.label}</span>
-      <strong className={periodTone(window.ratioReturnPercent)}>{periodPercent(window.ratioReturnPercent)}</strong>
-      <em>{detail}</em>
-    </div>
-  );
-}
 function ComparisonOptionGroups({ permanent, custom, savedGroups, side }: { permanent: BenchmarkNode[]; custom: BenchmarkNode[]; savedGroups: IdeaGroup[]; side: "left" | "right" }) {
   return (
     <>
@@ -530,34 +391,6 @@ function ComparisonOptionGroups({ permanent, custom, savedGroups, side }: { perm
     </>
   );
 }
-function AllocationReadPanel({ read }: { read: SouthernStarAllocationRead }) {
-  return (
-    <div className="allocationReadPanel">
-      <div className="allocationReadHeader">
-        <div>
-          <p className="eyebrow">SouthernStar allocation read</p>
-          <h3>{read.allocationScore == null ? "Allocation pending" : "Allocation " + read.allocationScore} <span>{read.label}</span></h3>
-          <p>{read.note}</p>
-        </div>
-      </div>
-      <div className="allocationGaugeGrid">
-        {read.gauges.map((gauge) => (
-          <div className={"allocationGauge is" + gauge.tone.charAt(0).toUpperCase() + gauge.tone.slice(1)} key={gauge.key}>
-            <div className="allocationGaugeTop"><span>{gauge.label}</span><strong>{gauge.score == null ? "-" : gauge.score}</strong></div>
-            <b>{gauge.status}</b>
-            <p>{gauge.note}</p>
-          </div>
-        ))}
-      </div>
-      <p className="relativeScoreNote">Fundamentals tell us what we are prepared to own. Relative strength tells us what the market is rewarding. Entry condition tells us when to buy or add.</p>
-    </div>
-  );
-}
-
-function scoreValue(value: number | null) {
-  return value == null ? "-" : String(Math.round(value));
-}
-
 function modelForOpportunity(asset: DashboardHolding, fundamentals: MinerFundamentals | undefined) {
   if (fundamentals?.projectStage) return fundamentals.projectStage;
   return sectorForInstrument(asset);
@@ -614,108 +447,6 @@ function buildOpportunityRows(input: {
     .slice(0, 30);
 }
 
-function EntryScorePanel({ score }: { score: EntryScoreResult }) {
-  return (
-    <div className="entryScorePanel">
-      <div className="allocationReadHeader">
-        <div>
-          <p className="eyebrow">Entry condition</p>
-          <h3>{score.score == null ? "Entry pending" : "Entry Score " + score.score} <span>{score.label}</span></h3>
-          <p>{score.note}</p>
-        </div>
-      </div>
-      {score.checks.length ? (
-        <div className="entryCheckGrid">
-          {score.checks.map((check) => (
-            <div className="entryCheck" key={check.key}>
-              <span>{check.available ? check.passed ? "yes" : "no" : "-"}</span>
-              <strong>{check.label}</strong>
-              <em>{check.detail}</em>
-              {check.max ? <b>{Math.round(check.points)}/{check.max}</b> : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function OpportunityMatrix({ rows, sort, onSort, onSelect }: { rows: OpportunityRow[]; sort: OpportunitySortKey; onSort: (key: OpportunitySortKey) => void; onSelect: (row: OpportunityRow) => void }) {
-  const header = (key: OpportunitySortKey, label: string) => <button type="button" onClick={() => onSort(key)}>{label}{sort === key ? " ↓" : ""}</button>;
-  return (
-    <div className="opportunityMatrix">
-      <div className="allocationReadHeader">
-        <div>
-          <p className="eyebrow">Opportunity matrix</p>
-          <h3>F/R/V/E watchlist</h3>
-          <p>Holdings and saved ideas ranked by the signal you choose. Click a row to load its scorecard and chart context.</p>
-        </div>
-      </div>
-      <div className="opportunityTableWrap">
-        <table className="opportunityTable">
-          <thead><tr><th>Ticker</th><th>Model</th><th>{header("fundamental", "F")}</th><th>{header("relative", "R")}</th><th>{header("velocity", "Delta R30")}</th><th>{header("valuation", "V")}</th><th>{header("entry", "E")}</th><th>{header("allocation", "Allocation")}</th></tr></thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.selectionKind + row.selectionId} onClick={() => onSelect(row)} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") onSelect(row); }}>
-                <td><strong>{row.symbol}</strong><span>{row.name}</span><em>{row.source}</em></td>
-                <td>{row.model}</td>
-                <td>{scoreValue(row.fundamental)}</td>
-                <td>{scoreValue(row.relative)}</td>
-                <td>{row.velocity == null ? "-" : (row.velocity >= 0 ? "+" : "") + Math.round(row.velocity)}</td>
-                <td>{scoreValue(row.valuation)}</td>
-                <td>{scoreValue(row.entry)}</td>
-                <td><strong>{scoreValue(row.allocation)}</strong><span>{row.allocationLabel}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function RelativeScorePanel({ score }: { score: RelativeEngineScore }) {
-  const layers = [score.reserve, score.sector, score.peers].filter((layer): layer is RelativeLayer => Boolean(layer));
-  return (
-    <div className="relativeScorePanel">
-      <div className="relativeScoreHero">
-        <div>
-          <p className="eyebrow">Relative ranking engine</p>
-          <h3>Relative Score {Math.round(score.score)} <span>{scoreBadge(score.score)}</span></h3>
-          <p>{score.sentence}</p>
-        </div>
-        <div>
-          <strong>{velocityLabel(score.velocity)}</strong>
-          <span>Score velocity</span>
-        </div>
-      </div>
-      <div className="relativeScoreLayers">
-        {layers.map((layer) => (
-          <div className="relativeScoreLayer" key={layer.label}>
-            <div className="relativeScoreLayerHead">
-              <span>{layer.label} vs {layer.target}</span>
-              <strong>{Math.round(layer.score)}/{layer.max}</strong>
-            </div>
-            {layer.label === "Peers" ? (
-              <p>{score.peerCount ? "Outperforming " + score.peerWins + " of " + score.peerCount + " comparable peers." : "No comparable peer history yet."}</p>
-            ) : (
-              <ul>
-                {layer.component.checks.map((check) => (
-                  <li key={layer.label + check.key}>
-                    <span>{checkMark(check)}</span>
-                    <div><strong>{check.label}</strong><em>{check.detail}</em></div>
-                    <b>{Math.round(check.points)}/{Math.round(check.max)}</b>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
-      </div>
-      <p className="relativeScoreNote">Relative Score identifies what is earning capital. Entry Score is deliberately separate and not inferred here.</p>
-    </div>
-  );
-}
 export default function RelativeLeadership() {
   const [dashboards, setDashboards] = useState<DashboardMap>({});
   const [prices, setPrices] = useState<StoredDailyPrice[]>([]);
