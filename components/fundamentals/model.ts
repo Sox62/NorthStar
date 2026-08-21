@@ -120,6 +120,34 @@ export function researchFormForHolding(holding: Holding, saved: MinerFundamental
   };
 }
 
+export function researchFormForIdea(saved: MinerFundamentals): ResearchFormState {
+  return {
+    ...blankResearchForm,
+    symbol: saved.symbol.toUpperCase(),
+    name: formText(saved.name),
+    primaryMetal: formText(saved.primaryMetal),
+    jurisdiction: formText(saved.jurisdiction),
+    projectStage: formText(saved.projectStage),
+    productionOz: formNumberText(saved.productionOz),
+    aiscUsdPerOz: formNumberText(saved.aiscUsdPerOz),
+    resourceMoz: formNumberText(saved.resourceMoz),
+    reserveMoz: formNumberText(saved.reserveMoz),
+    cashAud: formNumberText(saved.cashAud),
+    debtAud: formNumberText(saved.debtAud),
+    marketCapAud: formNumberText(saved.marketCapAud),
+    npvAud: formNumberText(saved.npvAud),
+    capexAud: formNumberText(saved.capexAud),
+    irrPercent: formNumberText(saved.irrPercent),
+    jurisdictionScore: formNumberText(saved.jurisdictionScore),
+    balanceSheetScore: formNumberText(saved.balanceSheetScore),
+    dilutionScore: formNumberText(saved.dilutionScore),
+    managementScore: formNumberText(saved.managementScore),
+    sourceUrl: formText(saved.sourceUrl),
+    asOfDate: formText(saved.asOfDate).slice(0, 10),
+    notes: formText(saved.notes),
+  };
+}
+
 export const metricDefinitions: MetricDefinition[] = [
   { label: "Production margin", field: "Spot price - AISC", reason: "Shows operating leverage before trusting a miner P/L number." },
   { label: "Balance sheet cover", field: "FCF / net debt", reason: "Flags whether debt can be handled at current metal prices." },

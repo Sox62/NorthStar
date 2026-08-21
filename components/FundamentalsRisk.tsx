@@ -1,6 +1,7 @@
 "use client";
 
 import type { FormEvent } from "react";
+import type { MinerFundamentals } from "@/lib/storage";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
@@ -18,6 +19,7 @@ import {
   loadStarterFundamentals,
   metricDefinitions,
   researchFormForHolding,
+  researchFormForIdea,
   RESEARCH_FORM_ID,
   money,
   saveResearchFundamentals,
@@ -68,14 +70,25 @@ export default function FundamentalsRisk() {
     return fundamentals.filter((item) => !heldSymbols.has(item.symbol.toUpperCase()));
   }, [fundamentals, sortedHoldings]);
 
-  function handleEditFundamentals(holding: Holding) {
-    setResearchForm(researchFormForHolding(holding, fundamentalsBySymbol.get(holding.symbol.toUpperCase())));
-    setResearchStatus({ saving: false, message: "", error: "" });
-    setSelected(null);
+  function scrollToResearchForm() {
     // The form sits well below the queue, so move to it rather than leaving the user to hunt.
     requestAnimationFrame(() => {
       document.getElementById(RESEARCH_FORM_ID)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
+  }
+
+  function handleEditFundamentals(holding: Holding) {
+    setResearchForm(researchFormForHolding(holding, fundamentalsBySymbol.get(holding.symbol.toUpperCase())));
+    setResearchStatus({ saving: false, message: "", error: "" });
+    setSelected(null);
+    scrollToResearchForm();
+  }
+
+  function handleEditResearchIdea(item: MinerFundamentals) {
+    setResearchForm(researchFormForIdea(item));
+    setResearchStatus({ saving: false, message: "", error: "" });
+    setSelected(null);
+    scrollToResearchForm();
   }
 
   function updateResearchField<K extends keyof ResearchFormState>(field: K, value: ResearchFormState[K]) {
@@ -185,7 +198,7 @@ export default function FundamentalsRisk() {
         onClear={() => setResearchForm(blankResearchForm)}
       />
 
-      <ResearchIdeasTable ideas={researchFundamentals} loading={loading} />
+      <ResearchIdeasTable ideas={researchFundamentals} loading={loading} onSelect={handleEditResearchIdea} />
 
       {selected ? (
         <FundamentalsDetail

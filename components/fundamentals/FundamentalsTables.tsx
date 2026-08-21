@@ -84,7 +84,7 @@ export function HeldMinerTable({ holdings, fundamentalsBySymbol, loading, totalM
                   <td>
                     <span>{saved?.jurisdiction ?? "Jurisdiction needed"}{saved?.primaryMetal ? ` · ${saved.primaryMetal}` : ""}</span>
                     <small>{saved?.notes ?? (saved?.asOfDate ? `As of ${dateOrDash(saved.asOfDate)}` : "Production, AISC, resource oz and source date needed.")}</small>
-                    {saved?.sourceUrl ? <a className={styles.sourceLink} href={saved.sourceUrl} target="_blank" rel="noreferrer">Source</a> : null}
+                    {saved?.sourceUrl ? <a className={styles.sourceLink} onClick={(event) => event.stopPropagation()} href={saved.sourceUrl} target="_blank" rel="noreferrer">Source</a> : null}
                   </td>
                 </tr>
               );
@@ -101,9 +101,10 @@ export function HeldMinerTable({ holdings, fundamentalsBySymbol, loading, totalM
 type ResearchIdeasTableProps = {
   ideas: MinerFundamentals[];
   loading: boolean;
+  onSelect: (idea: MinerFundamentals) => void;
 };
 
-export function ResearchIdeasTable({ ideas, loading }: ResearchIdeasTableProps) {
+export function ResearchIdeasTable({ ideas, loading, onSelect }: ResearchIdeasTableProps) {
   return (
     <Card className={styles.tableCard}>
       <div className="panelHeader">
@@ -132,9 +133,20 @@ export function ResearchIdeasTable({ ideas, loading }: ResearchIdeasTableProps) 
             {ideas.map((item) => {
               const score = averageScore(item);
               return (
-                <tr key={item.symbol}>
+                <tr
+                  key={item.symbol}
+                  className={styles.clickableRow}
+                  onClick={() => onSelect(item)}
+                  title="Edit saved fundamentals"
+                >
                   <td>
-                    <strong>{item.symbol}</strong>
+                    <button
+                      type="button"
+                      className={styles.rowOpen}
+                      onClick={(event) => { event.stopPropagation(); onSelect(item); }}
+                    >
+                      {item.symbol}
+                    </button>
                     <span>{item.name ?? "Research candidate"}</span>
                   </td>
                   <td>{item.primaryMetal ?? "Metal needed"}</td>
@@ -152,7 +164,7 @@ export function ResearchIdeasTable({ ideas, loading }: ResearchIdeasTableProps) 
                   <td>
                     <span>{item.notes ?? "Source notes needed."}</span>
                     <small>{item.asOfDate ? `As of ${dateOrDash(item.asOfDate)}` : "No source date"}</small>
-                    {item.sourceUrl ? <a className={styles.sourceLink} href={item.sourceUrl} target="_blank" rel="noreferrer">Source</a> : null}
+                    {item.sourceUrl ? <a className={styles.sourceLink} onClick={(event) => event.stopPropagation()} href={item.sourceUrl} target="_blank" rel="noreferrer">Source</a> : null}
                   </td>
                 </tr>
               );

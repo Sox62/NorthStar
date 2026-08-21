@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { MinerFundamentals } from "@/lib/storage";
 import { enterpriseValueAud, failureModes, fundamentalBars, netCashAud, riskLevel, valuationBars, valuationRows } from "./detail-model";
-import { researchFormForHolding } from "./model";
+import { researchFormForHolding, researchFormForIdea } from "./model";
 import type { Holding } from "@/northstar/types";
 
 const base: MinerFundamentals = {
@@ -108,6 +108,19 @@ test("researchFormForHolding round-trips a saved record so an edit cannot blank 
 
   assert.equal(form.symbol, "AYA", "the symbol comes from the holding, so it always matches the queue");
   assert.equal(form.npvAud, "1400000000");
+  assert.equal(form.marketCapAud, "900000000");
+  assert.equal(form.jurisdictionScore, "3");
+  assert.equal(form.asOfDate, "2026-08-01");
+  assert.equal(form.notes, "Restart thesis");
+});
+
+test("researchFormForIdea loads a saved research record for editing", () => {
+  const form = researchFormForIdea({ ...base, symbol: "paas" });
+
+  assert.equal(form.symbol, "PAAS");
+  assert.equal(form.name, "Aya Gold & Silver");
+  assert.equal(form.productionOz, "3200000");
+  assert.equal(form.aiscUsdPerOz, "14.2");
   assert.equal(form.marketCapAud, "900000000");
   assert.equal(form.jurisdictionScore, "3");
   assert.equal(form.asOfDate, "2026-08-01");
