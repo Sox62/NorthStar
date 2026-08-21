@@ -323,7 +323,8 @@ export default function RelativeLeadership() {
   const [loading, setLoading] = useState(true);
   const [backfillBusy, setBackfillBusy] = useState(false);
   const [customNodes, setCustomNodes] = useState<BenchmarkNode[]>([]);
-  const [customInput, setCustomInput] = useState("");
+  const [customLeftInput, setCustomLeftInput] = useState("");
+  const [customRightInput, setCustomRightInput] = useState("");
   const [customError, setCustomError] = useState("");
   const [operationMessage, setOperationMessage] = useState("");
   const [copiedRatio, setCopiedRatio] = useState(false);
@@ -373,17 +374,18 @@ export default function RelativeLeadership() {
     if (!rightBenchmarkId && !holdings.some((holding) => holding.id === rightId)) setRightId(defaultSymbol(holdings, 1));
   }, [holdings, leftId, rightId, leftBenchmarkId, rightBenchmarkId]);
 
+  const benchmarkNodes = useMemo(() => {
+    const holdingBenchmarks = holdings.flatMap((holding) => {
+      const tree = resolveBenchmarkTree({ symbol: holding.symbol, name: holding.name, sector: sectorForInstrument(holding), exchange: holding.exchange, currency: holding.currency });
+      return tree ? [...tree.path, ...tree.peers] : [];
+    });
+    return mergeBenchmarkNodes([...customNodes, ...holdingBenchmarks, ...RESEARCH_BENCHMARKS]).filter(nodeIsChartable);
+  }, [customNodes, holdings]);
   const leftHolding = holdings.find((holding) => holding.id === leftId) ?? null;
-  const selectedResearchLeftBenchmark = RESEARCH_BENCHMARKS.find((node) => node.id === leftBenchmarkId) ?? null;
-  const provisionalLeft = selectedResearchLeftBenchmark ? benchmarkInstrument(selectedResearchLeftBenchmark) : leftHolding ?? holdings[0];
-  const provisionalTree = provisionalLeft ? resolveBenchmarkTree({ symbol: provisionalLeft.symbol, name: provisionalLeft.name, sector: sectorForInstrument(provisionalLeft), exchange: provisionalLeft.exchange, currency: provisionalLeft.currency }) : null;
-  const provisionalBenchmarkNodes = provisionalTree ? mergeBenchmarkNodes([...customNodes, ...provisionalTree.path, ...provisionalTree.peers, ...RESEARCH_BENCHMARKS]).filter(nodeIsChartable) : [...customNodes, ...RESEARCH_BENCHMARKS].filter(nodeIsChartable);
-  const selectedLeftBenchmark = provisionalBenchmarkNodes.find((node) => node.id === leftBenchmarkId) ?? selectedResearchLeftBenchmark;
-  const left = selectedLeftBenchmark ? benchmarkInstrument(selectedLeftBenchmark) : provisionalLeft;
-  const leftTree = left ? resolveBenchmarkTree({ symbol: left.symbol, name: left.name, sector: sectorForInstrument(left), exchange: left.exchange, currency: left.currency }) : null;
-  const benchmarkNodes = leftTree ? mergeBenchmarkNodes([...customNodes, ...leftTree.path, ...leftTree.peers, ...RESEARCH_BENCHMARKS]).filter(nodeIsChartable) : provisionalBenchmarkNodes;
-  const selectedBenchmark = benchmarkNodes.find((node) => node.id === rightBenchmarkId) ?? null;
   const rightHolding = holdings.find((holding) => holding.id === rightId) ?? null;
+  const selectedLeftBenchmark = benchmarkNodes.find((node) => node.id === leftBenchmarkId) ?? null;
+  const selectedBenchmark = benchmarkNodes.find((node) => node.id === rightBenchmarkId) ?? null;
+  const left = selectedLeftBenchmark ? benchmarkInstrument(selectedLeftBenchmark) : leftHolding ?? holdings[0];
   const right = selectedBenchmark ? benchmarkInstrument(selectedBenchmark) : rightHolding ?? holdings[1] ?? holdings[0];
   const leftHistory = historyForComparison(prices, fxRates, selectedLeftBenchmark ? null : left, selectedLeftBenchmark);
   const rightHistory = historyForComparison(prices, fxRates, selectedBenchmark ? null : right, selectedBenchmark);
@@ -422,6 +424,24 @@ export default function RelativeLeadership() {
   const useCurrentPairForStructuralLevel = () => {
     if (!left || !right) return;
     setStructuralForm({ ...structuralBlank, symbol: left.symbol, comparisonSymbol: right.symbol, label: `${left.symbol}/${right.symbol} structural level` });
+  };
+  const addCustomTicker = (side: "left" | "right", input: string) => {
+    const node = customBenchmarkNode(input);
+    if (!node) {
+      setCustomError("Enter a ticker, optionally as VENUE:TICKER.");
+      return;
+    }
+    setCustomError("");
+    setCustomNodes((current) => [node, ...current.filter((item) => item.id !== node.id)].slice(0, 24));
+    if (side === "left") {
+      setCustomLeftInput("");
+      setLeftBenchmarkId(node.id);
+      setLeftId("");
+    } else {
+      setCustomRightInput("");
+      setRightBenchmarkId(node.id);
+      setRightId("");
+    }
   };
 
   const saveStructuralLevel = async (event: React.FormEvent) => {
@@ -594,7 +614,7 @@ export default function RelativeLeadership() {
                 }}
               >
                 <option value="" disabled>Choose first asset</option>
-                <optgroup label="Benchmarks">
+                <optgroup label="Benchmarks and research tickers">
                   {benchmarkNodes.map((node) => (
                     <option key={node.id + ":left"} value={selectionValue("benchmark", node.id)}>{benchmarkOptionLabel(node)}</option>
                   ))}
@@ -605,30 +625,20 @@ export default function RelativeLeadership() {
                   ))}
                 </optgroup>
               </select>
-            </label>
-            <label className="relativeSelect">
-              <span>Add any ticker</span>
               <form
                 className="relativeCustomSymbol"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  const node = customBenchmarkNode(customInput);
-                  if (!node) { setCustomError("Enter a ticker, optionally as VENUE:TICKER."); return; }
-                  setCustomError("");
-                  setCustomInput("");
-                  // Adding replaces any earlier entry for the same id, then selects it on the right.
-                  setCustomNodes((current) => [node, ...current.filter((item) => item.id !== node.id)].slice(0, 12));
-                  setRightBenchmarkId(node.id);
-                  setRightId("");
+                  addCustomTicker("left", customLeftInput);
                 }}
               >
                 <input
-                  value={customInput}
-                  onChange={(event) => setCustomInput(event.target.value)}
-                  placeholder="XLE or AMEX:XLE"
-                  aria-label="Ticker to compare"
+                  value={customLeftInput}
+                  onChange={(event) => setCustomLeftInput(event.target.value)}
+                  placeholder="Add ticker"
+                  aria-label="Ticker to use as first asset"
                 />
-                <button className="button" type="submit">Add</button>
+                <button className="button" type="submit">Add left</button>
               </form>
             </label>
             <label className="relativeSelect">
@@ -643,7 +653,7 @@ export default function RelativeLeadership() {
                 }}
               >
                 <option value="" disabled>Choose second asset</option>
-                <optgroup label="Benchmarks">
+                <optgroup label="Benchmarks and research tickers">
                   {benchmarkNodes.map((node) => (
                     <option key={node.id + ":right"} value={selectionValue("benchmark", node.id)}>{benchmarkOptionLabel(node)}</option>
                   ))}
@@ -654,6 +664,21 @@ export default function RelativeLeadership() {
                   ))}
                 </optgroup>
               </select>
+              <form
+                className="relativeCustomSymbol"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  addCustomTicker("right", customRightInput);
+                }}
+              >
+                <input
+                  value={customRightInput}
+                  onChange={(event) => setCustomRightInput(event.target.value)}
+                  placeholder="Add ticker"
+                  aria-label="Ticker to use as second asset"
+                />
+                <button className="button" type="submit">Add right</button>
+              </form>
             </label>
           </div>
           {customError ? <p className="relativeCustomError">{customError}</p> : null}
