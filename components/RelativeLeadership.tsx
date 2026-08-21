@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import TradingViewWidget from "@/components/TradingViewWidget";
+import { allocationRead, type SouthernStarAllocationRead } from "@/components/fundamentals/detail-model";
 import type { DashboardData, DashboardHolding, MinerFundamentals, OwnerType, Scope, StoredDailyPrice, StoredFxRate, StructuralLevel } from "@/lib/storage";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { RESEARCH_BENCHMARKS, resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
@@ -526,6 +527,30 @@ function ComparisonOptionGroups({ permanent, custom, savedGroups, side }: { perm
     </>
   );
 }
+function AllocationReadPanel({ read }: { read: SouthernStarAllocationRead }) {
+  return (
+    <div className="allocationReadPanel">
+      <div className="allocationReadHeader">
+        <div>
+          <p className="eyebrow">SouthernStar allocation read</p>
+          <h3>{read.allocationScore == null ? "Allocation pending" : "Allocation " + read.allocationScore} <span>{read.label}</span></h3>
+          <p>{read.note}</p>
+        </div>
+      </div>
+      <div className="allocationGaugeGrid">
+        {read.gauges.map((gauge) => (
+          <div className={"allocationGauge is" + gauge.tone.charAt(0).toUpperCase() + gauge.tone.slice(1)} key={gauge.key}>
+            <div className="allocationGaugeTop"><span>{gauge.label}</span><strong>{gauge.score == null ? "-" : gauge.score}</strong></div>
+            <b>{gauge.status}</b>
+            <p>{gauge.note}</p>
+          </div>
+        ))}
+      </div>
+      <p className="relativeScoreNote">Fundamentals tell us what we are prepared to own. Relative strength tells us what the market is rewarding. Entry condition tells us when to buy or add.</p>
+    </div>
+  );
+}
+
 function RelativeScorePanel({ score }: { score: RelativeEngineScore }) {
   const layers = [score.reserve, score.sector, score.peers].filter((layer): layer is RelativeLayer => Boolean(layer));
   return (
@@ -637,6 +662,7 @@ export default function RelativeLeadership() {
   }, [holdings, leftId, rightId, leftBenchmarkId, rightBenchmarkId]);
 
   const heldSymbols = useMemo(() => new Set(holdings.map((holding) => holding.symbol.toUpperCase())), [holdings]);
+  const fundamentalsBySymbol = useMemo(() => new Map(fundamentals.map((item) => [item.symbol.toUpperCase(), item])), [fundamentals]);
   const savedIdeaNodes = useMemo(() => {
     return fundamentals
       .filter((item) => item.symbol && !heldSymbols.has(item.symbol.toUpperCase()))
@@ -667,6 +693,8 @@ export default function RelativeLeadership() {
   const evidenceWindows = useMemo(() => relativeReturnWindows(fullSeries, evidenceRanges), [fullSeries]);
   const pairThreeMonth = evidenceWindows.find((item) => item.key === "3m")?.ratioReturnPercent ?? null;
   const relativeEngine = useMemo(() => left ? buildRelativeEngineScore({ asset: left, prices, fxRates, holdings, savedIdeaNodes, benchmarkNodes }) : null, [left, prices, fxRates, holdings, savedIdeaNodes, benchmarkNodes]);
+  const selectedFundamentals = left ? fundamentalsBySymbol.get(left.symbol.toUpperCase()) : undefined;
+  const allocationReadout = useMemo(() => allocationRead({ fundamentals: selectedFundamentals, relativeScore: relativeEngine?.score ?? null, relativeVelocity: relativeEngine?.velocity ?? null }), [selectedFundamentals, relativeEngine]);
   const first = series[0];
   const last = series.at(-1);
   const ratioChange = first && last ? last.ratio / first.ratio * 100 - 100 : 0;
@@ -965,6 +993,8 @@ export default function RelativeLeadership() {
               velocityEntry,
             ]}
           />
+
+          <AllocationReadPanel read={allocationReadout} />
 
           {relativeEngine ? <RelativeScorePanel score={relativeEngine} /> : null}
 

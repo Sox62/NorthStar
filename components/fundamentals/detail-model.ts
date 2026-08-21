@@ -3,6 +3,23 @@ import type { Holding } from "@/northstar/types";
 import { dateOrDash, money, moneyOrDash, numberOrDash } from "./model";
 
 export type RiskTone = "good" | "warning" | "bad";
+export type SouthernStarTone = "good" | "warning" | "bad" | "muted";
+
+export type SouthernStarGauge = {
+  key: "fundamental" | "relative" | "valuation" | "entry";
+  label: string;
+  score: number | null;
+  tone: SouthernStarTone;
+  status: string;
+  note: string;
+};
+
+export type SouthernStarAllocationRead = {
+  allocationScore: number | null;
+  label: string;
+  note: string;
+  gauges: SouthernStarGauge[];
+};
 
 export type RiskRow = {
   key: string;
@@ -36,6 +53,119 @@ export function netCashAud(fundamentals: MinerFundamentals | undefined) {
   if (!fundamentals) return null;
   if (fundamentals.cashAud == null && fundamentals.debtAud == null) return null;
   return (fundamentals.cashAud ?? 0) - (fundamentals.debtAud ?? 0);
+}
+
+
+export function fundamentalQualityScore(fundamentals: MinerFundamentals | undefined) {
+  const scores = [fundamentals?.jurisdictionScore, fundamentals?.balanceSheetScore, fundamentals?.dilutionScore, fundamentals?.managementScore]
+    .filter((value): value is number => value != null);
+  if (!scores.length) return null;
+  const average = scores.reduce((sum, value) => sum + value, 0) / scores.length;
+  return Math.round(Math.min(100, Math.max(0, average * 20)));
+}
+
+export function valuationScore(fundamentals: MinerFundamentals | undefined) {
+  const npv = fundamentals?.npvAud ?? null;
+  const enterprise = enterpriseValueAud(fundamentals);
+  if (npv == null || !enterprise || enterprise <= 0) return null;
+  return Math.round(Math.min(100, Math.max(0, 50 + (npv / enterprise - 1) * 25)));
+}
+
+export function stageMethodology(fundamentals: MinerFundamentals | undefined) {
+  const stage = (fundamentals?.projectStage ?? "").toLowerCase();
+  if (fundamentals?.productionOz || /produc|operat/.test(stage)) return "Producer model: margins, balance sheet, production quality, jurisdiction, management and growth.";
+  if (/develop|permitting|study|feasibility|pre[- ]?production/.test(stage)) return "Developer model: resource quality, NPV/market cap, IRR, capex funding, permitting, jurisdiction and timeline.";
+  if (/explor|drill|discovery/.test(stage)) return "Explorer model: geology, resource potential, cash runway, enterprise value, drill results, dilution, jurisdiction and management.";
+  return "Stage not set: use the saved fundamentals screen to classify this as producer, developer or explorer.";
+}
+
+export function scoreTone(score: number | null): SouthernStarTone {
+  if (score == null) return "muted";
+  if (score >= 75) return "good";
+  if (score >= 45) return "warning";
+  return "bad";
+}
+
+export function allocationRead(input: {
+  fundamentals: MinerFundamentals | undefined;
+  relativeScore: number | null;
+  relativeVelocity: number | null;
+  entryScore?: number | null;
+}) {
+  const fundamental = fundamentalQualityScore(input.fundamentals);
+  const valuation = valuationScore(input.fundamentals);
+  const entry = input.entryScore ?? null;
+  const gauges: SouthernStarGauge[] = [
+    {
+      key: "fundamental",
+      label: "F",
+      score: fundamental,
+      tone: scoreTone(fundamental),
+      status: fundamental == null ? "Not scored" : fundamental >= 75 ? "Business" : fundamental >= 45 ? "Mixed" : "Weak",
+      note: stageMethodology(input.fundamentals),
+    },
+    {
+      key: "relative",
+      label: "R",
+      score: input.relativeScore == null ? null : Math.round(input.relativeScore),
+      tone: scoreTone(input.relativeScore),
+      status: input.relativeScore == null ? "Not scored" : input.relativeScore >= 75 ? "Leadership" : input.relativeScore >= 45 ? "Improving/neutral" : "Not earning capital",
+      note: input.relativeVelocity == null ? "Reserve, sector and peer trend score." : "Reserve, sector and peer trend score; velocity " + (input.relativeVelocity >= 0 ? "+" : "") + Math.round(input.relativeVelocity) + " over 30d.",
+    },
+    {
+      key: "valuation",
+      label: "V",
+      score: valuation,
+      tone: scoreTone(valuation),
+      status: valuation == null ? "Not valued" : valuation >= 75 ? "Discount" : valuation >= 45 ? "Fair/mixed" : "Stretched",
+      note: valuation == null ? "Needs sourced NPV and enterprise value; valuation is separate from business quality." : "NPV versus enterprise value; a good asset can still be a poor price.",
+    },
+    {
+      key: "entry",
+      label: "E",
+      score: entry,
+      tone: scoreTone(entry),
+      status: entry == null ? "Not wired" : entry >= 75 ? "Attractive" : entry >= 45 ? "Mixed" : "Poor entry",
+      note: entry == null ? "Entry Score will use technical condition and structure; it is not inferred from relative strength." : "Technical condition and structural entry score.",
+    },
+  ];
+  const weightedInputs = [
+    { value: fundamental, weight: 0.35 },
+    { value: input.relativeScore, weight: 0.35 },
+    { value: valuation, weight: 0.20 },
+    { value: entry, weight: 0.10 },
+  ].filter((item): item is { value: number; weight: number } => item.value != null);
+  const allocationScore = weightedInputs.length
+    ? Math.round(weightedInputs.reduce((sum, item) => sum + item.value * item.weight, 0) / weightedInputs.reduce((sum, item) => sum + item.weight, 0))
+    : null;
+  const strongF = fundamental != null && fundamental >= 70;
+  const weakF = fundamental != null && fundamental < 50;
+  const strongR = input.relativeScore != null && input.relativeScore >= 70;
+  const weakR = input.relativeScore != null && input.relativeScore < 50;
+  const goodEntry = entry != null && entry >= 65;
+  const poorEntry = entry != null && entry < 50;
+  let label = "WATCH";
+  let note = "Signals are mixed; inspect the disagreement before allocating.";
+  if (strongF && strongR && goodEntry) {
+    label = "OWN / ADD CANDIDATE";
+    note = "Quality, market leadership and entry condition are aligned.";
+  } else if (strongF && strongR && (poorEntry || entry == null)) {
+    label = "QUALITY LEADER / WAIT";
+    note = "Fundamentals and relative strength agree, but Entry Score has not confirmed an add point.";
+  } else if (strongF && weakR) {
+    label = "QUALITY / NOT CURRENTLY EARNING CAPITAL";
+    note = "Fundamentals are strong but the market has not yet confirmed relative leadership.";
+  } else if (weakF && strongR) {
+    label = "SPECULATIVE MOMENTUM";
+    note = "Relative strength is strong, but fundamentals do not clear the risk gate.";
+  } else if (weakF && weakR) {
+    label = "AVOID / RESEARCH ONLY";
+    note = "Neither fundamentals nor relative strength currently justify capital.";
+  } else if (strongR && input.relativeVelocity != null && input.relativeVelocity > 0) {
+    label = "RELATIVE IMPROVEMENT";
+    note = "Market leadership is improving; fundamentals and entry need confirmation.";
+  }
+  return { allocationScore, label, note, gauges } satisfies SouthernStarAllocationRead;
 }
 
 /** Market capitalisation plus debt less cash — the figure a project NPV should be compared against. */

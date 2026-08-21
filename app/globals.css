@@ -2698,3 +2698,84 @@ button:disabled { opacity: .55; cursor: wait; }
   .relativeScoreHero > div:last-child { text-align: left; }
   .relativeScoreLayers { grid-template-columns: 1fr; }
 }
+
+
+.allocationReadPanel {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(224,190,110,.25);
+  border-radius: 16px;
+  background: rgba(16,14,8,.26);
+}
+.allocationReadHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.allocationReadHeader h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 22px;
+}
+.allocationReadHeader h3 span {
+  color: var(--accent-gold);
+  font-size: 13px;
+}
+.allocationReadHeader p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.allocationGaugeGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.allocationGauge {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(106,130,153,.18);
+  border-radius: 12px;
+  background: rgba(2,9,18,.42);
+}
+.allocationGaugeTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.allocationGaugeTop span {
+  color: var(--accent-gold);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+.allocationGaugeTop strong {
+  color: var(--text-primary);
+  font-size: 26px;
+}
+.allocationGauge b {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.allocationGauge p {
+  margin: 7px 0 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.allocationGauge.isGood { border-color: rgba(108,217,157,.30); }
+.allocationGauge.isWarning { border-color: rgba(224,190,110,.34); }
+.allocationGauge.isBad { border-color: rgba(255,127,135,.30); }
+.allocationGauge.isMuted { opacity: .82; }
+@media (max-width: 900px) {
+  .allocationGaugeGrid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .allocationGaugeGrid { grid-template-columns: 1fr; }
+}

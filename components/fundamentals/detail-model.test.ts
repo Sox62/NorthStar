@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { MinerFundamentals } from "@/lib/storage";
-import { enterpriseValueAud, failureModes, fundamentalBars, netCashAud, riskLevel, valuationBars, valuationRows } from "./detail-model";
+import { allocationRead, enterpriseValueAud, failureModes, fundamentalBars, fundamentalQualityScore, netCashAud, riskLevel, valuationBars, valuationRows, valuationScore } from "./detail-model";
 import { researchFormForHolding, researchFormForIdea } from "./model";
 import type { Holding } from "@/northstar/types";
 
@@ -184,4 +184,35 @@ test("debt above cash reads negative", () => {
 
 test("an unresearched holding draws no relational bars", () => {
   assert.deepEqual(fundamentalBars(undefined), []);
+});
+
+
+test("fundamental and valuation scores stay separate", () => {
+  assert.equal(fundamentalQualityScore(base), 75);
+  assert.equal(valuationScore(base), 65);
+});
+
+test("allocationRead gates a quality leader when entry is absent", () => {
+  const read = allocationRead({ fundamentals: base, relativeScore: 88, relativeVelocity: -4 });
+
+  assert.equal(read.label, "QUALITY LEADER / WAIT");
+  assert.equal(read.gauges.map((gauge) => gauge.label).join(""), "FRVE");
+  assert.equal(read.gauges.find((gauge) => gauge.key === "entry")?.status, "Not wired");
+  assert.ok(read.note.includes("Entry Score"));
+});
+
+test("allocationRead distinguishes speculative momentum from high conviction", () => {
+  const weakFundamentals = { ...base, jurisdictionScore: 1, balanceSheetScore: 2, dilutionScore: 1, managementScore: 2 };
+  const read = allocationRead({ fundamentals: weakFundamentals, relativeScore: 95, relativeVelocity: 11, entryScore: 70 });
+
+  assert.equal(read.label, "SPECULATIVE MOMENTUM");
+  assert.equal(read.gauges.find((gauge) => gauge.key === "fundamental")?.tone, "bad");
+  assert.equal(read.gauges.find((gauge) => gauge.key === "relative")?.tone, "good");
+});
+
+test("allocationRead keeps quality watchlist separate from current leadership", () => {
+  const read = allocationRead({ fundamentals: { ...base, jurisdictionScore: 5, balanceSheetScore: 5, dilutionScore: 5, managementScore: 5 }, relativeScore: 35, relativeVelocity: 3 });
+
+  assert.equal(read.label, "QUALITY / NOT CURRENTLY EARNING CAPITAL");
+  assert.ok(read.note.includes("market has not yet confirmed"));
 });
