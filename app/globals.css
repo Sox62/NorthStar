@@ -2779,3 +2779,96 @@ button:disabled { opacity: .55; cursor: wait; }
 @media (max-width: 560px) {
   .allocationGaugeGrid { grid-template-columns: 1fr; }
 }
+
+
+.entryScorePanel,
+.opportunityMatrix {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(106,130,153,.22);
+  border-radius: 16px;
+  background: rgba(4,12,20,.34);
+}
+.entryCheckGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.entryCheck {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid rgba(106,130,153,.18);
+  border-radius: 12px;
+  background: rgba(2,9,18,.42);
+}
+.entryCheck span {
+  color: var(--accent-gold);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.entryCheck strong,
+.entryCheck b {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.entryCheck em {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+}
+.opportunityTableWrap {
+  overflow-x: auto;
+}
+.opportunityTable {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+.opportunityTable th,
+.opportunityTable td {
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(106,130,153,.16);
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.opportunityTable th button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.opportunityTable tbody tr {
+  cursor: pointer;
+}
+.opportunityTable tbody tr:hover,
+.opportunityTable tbody tr:focus {
+  background: rgba(224,190,110,.07);
+  outline: none;
+}
+.opportunityTable td strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.opportunityTable td span,
+.opportunityTable td em {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+}
+@media (max-width: 900px) {
+  .entryCheckGrid { grid-template-columns: 1fr; }
+}

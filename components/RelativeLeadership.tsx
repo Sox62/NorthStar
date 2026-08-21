@@ -8,6 +8,7 @@ import { allocationRead, type SouthernStarAllocationRead } from "@/components/fu
 import type { DashboardData, DashboardHolding, MinerFundamentals, OwnerType, Scope, StoredDailyPrice, StoredFxRate, StructuralLevel } from "@/lib/storage";
 import { Card, Notice, SummaryGrid } from "@/northstar/components";
 import { RESEARCH_BENCHMARKS, resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
+import { scoreEntryCondition, type EntryScoreResult } from "@/northstar/lib/entry-score";
 import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, scoreRatioTrend, scoreRatioTrendVelocity, RATIO_RANGES, type RatioPoint, type RatioRangeKey, type RelativeReturnWindow, type RelativeScoreCheck, type RelativeScoreComponent } from "@/northstar/lib/ratio-engine";
 import { sectorForInstrument } from "@/northstar/lib/sector-map";
 import { customBenchmarkNode, parseSelectionValue, selectionValue } from "@/northstar/lib/selection";
@@ -24,6 +25,8 @@ type FundamentalsResponse = { fundamentals?: MinerFundamentals[]; error?: string
 type IdeaGroup = { label: string; nodes: BenchmarkNode[] };
 type RelativeLayer = { label: string; target: string; score: number; max: number; component: RelativeScoreComponent; velocity: number | null };
 type RelativeEngineScore = { score: number; velocity: number | null; reserve: RelativeLayer; sector: RelativeLayer | null; peers: RelativeLayer; peerCount: number; peerWins: number; sentence: string };
+type OpportunitySortKey = "allocation" | "fundamental" | "relative" | "velocity" | "valuation" | "entry";
+type OpportunityRow = { symbol: string; name: string; model: string; source: string; fundamental: number | null; relative: number | null; velocity: number | null; valuation: number | null; entry: number | null; allocation: number | null; allocationLabel: string; selectionKind: "holding" | "benchmark"; selectionId: string; };
 type StructuralLevelForm = {
   id: string;
   symbol: string;
@@ -551,6 +554,126 @@ function AllocationReadPanel({ read }: { read: SouthernStarAllocationRead }) {
   );
 }
 
+function scoreValue(value: number | null) {
+  return value == null ? "-" : String(Math.round(value));
+}
+
+function modelForOpportunity(asset: DashboardHolding, fundamentals: MinerFundamentals | undefined) {
+  if (fundamentals?.projectStage) return fundamentals.projectStage;
+  return sectorForInstrument(asset);
+}
+
+function buildOpportunityRows(input: {
+  holdings: DashboardHolding[];
+  savedIdeaNodes: BenchmarkNode[];
+  fundamentalsBySymbol: Map<string, MinerFundamentals>;
+  prices: StoredDailyPrice[];
+  fxRates: StoredFxRate[];
+  benchmarkNodes: BenchmarkNode[];
+  sort: OpportunitySortKey;
+}): OpportunityRow[] {
+  const heldAssets = input.holdings.filter(isChartable).map((holding) => ({ asset: holding, kind: "holding" as const, selectionId: holding.id, source: holding.ownerType === "SMSF" ? "Holding · SMSF" : "Holding · Personal" }));
+  const ideaAssets = input.savedIdeaNodes.map((node) => ({ asset: benchmarkInstrument(node), kind: "benchmark" as const, selectionId: node.id, source: "Saved idea" }));
+  const rows = [...heldAssets, ...ideaAssets].flatMap((item): OpportunityRow[] => {
+    const asset = item.asset;
+    const fundamentals = input.fundamentalsBySymbol.get(asset.symbol.toUpperCase());
+    const relative = buildRelativeEngineScore({ asset, prices: input.prices, fxRates: input.fxRates, holdings: input.holdings, savedIdeaNodes: input.savedIdeaNodes, benchmarkNodes: input.benchmarkNodes });
+    const integrity = componentWins(relative.reserve.component) && (!relative.sector || componentWins(relative.sector.component));
+    const history = item.kind === "benchmark"
+      ? historyForBenchmark(input.prices, input.fxRates, input.benchmarkNodes.find((node) => node.id === item.selectionId) ?? input.savedIdeaNodes.find((node) => node.id === item.selectionId)!)
+      : historyForHolding(input.prices, input.fxRates, asset);
+    const entry = scoreEntryCondition(history, { relativeIntegrityHealthy: integrity });
+    const read = allocationRead({ fundamentals, relativeScore: relative.score, relativeVelocity: relative.velocity, entryScore: entry.score });
+    const gauge = (key: "fundamental" | "relative" | "valuation" | "entry") => read.gauges.find((item) => item.key === key)?.score ?? null;
+    return [{
+      symbol: asset.symbol,
+      name: asset.name,
+      model: modelForOpportunity(asset, fundamentals),
+      source: item.source,
+      fundamental: gauge("fundamental"),
+      relative: gauge("relative"),
+      velocity: relative.velocity,
+      valuation: gauge("valuation"),
+      entry: gauge("entry"),
+      allocation: read.allocationScore,
+      allocationLabel: read.label,
+      selectionKind: item.kind,
+      selectionId: item.selectionId,
+    }];
+  });
+  const sortValue = (row: OpportunityRow) => {
+    if (input.sort === "allocation") return row.allocation ?? -1;
+    if (input.sort === "fundamental") return row.fundamental ?? -1;
+    if (input.sort === "relative") return row.relative ?? -1;
+    if (input.sort === "velocity") return row.velocity ?? -999;
+    if (input.sort === "valuation") return row.valuation ?? -1;
+    return row.entry ?? -1;
+  };
+  return rows
+    .sort((left, right) => sortValue(right) - sortValue(left) || left.symbol.localeCompare(right.symbol))
+    .slice(0, 30);
+}
+
+function EntryScorePanel({ score }: { score: EntryScoreResult }) {
+  return (
+    <div className="entryScorePanel">
+      <div className="allocationReadHeader">
+        <div>
+          <p className="eyebrow">Entry condition</p>
+          <h3>{score.score == null ? "Entry pending" : "Entry Score " + score.score} <span>{score.label}</span></h3>
+          <p>{score.note}</p>
+        </div>
+      </div>
+      {score.checks.length ? (
+        <div className="entryCheckGrid">
+          {score.checks.map((check) => (
+            <div className="entryCheck" key={check.key}>
+              <span>{check.available ? check.passed ? "yes" : "no" : "-"}</span>
+              <strong>{check.label}</strong>
+              <em>{check.detail}</em>
+              {check.max ? <b>{Math.round(check.points)}/{check.max}</b> : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function OpportunityMatrix({ rows, sort, onSort, onSelect }: { rows: OpportunityRow[]; sort: OpportunitySortKey; onSort: (key: OpportunitySortKey) => void; onSelect: (row: OpportunityRow) => void }) {
+  const header = (key: OpportunitySortKey, label: string) => <button type="button" onClick={() => onSort(key)}>{label}{sort === key ? " ↓" : ""}</button>;
+  return (
+    <div className="opportunityMatrix">
+      <div className="allocationReadHeader">
+        <div>
+          <p className="eyebrow">Opportunity matrix</p>
+          <h3>F/R/V/E watchlist</h3>
+          <p>Holdings and saved ideas ranked by the signal you choose. Click a row to load its scorecard and chart context.</p>
+        </div>
+      </div>
+      <div className="opportunityTableWrap">
+        <table className="opportunityTable">
+          <thead><tr><th>Ticker</th><th>Model</th><th>{header("fundamental", "F")}</th><th>{header("relative", "R")}</th><th>{header("velocity", "Delta R30")}</th><th>{header("valuation", "V")}</th><th>{header("entry", "E")}</th><th>{header("allocation", "Allocation")}</th></tr></thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.selectionKind + row.selectionId} onClick={() => onSelect(row)} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") onSelect(row); }}>
+                <td><strong>{row.symbol}</strong><span>{row.name}</span><em>{row.source}</em></td>
+                <td>{row.model}</td>
+                <td>{scoreValue(row.fundamental)}</td>
+                <td>{scoreValue(row.relative)}</td>
+                <td>{row.velocity == null ? "-" : (row.velocity >= 0 ? "+" : "") + Math.round(row.velocity)}</td>
+                <td>{scoreValue(row.valuation)}</td>
+                <td>{scoreValue(row.entry)}</td>
+                <td><strong>{scoreValue(row.allocation)}</strong><span>{row.allocationLabel}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function RelativeScorePanel({ score }: { score: RelativeEngineScore }) {
   const layers = [score.reserve, score.sector, score.peers].filter((layer): layer is RelativeLayer => Boolean(layer));
   return (
@@ -613,6 +736,7 @@ export default function RelativeLeadership() {
   const [customError, setCustomError] = useState("");
   const [operationMessage, setOperationMessage] = useState("");
   const [copiedRatio, setCopiedRatio] = useState(false);
+  const [opportunitySort, setOpportunitySort] = useState<OpportunitySortKey>("velocity");
   const [structuralLevels, setStructuralLevels] = useState<StructuralLevel[]>([]);
   const [structuralForm, setStructuralForm] = useState<StructuralLevelForm>(structuralBlank);
   const [structuralBusy, setStructuralBusy] = useState(false);
@@ -693,8 +817,11 @@ export default function RelativeLeadership() {
   const evidenceWindows = useMemo(() => relativeReturnWindows(fullSeries, evidenceRanges), [fullSeries]);
   const pairThreeMonth = evidenceWindows.find((item) => item.key === "3m")?.ratioReturnPercent ?? null;
   const relativeEngine = useMemo(() => left ? buildRelativeEngineScore({ asset: left, prices, fxRates, holdings, savedIdeaNodes, benchmarkNodes }) : null, [left, prices, fxRates, holdings, savedIdeaNodes, benchmarkNodes]);
+  const relativeIntegrityHealthy = relativeEngine ? componentWins(relativeEngine.reserve.component) && (!relativeEngine.sector || componentWins(relativeEngine.sector.component)) : null;
+  const entryScore = useMemo(() => scoreEntryCondition(leftHistory, { relativeIntegrityHealthy }), [leftHistory, relativeIntegrityHealthy]);
   const selectedFundamentals = left ? fundamentalsBySymbol.get(left.symbol.toUpperCase()) : undefined;
-  const allocationReadout = useMemo(() => allocationRead({ fundamentals: selectedFundamentals, relativeScore: relativeEngine?.score ?? null, relativeVelocity: relativeEngine?.velocity ?? null }), [selectedFundamentals, relativeEngine]);
+  const allocationReadout = useMemo(() => allocationRead({ fundamentals: selectedFundamentals, relativeScore: relativeEngine?.score ?? null, relativeVelocity: relativeEngine?.velocity ?? null, entryScore: entryScore.score }), [selectedFundamentals, relativeEngine, entryScore.score]);
+  const opportunityRows = useMemo(() => buildOpportunityRows({ holdings, savedIdeaNodes, fundamentalsBySymbol, prices, fxRates, benchmarkNodes, sort: opportunitySort }), [holdings, savedIdeaNodes, fundamentalsBySymbol, prices, fxRates, benchmarkNodes, opportunitySort]);
   const first = series[0];
   const last = series.at(-1);
   const ratioChange = first && last ? last.ratio / first.ratio * 100 - 100 : 0;
@@ -995,6 +1122,10 @@ export default function RelativeLeadership() {
           />
 
           <AllocationReadPanel read={allocationReadout} />
+
+          <EntryScorePanel score={entryScore} />
+
+          <OpportunityMatrix rows={opportunityRows} sort={opportunitySort} onSort={setOpportunitySort} onSelect={(row) => { if (row.selectionKind === "holding") { setLeftBenchmarkId(""); setLeftId(row.selectionId); } else { setLeftId(""); setLeftBenchmarkId(row.selectionId); } }} />
 
           {relativeEngine ? <RelativeScorePanel score={relativeEngine} /> : null}
 
