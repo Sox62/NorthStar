@@ -109,11 +109,11 @@ export function ResearchIdeasTable({ ideas, loading, onSelect }: ResearchIdeasTa
     <Card className={styles.tableCard}>
       <div className="panelHeader">
         <div>
-          <p className="eyebrow">Research ideas</p>
+          <p className="eyebrow">Saved fundamentals</p>
           <h2 className="cardTitle">Saved fundamentals not currently held</h2>
         </div>
         <StatusBadge tone={ideas.length ? "good" : "warning"}>
-          {loading ? "Loading" : `${ideas.length} ideas`}
+          {loading ? "Loading" : `${ideas.length} records`}
         </StatusBadge>
       </div>
 
@@ -173,7 +173,7 @@ export function ResearchIdeasTable({ ideas, loading, onSelect }: ResearchIdeasTa
         </table>
       </div>
 
-      {!loading && !ideas.length ? <p className="empty">No saved research ideas outside current holdings yet.</p> : null}
+      {!loading && !ideas.length ? <p className="empty">No saved fundamentals outside current holdings yet.</p> : null}
     </Card>
   );
 }

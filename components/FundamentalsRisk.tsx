@@ -106,9 +106,9 @@ export default function FundamentalsRisk() {
         return { ...current, fundamentals: [...bySymbol.values()].sort((a, b) => a.symbol.localeCompare(b.symbol)) };
       });
       setResearchForm(blankResearchForm);
-      setResearchStatus({ saving: false, message: `Saved ${next.symbol} as a research idea.`, error: "" });
+      setResearchStatus({ saving: false, message: `Saved ${next.symbol} fundamentals.`, error: "" });
     } catch (reason) {
-      setResearchStatus({ saving: false, message: "", error: reason instanceof Error ? reason.message : "Unable to save research idea" });
+      setResearchStatus({ saving: false, message: "", error: reason instanceof Error ? reason.message : "Unable to save fundamentals" });
     }
   }
 
@@ -151,8 +151,8 @@ export default function FundamentalsRisk() {
               ["Miner positions", loading ? "..." : String(sortedHoldings.length)],
               ["Largest position", largest ? `${largest.symbol} · ${money(largest.marketValueAud)}` : "n/a"],
               ["Largest sector", sectors[0] ? `${sectors[0][0]} · ${money(sectors[0][1])}` : "n/a"],
-              ["Saved records", loading ? "..." : String(fundamentals.length)],
-              ["Research ideas", loading ? "..." : String(researchFundamentals.length)],
+              ["Saved fundamentals", loading ? "..." : String(fundamentals.length)],
+              ["Saved not held", loading ? "..." : String(researchFundamentals.length)],
             ]}
           />
         </Card>

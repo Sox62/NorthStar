@@ -99,6 +99,13 @@
       "when": 1787356800000,
       "tag": "0013_seed_production_fundamentals",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1787360400000,
+      "tag": "0014_missing_held_fundamentals",
+      "breakpoints": true
     }
   ]
 }

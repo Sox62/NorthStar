@@ -274,6 +274,6 @@ export async function saveResearchFundamentals(form: ResearchFormState): Promise
     }),
   });
   const payload = await response.json() as SaveFundamentalsResponse;
-  if (!response.ok || payload.error || !payload.fundamental) throw new Error(payload.error || "Unable to save research idea");
+  if (!response.ok || payload.error || !payload.fundamental) throw new Error(payload.error || "Unable to save fundamentals");
   return payload.fundamental;
 }
