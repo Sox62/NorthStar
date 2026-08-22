@@ -1,7 +1,8 @@
 import type { FormEvent } from "react";
+import { useMemo, useState } from "react";
 import type { FundamentalResearchDraft } from "@/lib/storage";
 import { Card, StatusBadge } from "@/southernstar/components";
-import { RESEARCH_FORM_ID, dateOrDash, type ResearchAiProvider, type ResearchFormState } from "./model";
+import { RESEARCH_FORM_ID, dateOrDash, importResearchTemplateJson, researchTemplatePrompt, type ResearchAiProvider, type ResearchFormState } from "./model";
 import styles from "./FundamentalsRisk.module.css";
 
 type ResearchIntakeFormProps = {
@@ -19,6 +20,7 @@ type ResearchIntakeFormProps = {
   onReviewDraft: (draft: FundamentalResearchDraft) => void;
   onRejectDraft: (draft: FundamentalResearchDraft) => void;
   onClear: () => void;
+  onImportTemplate: (form: ResearchFormState) => void;
 };
 
 function confidenceLabel(value: number | null) {
@@ -26,8 +28,35 @@ function confidenceLabel(value: number | null) {
   return Math.round(value * 100) + "% confidence";
 }
 
-export function ResearchIntakeForm({ form, status, aiProvider, drafts, activeDraftId, busyDraftId, draftError, onChange, onAiProviderChange, onSubmit, onAutoFind, onReviewDraft, onRejectDraft, onClear }: ResearchIntakeFormProps) {
+export function ResearchIntakeForm({ form, status, aiProvider, drafts, activeDraftId, busyDraftId, draftError, onChange, onAiProviderChange, onSubmit, onAutoFind, onReviewDraft, onRejectDraft, onClear, onImportTemplate }: ResearchIntakeFormProps) {
   const hasSymbol = form.symbol.trim().length > 0;
+  const [templateJson, setTemplateJson] = useState("");
+  const [templateMessage, setTemplateMessage] = useState("");
+  const [templateError, setTemplateError] = useState("");
+  const prompt = useMemo(() => researchTemplatePrompt(form), [form.symbol, form.name]);
+
+  async function handleCopyTemplate() {
+    setTemplateError("");
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setTemplateMessage("Copied research prompt. Paste it into ChatGPT/Claude, then paste the JSON result below.");
+    } catch {
+      setTemplateJson(prompt);
+      setTemplateMessage("Clipboard blocked. Prompt placed in the import box for manual copy.");
+    }
+  }
+
+  function handleImportTemplate() {
+    setTemplateMessage("");
+    setTemplateError("");
+    try {
+      onImportTemplate(importResearchTemplateJson(form, templateJson));
+      setTemplateJson("");
+      setTemplateMessage("Imported JSON into the form. Review every field before saving.");
+    } catch (error) {
+      setTemplateError(error instanceof Error ? error.message : "Unable to import research JSON");
+    }
+  }
   return (
     <Card id={RESEARCH_FORM_ID} className={styles.researchFormCard}>
       <div className="panelHeader">
@@ -56,6 +85,20 @@ export function ResearchIntakeForm({ form, status, aiProvider, drafts, activeDra
           </div>
         </div>
       ) : null}
+
+      <div className={styles.templateImport}>
+        <div>
+          <strong>Browser AI import</strong>
+          <span>Copy the prompt, let ChatGPT or Claude research with web access, then paste the returned JSON here.</span>
+        </div>
+        <div className={styles.templateActions}>
+          <button type="button" onClick={handleCopyTemplate}>Copy AI template</button>
+          <button type="button" onClick={handleImportTemplate} disabled={!templateJson.trim()}>Import JSON</button>
+        </div>
+        <textarea value={templateJson} onChange={(event) => setTemplateJson(event.target.value)} rows={5} placeholder="Paste completed JSON from ChatGPT/Claude here" />
+        {templateMessage ? <p className={styles.message}>{templateMessage}</p> : null}
+        {templateError ? <p className={`${styles.message} ${styles.messageError}`}>{templateError}</p> : null}
+      </div>
 
       <form className={styles.researchForm} onSubmit={onSubmit}>
         <label><span>Symbol</span><input value={form.symbol} onChange={(event) => onChange("symbol", event.target.value.toUpperCase())} placeholder="PAAS" required /></label>

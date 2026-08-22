@@ -255,6 +255,7 @@ export default function FundamentalsRisk() {
         onReviewDraft={handleReviewDraft}
         onRejectDraft={(draft) => handleRejectDraft(draft.id)}
         onClear={() => { setResearchForm(blankResearchForm); setActiveDraftId(""); }}
+        onImportTemplate={(nextForm) => { setResearchForm(nextForm); setResearchStatus({ saving: false, finding: false, message: "Imported AI template. Review, then save.", error: "" }); }}
       />
 
       <ResearchIdeasTable ideas={researchFundamentals} loading={loading} onSelect={handleEditResearchIdea} />

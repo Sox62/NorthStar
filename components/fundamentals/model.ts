@@ -106,6 +106,119 @@ export const blankResearchForm: ResearchFormState = {
   notes: "",
 };
 
+
+export const RESEARCH_TEMPLATE_SCHEMA = `{
+  "symbol": "CMM",
+  "name": "Capricorn Metals",
+  "primaryMetal": "Gold",
+  "jurisdiction": "Western Australia",
+  "projectStage": "Producer",
+  "asOfDate": "2026-06-30",
+  "productionOz": 120000,
+  "aiscUsdPerOz": 1248,
+  "resourceMoz": 4.8,
+  "reserveMoz": 1.7,
+  "cashAud": 125400000,
+  "debtAud": 14200000,
+  "marketCapAud": 900000000,
+  "npvAud": null,
+  "capexAud": null,
+  "irrPercent": null,
+  "jurisdictionScore": null,
+  "balanceSheetScore": null,
+  "dilutionScore": null,
+  "managementScore": null,
+  "sourceUrl": "https://...",
+  "notes": "Short factual summary only. Include source dates and uncertainty. Do not make buy/sell recommendations."
+}`;
+
+export function researchTemplatePrompt(form: Pick<ResearchFormState, "symbol" | "name">) {
+  const symbol = form.symbol.trim().toUpperCase() || "TICKER";
+  const name = form.name.trim() || "Company name";
+  return `Research ${symbol} ${name} using current company filings, annual/quarterly reports, investor presentations and official market announcements. Return ONLY valid JSON matching this schema. Use null where a value is not clearly sourced. Numeric money fields must be raw AUD numbers, not strings and not millions shorthand. Do not provide investment advice or buy/sell judgement. Do not invent scores. Put source URLs and source dates in notes.\n\n${RESEARCH_TEMPLATE_SCHEMA}`;
+}
+
+export function importResearchTemplateJson(current: ResearchFormState, rawJson: string): ResearchFormState {
+  const parsed = parseResearchJson(rawJson);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Paste one JSON object from the research template");
+  const source = parsed as Record<string, unknown>;
+  const next = { ...current };
+
+  setText(next, source, "symbol");
+  next.symbol = next.symbol.toUpperCase();
+  setText(next, source, "name");
+  setText(next, source, "primaryMetal", "primary_metal", "metal");
+  setText(next, source, "jurisdiction");
+  setText(next, source, "projectStage", "project_stage", "stage");
+  setDate(next, source, "asOfDate", "as_of_date", "asOf");
+  setNumberText(next, source, "productionOz", "production_oz", "annualProductionOz");
+  setNumberText(next, source, "aiscUsdPerOz", "aisc_usd_per_oz", "aisc");
+  setNumberText(next, source, "resourceMoz", "resource_moz", "resourcesMoz");
+  setNumberText(next, source, "reserveMoz", "reserve_moz", "reservesMoz");
+  setNumberText(next, source, "cashAud", "cash_aud", "cash");
+  setNumberText(next, source, "debtAud", "debt_aud", "debt");
+  setNumberText(next, source, "marketCapAud", "market_cap_aud", "marketCap");
+  setNumberText(next, source, "npvAud", "npv_aud", "npv");
+  setNumberText(next, source, "capexAud", "capex_aud", "capex");
+  setNumberText(next, source, "irrPercent", "irr_percent", "irr");
+  setScoreText(next, source, "jurisdictionScore", "jurisdiction_score");
+  setScoreText(next, source, "balanceSheetScore", "balance_sheet_score", "balanceScore");
+  setScoreText(next, source, "dilutionScore", "dilution_score");
+  setScoreText(next, source, "managementScore", "management_score");
+  setText(next, source, "sourceUrl", "source_url");
+  setText(next, source, "notes");
+
+  if (!next.symbol.trim()) throw new Error("Imported research must include a symbol");
+  return next;
+}
+
+function parseResearchJson(rawJson: string): unknown {
+  const trimmed = rawJson.trim();
+  if (!trimmed) throw new Error("Paste completed research JSON first");
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const match = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i) ?? trimmed.match(/(\{[\s\S]*\})/);
+    if (!match) throw new Error("Research import must be valid JSON");
+    return JSON.parse(match[1]);
+  }
+}
+
+function firstValue(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) if (source[key] != null) return source[key];
+  return undefined;
+}
+
+function setText(target: ResearchFormState, source: Record<string, unknown>, field: keyof ResearchFormState, ...aliases: string[]) {
+  const value = firstValue(source, [field, ...aliases]);
+  if (value == null) return;
+  target[field] = String(value).trim();
+}
+
+function setDate(target: ResearchFormState, source: Record<string, unknown>, field: keyof ResearchFormState, ...aliases: string[]) {
+  const value = firstValue(source, [field, ...aliases]);
+  if (value == null || value === "") return;
+  const text = String(value).trim();
+  const iso = text.match(/^(20\d{2})-(\d{2})-(\d{2})/);
+  target[field] = iso ? `${iso[1]}-${iso[2]}-${iso[3]}` : text;
+}
+
+function setNumberText(target: ResearchFormState, source: Record<string, unknown>, field: keyof ResearchFormState, ...aliases: string[]) {
+  const value = firstValue(source, [field, ...aliases]);
+  if (value == null || value === "") return;
+  const number = typeof value === "number" ? value : Number(String(value).replace(/[$,\s]/g, ""));
+  if (!Number.isFinite(number)) throw new Error(`${field} must be a number or null`);
+  target[field] = String(number);
+}
+
+function setScoreText(target: ResearchFormState, source: Record<string, unknown>, field: keyof ResearchFormState, ...aliases: string[]) {
+  const value = firstValue(source, [field, ...aliases]);
+  if (value == null || value === "") return;
+  const number = typeof value === "number" ? value : Number(String(value).replace(/\s/g, ""));
+  if (!Number.isFinite(number) || number < 0 || number > 5) throw new Error(`${field} must be 0-5 or null`);
+  target[field] = String(number);
+}
+
 /** Anchor for jumping from the workpage to the intake form. */
 export const RESEARCH_FORM_ID = "research-intake";
 
