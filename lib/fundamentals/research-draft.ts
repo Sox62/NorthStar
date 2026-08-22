@@ -14,6 +14,17 @@ const MAX_SOURCE_CHARS = 300_000;
 const MAX_PDF_BYTES = 15_000_000;
 const EXTRACTOR = "southernstar-factual-parser";
 
+const FUNDAMENTAL_TOPIC_PATTERNS = [
+  /all[- ]in sustaining cost|\bAISC\b/i,
+  /cash and cash equivalents|cash balance|cash at bank/i,
+  /debt|borrowings|net cash|net debt/i,
+  /mineral resources?|ore reserves?|reserve estimate/i,
+  /production|produced|guidance/i,
+  /free cash flow|operating cash flow|cash flow/i,
+  /market capitalisation|market capitalization|market cap/i,
+  /NPV|net present value|IRR|internal rate of return|capex|capital cost/i,
+];
+
 const privateHosts = [/^localhost$/i, /^127\./, /^10\./, /^192\.168\./, /^169\.254\./, /^0\.0\.0\.0$/, /^::1$/, /\.local$/i];
 
 export function normaliseResearchSymbol(symbol: string) {
@@ -85,6 +96,15 @@ async function extractPdfText(data: Buffer) {
   } finally {
     await parser.destroy();
   }
+}
+
+export function fundamentalSourceFactYield(sourceText: string | null | undefined) {
+  const plainText = htmlToText(sourceText ?? "");
+  const extracted = extractFacts(plainText);
+  const extractedCount = Object.values(extracted).filter((value) => value != null).length;
+  const topicScore = FUNDAMENTAL_TOPIC_PATTERNS.reduce((score, pattern) => score + (pattern.test(plainText) ? 1 : 0), 0);
+  const lengthScore = Math.min(6, Math.floor(plainText.length / 12_000));
+  return extractedCount * 120 + topicScore * 18 + lengthScore;
 }
 
 export function buildFundamentalResearchDraft(source: FundamentalResearchSource): FundamentalResearchDraftInput {

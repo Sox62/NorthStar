@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 import { buildAiFundamentalResearchDraft } from "@/lib/fundamentals/ai-extractor";
-import { asxIssuerMismatch, buildFundamentalResearchDraft, fetchResearchSource, type FundamentalResearchSource } from "@/lib/fundamentals/research-draft";
-import { fetchCompanyNews, type CompanyNewsItem, type NewsInstrument } from "@/lib/integrations/company-news";
+import { asxIssuerMismatch, buildFundamentalResearchDraft, fetchResearchSource, fundamentalSourceFactYield, type FundamentalResearchSource } from "@/lib/fundamentals/research-draft";
+import { fetchFundamentalWebCandidates } from "@/lib/fundamentals/web-search";
+import { fetchAsxAnnouncements, fetchCompanyNews, type CompanyNewsItem, type NewsInstrument } from "@/lib/integrations/company-news";
 import { getStorage } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -17,13 +18,20 @@ const researchRequestSchema = z.object({
 });
 
 const FUNDAMENTAL_SOURCE_SCORE: Array<[RegExp, number]> = [
-  [/annual\s+report|annual\s+results|10-k|20-f|40-f/i, 120],
-  [/quarterly|half[- ]year|interim|appendix\s+5b|appendix\s+4c/i, 95],
-  [/financial\s+results|results\s+of\s+operations|cash\s+flow|cashflow/i, 90],
-  [/resource|reserve|mineral\s+resource|ore\s+reserve|maiden/i, 80],
-  [/feasibility|scoping|pfs|dfs|study|npv|capex|irr/i, 75],
-  [/presentation|investor/i, 35],
+  [/annual\s+report|annual\s+results|10-k|20-f|40-f/i, 140],
+  [/quarterly|half[- ]year|interim|appendix\s+5b|appendix\s+4c/i, 110],
+  [/financial\s+results|results\s+of\s+operations|cash\s+flow|cashflow/i, 105],
+  [/resource|reserve|mineral\s+resource|ore\s+reserve|maiden/i, 85],
+  [/feasibility|scoping|pfs|dfs|study|npv|capex|irr/i, 80],
+  [/presentation|investor/i, 55],
 ];
+
+const LOW_VALUE_SOURCE_SCORE: Array<[RegExp, number]> = [
+  [/acquisition|binding agreement|cleansing notice|change of director|application for quotation/i, 50],
+  [/appendix\s+3|appendix\s+2a|notice of meeting|becoming a substantial holder/i, 80],
+];
+
+const MAX_SOURCE_CANDIDATES = 12;
 
 type DiscoveredResearchSource = {
   item: CompanyNewsItem | null;
@@ -37,8 +45,10 @@ async function discoverResearchSource(symbol: string, name: string | null): Prom
 
   for (const instrument of instruments) {
     try {
-      const items = chooseResearchSources(await fetchCompanyNews(instrument));
-      for (const item of items.slice(0, 6)) {
+      const items = chooseResearchSources(await fetchResearchCandidates(instrument));
+      let best: { item: CompanyNewsItem; source: Awaited<ReturnType<typeof fetchResearchSource>>; score: number } | null = null;
+
+      for (const item of items.slice(0, MAX_SOURCE_CANDIDATES)) {
         try {
           const source = await fetchResearchSource(item.url);
           const issuer = item.source === "ASX" ? asxIssuerMismatch(instrument.symbol, source.text) : null;
@@ -46,10 +56,21 @@ async function discoverResearchSource(symbol: string, name: string | null): Prom
             failures.push(`${instrument.symbol}:${instrument.exchange} skipped ${item.headline} because the PDF header is ASX:${issuer}`);
             continue;
           }
-          return { item, source, note: `Source discovered from ${item.source} using ${instrument.symbol}:${instrument.exchange}.` };
+          const score = sourceScore(item) + fundamentalSourceFactYield(source.text);
+          if (!best || score > best.score || score === best.score && item.publishedAt > best.item.publishedAt) {
+            best = { item, source, score };
+          }
         } catch (error) {
           failures.push(`${instrument.symbol}:${instrument.exchange} ${item.headline} ${error instanceof Error ? error.message : "source failed"}`);
         }
+      }
+
+      if (best) {
+        return {
+          item: best.item,
+          source: best.source,
+          note: `Source discovered from ${best.item.source} using ${instrument.symbol}:${instrument.exchange}; selected for highest fundamentals yield from ${Math.min(items.length, MAX_SOURCE_CANDIDATES)} candidates.`,
+        };
       }
     } catch (error) {
       failures.push(`${instrument.symbol}:${instrument.exchange} ${error instanceof Error ? error.message : "lookup failed"}`);
@@ -91,6 +112,16 @@ function explicitExchange(symbol: string) {
   return null;
 }
 
+async function fetchResearchCandidates(instrument: NewsInstrument) {
+  const symbol = instrument.symbol.trim().toUpperCase();
+  const webCandidates = await fetchFundamentalWebCandidates({ symbol, name: instrument.name });
+  if (instrument.exchange.trim().toUpperCase() === "ASX") {
+    const announcements = await fetchAsxAnnouncements(symbol, 80);
+    if (announcements.length || webCandidates.length) return [...webCandidates, ...announcements];
+  }
+  return [...webCandidates, ...await fetchCompanyNews(instrument)];
+}
+
 function chooseResearchSources(items: CompanyNewsItem[]) {
   return [...items]
     .filter((item) => item.url && item.headline)
@@ -124,7 +155,8 @@ function sourceScore(item: CompanyNewsItem) {
   const matchScore = FUNDAMENTAL_SOURCE_SCORE.reduce((score, [pattern, value]) => pattern.test(text) ? Math.max(score, value) : score, 0);
   const official = item.source === "ASX" || item.source === "SEC" ? 30 : 0;
   const material = item.material ? 10 : 0;
-  return official + material + matchScore;
+  const penalty = LOW_VALUE_SOURCE_SCORE.reduce((score, [pattern, value]) => pattern.test(text) ? Math.max(score, value) : score, 0);
+  return official + material + matchScore - penalty;
 }
 
 export async function POST(request: Request) {

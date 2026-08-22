@@ -1,4 +1,4 @@
-export type CompanyNewsSource = "ASX" | "SEC" | "Yahoo Finance";
+export type CompanyNewsSource = "ASX" | "SEC" | "Yahoo Finance" | "Web Search";
 
 export type CompanyNewsItem = {
   symbol: string;

@@ -5,7 +5,7 @@ import { fetchYahooHeadlines } from "./yahoo";
 import { isUsVenue, newsVenueForExchange, orderNews, type CompanyNewsItem } from "./types";
 
 export * from "./types";
-export { asxDocumentUrl, parseAsxAnnouncements } from "./asx";
+export { asxDocumentUrl, fetchAsxAnnouncements, parseAsxAnnouncements } from "./asx";
 export { describe8kItems, isMaterialSecForm, isOwnershipSecForm, parseSecFilings, parseTickerMap, secDocumentUrl } from "./sec";
 export { parseYahooHeadlines } from "./yahoo";
 

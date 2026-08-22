@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { asxIssuerMismatch, buildFundamentalResearchDraft, fetchResearchSource, normaliseResearchSymbol, validateResearchSourceUrl } from "./research-draft";
+import { asxIssuerMismatch, buildFundamentalResearchDraft, fetchResearchSource, fundamentalSourceFactYield, normaliseResearchSymbol, validateResearchSourceUrl } from "./research-draft";
 
 test("buildFundamentalResearchDraft extracts clear source facts into a pending draft input", () => {
   const draft = buildFundamentalResearchDraft({
@@ -22,6 +22,16 @@ test("buildFundamentalResearchDraft extracts clear source facts into a pending d
   assert.equal(draft.sourceDate, "2026-07-31");
   assert.equal(draft.jurisdictionScore, null);
   assert.match(draft.notes ?? "", /Review every field/);
+});
+
+test("fundamentalSourceFactYield favours source text with extractable fundamentals", () => {
+  const acquisitionNote = `ASX:CMM Acquisition of the Piastri Project. The tenure is considered prospective for gold and antimony mineralisation.
+    Capricorn has identified several targets and will commence exploration planning.`;
+  const quarterlyReport = `ASX:CMM Quarterly report. Cash and cash equivalents A$125.4m. Debt A$14.2m.
+    Production was 120,000 oz. AISC US$1,248 per oz. Mineral resources 4.8 Moz. Ore reserves 1.7 Moz.
+    Operating cash flow was A$71m and FY guidance remains unchanged.`;
+
+  assert.ok(fundamentalSourceFactYield(quarterlyReport) > fundamentalSourceFactYield(acquisitionNote));
 });
 
 test("buildFundamentalResearchDraft carries a source discovery note", () => {
