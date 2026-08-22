@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       return new Response(body, {
         headers: {
           "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          "content-disposition": `attachment; filename="northstar-personal-eofy-accountant-pack-fy${year}.xlsx"`,
+          "content-disposition": `attachment; filename="southernstar-personal-eofy-accountant-pack-fy${year}.xlsx"`,
           "cache-control": "no-store",
         },
       });
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
       return new Response(body, {
         headers: {
           "content-type": "text/csv; charset=utf-8",
-          "content-disposition": `attachment; filename="northstar-personal-eofy-accountant-pack-fy${year}.csv"`,
+          "content-disposition": `attachment; filename="southernstar-personal-eofy-accountant-pack-fy${year}.csv"`,
           "cache-control": "no-store",
         },
       });

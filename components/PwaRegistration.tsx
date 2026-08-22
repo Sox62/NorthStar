@@ -12,7 +12,7 @@ export default function PwaRegistration() {
         await Promise.all(registrations.map((registration) => registration.unregister()));
         if ("caches" in window) {
           const keys = await caches.keys();
-          await Promise.all(keys.filter((key) => key.startsWith("northstar-")).map((key) => caches.delete(key)));
+          await Promise.all(keys.filter((key) => key.startsWith("southernstar-")).map((key) => caches.delete(key)));
         }
       } catch (error) {
         console.warn("SouthernStar service worker cleanup failed", error);

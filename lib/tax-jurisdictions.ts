@@ -24,7 +24,7 @@ export const taxJurisdictions: Record<TaxJurisdictionCode, TaxJurisdiction> = {
     yearStartDay: 1,
     yearEndMonth: 6,
     yearEndDay: 30,
-    notes: "Current NorthStar EOFY reports use Australian personal tax treatment, including franking credits and CGT discount logic.",
+    notes: "Current SouthernStar EOFY reports use Australian personal tax treatment, including franking credits and CGT discount logic.",
   },
   UK: {
     code: "UK",

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import type { Scope } from "@/lib/storage";
 import type { TaxLotsResponse } from "@/lib/tax-lots";
-import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
+import { Card, Notice, StatusBadge, SummaryGrid } from "@/southernstar/components";
 
 const scopes: Array<{ key: Scope; label: string }> = [
   { key: "overall", label: "Overall" },

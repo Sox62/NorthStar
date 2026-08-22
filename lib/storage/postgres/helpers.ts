@@ -12,13 +12,13 @@ export async function ensurePortfolio(client: PoolClient, ownerType: OwnerType) 
   const previousProductName = ["North", "Star"].join(" ");
   await client.query(`
     UPDATE portfolio_groups
-    SET name = 'NorthStar'
+    SET name = 'SouthernStar'
     WHERE name = $1
-      AND NOT EXISTS (SELECT 1 FROM portfolio_groups WHERE name = 'NorthStar')
+      AND NOT EXISTS (SELECT 1 FROM portfolio_groups WHERE name = 'SouthernStar')
   `, [previousProductName]);
   const group = await client.query<{ id: string }>(`
     INSERT INTO portfolio_groups (name, base_currency)
-    VALUES ('NorthStar', 'AUD')
+    VALUES ('SouthernStar', 'AUD')
     ON CONFLICT (name) DO UPDATE SET base_currency = EXCLUDED.base_currency
     RETURNING id
   `);

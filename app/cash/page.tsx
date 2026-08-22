@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import type { CashAccount, OwnerType } from "@/lib/storage";
-import { Card, StatusBadge } from "@/northstar/components";
+import { Card, StatusBadge } from "@/southernstar/components";
 
 const today = new Date().toISOString().slice(0, 10);
 const blank = {

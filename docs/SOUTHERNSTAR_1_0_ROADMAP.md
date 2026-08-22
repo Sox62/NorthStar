@@ -1,6 +1,6 @@
-# NorthStar 1.0 Roadmap
+# SouthernStar 1.0 Roadmap
 
-NorthStar 1.0 is a private portfolio operating system for Personal and SMSF wealth. The implementation should stay modular, but remain a single deployable Next.js application until there is a clear operational reason to split services.
+SouthernStar 1.0 is a private portfolio operating system for Personal and SMSF wealth. The implementation should stay modular, but remain a single deployable Next.js application until there is a clear operational reason to split services.
 
 ## Current Baseline
 
@@ -126,11 +126,11 @@ Acceptance:
 
 ## Architecture Direction
 
-NorthStar should evolve as a modular monolith first:
+SouthernStar should evolve as a modular monolith first:
 
 - `lib/storage`: persistence adapters.
 - `lib/integrations`: broker and price feeds.
 - `lib/roadmap`: delivery plan and status metadata.
 - Future `lib/core`: portfolio accounting, valuations, analytics and reporting.
 
-Split NorthStar Core and NorthStar UI into separate packages only after the core contracts are stable and shared outside the web app.
+Split SouthernStar Core and SouthernStar UI into separate packages only after the core contracts are stable and shared outside the web app.

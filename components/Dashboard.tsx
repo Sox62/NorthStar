@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { DashboardData } from "@/lib/storage";
-import { Card, Notice, OverviewScreen } from "@/northstar/components";
-import type { Holding } from "@/northstar/types";
-import { dashboardToAccountSummary, dashboardToNorthstarHoldings, type AccountSummary } from "./northstar-adapter";
+import { Card, Notice, OverviewScreen } from "@/southernstar/components";
+import type { Holding } from "@/southernstar/types";
+import { dashboardToAccountSummary, dashboardToSouthernStarHoldings, type AccountSummary } from "./southernstar-adapter";
 
 async function loadDashboard(scope: DashboardData["scope"]): Promise<DashboardData> {
   const response = await fetch(`/api/dashboard?scope=${scope}`, { cache: "no-store" });
@@ -28,7 +28,7 @@ export default function Dashboard() {
     setError("");
     try {
       const [overall, personal, smsf] = await Promise.all([loadDashboard("overall"), loadDashboard("personal"), loadDashboard("smsf")]);
-      setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
+      setHoldings([...dashboardToSouthernStarHoldings(personal), ...dashboardToSouthernStarHoldings(smsf)]);
       setPerformance(overall.performance ?? []);
       setAccountBreakdown([dashboardToAccountSummary(personal, overall.totalValue), dashboardToAccountSummary(smsf, overall.totalValue)].filter((item): item is AccountSummary => item !== null));
       setSyncRuns(overall.syncRuns ?? []);

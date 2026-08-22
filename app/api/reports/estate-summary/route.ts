@@ -1,5 +1,5 @@
 import { getStorage, type DashboardData } from "@/lib/storage";
-import { sectorForInstrument } from "@/northstar/lib/sector-map";
+import { sectorForInstrument } from "@/southernstar/lib/sector-map";
 
 export const runtime = "nodejs";
 
@@ -100,7 +100,7 @@ export async function GET() {
     addOwnerRows(rows, smsf, overall.totalValue);
 
     const body = csv(rows);
-    const filename = `northstar-estate-summary-${reportDate(overall)}.csv`;
+    const filename = `southernstar-estate-summary-${reportDate(overall)}.csv`;
     return new Response(body, {
       headers: {
         "content-type": "text/csv; charset=utf-8",

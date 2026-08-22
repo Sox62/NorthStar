@@ -1,7 +1,7 @@
 import type { MinerFundamentals } from "@/lib/storage";
-import { Card, SectorTag, StatusBadge } from "@/northstar/components";
-import type { Holding } from "@/northstar/types";
-import { SECTOR_COLORS } from "@/northstar/types";
+import { Card, SectorTag, StatusBadge } from "@/southernstar/components";
+import type { Holding } from "@/southernstar/types";
+import { SECTOR_COLORS } from "@/southernstar/types";
 import {
   averageScore,
   dateOrDash,

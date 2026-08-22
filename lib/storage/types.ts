@@ -1,6 +1,6 @@
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
-import type { AllocationTarget } from "@/northstar/lib/allocation-drift";
-import type { Sector } from "@/northstar/types";
+import type { AllocationTarget } from "@/southernstar/lib/allocation-drift";
+import type { Sector } from "@/southernstar/types";
 
 export type { AllocationTarget };
 

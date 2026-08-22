@@ -10,9 +10,9 @@ import {
   maskAccount,
   ownerForScope,
 } from "@/lib/core/accounting";
-import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northstar/lib/allocation-drift";
+import { defaultAllocationTargets, normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
-import type { Sector } from "@/northstar/types";
+import type { Sector } from "@/southernstar/types";
 import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import type {
   CashAccount,
@@ -44,7 +44,8 @@ import type {
   StoredOpenOrder,
 } from "./types";
 
-const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".north-star", "data.json");
+const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".southern-star", "data.json");
+const LEGACY_DATA_FILE = path.join(process.cwd(), ".north-star", "data.json");
 export const PASTED_ORDER_SOURCE = "IBKR paste";
 
 const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], structuralLevels: [], imports: [] };
@@ -53,9 +54,8 @@ function normalisePhysicalMetalType(value: unknown) {
   return value === "GOLD" || value === "SILVER" || value === "PLATINUM" || value === "PALLADIUM" ? value : "PLATINUM";
 }
 
-async function readStore(): Promise<LocalStore> {
-  try {
-    const parsed = JSON.parse(await readFile(DATA_FILE, "utf8")) as Record<string, unknown>;
+async function parseStoreFile(file: string): Promise<LocalStore> {
+  const parsed = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
     if (parsed.version === 6) {
       return {
         ...(parsed as unknown as LocalStore),
@@ -123,7 +123,20 @@ async function readStore(): Promise<LocalStore> {
       return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets: [], platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], structuralLevels: [] };
     }
     return structuredClone(EMPTY);
+}
+
+async function readStore(): Promise<LocalStore> {
+  try {
+    return await parseStoreFile(DATA_FILE);
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT" && DATA_FILE !== LEGACY_DATA_FILE) {
+      try {
+        return await parseStoreFile(LEGACY_DATA_FILE);
+      } catch (legacyError) {
+        if ((legacyError as NodeJS.ErrnoException).code === "ENOENT") return structuredClone(EMPTY);
+        throw legacyError;
+      }
+    }
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return structuredClone(EMPTY);
     throw error;
   }

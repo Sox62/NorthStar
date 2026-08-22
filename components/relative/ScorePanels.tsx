@@ -1,6 +1,6 @@
 import type { SouthernStarAllocationRead } from "@/components/fundamentals/detail-model";
-import type { EntryScoreResult } from "@/northstar/lib/entry-score";
-import type { RelativeScoreCheck, RelativeScoreComponent } from "@/northstar/lib/ratio-engine";
+import type { EntryScoreResult } from "@/southernstar/lib/entry-score";
+import type { RelativeScoreCheck, RelativeScoreComponent } from "@/southernstar/lib/ratio-engine";
 
 export type RelativeLayer = { label: string; target: string; score: number; max: number; component: RelativeScoreComponent; velocity: number | null };
 export type RelativeEngineScore = { score: number; velocity: number | null; reserve: RelativeLayer; sector: RelativeLayer | null; peers: RelativeLayer; peerCount: number; peerWins: number; sentence: string };

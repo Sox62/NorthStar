@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { NavRail } from "@/northstar/components/NavRail";
+import { NavRail } from "@/southernstar/components/NavRail";
 
 function activeForPath(pathname: string) {
   if (pathname === "/") return "overview";

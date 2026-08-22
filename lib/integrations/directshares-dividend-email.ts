@@ -162,7 +162,7 @@ export async function fetchDirectsharesDividendEmailTransactions(config = direct
     secure: config.secure,
     auth: { user: config.user, pass: config.password },
     logger: false,
-    clientInfo: { name: "NorthStar" },
+    clientInfo: { name: "SouthernStar" },
   });
 
   const result: DirectsharesDividendEmailFetchResult = {

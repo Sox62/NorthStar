@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, Notice, StatusBadge } from "@/northstar/components";
-import { SECTOR_COLORS, type Holding, type Sector } from "@/northstar/types";
+import { Card, Notice, StatusBadge } from "@/southernstar/components";
+import { SECTOR_COLORS, type Holding, type Sector } from "@/southernstar/types";
 import styles from "./SectorOverrides.module.css";
 
 type Override = { symbol: string; sector: Sector; updatedAt: string };

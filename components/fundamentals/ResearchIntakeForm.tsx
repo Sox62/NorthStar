@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { Card, StatusBadge } from "@/northstar/components";
+import { Card, StatusBadge } from "@/southernstar/components";
 import { RESEARCH_FORM_ID, type ResearchFormState } from "./model";
 import styles from "./FundamentalsRisk.module.css";
 

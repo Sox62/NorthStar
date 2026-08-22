@@ -37,7 +37,7 @@ export default function MobileMenu() {
         type="button"
         className="mobileMenuButton"
         aria-expanded={open}
-        aria-controls="northstar-mobile-menu"
+        aria-controls="southernstar-mobile-menu"
         onClick={() => setOpen((value) => !value)}
       >
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
@@ -49,7 +49,7 @@ export default function MobileMenu() {
       {open && <button type="button" className="mobileMenuOverlay" aria-label="Close menu" onClick={() => setOpen(false)} />}
 
       {open && (
-        <aside id="northstar-mobile-menu" className="mobileMenuDrawer isOpen" aria-label="SouthernStar mobile navigation">
+        <aside id="southernstar-mobile-menu" className="mobileMenuDrawer isOpen" aria-label="SouthernStar mobile navigation">
           <div className="mobileMenuHeader">
             <div className="mobileMenuBrand">
               <span className="miniStar" aria-hidden="true">✦</span>

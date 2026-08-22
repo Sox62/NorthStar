@@ -272,7 +272,7 @@ export function eofyReportCsv(report: EofyReport) {
     report.taxJurisdictionCode,
     report.taxJurisdiction.taxCurrency,
     report.financialYear.label,
-    "NorthStar EOFY accountant pack",
+    "SouthernStar EOFY accountant pack",
     "",
     "",
     report.financialYear.startDate,

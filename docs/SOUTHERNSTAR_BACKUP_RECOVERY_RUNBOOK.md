@@ -1,6 +1,6 @@
-# NorthStar Backup and Recovery Runbook
+# SouthernStar Backup and Recovery Runbook
 
-NorthStar production depends on two recoverable assets:
+SouthernStar production depends on two recoverable assets:
 
 - GitHub `main` for source and deploy history.
 - PostgreSQL data behind `DATABASE_URL` for portfolio records, positions, cash, snapshots, sync runs and prices.
@@ -20,13 +20,13 @@ Run before risky migrations, bulk imports, pricing changes or sync-engine change
 
 ```sh
 mkdir -p backups
-pg_dump "$DATABASE_URL" --format=custom --no-owner --no-acl --file "backups/northstar-$(date +%Y%m%d-%H%M%S).dump"
+pg_dump "$DATABASE_URL" --format=custom --no-owner --no-acl --file "backups/southernstar-$(date +%Y%m%d-%H%M%S).dump"
 ```
 
 Create a quick schema-readable copy when debugging:
 
 ```sh
-pg_dump "$DATABASE_URL" --schema-only --no-owner --no-acl --file "backups/northstar-schema-$(date +%Y%m%d-%H%M%S).sql"
+pg_dump "$DATABASE_URL" --schema-only --no-owner --no-acl --file "backups/southernstar-schema-$(date +%Y%m%d-%H%M%S).sql"
 ```
 
 Store production dumps outside the repo. Do not commit `.dump`, `.sql` or exported CSV files containing portfolio data.
@@ -36,16 +36,16 @@ Store production dumps outside the repo. Do not commit `.dump`, `.sql` or export
 Test a dump against a non-production database:
 
 ```sh
-createdb northstar_restore_check
-pg_restore --clean --if-exists --no-owner --no-acl --dbname northstar_restore_check backups/northstar-YYYYMMDD-HHMMSS.dump
-DATABASE_URL="postgres://localhost/northstar_restore_check" npm run build
-DATABASE_URL="postgres://localhost/northstar_restore_check" node scripts/migrate.mjs
+createdb southernstar_restore_check
+pg_restore --clean --if-exists --no-owner --no-acl --dbname southernstar_restore_check backups/southernstar-YYYYMMDD-HHMMSS.dump
+DATABASE_URL="postgres://localhost/southernstar_restore_check" npm run build
+DATABASE_URL="postgres://localhost/southernstar_restore_check" node scripts/migrate.mjs
 ```
 
 Then start the app against the restored database and verify:
 
 ```sh
-DATABASE_URL="postgres://localhost/northstar_restore_check" npm run dev
+DATABASE_URL="postgres://localhost/southernstar_restore_check" npm run dev
 ```
 
 Check these URLs:
@@ -65,7 +65,7 @@ Only restore production after confirming the target dump and commit.
 3. Restore the chosen dump to production PostgreSQL:
 
 ```sh
-pg_restore --clean --if-exists --no-owner --no-acl --dbname "$DATABASE_URL" backups/northstar-YYYYMMDD-HHMMSS.dump
+pg_restore --clean --if-exists --no-owner --no-acl --dbname "$DATABASE_URL" backups/southernstar-YYYYMMDD-HHMMSS.dump
 ```
 
 4. Run migrations from the commit that will be deployed:

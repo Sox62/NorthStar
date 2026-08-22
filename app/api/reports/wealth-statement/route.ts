@@ -1,6 +1,6 @@
 import { getStorage, type DashboardData, type Scope } from "@/lib/storage";
-import { allocationDriftForSectors, type SectorValue } from "@/northstar/lib/allocation-drift";
-import { sectorForInstrument } from "@/northstar/lib/sector-map";
+import { allocationDriftForSectors, type SectorValue } from "@/southernstar/lib/allocation-drift";
+import { sectorForInstrument } from "@/southernstar/lib/sector-map";
 
 export const runtime = "nodejs";
 
@@ -144,7 +144,7 @@ export async function GET(request: Request) {
     for (const dashboard of dashboards) addDashboardRows(rows, dashboard);
 
     const body = csv(rows);
-    const filename = `northstar-wealth-statement-${filenameScope(selectedScopes)}-${reportDate(reportAnchor)}.csv`;
+    const filename = `southernstar-wealth-statement-${filenameScope(selectedScopes)}-${reportDate(reportAnchor)}.csv`;
     return new Response(body, {
       headers: {
         "content-type": "text/csv; charset=utf-8",

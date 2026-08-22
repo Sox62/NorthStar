@@ -4,9 +4,9 @@ import type { FormEvent } from "react";
 import type { MinerFundamentals } from "@/lib/storage";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
-import { Card, Notice, SummaryGrid } from "@/northstar/components";
-import type { Holding } from "@/northstar/types";
-import { dashboardToNorthstarHoldings } from "./northstar-adapter";
+import { Card, Notice, SummaryGrid } from "@/southernstar/components";
+import type { Holding } from "@/southernstar/types";
+import { dashboardToSouthernStarHoldings } from "./southernstar-adapter";
 import { HeldMinerTable, ResearchIdeasTable } from "./fundamentals/FundamentalsTables";
 import { FundamentalsDetail } from "./fundamentals/FundamentalsDetail";
 import { ResearchIntakeForm } from "./fundamentals/ResearchIntakeForm";
@@ -44,7 +44,7 @@ export default function FundamentalsRisk() {
       setState((current) => ({ ...current, loading: true, error: "" }));
       try {
         const [personal, smsf] = await Promise.all([loadDashboard("personal"), loadDashboard("smsf")]);
-        const nextHoldings = [...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)].filter(isMinerHolding);
+        const nextHoldings = [...dashboardToSouthernStarHoldings(personal), ...dashboardToSouthernStarHoldings(smsf)].filter(isMinerHolding);
         const nextFundamentals = await loadFundamentals();
         if (!cancelled) setState({ holdings: nextHoldings, fundamentals: nextFundamentals, loading: false, error: "" });
       } catch (reason) {

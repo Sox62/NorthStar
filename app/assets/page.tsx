@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import type { ManualAsset, OwnerType, PlatinumPrice } from "@/lib/storage";
-import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
+import { Card, Notice, StatusBadge, SummaryGrid } from "@/southernstar/components";
 
 const today = new Date().toISOString().slice(0, 10);
 type PhysicalMetalType = "GOLD" | "SILVER" | "PLATINUM" | "PALLADIUM";
@@ -127,7 +127,7 @@ export default function PhysicalAssetsPage() {
         buybackAudPerKg,
         retailAudPerKg,
         priceProvider: isPlatinum && price ? price.provider : "Manual",
-        priceSourceUrl: isPlatinum && price ? price.sourceUrl : "https://northstar.local/manual-physical-metals",
+        priceSourceUrl: isPlatinum && price ? price.sourceUrl : "https://southernstar.local/manual-physical-metals",
         priceRetrievedAt: isPlatinum && price ? safeIsoDateTime(price.retrievedAt) : new Date().toISOString(),
         asOfDate: isPlatinum && price ? price.priceDate : today,
       }),

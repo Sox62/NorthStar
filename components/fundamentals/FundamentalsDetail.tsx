@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import type { MinerFundamentals } from "@/lib/storage";
-import { Overlay } from "@/northstar/components/Overlay";
-import { SectorTag, StatusBadge } from "@/northstar/components";
-import { SECTOR_COLORS, type Holding } from "@/northstar/types";
+import { Overlay } from "@/southernstar/components/Overlay";
+import { SectorTag, StatusBadge } from "@/southernstar/components";
+import { SECTOR_COLORS, type Holding } from "@/southernstar/types";
 import { averageScore, money, percent } from "./model";
 import { failureModes, fundamentalBars, fundamentalFields, riskRows, valuationBars, valuationRows, type MagnitudeBar } from "./detail-model";
 import styles from "./FundamentalsDetail.module.css";

@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
-import { Card, Notice, StatusBadge } from "@/northstar/components";
-import { deriveSize, preTradeChecks, sizerVerdict } from "@/northstar/lib/position-sizer";
-import type { Holding } from "@/northstar/types";
-import { dashboardToNorthstarHoldings } from "./northstar-adapter";
+import { Card, Notice, StatusBadge } from "@/southernstar/components";
+import { deriveSize, preTradeChecks, sizerVerdict } from "@/southernstar/lib/position-sizer";
+import type { Holding } from "@/southernstar/types";
+import { dashboardToSouthernStarHoldings } from "./southernstar-adapter";
 import styles from "./PositionSizer.module.css";
 
 type Scope = "personal" | "smsf";
@@ -60,7 +60,7 @@ export default function PositionSizer() {
         ]);
         if (cancelled) return;
         setData({
-          holdings: [...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)],
+          holdings: [...dashboardToSouthernStarHoldings(personal), ...dashboardToSouthernStarHoldings(smsf)],
           navByScope: { personal: personal.totalValue ?? 0, smsf: smsf.totalValue ?? 0 },
           policyByScope: { personal: personalPolicy, smsf: smsfPolicy },
         });

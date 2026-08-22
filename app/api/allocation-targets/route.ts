@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getStorage } from "@/lib/storage";
-import { defaultTargetAllocation, normaliseAllocationTargets } from "@/northstar/lib/allocation-drift";
+import { defaultTargetAllocation, normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
 
 export const runtime = "nodejs";
 

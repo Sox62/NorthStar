@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
-import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
+import { Card, Notice, StatusBadge, SummaryGrid } from "@/southernstar/components";
 import { PriceSparklines } from "@/components/PriceSparklines";
 
 type PriceableInstrument = {

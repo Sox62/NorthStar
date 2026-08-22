@@ -1,6 +1,6 @@
 import type { DashboardData, DashboardHolding } from "@/lib/storage";
-import { sectorForInstrument } from "@/northstar/lib/sector-map";
-import { Card, StatusBadge, SummaryGrid } from "@/northstar/components";
+import { sectorForInstrument } from "@/southernstar/lib/sector-map";
+import { Card, StatusBadge, SummaryGrid } from "@/southernstar/components";
 
 type BrokerShareTotal = {
   key: string;

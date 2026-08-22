@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { BrandMark } from "@/northstar/components";
+import { BrandMark } from "@/southernstar/components";
 import type { Scope } from "@/lib/storage";
-import { TabBar } from "@/northstar/components";
+import { TabBar } from "@/southernstar/components";
 import PwaInstallButton from "@/components/PwaInstallButton";
 
 const scopeOptions = [

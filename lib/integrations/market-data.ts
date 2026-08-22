@@ -242,7 +242,7 @@ function dateFromUnixMilliseconds(milliseconds: number) {
 
 async function fetchJson(url: string) {
   const response = await fetch(url, {
-    headers: { "user-agent": "NorthStar/0.3.7 private portfolio quote refresh" },
+    headers: { "user-agent": "SouthernStar/0.3.7 private portfolio quote refresh" },
     signal: AbortSignal.timeout(MARKETDATA_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -251,7 +251,7 @@ async function fetchJson(url: string) {
 
 async function fetchSwissquoteJson(url: string) {
   const response = await fetch(url, {
-    headers: { "user-agent": "NorthStar/0.3.7 private portfolio metals quote refresh" },
+    headers: { "user-agent": "SouthernStar/0.3.7 private portfolio metals quote refresh" },
     signal: AbortSignal.timeout(MARKETDATA_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -260,7 +260,7 @@ async function fetchSwissquoteJson(url: string) {
 
 async function fetchRateJson(url: string) {
   const response = await fetch(url, {
-    headers: { "user-agent": "NorthStar/0.3.7 private portfolio quote refresh" },
+    headers: { "user-agent": "SouthernStar/0.3.7 private portfolio quote refresh" },
     signal: AbortSignal.timeout(MARKETDATA_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -269,7 +269,7 @@ async function fetchRateJson(url: string) {
 
 export async function fetchYahooJson(url: string) {
   const response = await fetch(url, {
-    headers: { "user-agent": "NorthStar/0.3.7 private portfolio quote refresh" },
+    headers: { "user-agent": "SouthernStar/0.3.7 private portfolio quote refresh" },
     signal: AbortSignal.timeout(MARKETDATA_TIMEOUT_MS),
   });
   if (response.status === 429) throw new Error("Yahoo Finance rate limited this environment with HTTP 429.");
@@ -287,7 +287,7 @@ async function fetchText(url: string) {
   let response: Response;
   try {
     response = await fetch(url, {
-      headers: { "user-agent": "NorthStar/0.3.7 private portfolio quote refresh" },
+      headers: { "user-agent": "SouthernStar/0.3.7 private portfolio quote refresh" },
       signal: AbortSignal.timeout(MARKETDATA_TIMEOUT_MS),
     });
   } catch (error) {
@@ -588,7 +588,7 @@ async function fetchStooqQuote(instrument: PriceableInstrument): Promise<MarketQ
   const start = new Date(end.getTime() - 21 * 24 * 60 * 60 * 1000);
   const url = `${STOOQ_DAILY_URL}?s=${encodeURIComponent(providerSymbol)}&d1=${yyyymmdd(start)}&d2=${yyyymmdd(end)}&i=d`;
   const response = await fetch(url, {
-    headers: { "user-agent": "NorthStar/0.3.7 private portfolio quote refresh" },
+    headers: { "user-agent": "SouthernStar/0.3.7 private portfolio quote refresh" },
     signal: AbortSignal.timeout(MARKETDATA_TIMEOUT_MS),
   });
   if (!response.ok) throw new Error(`Stooq HTTP ${response.status}`);

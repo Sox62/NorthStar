@@ -9,7 +9,7 @@ export function dataQualityNotes(report: {
   valuationAsOf: string | null;
 }) {
   const notes = [
-    "Prepared from imported NorthStar broker transactions and dividend notifications. Accountant should verify against broker statements.",
+    "Prepared from imported SouthernStar broker transactions and dividend notifications. Accountant should verify against broker statements.",
     "Current holdings are included as a reconciliation reference using the latest available valuation, not a reconstructed 30 June historical valuation.",
   ];
   const missingPrices = report.historicalCost.filter((row) => row.closingValuationStatus === "missing_price").length;

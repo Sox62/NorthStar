@@ -8,10 +8,10 @@ import { CompanyNewsList, NewsBadge } from "@/components/CompanyNews";
 import { acquisitionsByHolding, heldLabel, ownerSymbolKey, type Acquisition, type OpenLotRow } from "@/components/holdings/acquisition";
 import type { CompanyNewsItem } from "@/lib/integrations/company-news/types";
 import type { DashboardData, DashboardHolding, Scope } from "@/lib/storage";
-import { Card, Notice, SummaryGrid } from "@/northstar/components";
-import { sectorForInstrument } from "@/northstar/lib/sector-map";
-import { compareNumber, compareText, nextSort, sortIndicator, type SortState } from "@/northstar/lib/sort";
-import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
+import { Card, Notice, SummaryGrid } from "@/southernstar/components";
+import { sectorForInstrument } from "@/southernstar/lib/sector-map";
+import { compareNumber, compareText, nextSort, sortIndicator, type SortState } from "@/southernstar/lib/sort";
+import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "@/southernstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
 type HoldingsSortKey = "holding" | "owner" | "sector" | "units" | "entry" | "acquired" | "price" | "value" | "weight" | "day" | "pnl" | "relative";

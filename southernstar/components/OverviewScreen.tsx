@@ -451,14 +451,14 @@ function SectorDonut({ sectors, total }: { sectors: Array<{ sector: Sector; valu
 
 function SouthernStarIntentDialog({ onClose }: { onClose: () => void }) {
   return (
-    <div className="nsIntentOverlay" role="dialog" aria-modal="true" aria-labelledby="northstar-intent-title" onClick={onClose}>
+    <div className="nsIntentOverlay" role="dialog" aria-modal="true" aria-labelledby="southernstar-intent-title" onClick={onClose}>
       <section className="nsPanel nsIntentDialog" onClick={(event) => event.stopPropagation()}>
         <button className="nsIntentCloseButton" type="button" onClick={onClose} aria-label="Close SouthernStar information">
           x
         </button>
         <div className="nsIntentLead">
           <p className="nsEyebrow">About SouthernStar</p>
-          <h2 id="northstar-intent-title">Fiat is the reporting currency. Gold is the numeraire.</h2>
+          <h2 id="southernstar-intent-title">Fiat is the reporting currency. Gold is the numeraire.</h2>
           <p>
             SouthernStar is designed to preserve and grow purchasing power, not merely nominal portfolio value. Capital begins from a reserve benchmark and moves outward only when relative leadership, structural breakouts and fundamentals justify additional risk.
           </p>

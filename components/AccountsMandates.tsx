@@ -1,7 +1,7 @@
 import { buildCapitalPolicySummary } from "@/lib/capital-policy";
 import type { DashboardData, DashboardHolding, StoredOpenOrder, SyncRun, ValuationFreshness } from "@/lib/storage";
-import { Card, StatusBadge } from "@/northstar/components";
-import { sectorForInstrument } from "@/northstar/lib/sector-map";
+import { Card, StatusBadge } from "@/southernstar/components";
+import { sectorForInstrument } from "@/southernstar/lib/sector-map";
 
 type MandateAccount = DashboardData & { scope: "personal" | "smsf" };
 

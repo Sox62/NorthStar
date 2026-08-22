@@ -1,5 +1,5 @@
 import type { MinerFundamentals } from "@/lib/storage";
-import type { Holding } from "@/northstar/types";
+import type { Holding } from "@/southernstar/types";
 import { dateOrDash, money, moneyOrDash, numberOrDash } from "./model";
 
 export type RiskTone = "good" | "warning" | "bad";

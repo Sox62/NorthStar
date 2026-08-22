@@ -50,8 +50,8 @@ test("coal matches as a word, not inside another one", () => {
 });
 
 test("every sector has a colour, a composition group and a benchmark template", async () => {
-  const { SECTOR_COLORS, COMPOSITION_OF } = await import("@/northstar/types");
-  const { defaultTargetAllocation } = await import("@/northstar/lib/allocation-drift");
+  const { SECTOR_COLORS, COMPOSITION_OF } = await import("@/southernstar/types");
+  const { defaultTargetAllocation } = await import("@/southernstar/lib/allocation-drift");
   for (const sector of ["Copper miners", "Coal", "Soft commodities"] as const) {
     assert.ok(SECTOR_COLORS[sector], `${sector} needs a colour`);
     assert.ok(COMPOSITION_OF[sector], `${sector} needs a composition group`);

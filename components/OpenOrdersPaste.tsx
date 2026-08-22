@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Card, Notice, StatusBadge } from "@/northstar/components";
+import { Card, Notice, StatusBadge } from "@/southernstar/components";
 import styles from "./OpenOrdersPaste.module.css";
 
 type Result = { imported: number; symbols: string[]; message: string };

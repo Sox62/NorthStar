@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
-import { Card, Notice, SummaryGrid } from "@/northstar/components";
-import { calculateRelativeRelationship, type RelativeCalculatorInput } from "@/northstar/lib/relative-calculator";
+import { Card, Notice, SummaryGrid } from "@/southernstar/components";
+import { calculateRelativeRelationship, type RelativeCalculatorInput } from "@/southernstar/lib/relative-calculator";
 
 const initialInput: RelativeCalculatorInput = {
   leftLabel: "Asset",

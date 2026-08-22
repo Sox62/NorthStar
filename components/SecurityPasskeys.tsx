@@ -2,7 +2,7 @@
 
 import { startRegistration } from "@simplewebauthn/browser";
 import { FormEvent, useEffect, useState } from "react";
-import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
+import { Card, Notice, StatusBadge, SummaryGrid } from "@/southernstar/components";
 import styles from "./SecurityPasskeys.module.css";
 
 const API_TIMEOUT_MS = 20_000;

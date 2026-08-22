@@ -1,8 +1,8 @@
 import { getPool } from "@/lib/db/client";
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
 import { buildDashboardModel, buildManualAssetValuation, maskAccount, numberValue, ownerForScope } from "@/lib/core/accounting";
-import { defaultAllocationTargets, normaliseAllocationTargets } from "@/northstar/lib/allocation-drift";
-import type { Sector } from "@/northstar/types";
+import { defaultAllocationTargets, normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
+import type { Sector } from "@/southernstar/types";
 import { classifyAsset } from "./classify";
 import { PASTED_ORDER_SOURCE } from "./local";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";

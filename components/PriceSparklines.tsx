@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Card } from "@/northstar/components";
-import { buildSparklines, sparklinePoints, type SparkInstrument, type SparkPriceRow } from "@/northstar/lib/sparkline";
+import { Card } from "@/southernstar/components";
+import { buildSparklines, sparklinePoints, type SparkInstrument, type SparkPriceRow } from "@/southernstar/lib/sparkline";
 import styles from "./PriceSparklines.module.css";
 
 const WIDTH = 220;

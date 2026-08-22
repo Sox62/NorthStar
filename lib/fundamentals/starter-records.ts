@@ -21,7 +21,7 @@ export const starterMinerFundamentals: MinerFundamentalsInput[] = [
     balanceSheetScore: 4,
     dilutionScore: 3,
     managementScore: 3,
-    notes: "Company-reported 2025 silver production, silver reserves and measured/indicated plus inferred silver resources. Scores are NorthStar judgement inputs, not company-reported metrics.",
+    notes: "Company-reported 2025 silver production, silver reserves and measured/indicated plus inferred silver resources. Scores are SouthernStar judgement inputs, not company-reported metrics.",
     sourceUrl: "https://www.sec.gov/Archives/edgar/data/215466/000021546626000004/cde-20251231.htm",
     asOfDate: "2025-12-31",
   },

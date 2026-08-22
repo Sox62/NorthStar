@@ -1,5 +1,5 @@
 import type { DashboardData, MinerFundamentals } from "@/lib/storage";
-import type { Holding, Sector } from "@/northstar/types";
+import type { Holding, Sector } from "@/southernstar/types";
 
 export type FundamentalsState = {
   holdings: Holding[];

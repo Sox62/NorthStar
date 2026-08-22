@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 import { getStorage } from "@/lib/storage";
-import { SECTOR_COLORS } from "@/northstar/types";
+import { SECTOR_COLORS } from "@/southernstar/types";
 
 // The Sector union has no runtime list; SECTOR_COLORS is keyed by every sector, so it is the
 // single source of truth for what a valid sector name is.

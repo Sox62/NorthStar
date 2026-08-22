@@ -1996,7 +1996,7 @@ button:disabled { opacity: .55; cursor: wait; }
   .ibkrConfigPanel { grid-template-columns: 1fr; }
 }
 
-/* The fixed NorthStar bar already carries the brand and the menu on small screens, so the
+/* The fixed SouthernStar bar already carries the brand and the menu on small screens, so the
    masthead's own bar would repeat both. Its page links are hidden at this width anyway. */
 @media (max-width: 760px) {
   .pageMastheadBar {

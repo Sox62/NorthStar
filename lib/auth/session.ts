@@ -1,6 +1,6 @@
 import { bytesToBase64Url, base64UrlToBytes } from "./base64url";
 
-export const SESSION_COOKIE = "northstar_session";
+export const SESSION_COOKIE = "southernstar_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 export type SessionPayload = {
@@ -19,7 +19,7 @@ function sessionSecret() {
 
 async function signingKey() {
   const secret = sessionSecret();
-  if (!secret) throw new Error("NorthStar session secret is not configured.");
+  if (!secret) throw new Error("SouthernStar session secret is not configured.");
   return crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),

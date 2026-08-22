@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BrandMark } from "@/northstar/components";
+import { BrandMark } from "@/southernstar/components";
 import type { ReactNode } from "react";
 import MobileMenu from "@/components/MobileMenu";
 

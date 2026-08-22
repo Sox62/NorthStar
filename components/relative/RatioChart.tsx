@@ -1,7 +1,7 @@
 import type { PointerEvent } from "react";
 import { useRef, useState } from "react";
 import type { DashboardHolding } from "@/lib/storage";
-import type { RatioPoint, RelativeReturnWindow } from "@/northstar/lib/ratio-engine";
+import type { RatioPoint, RelativeReturnWindow } from "@/southernstar/lib/ratio-engine";
 
 export type RatioMode = "ratio" | "indexed";
 

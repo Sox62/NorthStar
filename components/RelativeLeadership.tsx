@@ -8,13 +8,13 @@ import { RatioChart, RelativePeriodCell, type RatioMode } from "@/components/rel
 import { AllocationReadPanel, EntryScorePanel, OpportunityMatrix, RelativeScorePanel, velocityLabel, type OpportunityRow, type OpportunitySortKey, type RelativeEngineScore, type RelativeLayer } from "@/components/relative/ScorePanels";
 import { allocationRead } from "@/components/fundamentals/detail-model";
 import type { DashboardData, DashboardHolding, MinerFundamentals, OwnerType, Scope, StoredDailyPrice, StoredFxRate, StructuralLevel } from "@/lib/storage";
-import { Card, Notice, SummaryGrid } from "@/northstar/components";
-import { RESEARCH_BENCHMARKS, resolveBenchmarkTree, type BenchmarkNode } from "@/northstar/lib/benchmark-tree";
-import { scoreEntryCondition } from "@/northstar/lib/entry-score";
-import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, scoreRatioTrend, scoreRatioTrendVelocity, RATIO_RANGES, type RatioPoint, type RatioRangeKey, type RelativeScoreComponent } from "@/northstar/lib/ratio-engine";
-import { sectorForInstrument } from "@/northstar/lib/sector-map";
-import { customBenchmarkNode, parseSelectionValue, selectionValue } from "@/northstar/lib/selection";
-import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
+import { Card, Notice, SummaryGrid } from "@/southernstar/components";
+import { RESEARCH_BENCHMARKS, resolveBenchmarkTree, type BenchmarkNode } from "@/southernstar/lib/benchmark-tree";
+import { scoreEntryCondition } from "@/southernstar/lib/entry-score";
+import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, scoreRatioTrend, scoreRatioTrendVelocity, RATIO_RANGES, type RatioPoint, type RatioRangeKey, type RelativeScoreComponent } from "@/southernstar/lib/ratio-engine";
+import { sectorForInstrument } from "@/southernstar/lib/sector-map";
+import { customBenchmarkNode, parseSelectionValue, selectionValue } from "@/southernstar/lib/selection";
+import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/southernstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
 type PriceBookResponse = {

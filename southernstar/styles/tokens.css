@@ -1,8 +1,8 @@
-/* NorthStar design tokens — concatenated from the design system.
-   Import once in app/layout.tsx: import "@/northstar/styles/tokens.css"; */
+/* SouthernStar design tokens — concatenated from the design system.
+   Import once in app/layout.tsx: import "@/southernstar/styles/tokens.css"; */
 
 /* ===== tokens/colors.css ===== */
-/* NorthStar — color tokens. Values copied verbatim from app/globals.css. */
+/* SouthernStar — color tokens. Values copied verbatim from app/globals.css. */
 :root {
   /* Base palette */
   --ns-navy-950: #071019;
@@ -81,7 +81,7 @@
 
 
 /* ===== tokens/typography.css ===== */
-/* NorthStar — type tokens. Body face is Arial/Helvetica (system); the italic
+/* SouthernStar — type tokens. Body face is Arial/Helvetica (system); the italic
    motto is set in Georgia (system serif). No custom webfonts are used in the
    source app — see readme.md "Fonts" note. */
 :root {
@@ -110,7 +110,7 @@
 
 
 /* ===== tokens/spacing.css ===== */
-/* NorthStar — spacing + sizing tokens, copied from exact values in use. */
+/* SouthernStar — spacing + sizing tokens, copied from exact values in use. */
 :root {
   --space-3: 3px;
   --space-5: 5px;
@@ -137,7 +137,7 @@
 
 
 /* ===== tokens/effects.css ===== */
-/* NorthStar — radius + shadow tokens. */
+/* SouthernStar — radius + shadow tokens. */
 :root {
   --radius-sm: 8px;
   --radius-md: 10px;
@@ -153,7 +153,7 @@
 
 
 /* ===== base.css ===== */
-/* NorthStar — base element resets, copied from app/globals.css */
+/* SouthernStar — base element resets, copied from app/globals.css */
 * { box-sizing: border-box; }
 body {
   margin: 0;

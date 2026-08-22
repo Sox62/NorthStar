@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DashboardData, Scope } from "@/lib/storage";
 import type { TaxLotsResponse } from "@/lib/tax-lots";
-import { Card, Notice } from "@/northstar/components";
+import { Card, Notice } from "@/southernstar/components";
 
 const scopes: Array<{ key: Scope; label: string }> = [
   { key: "overall", label: "Overall" },

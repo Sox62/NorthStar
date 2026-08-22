@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseIbkrFlexXml } from "./ibkr";
-import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/northstar/lib/tradingview";
+import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/southernstar/lib/tradingview";
 
-const flexXml = `<FlexQueryResponse queryName="NorthStar" type="AF">
+const flexXml = `<FlexQueryResponse queryName="SouthernStar" type="AF">
   <FlexStatements count="1">
     <FlexStatement accountId="U4317403" fromDate="20260701" toDate="20260731" whenGenerated="20260801;100000">
       <OpenPositions>
@@ -52,7 +52,7 @@ test("parseIbkrFlexXml leaves symbols on other exchanges untouched", () => {
 });
 
 test("parseIbkrFlexXml keeps BMN from ASX open positions", () => {
-  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="SouthernStar" type="AF">
     <FlexStatements count="1">
       <FlexStatement accountId="U24473088" fromDate="20260807" toDate="20260807" whenGenerated="20260809;084551">
         <OpenPositions>
@@ -79,7 +79,7 @@ test("parseIbkrFlexXml keeps BMN from ASX open positions", () => {
 
 
 test("parseIbkrFlexXml calculates open-position P/L from AUD value minus AUD cost", () => {
-  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="SouthernStar" type="AF">
     <FlexStatements count="1">
       <FlexStatement accountId="U24473088" fromDate="20260807" toDate="20260807">
         <OpenPositions>
@@ -102,7 +102,7 @@ test("parseIbkrFlexXml calculates open-position P/L from AUD value minus AUD cos
 
 
 test("parseIbkrFlexXml handles GBP-denominated XRH0 P/L through the same AUD calculation", () => {
-  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="SouthernStar" type="AF">
     <FlexStatements count="1">
       <FlexStatement accountId="U24473088" fromDate="20260807" toDate="20260807">
         <OpenPositions>
@@ -127,13 +127,13 @@ test("parseIbkrFlexXml handles GBP-denominated XRH0 P/L through the same AUD cal
 
 
 test("parseIbkrFlexXml reports detected sections when a Flex report has no importable data", () => {
-  assert.throws(() => parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar Trade Confirmations" type="AF">
+  assert.throws(() => parseIbkrFlexXml(`<FlexQueryResponse queryName="SouthernStar Trade Confirmations" type="AF">
     <FlexStatements count="1">
       <FlexStatement accountId="U24473088" fromDate="20260810" toDate="20260810">
         <AccountInformation accountId="U24473088" currency="AUD" />
       </FlexStatement>
     </FlexStatements>
-  </FlexQueryResponse>`), /Detected query NorthStar Trade Confirmations; type AF; statement 1 U24473088 2026-08-10 to 2026-08-10 sections: AccountInformation/);
+  </FlexQueryResponse>`), /Detected query SouthernStar Trade Confirmations; type AF; statement 1 U24473088 2026-08-10 to 2026-08-10 sections: AccountInformation/);
 });
 
 
@@ -186,7 +186,7 @@ test("parseIbkrFlexXml does not treat USD-base trade confirmation FX of 1 as AUD
 });
 
 test("parseIbkrFlexXml reads the base-currency Cash Report row", () => {
-  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="SouthernStar" type="AF">
     <FlexStatements count="1">
       <FlexStatement accountId="U111" fromDate="20260807" toDate="20260807">
         <CashReport>
@@ -206,7 +206,7 @@ test("parseIbkrFlexXml reads the base-currency Cash Report row", () => {
 });
 
 test("parseIbkrFlexXml derives AUD cash from currency rows when the base row is absent", () => {
-  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="SouthernStar" type="AF">
     <FlexStatements count="1">
       <FlexStatement accountId="U222" fromDate="20260807" toDate="20260807">
         <CashReport>
@@ -224,7 +224,7 @@ test("parseIbkrFlexXml derives AUD cash from currency rows when the base row is 
 });
 
 test("parseIbkrFlexXml derives a missing USD FX rate from the base cash residual", () => {
-  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="SouthernStar" type="AF">
     <FlexStatements count="1">
       <FlexStatement accountId="U333" fromDate="20260807" toDate="20260807">
         <CashReport>
@@ -242,7 +242,7 @@ test("parseIbkrFlexXml derives a missing USD FX rate from the base cash residual
 });
 
 test("parseIbkrFlexXml rejects non-AUD base statements before importing wrong values", () => {
-  assert.throws(() => parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+  assert.throws(() => parseIbkrFlexXml(`<FlexQueryResponse queryName="SouthernStar" type="AF">
     <FlexStatements count="1">
       <FlexStatement accountId="U555" fromDate="20260807" toDate="20260807">
         <CashReport>
@@ -262,7 +262,7 @@ test("parseIbkrFlexXml rejects non-AUD base statements before importing wrong va
 });
 
 test("parseIbkrFlexXml uses IBKR Conversion Rates for USD-base AUD valuation", () => {
-  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="SouthernStar" type="AF">
     <FlexStatements count="1">
       <FlexStatement accountId="U556" fromDate="20260807" toDate="20260807">
         <CashReport>
@@ -291,7 +291,7 @@ test("parseIbkrFlexXml uses IBKR Conversion Rates for USD-base AUD valuation", (
 });
 
 test("parseIbkrFlexXml reads Forex Balances when Cash Report is absent", () => {
-  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="SouthernStar" type="AF">
     <FlexStatements count="1">
       <FlexStatement accountId="U444" fromDate="20260807" toDate="20260807">
         <ForexBalances>
@@ -329,7 +329,7 @@ test("TradingView maps IBKR FX pairs to TradingView FX symbols", () => {
   assert.equal(tradingViewSymbolForInstrument({ symbol: "USD/AUD", exchange: "IDEALFX" }), "FX_IDC:USDAUD");
 });
 
-test("TradingView chart URLs use the saved NorthStar layout", () => {
+test("TradingView chart URLs use the saved SouthernStar layout", () => {
   const url = new URL(tradingViewChartUrl("TVC:GOLDSILVER"));
 
   assert.equal(url.origin, "https://www.tradingview.com");
@@ -337,7 +337,7 @@ test("TradingView chart URLs use the saved NorthStar layout", () => {
   assert.equal(url.searchParams.get("symbol"), "TVC:GOLDSILVER");
 });
 
-test("TradingView ratio URLs use the saved NorthStar layout", () => {
+test("TradingView ratio URLs use the saved SouthernStar layout", () => {
   const expression = tradingViewRatioExpression("NYSE:CDE", "TVC:GOLD");
   const url = new URL(tradingViewRatioChartUrl("NYSE:CDE", "TVC:GOLD"));
 
@@ -348,7 +348,7 @@ test("TradingView ratio URLs use the saved NorthStar layout", () => {
 });
 
 test("parseIbkrFlexXml reads open orders from Flex reports", () => {
-  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="SouthernStar" type="AF">
     <FlexStatements count="1">
       <FlexStatement accountId="U24473088" fromDate="20260810" toDate="20260810" whenGenerated="20260810;080000">
         <OpenOrders>
@@ -374,7 +374,7 @@ test("parseIbkrFlexXml reads open orders from Flex reports", () => {
 });
 
 test("parseIbkrFlexXml reads IBKR daily NAV history", () => {
-  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="NorthStar" type="AF">
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="SouthernStar" type="AF">
     <FlexStatements count="1">
       <FlexStatement accountId="U24473088" fromDate="20260804" toDate="20260805">
         <EquitySummaryInBase>

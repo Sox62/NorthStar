@@ -1,5 +1,5 @@
 import { classifyAsset } from "@/lib/storage/classify";
-import type { Sector } from "@/northstar/types";
+import type { Sector } from "@/southernstar/types";
 import { tradingViewSymbolForInstrument } from "./tradingview";
 
 export type BenchmarkRole = "reserve" | "commodity" | "sector_etf" | "leader" | "peer_group" | "candidate";

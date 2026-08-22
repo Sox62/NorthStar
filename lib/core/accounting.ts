@@ -1,11 +1,11 @@
-import { normaliseAllocationTargets } from "@/northstar/lib/allocation-drift";
+import { normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
 import { buildCurrencyExposure } from "@/lib/storage/exposure";
 import { buildValuationFreshness } from "@/lib/storage/freshness";
 import { buildIncomeSummary } from "@/lib/storage/income";
 import { buildPeriodReturns, type NavPoint } from "@/lib/storage/returns";
 import { buildXirrSummary } from "@/lib/storage/xirr";
 import { classifyAsset } from "@/lib/storage/classify";
-import type { Sector } from "@/northstar/types";
+import type { Sector } from "@/southernstar/types";
 import type {
   AllocationTarget,
   CashAccount,

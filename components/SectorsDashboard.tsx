@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import type { DashboardData } from "@/lib/storage";
-import { Card, Notice, SectorsScreen } from "@/northstar/components";
-import type { Holding } from "@/northstar/types";
-import { dashboardToNorthstarHoldings } from "./northstar-adapter";
+import { Card, Notice, SectorsScreen } from "@/southernstar/components";
+import type { Holding } from "@/southernstar/types";
+import { dashboardToSouthernStarHoldings } from "./southernstar-adapter";
 import { SectorOverrides } from "./SectorOverrides";
 
 async function loadDashboard(scope: "personal" | "smsf"): Promise<DashboardData> {
@@ -23,7 +23,7 @@ export default function SectorsDashboard() {
     setError("");
     try {
       const [personal, smsf] = await Promise.all([loadDashboard("personal"), loadDashboard("smsf")]);
-      setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
+      setHoldings([...dashboardToSouthernStarHoldings(personal), ...dashboardToSouthernStarHoldings(smsf)]);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to load sectors");
     } finally {

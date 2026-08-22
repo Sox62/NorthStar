@@ -45,7 +45,7 @@ export async function verifyBootstrapPasswordOnly(password: string) {
   return secureEqual(password, expectedPassword);
 }
 
-export function configuredBootstrapUsername(fallback = "NorthStar") {
+export function configuredBootstrapUsername(fallback = "SouthernStar") {
   return process.env.NORTH_STAR_USERNAME || fallback;
 }
 

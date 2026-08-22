@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { EofyReport } from "@/lib/reports/eofy";
-import { Card, Notice } from "@/northstar/components";
+import { Card, Notice } from "@/southernstar/components";
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(value);

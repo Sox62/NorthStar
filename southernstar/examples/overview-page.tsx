@@ -2,10 +2,10 @@
 // Swap sampleHoldings for your DB / IBKR query. Server-fetch, pass down.
 //
 //   app/(dashboard)/page.tsx
-import { OverviewScreen } from "@/northstar/components";
-import { sampleHoldings } from "@/northstar/lib/sample-holdings";
+import { OverviewScreen } from "@/southernstar/components";
+import { sampleHoldings } from "@/southernstar/lib/sample-holdings";
 
 export default function Page() {
   // const holdings = await getHoldings();  // ← your live data
-  return <OverviewScreen holdings={sampleHoldings} logoSrc="/northstar-icon.png" />;
+  return <OverviewScreen holdings={sampleHoldings} logoSrc="/southernstar-icon.png" />;
 }

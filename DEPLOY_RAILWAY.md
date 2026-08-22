@@ -1,4 +1,4 @@
-# Deploy NorthStar v0.3.7 to Railway
+# Deploy SouthernStar v0.3.7 to Railway
 
 ## Existing Railway installation
 
@@ -8,8 +8,8 @@ Replace the repository files with this release, commit and push. Railway will au
 2. apply migration `0002_abc_platinum_and_flex`;
 3. preserve existing PostgreSQL data;
 4. preserve the existing platinum schema and data;
-5. publish the redesigned NorthStar interface and PWA assets;
-6. restart NorthStar and check `/api/health`.
+5. publish the redesigned SouthernStar interface and PWA assets;
+6. restart SouthernStar and check `/api/health`.
 
 No database reset or new Railway variable is required for the redesign.
 
@@ -38,7 +38,7 @@ Do not add or replace Railway’s supplied `PORT` variable.
 4. Open **Physical platinum**.
 5. Confirm the ABC Bullion buyback price loads.
 6. Add each Personal platinum position using kilograms and actual total purchase cost.
-7. Install NorthStar from the browser menu or the **Install NorthStar** link when shown.
+7. Install SouthernStar from the browser menu or the **Install SouthernStar** link when shown.
 
 If a temporary manually entered IBKR cash account has a different name, remove it after confirming the automatic `IBKR Cash` balance, to avoid double-counting.
 
@@ -54,7 +54,7 @@ Default schedule:
 
 That is 06:30 Sydney during AEST and 07:30 during AEDT.
 
-Confirm Railway has `SYNC_SECRET`, `IBKR_FLEX_TOKEN`, `IBKR_FLEX_QUERY_ID` and `IBKR_FLEX_OWNER`. The scheduler uses `SYNC_SECRET` locally, so it does not need the NorthStar login password.
+Confirm Railway has `SYNC_SECRET`, `IBKR_FLEX_TOKEN`, `IBKR_FLEX_QUERY_ID` and `IBKR_FLEX_OWNER`. The scheduler uses `SYNC_SECRET` locally, so it does not need the SouthernStar login password.
 
 Optional Railway variables:
 

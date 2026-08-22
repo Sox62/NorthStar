@@ -1,26 +1,26 @@
-# NorthStar — Next.js component package
+# SouthernStar — Next.js component package
 
-Drop-in React/TypeScript components, design tokens, and portfolio helpers matching the NorthStar visual system. Built to be **data-driven** (holdings are always passed in — nothing is hardcoded) and **owner-aware** (Personal and SMSF stay legally separate).
+Drop-in React/TypeScript components, design tokens, and portfolio helpers matching the SouthernStar visual system. Built to be **data-driven** (holdings are always passed in — nothing is hardcoded) and **owner-aware** (Personal and SMSF stay legally separate).
 
 ## Install
 
-1. Copy this `nextjs/` folder into your app, e.g. `src/northstar/`.
-2. Import the theme once, in `app/layout.tsx`, and add the `northstar` class to `<body>`:
+1. Copy this `nextjs/` folder into your app, e.g. `src/southernstar/`.
+2. Import the theme once, in `app/layout.tsx`, and add the `southernstar` class to `<body>`:
 
    ```tsx
-   import "@/northstar/styles/theme.css";       // redesign look (ink bg, glass, tokens)
-   import { northstarFonts } from "@/northstar/lib/fonts";  // optional Spectral + Hanken
+   import "@/southernstar/styles/theme.css";       // redesign look (ink bg, glass, tokens)
+   import { southernstarFonts } from "@/southernstar/lib/fonts";  // optional Spectral + Hanken
 
    export default function RootLayout({ children }) {
-     return <html><body className={`northstar ${northstarFonts}`}>{children}</body></html>;
+     return <html><body className={`southernstar ${southernstarFonts}`}>{children}</body></html>;
    }
    ```
 
-   ⚠️ **Why the old design "stays" if you skip this:** the primitives alone (Button, Kpi…) render on top of whatever layout + `globals.css` a page already has. To actually replace the old look you must (a) load `theme.css` + the `northstar` body class, and (b) render a **composed screen** (`OverviewScreen` / `SectorsScreen`) or rebuild the page from the primitives — don't leave the old `.card`/`.shell` markup in place. Migrate a route fully; don't mix old and new on one page.
+   ⚠️ **Why the old design "stays" if you skip this:** the primitives alone (Button, Kpi…) render on top of whatever layout + `globals.css` a page already has. To actually replace the old look you must (a) load `theme.css` + the `southernstar` body class, and (b) render a **composed screen** (`OverviewScreen` / `SectorsScreen`) or rebuild the page from the primitives — don't leave the old `.card`/`.shell` markup in place. Migrate a route fully; don't mix old and new on one page.
 3. Use components:
 
    ```tsx
-   import { OverviewScreen, SectorsScreen, Kpi, SplitBar } from "@/northstar/components";
+   import { OverviewScreen, SectorsScreen, Kpi, SplitBar } from "@/southernstar/components";
    ```
 
 No dependencies beyond `react` (and `next/font` only if you use `lib/fonts.ts`). All styling is inline + CSS variables — no CSS-in-JS, no Tailwind requirement.
@@ -62,9 +62,9 @@ Pure functions — compute on every render, never persist:
 ```tsx
 "use client";
 import { useState } from "react";
-import { TabBar, Kpi, SplitBar, BreakdownBars } from "@/northstar/components";
-import { byScope, totals, ownerSplit, bySector, byComposition, fmtAud } from "@/northstar/lib/portfolio-metrics";
-import { SECTOR_COLORS, type Holding, type PortfolioScope } from "@/northstar/types";
+import { TabBar, Kpi, SplitBar, BreakdownBars } from "@/southernstar/components";
+import { byScope, totals, ownerSplit, bySector, byComposition, fmtAud } from "@/southernstar/lib/portfolio-metrics";
+import { SECTOR_COLORS, type Holding, type PortfolioScope } from "@/southernstar/types";
 
 export function Dashboard({ holdings }: { holdings: Holding[] }) {
   const [scope, setScope] = useState<PortfolioScope>("overall");
@@ -107,4 +107,4 @@ export function Dashboard({ holdings }: { holdings: Holding[] }) {
 
 - **Two dimensions, kept distinct.** Owner (Personal / SMSF) is the *legal* axis and is the primary scope selector. Sector / metals-vs-miners is the *composition* axis shown as breakdowns within the selected scope. They compose — you can view SMSF's sector split, Personal's, or the consolidated Overall.
 - **Fonts.** The redesign prototype uses Spectral (figures) + Hanken Grotesk (UI). These are optional — omit the `@import`/`next/font` and the components fall back to your existing stack. Flag: the current production app uses system Arial/Georgia; adopting the serif is a deliberate visual upgrade, not required.
-- Prototype reference: the design system's `ui_kits/northstar-private/` (`index.html`, `sectors.html`).
+- Prototype reference: the design system's `ui_kits/southernstar-private/` (`index.html`, `sectors.html`).

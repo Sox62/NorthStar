@@ -1,6 +1,6 @@
 import PageHeader from "@/components/PageHeader";
 import { roadmapPhases, roadmapSummary, statusLabels, type RoadmapStatus } from "@/lib/roadmap";
-import { Card, SummaryGrid } from "@/northstar/components";
+import { Card, SummaryGrid } from "@/southernstar/components";
 import styles from "./RoadmapPage.module.css";
 
 const statusClass: Record<RoadmapStatus, string> = {

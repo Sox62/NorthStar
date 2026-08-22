@@ -29,7 +29,7 @@ export async function proxy(request: NextRequest) {
 
   if (!expectedUsername || !expectedPassword) {
     if (process.env.NODE_ENV === "production") {
-      return new NextResponse("NorthStar authentication is not configured.", {
+      return new NextResponse("SouthernStar authentication is not configured.", {
         status: 503,
         headers: { "Cache-Control": "no-store" },
       });

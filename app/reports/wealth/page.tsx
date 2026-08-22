@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { DashboardData, Scope } from "@/lib/storage";
-import { sectorForInstrument } from "@/northstar/lib/sector-map";
-import { Card, Notice } from "@/northstar/components";
+import { sectorForInstrument } from "@/southernstar/lib/sector-map";
+import { Card, Notice } from "@/southernstar/components";
 
 const scopes: Array<{ key: Scope; label: string }> = [
   { key: "overall", label: "Overall" },

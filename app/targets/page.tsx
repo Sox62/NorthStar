@@ -2,11 +2,11 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
-import { dashboardToNorthstarHoldings } from "@/components/northstar-adapter";
+import { dashboardToSouthernStarHoldings } from "@/components/southernstar-adapter";
 import type { DashboardData } from "@/lib/storage";
-import { Card, Notice } from "@/northstar/components";
-import { defaultAllocationTargets, type AllocationTarget } from "@/northstar/lib/allocation-drift";
-import { SECTOR_COLORS, type Holding, type PortfolioScope, type Sector } from "@/northstar/types";
+import { Card, Notice } from "@/southernstar/components";
+import { defaultAllocationTargets, type AllocationTarget } from "@/southernstar/lib/allocation-drift";
+import { SECTOR_COLORS, type Holding, type PortfolioScope, type Sector } from "@/southernstar/types";
 
 type DraftTarget = Omit<AllocationTarget, "updatedAt">;
 type CandidateReason = "recovery" | "drawdown" | "stale" | "missing" | "size";
@@ -140,7 +140,7 @@ export default function AllocationTargetsPage() {
     setHoldingsError("");
     try {
       const [personal, smsf] = await Promise.all([loadDashboard("personal"), loadDashboard("smsf")]);
-      setHoldings([...dashboardToNorthstarHoldings(personal), ...dashboardToNorthstarHoldings(smsf)]);
+      setHoldings([...dashboardToSouthernStarHoldings(personal), ...dashboardToSouthernStarHoldings(smsf)]);
     } catch (error) {
       setHoldingsError(error instanceof Error ? error.message : "Unable to load armed list");
     } finally {

@@ -1,5 +1,5 @@
 import { getStorage, type DashboardData, type OwnerType, type Scope, type StoredTransaction } from "@/lib/storage";
-import { sectorForInstrument } from "@/northstar/lib/sector-map";
+import { sectorForInstrument } from "@/southernstar/lib/sector-map";
 
 export const runtime = "nodejs";
 
@@ -196,7 +196,7 @@ export async function GET(request: Request) {
     });
 
     const body = csv(rows);
-    const filename = `northstar-tax-position-${filenameScope(selectedScopes)}-${reportDate(reportAnchor)}.csv`;
+    const filename = `southernstar-tax-position-${filenameScope(selectedScopes)}-${reportDate(reportAnchor)}.csv`;
     return new Response(body, {
       headers: {
         "content-type": "text/csv; charset=utf-8",

@@ -1,5 +1,5 @@
 import type { DashboardHolding, StoredTransaction } from "@/lib/storage";
-import { sectorForInstrument } from "@/northstar/lib/sector-map";
+import { sectorForInstrument } from "@/southernstar/lib/sector-map";
 import type { EofyHoldingReference, EofyTradeMovement } from "./types";
 import { dateInRange, transactionAud, transactionGrossAud, transactionNetCashAud } from "./utils";
 

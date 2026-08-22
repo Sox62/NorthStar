@@ -58,7 +58,8 @@ type PgPasskeyRow = {
   transports: AuthenticatorTransportFuture[] | null;
 };
 
-const AUTH_FILE = process.env.NORTH_STAR_AUTH_FILE || path.join(process.cwd(), ".north-star", "auth.json");
+const AUTH_FILE = process.env.NORTH_STAR_AUTH_FILE || path.join(process.cwd(), ".southern-star", "auth.json");
+const LEGACY_AUTH_FILE = path.join(process.cwd(), ".north-star", "auth.json");
 const EMPTY: AuthLocalStore = { version: 1, users: [], passkeys: [], challenges: [] };
 
 function isExpired(challenge: AuthChallenge) {
@@ -70,6 +71,15 @@ async function readLocalStore(): Promise<AuthLocalStore> {
     const store = JSON.parse(await readFile(AUTH_FILE, "utf8")) as AuthLocalStore;
     return { ...EMPTY, ...store, challenges: (store.challenges ?? []).filter((challenge) => !isExpired(challenge)) };
   } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT" && AUTH_FILE !== LEGACY_AUTH_FILE) {
+      try {
+        const store = JSON.parse(await readFile(LEGACY_AUTH_FILE, "utf8")) as AuthLocalStore;
+        return { ...EMPTY, ...store, challenges: (store.challenges ?? []).filter((challenge) => !isExpired(challenge)) };
+      } catch (legacyError) {
+        if ((legacyError as NodeJS.ErrnoException).code === "ENOENT") return structuredClone(EMPTY);
+        throw legacyError;
+      }
+    }
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return structuredClone(EMPTY);
     throw error;
   }

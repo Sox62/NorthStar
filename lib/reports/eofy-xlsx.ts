@@ -221,7 +221,7 @@ function reconciliationSheet(report: EofyReport): XlsxSheet {
     rows: [
       ...reportIntro(report, "Accountant Reconciliation"),
       subtitle(`Overall status: ${report.reconciliation.status.toUpperCase()} | Variance tolerance $${report.reconciliation.varianceToleranceAud.toFixed(2)} AUD`),
-      header(["Area", "Check", "NorthStar Amount", "Reference Amount", "Variance", "Status", "Detail"]),
+      header(["Area", "Check", "SouthernStar Amount", "Reference Amount", "Variance", "Status", "Detail"]),
       ...report.reconciliation.rows.map((row): Row => [
         row.section,
         row.check,

@@ -47,7 +47,7 @@ export const roadmapPhases: RoadmapPhase[] = [
       { title: "Personal and SMSF accounts", status: "shipped", detail: "Storage, dashboard queries, full holdings view and overview account breakdown preserve legal ownership." },
       { title: "IBKR current positions", status: "shipped", detail: "Flex Open Positions replace the broker snapshot." },
       { title: "Physical metals", status: "shipped", detail: "Platinum uses ABC buyback pricing; gold, silver and palladium support manual AUD/kg valuations." },
-      { title: "Expanded asset taxonomy", status: "shipped", detail: "Current classification covers live NorthStar sectors, Directshares foreign suffixes and known VELO/LAM exceptions; options/property/crypto remain future extensions." },
+      { title: "Expanded asset taxonomy", status: "shipped", detail: "Current classification covers live SouthernStar sectors, Directshares foreign suffixes and known VELO/LAM exceptions; options/property/crypto remain future extensions." },
       { title: "Core accounting module", status: "shipped", detail: "Shared core accounting now builds dashboard valuation, return, allocation, owner-scope and manual-asset calculations for both storage adapters." },
     ],
   },

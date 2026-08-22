@@ -1,5 +1,5 @@
 import PageHeader from "@/components/PageHeader";
-import { Card, SummaryGrid } from "@/northstar/components";
+import { Card, SummaryGrid } from "@/southernstar/components";
 import styles from "./ReportsPage.module.css";
 
 type ReportDownload = {

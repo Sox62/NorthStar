@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { OpenOrdersPaste } from "@/components/OpenOrdersPaste";
-import { dataHealth } from "@/northstar/lib/data-health";
+import { dataHealth } from "@/southernstar/lib/data-health";
 import type { DashboardData } from "@/lib/storage";
-import { Card, Notice, StatusBadge, SummaryGrid } from "@/northstar/components";
+import { Card, Notice, StatusBadge, SummaryGrid } from "@/southernstar/components";
 
 type ImportType = "ibkr" | "directshares" | "directsharesNotes" | "dividends";
 type OwnerType = "PERSONAL" | "SMSF";

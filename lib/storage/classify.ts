@@ -1,4 +1,4 @@
-import type { Sector } from "@/northstar/types";
+import type { Sector } from "@/southernstar/types";
 
 const SYMBOL_SECTORS: Record<string, Sector> = {
   ASL: "Silver miners",

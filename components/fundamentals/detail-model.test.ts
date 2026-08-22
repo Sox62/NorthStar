@@ -3,7 +3,7 @@ import test from "node:test";
 import type { MinerFundamentals } from "@/lib/storage";
 import { allocationRead, enterpriseValueAud, failureModes, fundamentalBars, fundamentalQualityScore, netCashAud, riskLevel, valuationBars, valuationRows, valuationScore } from "./detail-model";
 import { researchFormForHolding, researchFormForIdea } from "./model";
-import type { Holding } from "@/northstar/types";
+import type { Holding } from "@/southernstar/types";
 
 const base: MinerFundamentals = {
   symbol: "AYA",

@@ -1,6 +1,6 @@
 import type { DashboardData, Scope } from "@/lib/storage";
-import { sectorForInstrument } from "@/northstar/lib/sector-map";
-import type { Holding } from "@/northstar/types";
+import { sectorForInstrument } from "@/southernstar/lib/sector-map";
+import type { Holding } from "@/southernstar/types";
 
 export type AccountSummary = {
   scope: Exclude<Scope, "overall">;
@@ -17,7 +17,7 @@ export type AccountSummary = {
   lastUpdated: string | null;
 };
 
-export function dashboardToNorthstarHoldings(data: DashboardData): Holding[] {
+export function dashboardToSouthernStarHoldings(data: DashboardData): Holding[] {
   const holdings = data.holdings.map((position): Holding => ({
     id: position.id,
     symbol: position.symbol,

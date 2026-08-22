@@ -170,7 +170,7 @@ export async function fetchDirectsharesEmailTransactions(config = directsharesEm
     secure: config.secure,
     auth: { user: config.user, pass: config.password },
     logger: false,
-    clientInfo: { name: "NorthStar" },
+    clientInfo: { name: "SouthernStar" },
   });
 
   const result: DirectsharesEmailFetchResult = {
