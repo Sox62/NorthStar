@@ -20,6 +20,15 @@ export function normaliseResearchSymbol(symbol: string) {
   return symbol.trim().toUpperCase().replace(/\s+/g, "").slice(0, 20);
 }
 
+export function asxIssuerMismatch(expectedSymbol: string, sourceText: string) {
+  const symbol = normaliseResearchSymbol(expectedSymbol).replace(/\.(AX|AU|ASX)$/i, "");
+  const header = sourceText.slice(0, 2_500);
+  const match = header.match(/\bASX\s*:\s*([A-Z0-9]{2,8})\b/i);
+  if (!match) return null;
+  const issuer = match[1].toUpperCase();
+  return issuer === symbol ? null : issuer;
+}
+
 export function validateResearchSourceUrl(rawUrl: string) {
   const url = new URL(rawUrl);
   if (!["https:", "http:"].includes(url.protocol)) throw new Error("Research source must be an http or https URL");

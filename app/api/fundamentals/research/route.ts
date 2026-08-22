@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
-import { buildFundamentalResearchDraft, fetchResearchSource } from "@/lib/fundamentals/research-draft";
+import { asxIssuerMismatch, buildFundamentalResearchDraft, fetchResearchSource } from "@/lib/fundamentals/research-draft";
 import { fetchCompanyNews, type CompanyNewsItem, type NewsInstrument } from "@/lib/integrations/company-news";
 import { getStorage } from "@/lib/storage";
 
@@ -23,21 +23,38 @@ const FUNDAMENTAL_SOURCE_SCORE: Array<[RegExp, number]> = [
   [/presentation|investor/i, 35],
 ];
 
-async function discoverResearchSource(symbol: string, name: string | null): Promise<{ item: CompanyNewsItem | null; note: string | null }> {
+type DiscoveredResearchSource = {
+  item: CompanyNewsItem | null;
+  note: string | null;
+  source: Awaited<ReturnType<typeof fetchResearchSource>> | null;
+};
+
+async function discoverResearchSource(symbol: string, name: string | null): Promise<DiscoveredResearchSource> {
   const instruments = candidateInstruments(symbol, name);
   const failures: string[] = [];
 
   for (const instrument of instruments) {
     try {
-      const items = await fetchCompanyNews(instrument);
-      const item = chooseResearchSource(items);
-      if (item) return { item, note: `Source discovered from ${item.source} using ${instrument.symbol}:${instrument.exchange}.` };
+      const items = chooseResearchSources(await fetchCompanyNews(instrument));
+      for (const item of items.slice(0, 6)) {
+        try {
+          const source = await fetchResearchSource(item.url);
+          const issuer = item.source === "ASX" ? asxIssuerMismatch(instrument.symbol, source.text) : null;
+          if (issuer) {
+            failures.push(`${instrument.symbol}:${instrument.exchange} skipped ${item.headline} because the PDF header is ASX:${issuer}`);
+            continue;
+          }
+          return { item, source, note: `Source discovered from ${item.source} using ${instrument.symbol}:${instrument.exchange}.` };
+        } catch (error) {
+          failures.push(`${instrument.symbol}:${instrument.exchange} ${item.headline} ${error instanceof Error ? error.message : "source failed"}`);
+        }
+      }
     } catch (error) {
       failures.push(`${instrument.symbol}:${instrument.exchange} ${error instanceof Error ? error.message : "lookup failed"}`);
     }
   }
 
-  return { item: null, note: failures.length ? `No official filing source found. Lookup warnings: ${failures.join("; ")}.` : "No official filing source found." };
+  return { item: null, source: null, note: failures.length ? `No official filing source found. Lookup warnings: ${failures.join("; ")}.` : "No official filing source found." };
 }
 
 function candidateInstruments(rawSymbol: string, name: string | null): NewsInstrument[] {
@@ -72,10 +89,10 @@ function explicitExchange(symbol: string) {
   return null;
 }
 
-function chooseResearchSource(items: CompanyNewsItem[]) {
+function chooseResearchSources(items: CompanyNewsItem[]) {
   return [...items]
     .filter((item) => item.url && item.headline)
-    .sort((left, right) => sourceScore(right) - sourceScore(left) || right.publishedAt.localeCompare(left.publishedAt))[0] ?? null;
+    .sort((left, right) => sourceScore(right) - sourceScore(left) || right.publishedAt.localeCompare(left.publishedAt));
 }
 
 function sourceScore(item: CompanyNewsItem) {
@@ -93,9 +110,9 @@ export async function POST(request: Request) {
 
   try {
     const input = researchRequestSchema.parse(await request.json());
-    const discovered = input.sourceUrl ? { item: null, note: "Source URL supplied by user." } : await discoverResearchSource(input.symbol, input.name);
+    const discovered = input.sourceUrl ? { item: null, note: "Source URL supplied by user.", source: null } : await discoverResearchSource(input.symbol, input.name);
     const sourceUrl = input.sourceUrl ?? discovered.item?.url ?? null;
-    const source = sourceUrl ? await fetchResearchSource(sourceUrl) : { text: "", title: null };
+    const source = input.sourceUrl ? await fetchResearchSource(input.sourceUrl) : discovered.source ?? { text: "", title: null };
     const draftInput = buildFundamentalResearchDraft({
       symbol: input.symbol,
       name: input.name,

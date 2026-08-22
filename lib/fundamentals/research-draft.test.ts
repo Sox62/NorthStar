@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildFundamentalResearchDraft, fetchResearchSource, normaliseResearchSymbol, validateResearchSourceUrl } from "./research-draft";
+import { asxIssuerMismatch, buildFundamentalResearchDraft, fetchResearchSource, normaliseResearchSymbol, validateResearchSourceUrl } from "./research-draft";
 
 test("buildFundamentalResearchDraft extracts clear source facts into a pending draft input", () => {
   const draft = buildFundamentalResearchDraft({
@@ -102,4 +102,12 @@ startxref
   } finally {
     globalThis.fetch = previousFetch;
   }
+});
+
+
+test("asxIssuerMismatch rejects cross-referenced ASX announcements", () => {
+  const latitudeSource = "ASX Announcement ASX:LAT Piastri joins Ricciardo to unlock value for Latitude 66 Capricorn Metals Limited (ASX:CMM)";
+  assert.equal(asxIssuerMismatch("CMM", latitudeSource), "LAT");
+  assert.equal(asxIssuerMismatch("CMM.AX", "ASX Announcement ASX:CMM Quarterly activities report"), null);
+  assert.equal(asxIssuerMismatch("CMM", "Capricorn Metals quarterly report with no ASX header"), null);
 });
