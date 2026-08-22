@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 import { buildAiFundamentalResearchDraft } from "@/lib/fundamentals/ai-extractor";
-import { asxIssuerMismatch, fetchResearchSource } from "@/lib/fundamentals/research-draft";
+import { asxIssuerMismatch, buildFundamentalResearchDraft, fetchResearchSource, type FundamentalResearchSource } from "@/lib/fundamentals/research-draft";
 import { fetchCompanyNews, type CompanyNewsItem, type NewsInstrument } from "@/lib/integrations/company-news";
 import { getStorage } from "@/lib/storage";
 
@@ -97,6 +97,28 @@ function chooseResearchSources(items: CompanyNewsItem[]) {
     .sort((left, right) => sourceScore(right) - sourceScore(left) || right.publishedAt.localeCompare(left.publishedAt));
 }
 
+async function buildDraftWithProviderFallback(source: FundamentalResearchSource, provider: "none" | "openai" | "anthropic") {
+  if (provider === "none") return { draftInput: buildFundamentalResearchDraft(source), extractionWarning: "" };
+  try {
+    return { draftInput: await buildAiFundamentalResearchDraft(source, provider), extractionWarning: "" };
+  } catch (error) {
+    const fallback = buildFundamentalResearchDraft(source);
+    const message = error instanceof Error ? error.message : "AI extraction failed";
+    return {
+      draftInput: {
+        ...fallback,
+        notes: [
+          `${provider === "anthropic" ? "Claude" : "ChatGPT"} extraction failed: ${message}.`,
+          fallback.notes,
+        ].filter(Boolean).join(" "),
+        extractor: `${provider}-fallback-factual-parser`,
+        reviewNotes: message,
+      },
+      extractionWarning: `AI extraction failed; saved a source draft for manual review.`,
+    };
+  }
+}
+
 function sourceScore(item: CompanyNewsItem) {
   const text = `${item.headline} ${item.kind}`;
   const matchScore = FUNDAMENTAL_SOURCE_SCORE.reduce((score, [pattern, value]) => pattern.test(text) ? Math.max(score, value) : score, 0);
@@ -115,16 +137,18 @@ export async function POST(request: Request) {
     const discovered = input.sourceUrl ? { item: null, note: "Source URL supplied by user.", source: null } : await discoverResearchSource(input.symbol, input.name);
     const sourceUrl = input.sourceUrl ?? discovered.item?.url ?? null;
     const source = input.sourceUrl ? await fetchResearchSource(input.sourceUrl) : discovered.source ?? { text: "", title: null };
-    const draftInput = await buildAiFundamentalResearchDraft({
+    const researchSource: FundamentalResearchSource = {
       symbol: input.symbol,
       name: input.name,
       sourceUrl,
       sourceTitle: discovered.item?.headline ?? source.title ?? null,
       sourceText: source.text,
       discoveryNote: discovered.note,
-    }, input.aiProvider);
+    };
+    const { draftInput, extractionWarning } = await buildDraftWithProviderFallback(researchSource, input.aiProvider);
     const draft = await getStorage().createFundamentalResearchDraft(draftInput);
-    return NextResponse.json({ draft, message: draft.sourceUrl ? `Created factual research draft for ${draft.symbol} from ${draft.sourceTitle ?? "discovered source"}.` : `Created source-needed research draft for ${draft.symbol}.` }, { status: 201 });
+    const baseMessage = draft.sourceUrl ? `Created factual research draft for ${draft.symbol} from ${draft.sourceTitle ?? "discovered source"}.` : `Created source-needed research draft for ${draft.symbol}.`;
+    return NextResponse.json({ draft, message: extractionWarning ? `${baseMessage} ${extractionWarning}` : baseMessage }, { status: 201 });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to create fundamentals research draft" },
