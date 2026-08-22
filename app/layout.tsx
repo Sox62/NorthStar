@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "@/northstar/styles/tokens.css";
 import "./globals.css";
 import "@/northstar/styles/theme.css";
+import "@/northstar/styles/relative.css";
 import SouthernStarShell from "@/components/SouthernStarShell";
 
 export const metadata: Metadata = {
