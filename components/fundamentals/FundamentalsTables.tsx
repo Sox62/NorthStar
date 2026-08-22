@@ -161,9 +161,13 @@ export function ResearchIdeasTable({ ideas, loading, onSelect }: ResearchIdeasTa
                   <td>
                     <StatusBadge tone={score == null ? "warning" : "good"}>{score == null ? "No score" : `${score.toFixed(1)} / 5`}</StatusBadge>
                   </td>
-                  <td>
-                    <span>{item.notes ?? "Source notes needed."}</span>
-                    <small>{item.asOfDate ? `As of ${dateOrDash(item.asOfDate)}` : "No source date"}</small>
+                  <td className={styles.notesCell}>
+                    <span>{item.asOfDate ? `As of ${dateOrDash(item.asOfDate)}` : "No source date"}</span>
+                    <small>{item.sourceUrl ? "Source attached" : "Source URL needed"}</small>
+                    <details className={styles.notesDisclosure} onClick={(event) => event.stopPropagation()}>
+                      <summary>{item.notes ? "View notes" : "No notes"}</summary>
+                      <p>{item.notes ?? "Source notes needed."}</p>
+                    </details>
                     {item.sourceUrl ? <a className={styles.sourceLink} onClick={(event) => event.stopPropagation()} href={item.sourceUrl} target="_blank" rel="noreferrer">Source</a> : null}
                   </td>
                 </tr>

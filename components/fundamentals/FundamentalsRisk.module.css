@@ -59,6 +59,40 @@
   color: var(--text-primary);
 }
 
+.notesCell {
+  max-width: 340px;
+}
+
+.notesCell > span,
+.notesCell > small {
+  display: block;
+}
+
+.notesDisclosure {
+  margin-top: 6px;
+}
+
+.notesDisclosure summary {
+  width: max-content;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.notesDisclosure summary:hover {
+  color: var(--text-primary);
+}
+
+.notesDisclosure p {
+  margin: 8px 0 0;
+  max-width: 64ch;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
 .checklist {
   display: flex;
   flex-wrap: wrap;
