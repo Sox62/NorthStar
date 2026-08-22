@@ -6,7 +6,7 @@ import type { Sector } from "@/southernstar/types";
 import { classifyAsset } from "./classify";
 import { PASTED_ORDER_SOURCE } from "./local";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
-import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, PastedOpenOrder, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
+import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, PastedOpenOrder, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 import {
   captureSnapshot,
@@ -14,6 +14,7 @@ import {
   ensureInstrument,
   ensurePortfolio,
   ibkrTotalCashFromComponents,
+  fundamentalResearchDraftFromRow,
   minerFundamentalsFromRow,
   optionalNumber,
   replaceIbkrNavSnapshots,
@@ -592,6 +593,112 @@ export class PostgresStorageAdapter implements StorageAdapter {
       input.balanceSheetScore, input.dilutionScore, input.managementScore, input.notes, input.sourceUrl, input.asOfDate,
     ]);
     return minerFundamentalsFromRow(result.rows[0]);
+  }
+
+  async listFundamentalResearchDrafts(status?: FundamentalResearchDraftStatus): Promise<FundamentalResearchDraft[]> {
+    const result = await getPool().query(`
+      SELECT id::text,symbol,name,primary_metal,jurisdiction,project_stage,production_oz,aisc_usd_per_oz,
+        resource_moz,reserve_moz,cash_aud,debt_aud,market_cap_aud,npv_aud,capex_aud,irr_percent,
+        jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,
+        as_of_date::text,source_title,source_date::text,source_excerpt,extractor,confidence,status,review_notes,
+        created_at::text,reviewed_at::text,created_at::text AS updated_at
+      FROM fundamental_research_drafts
+      WHERE $1::text IS NULL OR status = $1
+      ORDER BY created_at DESC
+    `, [status ?? null]).catch((error: unknown) => {
+      if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "42P01") return null;
+      throw error;
+    });
+    return result ? result.rows.map(fundamentalResearchDraftFromRow) : [];
+  }
+
+  async createFundamentalResearchDraft(input: FundamentalResearchDraftInput): Promise<FundamentalResearchDraft> {
+    const result = await getPool().query(`
+      INSERT INTO fundamental_research_drafts (
+        symbol,name,primary_metal,jurisdiction,project_stage,production_oz,aisc_usd_per_oz,
+        resource_moz,reserve_moz,cash_aud,debt_aud,market_cap_aud,npv_aud,capex_aud,irr_percent,
+        jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,as_of_date,
+        source_title,source_date,source_excerpt,extractor,confidence,review_notes,status,created_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,'pending',NOW())
+      RETURNING id::text,symbol,name,primary_metal,jurisdiction,project_stage,production_oz,aisc_usd_per_oz,
+        resource_moz,reserve_moz,cash_aud,debt_aud,market_cap_aud,npv_aud,capex_aud,irr_percent,
+        jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,
+        as_of_date::text,source_title,source_date::text,source_excerpt,extractor,confidence,status,review_notes,
+        created_at::text,reviewed_at::text,created_at::text AS updated_at
+    `, [
+      input.symbol.trim().toUpperCase(), input.name, input.primaryMetal, input.jurisdiction, input.projectStage,
+      input.productionOz, input.aiscUsdPerOz, input.resourceMoz, input.reserveMoz, input.cashAud, input.debtAud,
+      input.marketCapAud, input.npvAud, input.capexAud, input.irrPercent, input.jurisdictionScore,
+      input.balanceSheetScore, input.dilutionScore, input.managementScore, input.notes, input.sourceUrl, input.asOfDate,
+      input.sourceTitle ?? null, input.sourceDate ?? null, input.sourceExcerpt ?? null, input.extractor ?? "ai-research",
+      input.confidence ?? null, input.reviewNotes ?? null,
+    ]);
+    return fundamentalResearchDraftFromRow(result.rows[0]);
+  }
+
+  async acceptFundamentalResearchDraft(id: string): Promise<MinerFundamentals> {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      const draftResult = await client.query(`
+        SELECT id::text,symbol,name,primary_metal,jurisdiction,project_stage,production_oz,aisc_usd_per_oz,
+          resource_moz,reserve_moz,cash_aud,debt_aud,market_cap_aud,npv_aud,capex_aud,irr_percent,
+          jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,
+          as_of_date::text,source_title,source_date::text,source_excerpt,extractor,confidence,status,review_notes,
+          created_at::text,reviewed_at::text,created_at::text AS updated_at
+        FROM fundamental_research_drafts
+        WHERE id = $1::uuid AND status = 'pending'
+        FOR UPDATE
+      `, [id]);
+      if (!draftResult.rows.length) throw new Error("Pending fundamentals draft not found");
+      const draft = fundamentalResearchDraftFromRow(draftResult.rows[0]);
+      const approved = await client.query(`
+        INSERT INTO miner_fundamentals (
+          symbol,name,primary_metal,jurisdiction,project_stage,production_oz,aisc_usd_per_oz,
+          resource_moz,reserve_moz,cash_aud,debt_aud,market_cap_aud,npv_aud,capex_aud,irr_percent,
+          jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,as_of_date,updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,NOW())
+        ON CONFLICT (symbol) DO UPDATE SET
+          name=EXCLUDED.name,primary_metal=EXCLUDED.primary_metal,jurisdiction=EXCLUDED.jurisdiction,
+          project_stage=EXCLUDED.project_stage,production_oz=EXCLUDED.production_oz,aisc_usd_per_oz=EXCLUDED.aisc_usd_per_oz,
+          resource_moz=EXCLUDED.resource_moz,reserve_moz=EXCLUDED.reserve_moz,cash_aud=EXCLUDED.cash_aud,
+          debt_aud=EXCLUDED.debt_aud,market_cap_aud=EXCLUDED.market_cap_aud,npv_aud=EXCLUDED.npv_aud,
+          capex_aud=EXCLUDED.capex_aud,irr_percent=EXCLUDED.irr_percent,jurisdiction_score=EXCLUDED.jurisdiction_score,
+          balance_sheet_score=EXCLUDED.balance_sheet_score,dilution_score=EXCLUDED.dilution_score,
+          management_score=EXCLUDED.management_score,notes=EXCLUDED.notes,source_url=EXCLUDED.source_url,
+          as_of_date=EXCLUDED.as_of_date,updated_at=NOW()
+        RETURNING symbol,name,primary_metal,jurisdiction,project_stage,production_oz,aisc_usd_per_oz,
+          resource_moz,reserve_moz,cash_aud,debt_aud,market_cap_aud,npv_aud,capex_aud,irr_percent,
+          jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,
+          as_of_date::text,updated_at::text
+      `, [
+        draft.symbol, draft.name, draft.primaryMetal, draft.jurisdiction, draft.projectStage, draft.productionOz, draft.aiscUsdPerOz,
+        draft.resourceMoz, draft.reserveMoz, draft.cashAud, draft.debtAud, draft.marketCapAud, draft.npvAud, draft.capexAud,
+        draft.irrPercent, draft.jurisdictionScore, draft.balanceSheetScore, draft.dilutionScore, draft.managementScore,
+        draft.notes, draft.sourceUrl, draft.asOfDate,
+      ]);
+      await client.query("UPDATE fundamental_research_drafts SET status='accepted',reviewed_at=NOW() WHERE id=$1::uuid", [id]);
+      await client.query("COMMIT");
+      return minerFundamentalsFromRow(approved.rows[0]);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally { client.release(); }
+  }
+
+  async rejectFundamentalResearchDraft(id: string, reviewNotes?: string | null): Promise<FundamentalResearchDraft> {
+    const result = await getPool().query(`
+      UPDATE fundamental_research_drafts
+      SET status='rejected',review_notes=COALESCE($2,review_notes),reviewed_at=NOW()
+      WHERE id=$1::uuid AND status='pending'
+      RETURNING id::text,symbol,name,primary_metal,jurisdiction,project_stage,production_oz,aisc_usd_per_oz,
+        resource_moz,reserve_moz,cash_aud,debt_aud,market_cap_aud,npv_aud,capex_aud,irr_percent,
+        jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,
+        as_of_date::text,source_title,source_date::text,source_excerpt,extractor,confidence,status,review_notes,
+        created_at::text,reviewed_at::text,created_at::text AS updated_at
+    `, [id, reviewNotes ?? null]);
+    if (!result.rows.length) throw new Error("Pending fundamentals draft not found");
+    return fundamentalResearchDraftFromRow(result.rows[0]);
   }
 
   async listStructuralLevels(symbols?: string[]): Promise<StructuralLevel[]> {

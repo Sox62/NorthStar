@@ -1,0 +1,37 @@
+CREATE TABLE IF NOT EXISTS "fundamental_research_drafts" (
+  "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+  "symbol" text NOT NULL,
+  "name" text,
+  "primary_metal" text,
+  "jurisdiction" text,
+  "project_stage" text,
+  "production_oz" numeric(28,4),
+  "aisc_usd_per_oz" numeric(28,4),
+  "resource_moz" numeric(28,6),
+  "reserve_moz" numeric(28,6),
+  "cash_aud" numeric(28,2),
+  "debt_aud" numeric(28,2),
+  "market_cap_aud" numeric(28,2),
+  "npv_aud" numeric(28,2),
+  "capex_aud" numeric(28,2),
+  "irr_percent" numeric(18,6),
+  "jurisdiction_score" integer,
+  "balance_sheet_score" integer,
+  "dilution_score" integer,
+  "management_score" integer,
+  "notes" text,
+  "source_url" text,
+  "as_of_date" date,
+  "source_title" text,
+  "source_date" date,
+  "source_excerpt" text,
+  "extractor" text DEFAULT 'manual' NOT NULL,
+  "confidence" numeric(5,4),
+  "status" text DEFAULT 'pending' NOT NULL,
+  "review_notes" text,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "reviewed_at" timestamp with time zone
+);
+
+CREATE INDEX IF NOT EXISTS "fundamental_research_drafts_symbol_idx" ON "fundamental_research_drafts" ("symbol");
+CREATE INDEX IF NOT EXISTS "fundamental_research_drafts_status_idx" ON "fundamental_research_drafts" ("status");

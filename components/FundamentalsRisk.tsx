@@ -9,12 +9,15 @@ import type { Holding } from "@/southernstar/types";
 import { dashboardToSouthernStarHoldings } from "./southernstar-adapter";
 import { HeldMinerTable, ResearchIdeasTable } from "./fundamentals/FundamentalsTables";
 import { FundamentalsDetail } from "./fundamentals/FundamentalsDetail";
+import { FundamentalsDraftsTable } from "./fundamentals/FundamentalsDraftsTable";
 import { ResearchIntakeForm } from "./fundamentals/ResearchIntakeForm";
 import {
+  acceptFundamentalDraft,
   blankResearchForm,
   checklist,
   isMinerHolding,
   loadDashboard,
+  loadFundamentalDrafts,
   loadFundamentals,
   loadStarterFundamentals,
   metricDefinitions,
@@ -22,6 +25,7 @@ import {
   researchFormForIdea,
   RESEARCH_FORM_ID,
   money,
+  rejectFundamentalDraft,
   saveResearchFundamentals,
   topRisk,
   totalValue,
@@ -31,9 +35,10 @@ import {
 import styles from "./fundamentals/FundamentalsRisk.module.css";
 
 export default function FundamentalsRisk() {
-  const [{ holdings, fundamentals, loading, error }, setState] = useState<FundamentalsState>({ holdings: [], fundamentals: [], loading: true, error: "" });
+  const [{ holdings, fundamentals, drafts, loading, error }, setState] = useState<FundamentalsState>({ holdings: [], fundamentals: [], drafts: [], loading: true, error: "" });
   const [starterStatus, setStarterStatus] = useState<{ loading: boolean; message: string; error: string }>({ loading: false, message: "", error: "" });
   const [researchForm, setResearchForm] = useState<ResearchFormState>(blankResearchForm);
+  const [draftStatus, setDraftStatus] = useState<{ busyId: string; error: string }>({ busyId: "", error: "" });
   const [researchStatus, setResearchStatus] = useState<{ saving: boolean; message: string; error: string }>({ saving: false, message: "", error: "" });
   const [selected, setSelected] = useState<Holding | null>(null);
 
@@ -45,10 +50,10 @@ export default function FundamentalsRisk() {
       try {
         const [personal, smsf] = await Promise.all([loadDashboard("personal"), loadDashboard("smsf")]);
         const nextHoldings = [...dashboardToSouthernStarHoldings(personal), ...dashboardToSouthernStarHoldings(smsf)].filter(isMinerHolding);
-        const nextFundamentals = await loadFundamentals();
-        if (!cancelled) setState({ holdings: nextHoldings, fundamentals: nextFundamentals, loading: false, error: "" });
+        const [nextFundamentals, nextDrafts] = await Promise.all([loadFundamentals(), loadFundamentalDrafts()]);
+        if (!cancelled) setState({ holdings: nextHoldings, fundamentals: nextFundamentals, drafts: nextDrafts, loading: false, error: "" });
       } catch (reason) {
-        if (!cancelled) setState({ holdings: [], fundamentals: [], loading: false, error: reason instanceof Error ? reason.message : "Unable to load fundamentals" });
+        if (!cancelled) setState({ holdings: [], fundamentals: [], drafts: [], loading: false, error: reason instanceof Error ? reason.message : "Unable to load fundamentals" });
       }
     }
 
@@ -93,6 +98,36 @@ export default function FundamentalsRisk() {
 
   function updateResearchField<K extends keyof ResearchFormState>(field: K, value: ResearchFormState[K]) {
     setResearchForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function handleAcceptDraft(id: string) {
+    setDraftStatus({ busyId: id, error: "" });
+    try {
+      const next = await acceptFundamentalDraft(id);
+      setState((current) => {
+        const bySymbol = new Map(current.fundamentals.map((item) => [item.symbol.toUpperCase(), item]));
+        bySymbol.set(next.symbol.toUpperCase(), next);
+        return {
+          ...current,
+          fundamentals: [...bySymbol.values()].sort((a, b) => a.symbol.localeCompare(b.symbol)),
+          drafts: current.drafts.filter((draft) => draft.id !== id),
+        };
+      });
+      setDraftStatus({ busyId: "", error: "" });
+    } catch (reason) {
+      setDraftStatus({ busyId: "", error: reason instanceof Error ? reason.message : "Unable to accept research draft" });
+    }
+  }
+
+  async function handleRejectDraft(id: string) {
+    setDraftStatus({ busyId: id, error: "" });
+    try {
+      await rejectFundamentalDraft(id, "Rejected in SouthernStar review queue.");
+      setState((current) => ({ ...current, drafts: current.drafts.filter((draft) => draft.id !== id) }));
+      setDraftStatus({ busyId: "", error: "" });
+    } catch (reason) {
+      setDraftStatus({ busyId: "", error: reason instanceof Error ? reason.message : "Unable to reject research draft" });
+    }
   }
 
   async function handleSaveResearchIdea(event: FormEvent<HTMLFormElement>) {
@@ -153,6 +188,7 @@ export default function FundamentalsRisk() {
               ["Largest sector", sectors[0] ? `${sectors[0][0]} · ${money(sectors[0][1])}` : "n/a"],
               ["Saved fundamentals", loading ? "..." : String(fundamentals.length)],
               ["Saved not held", loading ? "..." : String(researchFundamentals.length)],
+              ["Pending drafts", loading ? "..." : String(drafts.length)],
             ]}
           />
         </Card>
@@ -188,6 +224,15 @@ export default function FundamentalsRisk() {
         loading={loading}
         totalMinerValue={value}
         onSelect={setSelected}
+      />
+
+      <FundamentalsDraftsTable
+        drafts={drafts}
+        loading={loading}
+        busyId={draftStatus.busyId}
+        error={draftStatus.error}
+        onAccept={(draft) => handleAcceptDraft(draft.id)}
+        onReject={(draft) => handleRejectDraft(draft.id)}
       />
 
       <ResearchIntakeForm

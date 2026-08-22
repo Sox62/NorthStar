@@ -1,9 +1,10 @@
-import type { DashboardData, MinerFundamentals } from "@/lib/storage";
+import type { DashboardData, FundamentalResearchDraft, MinerFundamentals } from "@/lib/storage";
 import type { Holding, Sector } from "@/southernstar/types";
 
 export type FundamentalsState = {
   holdings: Holding[];
   fundamentals: MinerFundamentals[];
+  drafts: FundamentalResearchDraft[];
   loading: boolean;
   error: string;
 };
@@ -19,6 +20,13 @@ type StarterResponse = FundamentalsResponse & {
 };
 
 type SaveFundamentalsResponse = {
+  fundamental?: MinerFundamentals;
+  error?: string;
+};
+
+type DraftsResponse = {
+  drafts?: FundamentalResearchDraft[];
+  draft?: FundamentalResearchDraft;
   fundamental?: MinerFundamentals;
   error?: string;
 };
@@ -235,6 +243,32 @@ export async function loadFundamentals(symbols?: string[]): Promise<MinerFundame
   const payload = await response.json() as FundamentalsResponse;
   if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load fundamentals ledger");
   return payload.fundamentals ?? [];
+}
+
+export async function loadFundamentalDrafts(): Promise<FundamentalResearchDraft[]> {
+  const response = await fetch("/api/fundamentals/drafts?status=pending", { cache: "no-store" });
+  const payload = await response.json() as DraftsResponse;
+  if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load fundamentals drafts");
+  return payload.drafts ?? [];
+}
+
+export async function acceptFundamentalDraft(id: string): Promise<MinerFundamentals> {
+  const response = await fetch(`/api/fundamentals/drafts/${encodeURIComponent(id)}/accept`, { method: "POST", cache: "no-store" });
+  const payload = await response.json() as DraftsResponse;
+  if (!response.ok || payload.error || !payload.fundamental) throw new Error(payload.error || "Unable to accept fundamentals draft");
+  return payload.fundamental;
+}
+
+export async function rejectFundamentalDraft(id: string, reviewNotes?: string): Promise<FundamentalResearchDraft> {
+  const response = await fetch(`/api/fundamentals/drafts/${encodeURIComponent(id)}/reject`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reviewNotes: reviewNotes?.trim() || null }),
+    cache: "no-store",
+  });
+  const payload = await response.json() as DraftsResponse;
+  if (!response.ok || payload.error || !payload.draft) throw new Error(payload.error || "Unable to reject fundamentals draft");
+  return payload.draft;
 }
 
 export async function loadStarterFundamentals(): Promise<MinerFundamentals[]> {

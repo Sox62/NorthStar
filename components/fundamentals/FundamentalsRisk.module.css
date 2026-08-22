@@ -193,3 +193,14 @@
   outline-offset: 2px;
   border-radius: 3px;
 }
+
+.draftActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.draftActions button {
+  min-height: 32px;
+}

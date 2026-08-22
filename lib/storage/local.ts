@@ -17,6 +17,9 @@ import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import type {
   CashAccount,
   AllocationTarget,
+  FundamentalResearchDraft,
+  FundamentalResearchDraftInput,
+  FundamentalResearchDraftStatus,
   DashboardData,
   ImportResult,
   LocalStore,
@@ -48,7 +51,7 @@ const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), "
 const LEGACY_DATA_FILE = path.join(process.cwd(), ".north-star", "data.json");
 export const PASTED_ORDER_SOURCE = "IBKR paste";
 
-const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], structuralLevels: [], imports: [] };
+const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], imports: [] };
 
 function normalisePhysicalMetalType(value: unknown) {
   return value === "GOLD" || value === "SILVER" || value === "PLATINUM" || value === "PALLADIUM" ? value : "PLATINUM";
@@ -67,6 +70,7 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
         allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
         sectorOverrides: (parsed.sectorOverrides as SectorOverride[] | undefined) ?? [],
         minerFundamentals: (parsed.minerFundamentals as MinerFundamentals[] | undefined) ?? [],
+        fundamentalResearchDrafts: (parsed.fundamentalResearchDrafts as FundamentalResearchDraft[] | undefined) ?? [],
         structuralLevels: (parsed.structuralLevels as StructuralLevel[] | undefined) ?? [],
       };
     }
@@ -81,6 +85,7 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
         syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
         allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
         minerFundamentals: (parsed.minerFundamentals as MinerFundamentals[] | undefined) ?? [],
+        fundamentalResearchDrafts: (parsed.fundamentalResearchDrafts as FundamentalResearchDraft[] | undefined) ?? [],
         structuralLevels: (parsed.structuralLevels as StructuralLevel[] | undefined) ?? [],
       };
     }
@@ -95,6 +100,7 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
         syncRuns: [],
         allocationTargets: defaultAllocationTargets(),
         minerFundamentals: [],
+        fundamentalResearchDrafts: [],
         structuralLevels: [],
       };
     }
@@ -117,10 +123,10 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
           priceRetrievedAt: String(asset.updatedAt ?? new Date().toISOString()), updatedAt: String(asset.updatedAt ?? new Date().toISOString()),
         };
       });
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets, platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], structuralLevels: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets, platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [] };
     }
     if (parsed.version === 2) {
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets: [], platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], structuralLevels: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets: [], platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [] };
     }
     return structuredClone(EMPTY);
 }
@@ -802,6 +808,84 @@ export class LocalStorageAdapter implements StorageAdapter {
     if (existing) Object.assign(existing, record); else store.minerFundamentals.push(record);
     await writeStore(store);
     return record;
+  }
+
+  async listFundamentalResearchDrafts(status?: FundamentalResearchDraftStatus): Promise<FundamentalResearchDraft[]> {
+    const store = await readStore();
+    return [...(store.fundamentalResearchDrafts ?? [])]
+      .filter((item) => !status || item.status === status)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async createFundamentalResearchDraft(input: FundamentalResearchDraftInput): Promise<FundamentalResearchDraft> {
+    const store = await readStore();
+    const now = new Date().toISOString();
+    const record: FundamentalResearchDraft = {
+      ...input,
+      id: randomUUID(),
+      symbol: normaliseSymbol(input.symbol),
+      status: "pending",
+      sourceTitle: input.sourceTitle ?? null,
+      sourceDate: input.sourceDate ?? null,
+      sourceExcerpt: input.sourceExcerpt ?? null,
+      extractor: input.extractor ?? "ai-research",
+      confidence: input.confidence ?? null,
+      reviewNotes: input.reviewNotes ?? null,
+      createdAt: now,
+      reviewedAt: null,
+    };
+    store.fundamentalResearchDrafts = [...(store.fundamentalResearchDrafts ?? []), record];
+    await writeStore(store);
+    return record;
+  }
+
+  async acceptFundamentalResearchDraft(id: string): Promise<MinerFundamentals> {
+    const store = await readStore();
+    const now = new Date().toISOString();
+    const draft = (store.fundamentalResearchDrafts ?? []).find((item) => item.id === id && item.status === "pending");
+    if (!draft) throw new Error("Pending fundamentals draft not found");
+    const record: MinerFundamentals = {
+      symbol: normaliseSymbol(draft.symbol),
+      name: draft.name,
+      primaryMetal: draft.primaryMetal,
+      jurisdiction: draft.jurisdiction,
+      projectStage: draft.projectStage,
+      productionOz: draft.productionOz,
+      aiscUsdPerOz: draft.aiscUsdPerOz,
+      resourceMoz: draft.resourceMoz,
+      reserveMoz: draft.reserveMoz,
+      cashAud: draft.cashAud,
+      debtAud: draft.debtAud,
+      marketCapAud: draft.marketCapAud,
+      npvAud: draft.npvAud,
+      capexAud: draft.capexAud,
+      irrPercent: draft.irrPercent,
+      jurisdictionScore: draft.jurisdictionScore,
+      balanceSheetScore: draft.balanceSheetScore,
+      dilutionScore: draft.dilutionScore,
+      managementScore: draft.managementScore,
+      notes: draft.notes,
+      sourceUrl: draft.sourceUrl,
+      asOfDate: draft.asOfDate,
+      updatedAt: now,
+    };
+    const existing = store.minerFundamentals.find((item) => normaliseSymbol(item.symbol) === record.symbol);
+    if (existing) Object.assign(existing, record); else store.minerFundamentals.push(record);
+    draft.status = "accepted";
+    draft.reviewedAt = now;
+    await writeStore(store);
+    return record;
+  }
+
+  async rejectFundamentalResearchDraft(id: string, reviewNotes?: string | null): Promise<FundamentalResearchDraft> {
+    const store = await readStore();
+    const draft = (store.fundamentalResearchDrafts ?? []).find((item) => item.id === id && item.status === "pending");
+    if (!draft) throw new Error("Pending fundamentals draft not found");
+    draft.status = "rejected";
+    draft.reviewNotes = reviewNotes ?? draft.reviewNotes;
+    draft.reviewedAt = new Date().toISOString();
+    await writeStore(store);
+    return draft;
   }
 
   async listStructuralLevels(symbols?: string[]): Promise<StructuralLevel[]> {

@@ -3,7 +3,7 @@ import type { IbkrFlexReport, ImportedTransaction } from "@/lib/integrations/typ
 import { maskAccount, numberValue } from "@/lib/core/accounting";
 import { classifyAsset } from "../classify";
 import { resolveIbkrCurrentPositions } from "../ibkr-positions";
-import type { MinerFundamentals, OwnerType, StructuralLevel, SyncRun } from "../types";
+import type { FundamentalResearchDraft, MinerFundamentals, OwnerType, StructuralLevel, SyncRun } from "../types";
 
 export const optionalNumber = (value: unknown) => value == null ? undefined : Number(value);
 
@@ -270,6 +270,22 @@ export function minerFundamentalsFromRow(row: Record<string, unknown>): MinerFun
     sourceUrl: row.source_url == null ? null : String(row.source_url),
     asOfDate: row.as_of_date == null ? null : String(row.as_of_date),
     updatedAt: new Date(String(row.updated_at)).toISOString(),
+  };
+}
+
+export function fundamentalResearchDraftFromRow(row: Record<string, unknown>): FundamentalResearchDraft {
+  return {
+    ...minerFundamentalsFromRow(row),
+    id: String(row.id),
+    status: String(row.status) as FundamentalResearchDraft["status"],
+    sourceTitle: row.source_title == null ? null : String(row.source_title),
+    sourceDate: row.source_date == null ? null : String(row.source_date),
+    sourceExcerpt: row.source_excerpt == null ? null : String(row.source_excerpt),
+    extractor: String(row.extractor ?? "manual"),
+    confidence: row.confidence == null ? null : numberValue(row.confidence),
+    reviewNotes: row.review_notes == null ? null : String(row.review_notes),
+    createdAt: new Date(String(row.created_at)).toISOString(),
+    reviewedAt: row.reviewed_at == null ? null : new Date(String(row.reviewed_at)).toISOString(),
   };
 }
 

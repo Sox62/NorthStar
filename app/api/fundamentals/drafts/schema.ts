@@ -1,0 +1,39 @@
+import { z } from "zod";
+
+const nullableNumber = z.preprocess((value) => value === "" || value === undefined ? null : value, z.coerce.number().finite().nullable());
+const nullableText = z.preprocess((value) => value === "" || value === undefined ? null : value, z.string().trim().min(1).nullable());
+const nullableLongText = z.preprocess((value) => value === undefined ? null : value, z.string().trim().nullable());
+const nullableDate = z.preprocess((value) => value === "" || value === undefined ? null : value, z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable());
+const nullableUrl = z.preprocess((value) => value === "" || value === undefined ? null : value, z.string().url().nullable());
+const score = z.preprocess((value) => value === "" || value === undefined ? null : value, z.coerce.number().int().min(0).max(5).nullable());
+
+export const fundamentalsDraftSchema = z.object({
+  symbol: z.string().trim().min(1).max(20).transform((value) => value.toUpperCase()),
+  name: nullableText,
+  primaryMetal: nullableText,
+  jurisdiction: nullableText,
+  projectStage: nullableText,
+  productionOz: nullableNumber,
+  aiscUsdPerOz: nullableNumber,
+  resourceMoz: nullableNumber,
+  reserveMoz: nullableNumber,
+  cashAud: nullableNumber,
+  debtAud: nullableNumber,
+  marketCapAud: nullableNumber,
+  npvAud: nullableNumber,
+  capexAud: nullableNumber,
+  irrPercent: nullableNumber,
+  jurisdictionScore: score,
+  balanceSheetScore: score,
+  dilutionScore: score,
+  managementScore: score,
+  notes: nullableLongText,
+  sourceUrl: nullableUrl,
+  asOfDate: nullableDate,
+  sourceTitle: nullableText,
+  sourceDate: nullableDate,
+  sourceExcerpt: nullableLongText,
+  extractor: z.preprocess((value) => value === "" || value === undefined ? "ai-research" : value, z.string().trim().min(1).max(80)),
+  confidence: z.preprocess((value) => value === "" || value === undefined ? null : value, z.coerce.number().min(0).max(1).nullable()),
+  reviewNotes: nullableLongText,
+});

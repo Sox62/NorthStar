@@ -94,6 +94,8 @@ export type IncomeSummary = {
   note: string;
 };
 
+export type FundamentalResearchDraftStatus = "pending" | "accepted" | "rejected";
+
 export type NewSyncRun = {
   source: string;
   ownerType?: OwnerType | null;
@@ -348,6 +350,28 @@ export type PastedOpenOrder = {
 
 export type MinerFundamentalsInput = Omit<MinerFundamentals, "updatedAt">;
 
+export type FundamentalResearchDraft = MinerFundamentalsInput & {
+  id: string;
+  status: FundamentalResearchDraftStatus;
+  sourceTitle: string | null;
+  sourceDate: string | null;
+  sourceExcerpt: string | null;
+  extractor: string;
+  confidence: number | null;
+  reviewNotes: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+};
+
+export type FundamentalResearchDraftInput = MinerFundamentalsInput & {
+  sourceTitle?: string | null;
+  sourceDate?: string | null;
+  sourceExcerpt?: string | null;
+  extractor?: string | null;
+  confidence?: number | null;
+  reviewNotes?: string | null;
+};
+
 export type StructuralLevelStatus = "watching" | "broken" | "retest_held" | "failed" | "invalidated";
 export type StructuralLevelDirection = "support" | "resistance";
 export type StructuralLevelTimeframe = "daily" | "weekly" | "monthly" | "secular";
@@ -384,6 +408,7 @@ export type LocalStore = {
   allocationTargets: AllocationTarget[];
   sectorOverrides: SectorOverride[];
   minerFundamentals: MinerFundamentals[];
+  fundamentalResearchDrafts: FundamentalResearchDraft[];
   structuralLevels: StructuralLevel[];
   imports: Array<{
     id: string;
@@ -463,6 +488,10 @@ export interface StorageAdapter {
   upsertAllocationTargets(targets: Array<Omit<AllocationTarget, "updatedAt">>): Promise<AllocationTarget[]>;
   listMinerFundamentals(symbols?: string[]): Promise<MinerFundamentals[]>;
   upsertMinerFundamentals(input: MinerFundamentalsInput): Promise<MinerFundamentals>;
+  listFundamentalResearchDrafts(status?: FundamentalResearchDraftStatus): Promise<FundamentalResearchDraft[]>;
+  createFundamentalResearchDraft(input: FundamentalResearchDraftInput): Promise<FundamentalResearchDraft>;
+  acceptFundamentalResearchDraft(id: string): Promise<MinerFundamentals>;
+  rejectFundamentalResearchDraft(id: string, reviewNotes?: string | null): Promise<FundamentalResearchDraft>;
   listStructuralLevels(symbols?: string[]): Promise<StructuralLevel[]>;
   upsertStructuralLevel(input: StructuralLevelInput): Promise<StructuralLevel>;
   deleteStructuralLevel(id: string): Promise<void>;
