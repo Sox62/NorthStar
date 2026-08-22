@@ -108,19 +108,19 @@ export const blankResearchForm: ResearchFormState = {
 
 
 export const RESEARCH_TEMPLATE_SCHEMA = `{
-  "symbol": "CMM",
-  "name": "Capricorn Metals",
-  "primaryMetal": "Gold",
-  "jurisdiction": "Western Australia",
-  "projectStage": "Producer",
-  "asOfDate": "2026-06-30",
-  "productionOz": 120000,
-  "aiscUsdPerOz": 1248,
-  "resourceMoz": 4.8,
-  "reserveMoz": 1.7,
-  "cashAud": 125400000,
-  "debtAud": 14200000,
-  "marketCapAud": 900000000,
+  "symbol": "TICKER",
+  "name": "Company name",
+  "primaryMetal": "Primary commodity or theme",
+  "jurisdiction": "Main operating jurisdiction(s)",
+  "projectStage": "Producer | Developer | Explorer | Royalty | ETF | Other",
+  "asOfDate": "YYYY-MM-DD",
+  "productionOz": null,
+  "aiscUsdPerOz": null,
+  "resourceMoz": null,
+  "reserveMoz": null,
+  "cashAud": null,
+  "debtAud": null,
+  "marketCapAud": null,
   "npvAud": null,
   "capexAud": null,
   "irrPercent": null,
@@ -128,14 +128,14 @@ export const RESEARCH_TEMPLATE_SCHEMA = `{
   "balanceSheetScore": null,
   "dilutionScore": null,
   "managementScore": null,
-  "sourceUrl": "https://...",
-  "notes": "Short factual summary only. Include source dates and uncertainty. Do not make buy/sell recommendations."
+  "sourceUrl": "https://source-document-url",
+  "notes": "Short factual summary only. Include source document names, source dates and uncertainty. Do not make buy/sell recommendations."
 }`;
 
 export function researchTemplatePrompt(form: Pick<ResearchFormState, "symbol" | "name">) {
   const symbol = form.symbol.trim().toUpperCase() || "TICKER";
   const name = form.name.trim() || "Company name";
-  return `Research ${symbol} ${name} using current company filings, annual/quarterly reports, investor presentations and official market announcements. Return ONLY valid JSON matching this schema. Use null where a value is not clearly sourced. Numeric money fields must be raw AUD numbers, not strings and not millions shorthand. Do not provide investment advice or buy/sell judgement. Do not invent scores. Put source URLs and source dates in notes.\n\n${RESEARCH_TEMPLATE_SCHEMA}`;
+  return `Research ${symbol} ${name} using current company filings, annual/quarterly reports, investor presentations and official market announcements. Return ONLY valid JSON matching this schema, replacing every placeholder with facts for the requested company. Use null where a value is not clearly sourced. Numeric money fields must be raw AUD numbers, not strings and not millions shorthand. Do not provide investment advice or buy/sell judgement. Do not invent scores. Put source URLs and source dates in notes.\n\n${RESEARCH_TEMPLATE_SCHEMA}`;
 }
 
 export function importResearchTemplateJson(current: ResearchFormState, rawJson: string): ResearchFormState {

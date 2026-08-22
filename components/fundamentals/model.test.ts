@@ -6,7 +6,8 @@ test("researchTemplatePrompt asks for strict JSON for the current ticker", () =>
   const prompt = researchTemplatePrompt({ symbol: "cmm", name: "Capricorn Metals" });
   assert.match(prompt, /Research CMM Capricorn Metals/);
   assert.match(prompt, /Return ONLY valid JSON/);
-  assert.match(prompt, /"cashAud"/);
+  assert.match(prompt, /"symbol": "TICKER"/);
+  assert.match(prompt, /"cashAud": null/);
 });
 
 test("importResearchTemplateJson maps browser AI JSON into the research form", () => {
