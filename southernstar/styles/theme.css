@@ -721,13 +721,11 @@ body.southernstar .nsMetalsHeader {
 body.southernstar .nsMetalsGrid {
   display:grid;
   /*
-   * Auto-fit rather than a fixed count: the tile list grows as reference markets are added, and
-   * collapsing the empty tracks is what lets the stranded last tile span the row cleanly (see the
-   * :last-child:nth-child(odd) rule). auto-fill would reserve that track and leave a hole instead.
-   * The floor sets the column count, and 150px is what keeps a normal desktop at six per row: at
-   * 130px a seventh track opened up, stranding SPX and leaving a gap at the end of the first row.
+   * Auto-fit lets the market strip absorb more reference tiles on wide screens while still
+   * wrapping naturally on tablet and mobile. The floor is deliberately compact so seven current
+   * tiles, including SPX, sit in one row on normal desktop widths.
    */
-  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns:repeat(auto-fit, minmax(132px, 1fr));
   gap:10px;
 }
 
@@ -3062,10 +3060,10 @@ body.southernstar .nsHoldingRow > div > span.nsCellLabel {
   }
 }
 
-/* Seven tiles into an even column count always strands the last one. Let it fill the row at
-   whatever width that happens, rather than only on phones. */
-body.southernstar .nsMetalsGrid > :last-child:nth-child(odd) {
-  grid-column:1 / -1;
+@media (max-width: 760px) {
+  body.southernstar .nsMetalsGrid > :last-child:nth-child(odd) {
+    grid-column:1 / -1;
+  }
 }
 
 /* The row opens a chart, but nothing said so. A small TV cue makes it discoverable without
