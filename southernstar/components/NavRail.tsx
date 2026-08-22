@@ -8,12 +8,11 @@ type RailItem = {
   label: string;
   href: string;
   icon: string;
-  aliases?: string[];
 };
 
 const sections: Array<{ label: string; items: RailItem[] }> = [
   {
-    label: "Layer 1 — state of play",
+    label: "Overview",
     items: [{ key: "overview", label: "State of play", href: "/", icon: "overview" }],
   },
   {
@@ -21,7 +20,7 @@ const sections: Array<{ label: string; items: RailItem[] }> = [
     items: [
       { key: "holdings", label: "Capital", href: "/holdings", icon: "holdings" },
       { key: "accounts-mandates", label: "Accounts & mandates", href: "/accounts", icon: "reports" },
-      { key: "cash", label: "External cash", href: "/cash", icon: "cash" },
+      { key: "cash", label: "Cash accounts", href: "/cash", icon: "cash" },
       { key: "targets", label: "Armed list", href: "/targets", icon: "targets" },
     ],
   },
@@ -34,20 +33,22 @@ const sections: Array<{ label: string; items: RailItem[] }> = [
     ],
   },
   {
-    label: "Layers 2–4 — analysis",
+    label: "Analysis",
     items: [
+      { key: "opportunities", label: "Opportunities", href: "/opportunities", icon: "targets" },
       { key: "relative-leadership", label: "Relative leadership", href: "/relative", icon: "prices" },
       { key: "prices", label: "Chart workbench", href: "/prices", icon: "prices" },
       { key: "relative-calculator", label: "Relative calculator", href: "/relative/calculator", icon: "targets" },
-      { key: "fundamentals-risk", label: "Fundamentals & risk", href: "/fundamentals", icon: "security", aliases: ["security", "tax"] },
+      { key: "fundamentals-risk", label: "Fundamentals & risk", href: "/fundamentals", icon: "security" },
     ],
   },
   {
-    label: "Existing modules",
+    label: "Data",
     items: [
-      { key: "cash-accounts", label: "Cash accounts", href: "/cash", icon: "cash" },
       { key: "bullion", label: "Physical metals", href: "/assets", icon: "bullion" },
       { key: "sync", label: "Imports", href: "/sync", icon: "sync" },
+      { key: "security", label: "Security", href: "/security", icon: "security" },
+      { key: "tax", label: "Tax", href: "/tax", icon: "tax" },
     ],
   },
 ];
@@ -103,7 +104,7 @@ export function NavRail({ active = "overview", logoSrc, owner = "Stephen", onNav
             <div className="nsRailSection" key={section.label}>
               <p>{section.label}</p>
               {section.items.map((it) => {
-                const on = it.key === active || it.aliases?.includes(active);
+                const on = it.key === active;
                 return (
                   <a key={it.key} href={it.href} onClick={(e) => { if (onNavigate) { e.preventDefault(); onNavigate(it.key); } }}
                     className={on ? "isActive" : undefined}>
@@ -117,7 +118,7 @@ export function NavRail({ active = "overview", logoSrc, owner = "Stephen", onNav
         </nav>
         <div className="nsRailFooter">
           <div><b>{owner}</b> · Trustee</div>
-          <div>Layers 1-4 · amended brief</div>
+          <div>Private portfolio operations</div>
         </div>
       </aside>
     </>

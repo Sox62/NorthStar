@@ -245,19 +245,10 @@ function groupSavedIdeaNodes(nodes: BenchmarkNode[]): IdeaGroup[] {
     .filter((group) => group.nodes.length);
 }
 
-function strengthLabel(score: number | null) {
-  if (score == null) return "n/a";
-  if (score >= 70) return "Strong";
-  if (score >= 55) return "Leading";
-  if (score > 45) return "Neutral";
-  if (score > 30) return "Lagging";
-  return "Weak";
-}
-
 function strengthTone(score: number | null) {
   if (score == null) return undefined;
-  if (score >= 55) return "positive";
-  if (score <= 45) return "negative";
+  if (score >= 60) return "positive";
+  if (score < 45) return "negative";
   return undefined;
 }
 
@@ -447,7 +438,7 @@ function buildOpportunityRows(input: {
     .slice(0, 30);
 }
 
-export default function RelativeLeadership() {
+export default function RelativeLeadership({ view = "detail" }: { view?: "detail" | "opportunities" } = {}) {
   const [dashboards, setDashboards] = useState<DashboardMap>({});
   const [prices, setPrices] = useState<StoredDailyPrice[]>([]);
   const [fundamentals, setFundamentals] = useState<MinerFundamentals[]>([]);
@@ -535,6 +526,22 @@ export default function RelativeLeadership() {
   const customNodeIds = useMemo(() => new Set(customNodes.map((node) => node.id)), [customNodes]);
   const savedIdeaNodeIds = useMemo(() => new Set(savedIdeaNodes.map((node) => node.id)), [savedIdeaNodes]);
   const permanentBenchmarkNodes = useMemo(() => benchmarkNodes.filter((node) => !customNodeIds.has(node.id) && !savedIdeaNodeIds.has(node.id)), [benchmarkNodes, customNodeIds, savedIdeaNodeIds]);
+
+  useEffect(() => {
+    if (view !== "detail" || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const kind = params.get("kind");
+    const id = params.get("id");
+    if (!kind || !id) return;
+    if (kind === "holding" && holdings.some((holding) => holding.id === id) && leftId !== id) {
+      setLeftBenchmarkId("");
+      setLeftId(id);
+    }
+    if (kind === "benchmark" && benchmarkNodes.some((node) => node.id === id) && leftBenchmarkId !== id) {
+      setLeftId("");
+      setLeftBenchmarkId(id);
+    }
+  }, [view, holdings, benchmarkNodes, leftId, leftBenchmarkId]);
   const leftHolding = holdings.find((holding) => holding.id === leftId) ?? null;
   const rightHolding = holdings.find((holding) => holding.id === rightId) ?? null;
   const selectedLeftBenchmark = benchmarkNodes.find((node) => node.id === leftBenchmarkId) ?? null;
@@ -553,6 +560,9 @@ export default function RelativeLeadership() {
   const selectedFundamentals = left ? fundamentalsBySymbol.get(left.symbol.toUpperCase()) : undefined;
   const allocationReadout = useMemo(() => allocationRead({ fundamentals: selectedFundamentals, relativeScore: relativeEngine?.score ?? null, relativeVelocity: relativeEngine?.velocity ?? null, entryScore: entryScore.score }), [selectedFundamentals, relativeEngine, entryScore.score]);
   const opportunityRows = useMemo(() => buildOpportunityRows({ holdings, savedIdeaNodes, fundamentalsBySymbol, prices, fxRates, benchmarkNodes, sort: opportunitySort }), [holdings, savedIdeaNodes, fundamentalsBySymbol, prices, fxRates, benchmarkNodes, opportunitySort]);
+  const openOpportunity = (row: OpportunityRow) => {
+    window.location.assign("/relative?kind=" + encodeURIComponent(row.selectionKind) + "&id=" + encodeURIComponent(row.selectionId));
+  };
   const first = series[0];
   const last = series.at(-1);
   const ratioChange = first && last ? last.ratio / first.ratio * 100 - 100 : 0;
@@ -726,17 +736,45 @@ export default function RelativeLeadership() {
   };
 
 
+  if (view === "opportunities") {
+    return (
+      <main className="shell">
+        <PageHeader
+          title="Opportunities"
+          description="Holdings and saved ideas ranked across fundamentals, relative strength, valuation and entry condition."
+        />
+        {loading ? (
+          <Card><p className="empty">Loading opportunity matrix...</p></Card>
+        ) : error ? (
+          <Notice tone="error" title="Unable to load opportunities">{error}</Notice>
+        ) : (
+          <Card className="relativeWorkbench">
+            <div className="panelHeader relativeHeader">
+              <div>
+                <p className="eyebrow">F/R/V/E ranking</p>
+                <h2 className="cardTitle">Opportunity matrix</h2>
+                <p className="cardIntro">{opportunityRows.length} ranked holding{opportunityRows.length === 1 ? "" : "s"} and saved idea{opportunityRows.length === 1 ? "" : "s"}. Click a row to open its relative scorecard.</p>
+              </div>
+              <div className="scopeSwitch" role="tablist" aria-label="Opportunity scope">
+                {scopes.map((item) => (
+                  <button key={item.key} type="button" className={scope === item.key ? "isActive" : ""} onClick={() => setScope(item.key)}>
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <OpportunityMatrix rows={opportunityRows} sort={opportunitySort} onSort={setOpportunitySort} onSelect={openOpportunity} />
+          </Card>
+        )}
+      </main>
+    );
+  }
+
   return (
     <main className="shell">
       <PageHeader
         title="Relative leadership"
         description="Compare one holding against another using stored closes, indexed return and the direct price ratio."
-        links={[
-          { href: "/", label: "State of play" },
-          { href: "/holdings", label: "Capital" },
-          { href: "/prices", label: "Pricing" },
-          { href: "/fundamentals", label: "Fundamentals" },
-        ]}
       />
 
       {loading ? (
@@ -846,7 +884,6 @@ export default function RelativeLeadership() {
               ["Ratio move", percent(ratioChange), ratioChange >= 0 ? "positive" : "negative"],
               [`${left.symbol} move`, percent(leftChange), leftChange >= 0 ? "positive" : "negative"],
               [`${right.symbol} move`, percent(rightChange), rightChange >= 0 ? "positive" : "negative"],
-              ["Shared closes", series.length],
               strengthEntry,
               velocityEntry,
             ]}
@@ -855,8 +892,6 @@ export default function RelativeLeadership() {
           <AllocationReadPanel read={allocationReadout} />
 
           <EntryScorePanel score={entryScore} />
-
-          <OpportunityMatrix rows={opportunityRows} sort={opportunitySort} onSort={setOpportunitySort} onSelect={(row) => { if (row.selectionKind === "holding") { setLeftBenchmarkId(""); setLeftId(row.selectionId); } else { setLeftId(""); setLeftBenchmarkId(row.selectionId); } }} />
 
           {relativeEngine ? <RelativeScorePanel score={relativeEngine} /> : null}
 

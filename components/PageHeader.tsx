@@ -5,7 +5,7 @@ import MobileMenu from "@/components/MobileMenu";
 
 export type HeaderLink = { href: string; label: ReactNode };
 
-export default function PageHeader({ title, description, links }: { title: string; description: string; links: HeaderLink[] }) {
+export default function PageHeader({ title, description }: { title: string; description: string; links?: HeaderLink[] }) {
   return (
     <header className="pageMasthead">
       <div className="pageMastheadBar">
@@ -13,9 +13,6 @@ export default function PageHeader({ title, description, links }: { title: strin
           <BrandMark size={22} />
           <span>SouthernStar</span>
         </Link>
-        <nav className="pageNav" aria-label="Page navigation">
-          {links.map((link) => <Link key={link.href} href={link.href}>{link.label}</Link>)}
-        </nav>
         <MobileMenu />
       </div>
       <div className="pageHero">

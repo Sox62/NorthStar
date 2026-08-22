@@ -23,9 +23,10 @@ export function velocityLabel(value: number | null) {
   return rounded > 0 ? "up +" + rounded + " over 30d" : "down " + rounded + " over 30d";
 }
 
-function checkMark(check: RelativeScoreCheck) {
-  if (!check.available) return "-";
-  return check.passed ? "yes" : "no";
+function CheckDot({ available, passed }: { available: boolean; passed: boolean }) {
+  const state = !available ? "muted" : passed ? "pass" : "fail";
+  const label = !available ? "no data" : passed ? "yes" : "no";
+  return <span className={"checkDot is-" + state} role="img" aria-label={label} title={label} />;
 }
 
 function scoreValue(value: number | null) {
@@ -70,7 +71,7 @@ export function EntryScorePanel({ score }: { score: EntryScoreResult }) {
         <div className="entryCheckGrid">
           {score.checks.map((check) => (
             <div className="entryCheck" key={check.key}>
-              <span>{check.available ? check.passed ? "yes" : "no" : "-"}</span>
+              <CheckDot available={check.available} passed={check.passed} />
               <strong>{check.label}</strong>
               <em>{check.detail}</em>
               {check.max ? <b>{Math.round(check.points)}/{check.max}</b> : null}
@@ -95,7 +96,7 @@ export function OpportunityMatrix({ rows, sort, onSort, onSelect }: { rows: Oppo
       </div>
       <div className="opportunityTableWrap">
         <table className="opportunityTable">
-          <thead><tr><th>Ticker</th><th>Model</th><th>{header("fundamental", "F")}</th><th>{header("relative", "R")}</th><th>{header("velocity", "Delta R30")}</th><th>{header("valuation", "V")}</th><th>{header("entry", "E")}</th><th>{header("allocation", "Allocation")}</th></tr></thead>
+          <thead><tr><th>Ticker</th><th>Model</th><th>{header("fundamental", "F")}</th><th>{header("relative", "R")}</th><th>{header("velocity", "Velocity")}<span className="thCaption">30d</span></th><th>{header("valuation", "V")}</th><th>{header("entry", "E")}</th><th>{header("allocation", "Allocation")}</th></tr></thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.selectionKind + row.selectionId} onClick={() => onSelect(row)} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter") onSelect(row); }}>
@@ -144,7 +145,7 @@ export function RelativeScorePanel({ score }: { score: RelativeEngineScore }) {
               <ul>
                 {layer.component.checks.map((check) => (
                   <li key={layer.label + check.key}>
-                    <span>{checkMark(check)}</span>
+                    <CheckDot available={check.available} passed={check.passed} />
                     <div><strong>{check.label}</strong><em>{check.detail}</em></div>
                     <b>{Math.round(check.points)}/{Math.round(check.max)}</b>
                   </li>
