@@ -28,7 +28,14 @@ type DraftsResponse = {
   drafts?: FundamentalResearchDraft[];
   draft?: FundamentalResearchDraft;
   fundamental?: MinerFundamentals;
+  message?: string;
   error?: string;
+};
+
+export type ResearchRequestState = {
+  symbol: string;
+  name: string;
+  sourceUrl: string;
 };
 
 export type ResearchFormState = {
@@ -63,6 +70,12 @@ export type MetricDefinition = {
 };
 
 export const minerSectors: Sector[] = ["Silver miners", "Gold miners", "Uranium miners", "Uranium explorers"];
+
+export const blankResearchRequest: ResearchRequestState = {
+  symbol: "",
+  name: "",
+  sourceUrl: "",
+};
 
 export const blankResearchForm: ResearchFormState = {
   symbol: "",
@@ -257,6 +270,22 @@ export async function acceptFundamentalDraft(id: string): Promise<MinerFundament
   const payload = await response.json() as DraftsResponse;
   if (!response.ok || payload.error || !payload.fundamental) throw new Error(payload.error || "Unable to accept fundamentals draft");
   return payload.fundamental;
+}
+
+export async function requestFundamentalResearch(form: ResearchRequestState): Promise<{ draft: FundamentalResearchDraft; message: string }> {
+  const response = await fetch("/api/fundamentals/research", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      symbol: form.symbol,
+      name: formValue(form.name),
+      sourceUrl: formValue(form.sourceUrl),
+    }),
+    cache: "no-store",
+  });
+  const payload = await response.json() as DraftsResponse;
+  if (!response.ok || payload.error || !payload.draft) throw new Error(payload.error || "Unable to create fundamentals research draft");
+  return { draft: payload.draft, message: payload.message ?? "Created factual research draft for " + payload.draft.symbol + "." };
 }
 
 export async function rejectFundamentalDraft(id: string, reviewNotes?: string): Promise<FundamentalResearchDraft> {

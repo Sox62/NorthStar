@@ -10,10 +10,12 @@ import { dashboardToSouthernStarHoldings } from "./southernstar-adapter";
 import { HeldMinerTable, ResearchIdeasTable } from "./fundamentals/FundamentalsTables";
 import { FundamentalsDetail } from "./fundamentals/FundamentalsDetail";
 import { FundamentalsDraftsTable } from "./fundamentals/FundamentalsDraftsTable";
+import { FundamentalsResearchRequest } from "./fundamentals/FundamentalsResearchRequest";
 import { ResearchIntakeForm } from "./fundamentals/ResearchIntakeForm";
 import {
   acceptFundamentalDraft,
   blankResearchForm,
+  blankResearchRequest,
   checklist,
   isMinerHolding,
   loadDashboard,
@@ -26,11 +28,13 @@ import {
   RESEARCH_FORM_ID,
   money,
   rejectFundamentalDraft,
+  requestFundamentalResearch,
   saveResearchFundamentals,
   topRisk,
   totalValue,
   type FundamentalsState,
   type ResearchFormState,
+  type ResearchRequestState,
 } from "./fundamentals/model";
 import styles from "./fundamentals/FundamentalsRisk.module.css";
 
@@ -38,7 +42,9 @@ export default function FundamentalsRisk() {
   const [{ holdings, fundamentals, drafts, loading, error }, setState] = useState<FundamentalsState>({ holdings: [], fundamentals: [], drafts: [], loading: true, error: "" });
   const [starterStatus, setStarterStatus] = useState<{ loading: boolean; message: string; error: string }>({ loading: false, message: "", error: "" });
   const [researchForm, setResearchForm] = useState<ResearchFormState>(blankResearchForm);
+  const [researchRequest, setResearchRequest] = useState<ResearchRequestState>(blankResearchRequest);
   const [draftStatus, setDraftStatus] = useState<{ busyId: string; error: string }>({ busyId: "", error: "" });
+  const [researchRequestStatus, setResearchRequestStatus] = useState<{ loading: boolean; message: string; error: string }>({ loading: false, message: "", error: "" });
   const [researchStatus, setResearchStatus] = useState<{ saving: boolean; message: string; error: string }>({ saving: false, message: "", error: "" });
   const [selected, setSelected] = useState<Holding | null>(null);
 
@@ -100,6 +106,10 @@ export default function FundamentalsRisk() {
     setResearchForm((current) => ({ ...current, [field]: value }));
   }
 
+  function updateResearchRequestField<K extends keyof ResearchRequestState>(field: K, value: ResearchRequestState[K]) {
+    setResearchRequest((current) => ({ ...current, [field]: value }));
+  }
+
   async function handleAcceptDraft(id: string) {
     setDraftStatus({ busyId: id, error: "" });
     try {
@@ -127,6 +137,22 @@ export default function FundamentalsRisk() {
       setDraftStatus({ busyId: "", error: "" });
     } catch (reason) {
       setDraftStatus({ busyId: "", error: reason instanceof Error ? reason.message : "Unable to reject research draft" });
+    }
+  }
+
+  async function handleCreateResearchDraft(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setResearchRequestStatus({ loading: true, message: "", error: "" });
+    try {
+      const { draft, message } = await requestFundamentalResearch(researchRequest);
+      setState((current) => ({
+        ...current,
+        drafts: [draft, ...current.drafts.filter((item) => item.id !== draft.id)],
+      }));
+      setResearchRequest(blankResearchRequest);
+      setResearchRequestStatus({ loading: false, message, error: "" });
+    } catch (reason) {
+      setResearchRequestStatus({ loading: false, message: "", error: reason instanceof Error ? reason.message : "Unable to create research draft" });
     }
   }
 
@@ -224,6 +250,13 @@ export default function FundamentalsRisk() {
         loading={loading}
         totalMinerValue={value}
         onSelect={setSelected}
+      />
+
+      <FundamentalsResearchRequest
+        form={researchRequest}
+        status={researchRequestStatus}
+        onChange={updateResearchRequestField}
+        onSubmit={handleCreateResearchDraft}
       />
 
       <FundamentalsDraftsTable
