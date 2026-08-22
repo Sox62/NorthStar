@@ -92,6 +92,13 @@
       "when": 1786838400000,
       "tag": "0012_sector_overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787356800000,
+      "tag": "0013_seed_production_fundamentals",
+      "breakpoints": true
     }
   ]
 }
