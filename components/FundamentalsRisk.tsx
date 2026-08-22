@@ -9,13 +9,10 @@ import type { Holding } from "@/southernstar/types";
 import { dashboardToSouthernStarHoldings } from "./southernstar-adapter";
 import { HeldMinerTable, ResearchIdeasTable } from "./fundamentals/FundamentalsTables";
 import { FundamentalsDetail } from "./fundamentals/FundamentalsDetail";
-import { FundamentalsDraftsTable } from "./fundamentals/FundamentalsDraftsTable";
-import { FundamentalsResearchRequest } from "./fundamentals/FundamentalsResearchRequest";
 import { ResearchIntakeForm } from "./fundamentals/ResearchIntakeForm";
 import {
   acceptFundamentalDraft,
   blankResearchForm,
-  blankResearchRequest,
   checklist,
   isMinerHolding,
   loadDashboard,
@@ -23,6 +20,7 @@ import {
   loadFundamentals,
   loadStarterFundamentals,
   metricDefinitions,
+  researchFormForDraft,
   researchFormForHolding,
   researchFormForIdea,
   RESEARCH_FORM_ID,
@@ -34,7 +32,6 @@ import {
   totalValue,
   type FundamentalsState,
   type ResearchFormState,
-  type ResearchRequestState,
 } from "./fundamentals/model";
 import styles from "./fundamentals/FundamentalsRisk.module.css";
 
@@ -42,10 +39,9 @@ export default function FundamentalsRisk() {
   const [{ holdings, fundamentals, drafts, loading, error }, setState] = useState<FundamentalsState>({ holdings: [], fundamentals: [], drafts: [], loading: true, error: "" });
   const [starterStatus, setStarterStatus] = useState<{ loading: boolean; message: string; error: string }>({ loading: false, message: "", error: "" });
   const [researchForm, setResearchForm] = useState<ResearchFormState>(blankResearchForm);
-  const [researchRequest, setResearchRequest] = useState<ResearchRequestState>(blankResearchRequest);
+  const [activeDraftId, setActiveDraftId] = useState("");
   const [draftStatus, setDraftStatus] = useState<{ busyId: string; error: string }>({ busyId: "", error: "" });
-  const [researchRequestStatus, setResearchRequestStatus] = useState<{ loading: boolean; message: string; error: string }>({ loading: false, message: "", error: "" });
-  const [researchStatus, setResearchStatus] = useState<{ saving: boolean; message: string; error: string }>({ saving: false, message: "", error: "" });
+  const [researchStatus, setResearchStatus] = useState<{ saving: boolean; finding: boolean; message: string; error: string }>({ saving: false, finding: false, message: "", error: "" });
   const [selected, setSelected] = useState<Holding | null>(null);
 
   useEffect(() => {
@@ -90,14 +86,14 @@ export default function FundamentalsRisk() {
 
   function handleEditFundamentals(holding: Holding) {
     setResearchForm(researchFormForHolding(holding, fundamentalsBySymbol.get(holding.symbol.toUpperCase())));
-    setResearchStatus({ saving: false, message: "", error: "" });
+    setResearchStatus({ saving: false, finding: false, message: "", error: "" });
     setSelected(null);
     scrollToResearchForm();
   }
 
   function handleEditResearchIdea(item: MinerFundamentals) {
     setResearchForm(researchFormForIdea(item));
-    setResearchStatus({ saving: false, message: "", error: "" });
+    setResearchStatus({ saving: false, finding: false, message: "", error: "" });
     setSelected(null);
     scrollToResearchForm();
   }
@@ -106,70 +102,60 @@ export default function FundamentalsRisk() {
     setResearchForm((current) => ({ ...current, [field]: value }));
   }
 
-  function updateResearchRequestField<K extends keyof ResearchRequestState>(field: K, value: ResearchRequestState[K]) {
-    setResearchRequest((current) => ({ ...current, [field]: value }));
-  }
-
-  async function handleAcceptDraft(id: string) {
-    setDraftStatus({ busyId: id, error: "" });
-    try {
-      const next = await acceptFundamentalDraft(id);
-      setState((current) => {
-        const bySymbol = new Map(current.fundamentals.map((item) => [item.symbol.toUpperCase(), item]));
-        bySymbol.set(next.symbol.toUpperCase(), next);
-        return {
-          ...current,
-          fundamentals: [...bySymbol.values()].sort((a, b) => a.symbol.localeCompare(b.symbol)),
-          drafts: current.drafts.filter((draft) => draft.id !== id),
-        };
-      });
-      setDraftStatus({ busyId: "", error: "" });
-    } catch (reason) {
-      setDraftStatus({ busyId: "", error: reason instanceof Error ? reason.message : "Unable to accept research draft" });
-    }
-  }
-
   async function handleRejectDraft(id: string) {
     setDraftStatus({ busyId: id, error: "" });
     try {
       await rejectFundamentalDraft(id, "Rejected in SouthernStar review queue.");
       setState((current) => ({ ...current, drafts: current.drafts.filter((draft) => draft.id !== id) }));
+      if (activeDraftId === id) {
+        setActiveDraftId("");
+        setResearchForm(blankResearchForm);
+      }
       setDraftStatus({ busyId: "", error: "" });
     } catch (reason) {
       setDraftStatus({ busyId: "", error: reason instanceof Error ? reason.message : "Unable to reject research draft" });
     }
   }
 
-  async function handleCreateResearchDraft(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setResearchRequestStatus({ loading: true, message: "", error: "" });
+  function handleReviewDraft(draft: import("@/lib/storage").FundamentalResearchDraft) {
+    setResearchForm(researchFormForDraft(draft));
+    setActiveDraftId(draft.id);
+    setResearchStatus({ saving: false, finding: false, message: `Loaded ${draft.symbol} draft. Review, edit, then save or reject.`, error: "" });
+    scrollToResearchForm();
+  }
+
+  async function handleAutoFindFacts() {
+    setResearchStatus({ saving: false, finding: true, message: "", error: "" });
     try {
-      const { draft, message } = await requestFundamentalResearch(researchRequest);
+      const { draft, message } = await requestFundamentalResearch({ symbol: researchForm.symbol, name: researchForm.name, sourceUrl: researchForm.sourceUrl });
       setState((current) => ({
         ...current,
         drafts: [draft, ...current.drafts.filter((item) => item.id !== draft.id)],
       }));
-      setResearchRequest(blankResearchRequest);
-      setResearchRequestStatus({ loading: false, message, error: "" });
+      setResearchForm(researchFormForDraft(draft));
+      setActiveDraftId(draft.id);
+      setResearchStatus({ saving: false, finding: false, message: `${message} Review the populated fields before saving.`, error: "" });
     } catch (reason) {
-      setResearchRequestStatus({ loading: false, message: "", error: reason instanceof Error ? reason.message : "Unable to create research draft" });
+      setResearchStatus({ saving: false, finding: false, message: "", error: reason instanceof Error ? reason.message : "Unable to auto-find facts" });
     }
   }
 
   async function handleSaveResearchIdea(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setResearchStatus({ saving: true, message: "", error: "" });
+    setResearchStatus({ saving: true, finding: false, message: "", error: "" });
     try {
+      if (activeDraftId) await acceptFundamentalDraft(activeDraftId);
       const next = await saveResearchFundamentals(researchForm);
       setState((current) => {
         const bySymbol = new Map(current.fundamentals.map((item) => [item.symbol.toUpperCase(), item]));
         bySymbol.set(next.symbol.toUpperCase(), next);
-        return { ...current, fundamentals: [...bySymbol.values()].sort((a, b) => a.symbol.localeCompare(b.symbol)) };
+        return { ...current, fundamentals: [...bySymbol.values()].sort((a, b) => a.symbol.localeCompare(b.symbol)), drafts: activeDraftId ? current.drafts.filter((draft) => draft.id !== activeDraftId) : current.drafts };
       });
       setResearchForm(blankResearchForm);
-      setResearchStatus({ saving: false, message: `Saved ${next.symbol} fundamentals.`, error: "" });
+      setActiveDraftId("");
+      setResearchStatus({ saving: false, finding: false, message: `Saved ${next.symbol} fundamentals.`, error: "" });
     } catch (reason) {
-      setResearchStatus({ saving: false, message: "", error: reason instanceof Error ? reason.message : "Unable to save fundamentals" });
+      setResearchStatus({ saving: false, finding: false, message: "", error: reason instanceof Error ? reason.message : "Unable to save fundamentals" });
     }
   }
 
@@ -252,28 +238,19 @@ export default function FundamentalsRisk() {
         onSelect={setSelected}
       />
 
-      <FundamentalsResearchRequest
-        form={researchRequest}
-        status={researchRequestStatus}
-        onChange={updateResearchRequestField}
-        onSubmit={handleCreateResearchDraft}
-      />
-
-      <FundamentalsDraftsTable
-        drafts={drafts}
-        loading={loading}
-        busyId={draftStatus.busyId}
-        error={draftStatus.error}
-        onAccept={(draft) => handleAcceptDraft(draft.id)}
-        onReject={(draft) => handleRejectDraft(draft.id)}
-      />
-
       <ResearchIntakeForm
         form={researchForm}
         status={researchStatus}
+        drafts={drafts}
+        activeDraftId={activeDraftId}
+        busyDraftId={draftStatus.busyId}
+        draftError={draftStatus.error}
         onChange={updateResearchField}
         onSubmit={handleSaveResearchIdea}
-        onClear={() => setResearchForm(blankResearchForm)}
+        onAutoFind={handleAutoFindFacts}
+        onReviewDraft={handleReviewDraft}
+        onRejectDraft={(draft) => handleRejectDraft(draft.id)}
+        onClear={() => { setResearchForm(blankResearchForm); setActiveDraftId(""); }}
       />
 
       <ResearchIdeasTable ideas={researchFundamentals} loading={loading} onSelect={handleEditResearchIdea} />

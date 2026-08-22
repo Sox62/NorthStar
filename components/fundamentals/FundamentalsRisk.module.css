@@ -134,50 +134,46 @@
   margin-top: 4px;
 }
 
-.researchRequestCard {
-  margin-bottom: 18px;
+.inlineDrafts {
+  display:grid;
+  gap:10px;
+  margin-top:16px;
+  padding:12px;
+  border:1px solid rgba(106,130,153,.22);
+  border-radius:12px;
+  background:rgba(4,12,20,.36);
 }
 
-.researchRequestForm {
-  display: grid;
-  grid-template-columns: minmax(120px, .6fr) minmax(180px, .85fr) minmax(280px, 1.6fr) auto;
-  gap: 12px;
-  align-items: end;
-  margin-top: 18px;
+.inlineDrafts strong {
+  display:block;
+  color:var(--text-primary);
+  font-size:13px;
 }
 
-.researchRequestForm label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
+.inlineDrafts span {
+  color:var(--text-muted);
+  font-size:12px;
+  line-height:1.45;
 }
 
-.researchRequestForm span {
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+.inlineDraftList {
+  display:grid;
+  gap:8px;
 }
 
-.researchRequestForm input {
-  width: 100%;
-  min-width: 0;
-  border: 1px solid rgba(106,130,153,.28);
-  border-radius: 10px;
-  background: rgba(4,12,20,.56);
-  color: var(--text-primary);
-  padding: 10px 11px;
-  outline: none;
+.inlineDraftList > div {
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) auto auto;
+  gap:8px;
+  align-items:center;
+  padding:8px;
+  border:1px solid rgba(106,130,153,.16);
+  border-radius:10px;
 }
 
-.researchRequestForm input:focus {
-  border-color: rgba(215,181,109,.52);
-}
-
-.researchRequestForm button {
-  min-height: 39px;
+.inlineDraftActive {
+  border-color:rgba(215,181,109,.42) !important;
+  background:rgba(215,181,109,.08);
 }
 
 .tableCard {
@@ -201,13 +197,11 @@
 @media (max-width: 900px) {
   .hero,
   .metricGrid,
-  .researchForm,
-  .researchRequestForm {
+  .researchForm {
     grid-template-columns: 1fr;
   }
 
-  .wide,
-  .researchRequestSource {
+  .wide {
     grid-column: auto;
   }
 }

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 import { buildFundamentalResearchDraft, fetchResearchSource } from "@/lib/fundamentals/research-draft";
+import { fetchCompanyNews, type CompanyNewsItem, type NewsInstrument } from "@/lib/integrations/company-news";
 import { getStorage } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -13,6 +14,78 @@ const researchRequestSchema = z.object({
   sourceUrl: z.preprocess((value) => value === "" || value === undefined ? null : value, z.string().url().nullable()),
 });
 
+const FUNDAMENTAL_SOURCE_SCORE: Array<[RegExp, number]> = [
+  [/annual\s+report|annual\s+results|10-k|20-f|40-f/i, 120],
+  [/quarterly|half[- ]year|interim|appendix\s+5b|appendix\s+4c/i, 95],
+  [/financial\s+results|results\s+of\s+operations|cash\s+flow|cashflow/i, 90],
+  [/resource|reserve|mineral\s+resource|ore\s+reserve|maiden/i, 80],
+  [/feasibility|scoping|pfs|dfs|study|npv|capex|irr/i, 75],
+  [/presentation|investor/i, 35],
+];
+
+async function discoverResearchSource(symbol: string, name: string | null): Promise<{ item: CompanyNewsItem | null; note: string | null }> {
+  const instruments = candidateInstruments(symbol, name);
+  const failures: string[] = [];
+
+  for (const instrument of instruments) {
+    try {
+      const items = await fetchCompanyNews(instrument);
+      const item = chooseResearchSource(items);
+      if (item) return { item, note: `Source discovered from ${item.source} using ${instrument.symbol}:${instrument.exchange}.` };
+    } catch (error) {
+      failures.push(`${instrument.symbol}:${instrument.exchange} ${error instanceof Error ? error.message : "lookup failed"}`);
+    }
+  }
+
+  return { item: null, note: failures.length ? `No official filing source found. Lookup warnings: ${failures.join("; ")}.` : "No official filing source found." };
+}
+
+function candidateInstruments(rawSymbol: string, name: string | null): NewsInstrument[] {
+  const symbol = rawSymbol.trim().toUpperCase();
+  const withoutSuffix = symbol.replace(/\.(AX|AU|ASX|TO|V|TSX|TSXV|NYSE|NASDAQ|AMEX|ARCA)$/i, "");
+  const explicit = explicitExchange(symbol);
+  const candidates: NewsInstrument[] = explicit
+    ? [{ symbol: withoutSuffix, exchange: explicit, name: name ?? undefined }]
+    : [
+      { symbol: withoutSuffix, exchange: "ASX", name: name ?? undefined },
+      { symbol: withoutSuffix, exchange: "NYSE", name: name ?? undefined },
+      { symbol: withoutSuffix, exchange: "NASDAQ", name: name ?? undefined },
+      { symbol: withoutSuffix, exchange: "AMEX", name: name ?? undefined },
+      { symbol: withoutSuffix, exchange: "TSX", name: name ?? undefined },
+      { symbol: withoutSuffix, exchange: "TSXV", name: name ?? undefined },
+    ];
+
+  const seen = new Set<string>();
+  return candidates.filter((instrument) => {
+    const key = `${instrument.symbol}:${instrument.exchange}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function explicitExchange(symbol: string) {
+  if (/\.(AX|AU|ASX)$/i.test(symbol)) return "ASX";
+  if (/\.TO$/i.test(symbol)) return "TSX";
+  if (/\.V$/i.test(symbol)) return "TSXV";
+  if (/\.(NYSE|NASDAQ|AMEX|ARCA)$/i.test(symbol)) return symbol.split(".").at(-1)?.toUpperCase() ?? null;
+  return null;
+}
+
+function chooseResearchSource(items: CompanyNewsItem[]) {
+  return [...items]
+    .filter((item) => item.url && item.headline)
+    .sort((left, right) => sourceScore(right) - sourceScore(left) || right.publishedAt.localeCompare(left.publishedAt))[0] ?? null;
+}
+
+function sourceScore(item: CompanyNewsItem) {
+  const text = `${item.headline} ${item.kind}`;
+  const matchScore = FUNDAMENTAL_SOURCE_SCORE.reduce((score, [pattern, value]) => pattern.test(text) ? Math.max(score, value) : score, 0);
+  const official = item.source === "ASX" || item.source === "SEC" ? 30 : 0;
+  const material = item.material ? 10 : 0;
+  return official + material + matchScore;
+}
+
 export async function POST(request: Request) {
   const sessionCookie = (await cookies()).get(SESSION_COOKIE)?.value;
   const session = await verifySessionToken(sessionCookie).catch(() => null);
@@ -20,16 +93,19 @@ export async function POST(request: Request) {
 
   try {
     const input = researchRequestSchema.parse(await request.json());
-    const source = input.sourceUrl ? await fetchResearchSource(input.sourceUrl) : { text: "", title: null };
+    const discovered = input.sourceUrl ? { item: null, note: "Source URL supplied by user." } : await discoverResearchSource(input.symbol, input.name);
+    const sourceUrl = input.sourceUrl ?? discovered.item?.url ?? null;
+    const source = sourceUrl ? await fetchResearchSource(sourceUrl) : { text: "", title: null };
     const draftInput = buildFundamentalResearchDraft({
       symbol: input.symbol,
       name: input.name,
-      sourceUrl: input.sourceUrl,
-      sourceTitle: source.title,
+      sourceUrl,
+      sourceTitle: source.title ?? discovered.item?.headline ?? null,
       sourceText: source.text,
+      discoveryNote: discovered.note,
     });
     const draft = await getStorage().createFundamentalResearchDraft(draftInput);
-    return NextResponse.json({ draft, message: `Created factual research draft for ${draft.symbol}.` }, { status: 201 });
+    return NextResponse.json({ draft, message: draft.sourceUrl ? `Created factual research draft for ${draft.symbol} from ${draft.sourceTitle ?? "discovered source"}.` : `Created source-needed research draft for ${draft.symbol}.` }, { status: 201 });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to create fundamentals research draft" },

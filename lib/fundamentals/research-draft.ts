@@ -6,6 +6,7 @@ export type FundamentalResearchSource = {
   sourceUrl?: string | null;
   sourceTitle?: string | null;
   sourceText?: string | null;
+  discoveryNote?: string | null;
 };
 
 const MAX_SOURCE_CHARS = 300_000;
@@ -64,8 +65,9 @@ export function buildFundamentalResearchDraft(source: FundamentalResearchSource)
     hasSource
       ? `Draft created from source text for ${symbol}. Review every field before accepting; no judgement scores were assigned.`
       : `Research requested for ${symbol}. Add a source URL or paste sourced facts before accepting.`,
+    cleanNullable(source.discoveryNote),
     extractedLabels.length ? `Auto-extracted: ${extractedLabels.join(", ")}.` : "No numeric fundamentals were auto-extracted.",
-  ].join(" ");
+  ].filter(Boolean).join(" ");
 
   return {
     symbol,

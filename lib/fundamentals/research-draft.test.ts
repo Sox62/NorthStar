@@ -24,6 +24,18 @@ test("buildFundamentalResearchDraft extracts clear source facts into a pending d
   assert.match(draft.notes ?? "", /Review every field/);
 });
 
+test("buildFundamentalResearchDraft carries a source discovery note", () => {
+  const draft = buildFundamentalResearchDraft({
+    symbol: "CMM",
+    sourceUrl: "https://example.com/cmm.pdf",
+    sourceText: "Annual report 2026. Cash A$50m.",
+    discoveryNote: "Source discovered from ASX using CMM:ASX.",
+  });
+
+  assert.match(draft.notes ?? "", /Source discovered from ASX/);
+  assert.equal(draft.cashAud, 50_000_000);
+});
+
 test("buildFundamentalResearchDraft does not map uranium pounds into ounce fields", () => {
   const draft = buildFundamentalResearchDraft({
     symbol: "UUUU",

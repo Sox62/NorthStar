@@ -169,6 +169,33 @@ export function researchFormForIdea(saved: MinerFundamentals): ResearchFormState
   };
 }
 
+export function researchFormForDraft(draft: FundamentalResearchDraft): ResearchFormState {
+  return researchFormForIdea({
+    symbol: draft.symbol,
+    name: draft.name,
+    primaryMetal: draft.primaryMetal,
+    jurisdiction: draft.jurisdiction,
+    projectStage: draft.projectStage,
+    productionOz: draft.productionOz,
+    aiscUsdPerOz: draft.aiscUsdPerOz,
+    resourceMoz: draft.resourceMoz,
+    reserveMoz: draft.reserveMoz,
+    cashAud: draft.cashAud,
+    debtAud: draft.debtAud,
+    marketCapAud: draft.marketCapAud,
+    npvAud: draft.npvAud,
+    capexAud: draft.capexAud,
+    irrPercent: draft.irrPercent,
+    jurisdictionScore: draft.jurisdictionScore,
+    balanceSheetScore: draft.balanceSheetScore,
+    dilutionScore: draft.dilutionScore,
+    managementScore: draft.managementScore,
+    notes: [draft.notes, draft.sourceExcerpt ? "Source excerpt: " + draft.sourceExcerpt : null].filter(Boolean).join("\n\n"),
+    sourceUrl: draft.sourceUrl,
+    asOfDate: draft.asOfDate ?? draft.sourceDate,
+    updatedAt: draft.createdAt,
+  });
+}
 export const metricDefinitions: MetricDefinition[] = [
   { label: "Production margin", field: "Spot price - AISC", reason: "Shows operating leverage before trusting a miner P/L number." },
   { label: "Balance sheet cover", field: "FCF / net debt", reason: "Flags whether debt can be handled at current metal prices." },

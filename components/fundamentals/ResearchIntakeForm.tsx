@@ -1,26 +1,60 @@
 import type { FormEvent } from "react";
+import type { FundamentalResearchDraft } from "@/lib/storage";
 import { Card, StatusBadge } from "@/southernstar/components";
-import { RESEARCH_FORM_ID, type ResearchFormState } from "./model";
+import { RESEARCH_FORM_ID, dateOrDash, type ResearchFormState } from "./model";
 import styles from "./FundamentalsRisk.module.css";
 
 type ResearchIntakeFormProps = {
   form: ResearchFormState;
-  status: { saving: boolean; message: string; error: string };
+  status: { saving: boolean; finding: boolean; message: string; error: string };
+  drafts: FundamentalResearchDraft[];
+  activeDraftId: string;
+  busyDraftId: string;
+  draftError: string;
   onChange: <K extends keyof ResearchFormState>(field: K, value: ResearchFormState[K]) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onAutoFind: () => void;
+  onReviewDraft: (draft: FundamentalResearchDraft) => void;
+  onRejectDraft: (draft: FundamentalResearchDraft) => void;
   onClear: () => void;
 };
 
-export function ResearchIntakeForm({ form, status, onChange, onSubmit, onClear }: ResearchIntakeFormProps) {
+function confidenceLabel(value: number | null) {
+  if (value == null) return "No confidence";
+  return Math.round(value * 100) + "% confidence";
+}
+
+export function ResearchIntakeForm({ form, status, drafts, activeDraftId, busyDraftId, draftError, onChange, onSubmit, onAutoFind, onReviewDraft, onRejectDraft, onClear }: ResearchIntakeFormProps) {
+  const hasSymbol = form.symbol.trim().length > 0;
   return (
     <Card id={RESEARCH_FORM_ID} className={styles.researchFormCard}>
       <div className="panelHeader">
         <div>
           <p className="eyebrow">Research intake</p>
-          <h2 className="cardTitle">Add a miner idea</h2>
+          <h2 className="cardTitle">Add or research a miner idea</h2>
+          <p className="cardIntro">Enter facts manually, or enter a ticker and let SouthernStar look for official filings before you review and save.</p>
         </div>
-        <StatusBadge tone={status.message ? "good" : "warning"}>{status.saving ? "Saving" : "Manual source"}</StatusBadge>
+        <StatusBadge tone={status.message ? "good" : drafts.length ? "warning" : "warning"}>{status.finding ? "Finding facts" : activeDraftId ? "Draft loaded" : "Review source"}</StatusBadge>
       </div>
+
+      {drafts.length ? (
+        <div className={styles.inlineDrafts}>
+          <div>
+            <strong>{drafts.length} pending factual {drafts.length === 1 ? "draft" : "drafts"}</strong>
+            <span>Load one into this form, check it, then save or reject.</span>
+          </div>
+          <div className={styles.inlineDraftList}>
+            {drafts.map((draft) => (
+              <div key={draft.id} className={draft.id === activeDraftId ? styles.inlineDraftActive : ""}>
+                <span><b>{draft.symbol}</b> {draft.sourceTitle || "Source required"} · {confidenceLabel(draft.confidence)} · {dateOrDash(draft.createdAt)}</span>
+                <button type="button" onClick={() => onReviewDraft(draft)} disabled={busyDraftId === draft.id}>Review</button>
+                <button type="button" onClick={() => onRejectDraft(draft)} disabled={busyDraftId === draft.id}>{busyDraftId === draft.id ? "Rejecting" : "Reject"}</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <form className={styles.researchForm} onSubmit={onSubmit}>
         <label><span>Symbol</span><input value={form.symbol} onChange={(event) => onChange("symbol", event.target.value.toUpperCase())} placeholder="PAAS" required /></label>
         <label><span>Name</span><input value={form.name} onChange={(event) => onChange("name", event.target.value)} placeholder="Pan American Silver" /></label>
@@ -42,15 +76,17 @@ export function ResearchIntakeForm({ form, status, onChange, onSubmit, onClear }
         <label><span>Balance score</span><input inputMode="numeric" min="0" max="5" value={form.balanceSheetScore} onChange={(event) => onChange("balanceSheetScore", event.target.value)} placeholder="0-5" /></label>
         <label><span>Dilution score</span><input inputMode="numeric" min="0" max="5" value={form.dilutionScore} onChange={(event) => onChange("dilutionScore", event.target.value)} placeholder="0-5" /></label>
         <label><span>Management score</span><input inputMode="numeric" min="0" max="5" value={form.managementScore} onChange={(event) => onChange("managementScore", event.target.value)} placeholder="0-5" /></label>
-        <label className={styles.wide}><span>Source URL</span><input value={form.sourceUrl} onChange={(event) => onChange("sourceUrl", event.target.value)} placeholder="https://..." /></label>
+        <label className={styles.wide}><span>Source URL</span><input value={form.sourceUrl} onChange={(event) => onChange("sourceUrl", event.target.value)} placeholder="https://... or leave blank for auto-find" /></label>
         <label className={styles.wide}><span>Notes</span><textarea value={form.notes} onChange={(event) => onChange("notes", event.target.value)} rows={3} placeholder="What was sourced, what is judgement, what needs checking next." /></label>
         <div className={`buttonRow ${styles.researchActions}`}>
-          <button className="primary" type="submit" disabled={status.saving}>{status.saving ? "Saving" : "Save research idea"}</button>
-          <button type="button" onClick={onClear} disabled={status.saving}>Clear</button>
+          <button className="primary" type="submit" disabled={status.saving || status.finding}>{status.saving ? "Saving" : activeDraftId ? "Save reviewed facts" : "Save research idea"}</button>
+          <button type="button" onClick={onAutoFind} disabled={!hasSymbol || status.saving || status.finding}>{status.finding ? "Finding" : "Auto-find facts"}</button>
+          <button type="button" onClick={onClear} disabled={status.saving || status.finding}>Clear</button>
         </div>
       </form>
       {status.message ? <p className={styles.message}>{status.message}</p> : null}
       {status.error ? <p className={`${styles.message} ${styles.messageError}`}>{status.error}</p> : null}
+      {draftError ? <p className={`${styles.message} ${styles.messageError}`}>{draftError}</p> : null}
     </Card>
   );
 }
