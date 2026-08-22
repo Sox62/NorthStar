@@ -32,10 +32,13 @@ type DraftsResponse = {
   error?: string;
 };
 
+export type ResearchAiProvider = "none" | "openai" | "anthropic";
+
 export type ResearchRequestState = {
   symbol: string;
   name: string;
   sourceUrl: string;
+  aiProvider: ResearchAiProvider;
 };
 
 export type ResearchFormState = {
@@ -75,6 +78,7 @@ export const blankResearchRequest: ResearchRequestState = {
   symbol: "",
   name: "",
   sourceUrl: "",
+  aiProvider: "none",
 };
 
 export const blankResearchForm: ResearchFormState = {
@@ -307,6 +311,7 @@ export async function requestFundamentalResearch(form: ResearchRequestState): Pr
       symbol: form.symbol,
       name: formValue(form.name),
       sourceUrl: formValue(form.sourceUrl),
+      aiProvider: form.aiProvider,
     }),
     cache: "no-store",
   });

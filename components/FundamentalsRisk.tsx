@@ -31,6 +31,7 @@ import {
   topRisk,
   totalValue,
   type FundamentalsState,
+  type ResearchAiProvider,
   type ResearchFormState,
 } from "./fundamentals/model";
 import styles from "./fundamentals/FundamentalsRisk.module.css";
@@ -39,6 +40,7 @@ export default function FundamentalsRisk() {
   const [{ holdings, fundamentals, drafts, loading, error }, setState] = useState<FundamentalsState>({ holdings: [], fundamentals: [], drafts: [], loading: true, error: "" });
   const [starterStatus, setStarterStatus] = useState<{ loading: boolean; message: string; error: string }>({ loading: false, message: "", error: "" });
   const [researchForm, setResearchForm] = useState<ResearchFormState>(blankResearchForm);
+  const [researchAiProvider, setResearchAiProvider] = useState<ResearchAiProvider>("none");
   const [activeDraftId, setActiveDraftId] = useState("");
   const [draftStatus, setDraftStatus] = useState<{ busyId: string; error: string }>({ busyId: "", error: "" });
   const [researchStatus, setResearchStatus] = useState<{ saving: boolean; finding: boolean; message: string; error: string }>({ saving: false, finding: false, message: "", error: "" });
@@ -127,7 +129,7 @@ export default function FundamentalsRisk() {
   async function handleAutoFindFacts() {
     setResearchStatus({ saving: false, finding: true, message: "", error: "" });
     try {
-      const { draft, message } = await requestFundamentalResearch({ symbol: researchForm.symbol, name: researchForm.name, sourceUrl: researchForm.sourceUrl });
+      const { draft, message } = await requestFundamentalResearch({ symbol: researchForm.symbol, name: researchForm.name, sourceUrl: researchForm.sourceUrl, aiProvider: researchAiProvider });
       setState((current) => ({
         ...current,
         drafts: [draft, ...current.drafts.filter((item) => item.id !== draft.id)],
@@ -241,11 +243,13 @@ export default function FundamentalsRisk() {
       <ResearchIntakeForm
         form={researchForm}
         status={researchStatus}
+        aiProvider={researchAiProvider}
         drafts={drafts}
         activeDraftId={activeDraftId}
         busyDraftId={draftStatus.busyId}
         draftError={draftStatus.error}
         onChange={updateResearchField}
+        onAiProviderChange={setResearchAiProvider}
         onSubmit={handleSaveResearchIdea}
         onAutoFind={handleAutoFindFacts}
         onReviewDraft={handleReviewDraft}

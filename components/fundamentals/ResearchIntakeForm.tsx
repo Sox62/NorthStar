@@ -1,17 +1,19 @@
 import type { FormEvent } from "react";
 import type { FundamentalResearchDraft } from "@/lib/storage";
 import { Card, StatusBadge } from "@/southernstar/components";
-import { RESEARCH_FORM_ID, dateOrDash, type ResearchFormState } from "./model";
+import { RESEARCH_FORM_ID, dateOrDash, type ResearchAiProvider, type ResearchFormState } from "./model";
 import styles from "./FundamentalsRisk.module.css";
 
 type ResearchIntakeFormProps = {
   form: ResearchFormState;
   status: { saving: boolean; finding: boolean; message: string; error: string };
+  aiProvider: ResearchAiProvider;
   drafts: FundamentalResearchDraft[];
   activeDraftId: string;
   busyDraftId: string;
   draftError: string;
   onChange: <K extends keyof ResearchFormState>(field: K, value: ResearchFormState[K]) => void;
+  onAiProviderChange: (provider: ResearchAiProvider) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onAutoFind: () => void;
   onReviewDraft: (draft: FundamentalResearchDraft) => void;
@@ -24,7 +26,7 @@ function confidenceLabel(value: number | null) {
   return Math.round(value * 100) + "% confidence";
 }
 
-export function ResearchIntakeForm({ form, status, drafts, activeDraftId, busyDraftId, draftError, onChange, onSubmit, onAutoFind, onReviewDraft, onRejectDraft, onClear }: ResearchIntakeFormProps) {
+export function ResearchIntakeForm({ form, status, aiProvider, drafts, activeDraftId, busyDraftId, draftError, onChange, onAiProviderChange, onSubmit, onAutoFind, onReviewDraft, onRejectDraft, onClear }: ResearchIntakeFormProps) {
   const hasSymbol = form.symbol.trim().length > 0;
   return (
     <Card id={RESEARCH_FORM_ID} className={styles.researchFormCard}>
@@ -77,6 +79,7 @@ export function ResearchIntakeForm({ form, status, drafts, activeDraftId, busyDr
         <label><span>Dilution score</span><input inputMode="numeric" min="0" max="5" value={form.dilutionScore} onChange={(event) => onChange("dilutionScore", event.target.value)} placeholder="0-5" /></label>
         <label><span>Management score</span><input inputMode="numeric" min="0" max="5" value={form.managementScore} onChange={(event) => onChange("managementScore", event.target.value)} placeholder="0-5" /></label>
         <label className={styles.wide}><span>Source URL</span><input value={form.sourceUrl} onChange={(event) => onChange("sourceUrl", event.target.value)} placeholder="https://... or leave blank for auto-find" /></label>
+        <label><span>Fact extractor</span><select value={aiProvider} onChange={(event) => onAiProviderChange(event.target.value as ResearchAiProvider)}><option value="none">Deterministic</option><option value="openai">ChatGPT</option><option value="anthropic">Claude</option></select></label>
         <label className={styles.wide}><span>Notes</span><textarea value={form.notes} onChange={(event) => onChange("notes", event.target.value)} rows={3} placeholder="What was sourced, what is judgement, what needs checking next." /></label>
         <div className={`buttonRow ${styles.researchActions}`}>
           <button className="primary" type="submit" disabled={status.saving || status.finding}>{status.saving ? "Saving" : activeDraftId ? "Save reviewed facts" : "Save research idea"}</button>

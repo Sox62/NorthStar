@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
-import { asxIssuerMismatch, buildFundamentalResearchDraft, fetchResearchSource } from "@/lib/fundamentals/research-draft";
+import { buildAiFundamentalResearchDraft } from "@/lib/fundamentals/ai-extractor";
+import { asxIssuerMismatch, fetchResearchSource } from "@/lib/fundamentals/research-draft";
 import { fetchCompanyNews, type CompanyNewsItem, type NewsInstrument } from "@/lib/integrations/company-news";
 import { getStorage } from "@/lib/storage";
 
@@ -12,6 +13,7 @@ const researchRequestSchema = z.object({
   symbol: z.string().trim().min(1).max(20),
   name: z.preprocess((value) => value === "" || value === undefined ? null : value, z.string().trim().nullable()),
   sourceUrl: z.preprocess((value) => value === "" || value === undefined ? null : value, z.string().url().nullable()),
+  aiProvider: z.enum(["none", "openai", "anthropic"]).default("none"),
 });
 
 const FUNDAMENTAL_SOURCE_SCORE: Array<[RegExp, number]> = [
@@ -113,14 +115,14 @@ export async function POST(request: Request) {
     const discovered = input.sourceUrl ? { item: null, note: "Source URL supplied by user.", source: null } : await discoverResearchSource(input.symbol, input.name);
     const sourceUrl = input.sourceUrl ?? discovered.item?.url ?? null;
     const source = input.sourceUrl ? await fetchResearchSource(input.sourceUrl) : discovered.source ?? { text: "", title: null };
-    const draftInput = buildFundamentalResearchDraft({
+    const draftInput = await buildAiFundamentalResearchDraft({
       symbol: input.symbol,
       name: input.name,
       sourceUrl,
       sourceTitle: discovered.item?.headline ?? source.title ?? null,
       sourceText: source.text,
       discoveryNote: discovered.note,
-    });
+    }, input.aiProvider);
     const draft = await getStorage().createFundamentalResearchDraft(draftInput);
     return NextResponse.json({ draft, message: draft.sourceUrl ? `Created factual research draft for ${draft.symbol} from ${draft.sourceTitle ?? "discovered source"}.` : `Created source-needed research draft for ${draft.symbol}.` }, { status: 201 });
   } catch (error) {
