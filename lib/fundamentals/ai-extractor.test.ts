@@ -45,6 +45,7 @@ test("buildAiFundamentalResearchDraft maps Anthropic factual JSON into a pending
   process.env.ANTHROPIC_API_KEY = "test-key";
   globalThis.fetch = async (url, init) => {
     assert.equal(String(url), "https://api.anthropic.com/v1/messages");
+    assert.match(String((init as RequestInit).body), /claude-3-5-haiku-20241022/);
     assert.match(String((init as RequestInit).headers && JSON.stringify((init as RequestInit).headers)), /test-key/);
     return Response.json({ content: [{ type: "text", text: JSON.stringify({ resourceMoz: 4.8, sourceExcerpt: "Mineral resources 4.8 Moz", confidence: 0.7 }) }] });
   };

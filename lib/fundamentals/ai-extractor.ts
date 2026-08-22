@@ -13,7 +13,7 @@ type AiFactPayload = Partial<Pick<FundamentalResearchDraftInput,
 };
 
 const OPENAI_MODEL = process.env.OPENAI_FUNDAMENTALS_MODEL || "gpt-4.1-mini";
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_FUNDAMENTALS_MODEL || "claude-3-5-haiku-latest";
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_FUNDAMENTALS_MODEL || "claude-3-5-haiku-20241022";
 const MAX_AI_SOURCE_CHARS = 80_000;
 
 export async function buildAiFundamentalResearchDraft(source: FundamentalResearchSource, provider: FundamentalAiProvider): Promise<FundamentalResearchDraftInput> {
@@ -74,7 +74,9 @@ async function extractWithOpenAi(source: FundamentalResearchSource, sourceText: 
   });
   const body = await response.json().catch(() => null) as { choices?: Array<{ message?: { content?: string } }>; error?: { message?: string } } | null;
   if (!response.ok) throw new Error(body?.error?.message || `OpenAI extraction failed with HTTP ${response.status}`);
-  return parseAiJson(body?.choices?.[0]?.message?.content);
+  const text = body?.choices?.[0]?.message?.content;
+  if (!text) throw new Error("OpenAI extraction returned no text content.");
+  return parseAiJson(text);
 }
 
 async function extractWithAnthropic(source: FundamentalResearchSource, sourceText: string): Promise<AiFactPayload> {
@@ -97,7 +99,9 @@ async function extractWithAnthropic(source: FundamentalResearchSource, sourceTex
   });
   const body = await response.json().catch(() => null) as { content?: Array<{ type?: string; text?: string }>; error?: { message?: string } } | null;
   if (!response.ok) throw new Error(body?.error?.message || `Anthropic extraction failed with HTTP ${response.status}`);
-  return parseAiJson(body?.content?.find((part) => part.type === "text")?.text ?? body?.content?.[0]?.text);
+  const text = body?.content?.filter((part) => part.type === "text" && part.text).map((part) => part.text).join("\n");
+  if (!text) throw new Error("Anthropic extraction returned no text content.");
+  return parseAiJson(text);
 }
 
 function systemPrompt() {
