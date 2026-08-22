@@ -1,4 +1,5 @@
 import type { FundamentalResearchDraftInput } from "@/lib/storage";
+import { PDFParse } from "pdf-parse";
 
 export type FundamentalResearchSource = {
   symbol: string;
@@ -10,6 +11,7 @@ export type FundamentalResearchSource = {
 };
 
 const MAX_SOURCE_CHARS = 300_000;
+const MAX_PDF_BYTES = 15_000_000;
 const EXTRACTOR = "southernstar-factual-parser";
 
 const privateHosts = [/^localhost$/i, /^127\./, /^10\./, /^192\.168\./, /^169\.254\./, /^0\.0\.0\.0$/, /^::1$/, /\.local$/i];
@@ -42,11 +44,37 @@ export async function fetchResearchSource(rawUrl: string) {
     });
     if (!response.ok) throw new Error(`Research source returned HTTP ${response.status}`);
     const contentType = response.headers.get("content-type") ?? "";
-    if (!/text|html|json|xml|csv/i.test(contentType)) throw new Error("Research source must be readable text, HTML, JSON, XML or CSV");
-    const body = (await response.text()).slice(0, MAX_SOURCE_CHARS);
-    return { text: body, title: extractTitle(body) ?? url.hostname };
+    const contentLength = Number(response.headers.get("content-length") ?? 0);
+    if (/text|html|json|xml|csv/i.test(contentType)) {
+      const body = (await response.text()).slice(0, MAX_SOURCE_CHARS);
+      return { text: body, title: extractTitle(body) ?? url.hostname };
+    }
+
+    if (contentLength > MAX_PDF_BYTES) throw new Error("Research PDF is too large to parse");
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.byteLength > MAX_PDF_BYTES) throw new Error("Research PDF is too large to parse");
+    if (isPdfSource(contentType, bytes)) {
+      const text = (await extractPdfText(bytes)).slice(0, MAX_SOURCE_CHARS);
+      return { text, title: null };
+    }
+
+    throw new Error("Research source must be readable text, HTML, JSON, XML, CSV or PDF");
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+function isPdfSource(contentType: string, bytes: Buffer) {
+  return /pdf/i.test(contentType) || bytes.subarray(0, 5).toString("utf8") === "%PDF-";
+}
+
+async function extractPdfText(data: Buffer) {
+  const parser = new PDFParse({ data });
+  try {
+    const result = await parser.getText();
+    return result.text;
+  } finally {
+    await parser.destroy();
   }
 }
 

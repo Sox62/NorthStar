@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildFundamentalResearchDraft, normaliseResearchSymbol, validateResearchSourceUrl } from "./research-draft";
+import { buildFundamentalResearchDraft, fetchResearchSource, normaliseResearchSymbol, validateResearchSourceUrl } from "./research-draft";
 
 test("buildFundamentalResearchDraft extracts clear source facts into a pending draft input", () => {
   const draft = buildFundamentalResearchDraft({
@@ -50,4 +50,56 @@ test("symbol and source URL guards reject unsafe research inputs", () => {
   assert.equal(normaliseResearchSymbol(" xle "), "XLE");
   assert.throws(() => validateResearchSourceUrl("file:///tmp/report.html"), /http or https/);
   assert.throws(() => validateResearchSourceUrl("http://127.0.0.1/report"), /private or local/);
+});
+
+
+test("fetchResearchSource accepts PDF announcements", async () => {
+  const pdf = `%PDF-1.1
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 74 >>
+stream
+BT
+/F1 24 Tf
+100 700 Td
+(Quarterly report Cash A$125.4m) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000365 00000 n 
+trailer
+<< /Root 1 0 R /Size 6 >>
+startxref
+435
+%%EOF`;
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(Buffer.from(pdf), {
+    headers: { "content-type": "application/pdf" },
+  });
+
+  try {
+    const source = await fetchResearchSource("https://example.com/announcement");
+    assert.match(source.text, /Quarterly report/);
+    assert.equal(source.title, null);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
 });

@@ -100,7 +100,7 @@ export async function POST(request: Request) {
       symbol: input.symbol,
       name: input.name,
       sourceUrl,
-      sourceTitle: source.title ?? discovered.item?.headline ?? null,
+      sourceTitle: discovered.item?.headline ?? source.title ?? null,
       sourceText: source.text,
       discoveryNote: discovered.note,
     });
