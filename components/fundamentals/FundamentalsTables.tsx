@@ -82,9 +82,15 @@ export function HeldMinerTable({ holdings, fundamentalsBySymbol, loading, totalM
                     <span>AISC {numberOrDash(saved?.aiscUsdPerOz, " USD/oz")} · Resource {numberOrDash(saved?.resourceMoz, " Moz")}</span>
                     <small>Cash {moneyOrDash(saved?.cashAud)} · Debt {moneyOrDash(saved?.debtAud)} · NPV {moneyOrDash(saved?.npvAud)}</small>
                   </td>
-                  <td>
+                  <td className={styles.notesCell}>
                     <span>{saved?.jurisdiction ?? "Jurisdiction needed"}{saved?.primaryMetal ? ` · ${saved.primaryMetal}` : ""}</span>
-                    <small>{saved?.notes ?? (saved?.asOfDate ? `As of ${dateOrDash(saved.asOfDate)}` : "Production, AISC, resource oz and source date needed.")}</small>
+                    <small>{saved?.asOfDate ? `As of ${dateOrDash(saved.asOfDate)}` : saved ? "Source date needed" : "Production, AISC, resource oz and source date needed."}</small>
+                    {saved ? (
+                      <details className={styles.notesDisclosure} onClick={(event) => event.stopPropagation()}>
+                        <summary>{saved.notes ? "View notes" : "No notes"}</summary>
+                        <p>{saved.notes ?? "Source notes needed."}</p>
+                      </details>
+                    ) : null}
                     {saved?.sourceUrl ? <a className={styles.sourceLink} onClick={(event) => event.stopPropagation()} href={saved.sourceUrl} target="_blank" rel="noreferrer">Source</a> : null}
                   </td>
                 </tr>

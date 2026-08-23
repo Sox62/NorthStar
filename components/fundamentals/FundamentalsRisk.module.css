@@ -60,12 +60,15 @@
 }
 
 .notesCell {
-  max-width: 340px;
+  max-width: 420px;
 }
 
 .notesCell > span,
 .notesCell > small {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notesDisclosure {
