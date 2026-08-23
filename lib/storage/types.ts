@@ -319,18 +319,6 @@ export type ReportingPeriod = "quarter" | "half" | "year";
  */
 export type CostBasis = "aisc_byproduct" | "aisc_ageq" | "cash_cost" | "cas";
 
-export const COST_BASES: CostBasis[] = ["aisc_byproduct", "aisc_ageq", "cash_cost", "cas"];
-
-export const COST_BASIS_LABELS: Record<CostBasis, string> = {
-  aisc_byproduct: "AISC, net of by-product credits",
-  aisc_ageq: "AISC per equivalent ounce",
-  cash_cost: "Cash cost (excludes sustaining capital)",
-  cas: "Costs applicable to sales",
-};
-
-export const QUANTITY_UNITS: QuantityUnit[] = ["oz", "lb"];
-export const REPORTING_PERIODS: ReportingPeriod[] = ["quarter", "half", "year"];
-
 export type MinerFundamentals = {
   symbol: string;
   name: string | null;

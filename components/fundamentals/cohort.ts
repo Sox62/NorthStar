@@ -71,6 +71,15 @@ export function median(values: number[]) {
 
 export type CohortRead = { metal: MetalKey; unit: QuantityUnit; basis: CostBasis | null; size: number; median: number | null };
 
+export const COST_BASES: CostBasis[] = ["aisc_byproduct", "aisc_ageq", "cash_cost", "cas"];
+
+export const COST_BASIS_LABELS: Record<CostBasis, string> = {
+  aisc_byproduct: "AISC, net of by-product credits",
+  aisc_ageq: "AISC per equivalent ounce",
+  cash_cost: "Cash cost (excludes sustaining capital)",
+  cas: "Costs applicable to sales",
+};
+
 /** Null basis means the record has not said which cost measure it holds, so it matches only other unstated ones. */
 export function costBasisOf(fundamentals: MinerFundamentals | undefined): CostBasis | null {
   return fundamentals?.costBasis ?? null;

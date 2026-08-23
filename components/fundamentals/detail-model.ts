@@ -1,8 +1,10 @@
 import type { MinerFundamentals } from "@/lib/storage";
 import type { Holding } from "@/southernstar/types";
 import { dateOrDash, money, moneyOrDash, numberOrDash } from "./model";
-import { COST_BASIS_LABELS } from "@/lib/storage";
-import { COST_SPREAD, MIN_COHORT, SCALE_SPREAD, VALUATION_SPREAD, annualisedProduction, cohortAnchoredScore, cohortMedianFor, costBasisOf, quantityUnitOf, reportingPeriodOf, type CohortRead } from "./cohort";
+// Everything imported from "@/lib/storage" here must stay `import type`. It is a barrel that
+// reaches lib/storage/postgres.ts and therefore `pg`; a value import from it drags dns/net/tls/fs
+// into the client bundle, because this module is reachable from RelativeLeadership.
+import { COST_BASIS_LABELS, COST_SPREAD, MIN_COHORT, SCALE_SPREAD, VALUATION_SPREAD, annualisedProduction, cohortAnchoredScore, cohortMedianFor, costBasisOf, quantityUnitOf, reportingPeriodOf, type CohortRead } from "./cohort";
 
 export type RiskTone = "good" | "warning" | "bad";
 export type SouthernStarTone = "good" | "warning" | "bad" | "muted";
