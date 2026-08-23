@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { MinerFundamentals } from "@/lib/storage";
-import { allocationRead, enterpriseValueAud, failureModes, fundamentalBars, fundamentalQualityScore, netCashAud, riskLevel, valuationBars, valuationRows, valuationScore } from "./detail-model";
+import { allocationRead, enterpriseValueAud, failureModes, fundamentalBars, fundamentalQualityScore, fundamentalScoreRead, netCashAud, riskJudgementScore, riskLevel, valuationBars, valuationRows, valuationScore } from "./detail-model";
 import { researchFormForHolding, researchFormForIdea } from "./model";
 import type { Holding } from "@/southernstar/types";
 
@@ -187,8 +187,37 @@ test("an unresearched holding draws no relational bars", () => {
 });
 
 
+test("fundamental score uses the stage model and factual coverage", () => {
+  const read = fundamentalScoreRead(base);
+
+  assert.equal(read.model, "producer");
+  assert.equal(read.coverage, 100);
+  assert.equal(read.score, 81);
+  assert.equal(fundamentalQualityScore(base), 81);
+  assert.equal(riskJudgementScore(base), 3.75);
+});
+
+test("fundamental score stays pending when too much evidence is missing", () => {
+  const thin = {
+    ...base,
+    productionOz: null,
+    aiscUsdPerOz: null,
+    resourceMoz: null,
+    reserveMoz: null,
+    cashAud: null,
+    debtAud: null,
+    marketCapAud: null,
+    projectStage: "Producer",
+  };
+  const read = fundamentalScoreRead(thin);
+
+  assert.equal(read.model, "producer");
+  assert.equal(read.score, null);
+  assert.equal(read.status, "F pending");
+  assert.equal(read.coverage, 45);
+});
+
 test("fundamental and valuation scores stay separate", () => {
-  assert.equal(fundamentalQualityScore(base), 75);
   assert.equal(valuationScore(base), 65);
 });
 

@@ -64,6 +64,27 @@
   text-wrap: pretty;
 }
 
+.scoreSummary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  background: var(--surface-control);
+  border: 1px solid rgba(214, 181, 102, 0.22);
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.scoreSummary strong {
+  color: var(--text-primary);
+}
+
+.scoreSummary span {
+  color: var(--text-muted);
+  text-align: right;
+}
+
 .fieldGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;

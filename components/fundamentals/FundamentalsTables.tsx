@@ -3,7 +3,6 @@ import { Card, SectorTag, StatusBadge } from "@/southernstar/components";
 import type { Holding } from "@/southernstar/types";
 import { SECTOR_COLORS } from "@/southernstar/types";
 import {
-  averageScore,
   dateOrDash,
   money,
   moneyOrDash,
@@ -11,6 +10,7 @@ import {
   percent,
   scoreStatus,
 } from "./model";
+import { fundamentalScoreRead, riskJudgementScore } from "./detail-model";
 import styles from "./FundamentalsRisk.module.css";
 
 type HeldMinerTableProps = {
@@ -52,7 +52,8 @@ export function HeldMinerTable({ holdings, fundamentalsBySymbol, loading, totalM
             {holdings.map((holding) => {
               const saved = fundamentalsBySymbol.get(holding.symbol.toUpperCase());
               const status = saved ? { label: "Research saved", tone: "good" as const } : scoreStatus(holding);
-              const score = averageScore(saved);
+              const score = saved ? fundamentalScoreRead(saved).score : null;
+              const riskJudgement = riskJudgementScore(saved);
               return (
                 <tr
                   key={holding.id}
@@ -76,7 +77,7 @@ export function HeldMinerTable({ holdings, fundamentalsBySymbol, loading, totalM
                   <td><SectorTag label={holding.sector} color={SECTOR_COLORS[holding.sector]} /></td>
                   <td className="numeric">{money(holding.marketValueAud)}<small>{holding.marketValueAud && totalMinerValue ? `${(holding.marketValueAud / totalMinerValue * 100).toFixed(1)}% miner book` : "0.0% miner book"}</small></td>
                   <td className={`numeric ${holding.pnlAud >= 0 ? "positive" : "negative"}`}>{money(holding.pnlAud)}<small>{percent(holding.pnlPercent)}</small></td>
-                  <td><StatusBadge tone={status.tone}>{status.label}</StatusBadge><small>{score == null ? "No risk score" : `${score.toFixed(1)} / 5 avg score`}</small></td>
+                  <td><StatusBadge tone={status.tone}>{status.label}</StatusBadge><small>{score == null ? "F pending" : `F ${score}`}{riskJudgement == null ? "" : ` · risk ${riskJudgement.toFixed(1)}/5`}</small></td>
                   <td>
                     <span>AISC {numberOrDash(saved?.aiscUsdPerOz, " USD/oz")} · Resource {numberOrDash(saved?.resourceMoz, " Moz")}</span>
                     <small>Cash {moneyOrDash(saved?.cashAud)} · Debt {moneyOrDash(saved?.debtAud)} · NPV {moneyOrDash(saved?.npvAud)}</small>
@@ -125,13 +126,14 @@ export function ResearchIdeasTable({ ideas, loading, onSelect }: ResearchIdeasTa
               <th>Theme</th>
               <th>Stage</th>
               <th>Core inputs</th>
-              <th>Risk score</th>
+              <th>F score</th>
               <th>Source notes</th>
             </tr>
           </thead>
           <tbody>
             {ideas.map((item) => {
-              const score = averageScore(item);
+              const score = fundamentalScoreRead(item).score;
+              const riskJudgement = riskJudgementScore(item);
               return (
                 <tr
                   key={item.symbol}
@@ -159,7 +161,8 @@ export function ResearchIdeasTable({ ideas, loading, onSelect }: ResearchIdeasTa
                     <small>Reserve {numberOrDash(item.reserveMoz, " Moz")} · NPV {moneyOrDash(item.npvAud)}</small>
                   </td>
                   <td>
-                    <StatusBadge tone={score == null ? "warning" : "good"}>{score == null ? "No score" : `${score.toFixed(1)} / 5`}</StatusBadge>
+                    <StatusBadge tone={score == null ? "warning" : "good"}>{score == null ? "F pending" : `F ${score}`}</StatusBadge>
+                    {riskJudgement == null ? null : <small>{`Risk ${riskJudgement.toFixed(1)} / 5`}</small>}
                   </td>
                   <td className={styles.notesCell}>
                     <span>{item.asOfDate ? `As of ${dateOrDash(item.asOfDate)}` : "No source date"}</span>

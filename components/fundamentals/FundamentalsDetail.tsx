@@ -5,8 +5,8 @@ import type { MinerFundamentals } from "@/lib/storage";
 import { Overlay } from "@/southernstar/components/Overlay";
 import { SectorTag, StatusBadge } from "@/southernstar/components";
 import { SECTOR_COLORS, type Holding } from "@/southernstar/types";
-import { averageScore, money, percent } from "./model";
-import { failureModes, fundamentalBars, fundamentalFields, riskRows, valuationBars, valuationRows, type MagnitudeBar } from "./detail-model";
+import { money, percent } from "./model";
+import { failureModes, fundamentalBars, fundamentalFields, fundamentalScoreRead, riskJudgementScore, riskRows, valuationBars, valuationRows, type MagnitudeBar } from "./detail-model";
 import styles from "./FundamentalsDetail.module.css";
 
 const DEFAULT_PROBABILITY = 0.6;
@@ -52,7 +52,8 @@ export function FundamentalsDetail({ holding, fundamentals, onClose, onEdit }: {
   );
   const relationBars = useMemo(() => fundamentalBars(fundamentals), [fundamentals]);
   const modes = useMemo(() => failureModes(fundamentals), [fundamentals]);
-  const score = averageScore(fundamentals);
+  const fundamentalScore = useMemo(() => fundamentalScoreRead(fundamentals), [fundamentals]);
+  const riskJudgement = riskJudgementScore(fundamentals);
 
   const descriptor = [
     fundamentals?.primaryMetal,
@@ -88,7 +89,8 @@ export function FundamentalsDetail({ holding, fundamentals, onClose, onEdit }: {
                 <StatusBadge tone={fundamentals ? "good" : "warning"}>
                   {fundamentals ? "Research saved" : "Awaiting fundamentals"}
                 </StatusBadge>
-                {score != null ? <StatusBadge tone="good">{`Score ${score.toFixed(1)} / 5`}</StatusBadge> : null}
+                {fundamentalScore.score != null ? <StatusBadge tone="good">{`F ${fundamentalScore.score}`}</StatusBadge> : <StatusBadge tone="warning">F pending</StatusBadge>}
+                {riskJudgement != null ? <StatusBadge tone="warning">{`Risk judgement ${riskJudgement.toFixed(1)} / 5`}</StatusBadge> : null}
               </div>
             </div>
 
@@ -96,6 +98,11 @@ export function FundamentalsDetail({ holding, fundamentals, onClose, onEdit }: {
               {fundamentals?.notes?.trim()
                 || "No thesis recorded. Add notes from the research intake form to keep the reasoning beside the numbers."}
             </p>
+
+            <div className={styles.scoreSummary}>
+              <strong>{fundamentalScore.status}</strong>
+              <span>{fundamentalScore.model === "unknown" ? "Stage model pending" : `${fundamentalScore.model} model`} · {fundamentalScore.coverage}% evidence coverage</span>
+            </div>
 
             {relationBars.length ? <BarGroup bars={relationBars} /> : null}
 

@@ -21,6 +21,22 @@ export type SouthernStarAllocationRead = {
   gauges: SouthernStarGauge[];
 };
 
+export type FundamentalScorePart = {
+  key: string;
+  label: string;
+  score: number | null;
+  max: number;
+  note: string;
+};
+
+export type FundamentalScoreRead = {
+  score: number | null;
+  model: "producer" | "developer" | "explorer" | "unknown";
+  status: string;
+  coverage: number;
+  parts: FundamentalScorePart[];
+};
+
 export type RiskRow = {
   key: string;
   label: string;
@@ -56,12 +72,110 @@ export function netCashAud(fundamentals: MinerFundamentals | undefined) {
 }
 
 
-export function fundamentalQualityScore(fundamentals: MinerFundamentals | undefined) {
+export function riskJudgementScore(fundamentals: MinerFundamentals | undefined) {
   const scores = [fundamentals?.jurisdictionScore, fundamentals?.balanceSheetScore, fundamentals?.dilutionScore, fundamentals?.managementScore]
     .filter((value): value is number => value != null);
   if (!scores.length) return null;
-  const average = scores.reduce((sum, value) => sum + value, 0) / scores.length;
-  return Math.round(Math.min(100, Math.max(0, average * 20)));
+  return scores.reduce((sum, value) => sum + value, 0) / scores.length;
+}
+
+function scoreOutOf(value: number | null, max: number, note: string, label: string, key: string): FundamentalScorePart {
+  return { key, label, score: value == null ? null : Math.min(max, Math.max(0, value)), max, note };
+}
+
+function judgementPoints(score: number | null | undefined, max: number) {
+  return score == null ? null : score / 5 * max;
+}
+
+function reserveConversionScore(fundamentals: MinerFundamentals, max: number) {
+  if (!fundamentals.resourceMoz || fundamentals.reserveMoz == null) return null;
+  return Math.min(max, fundamentals.reserveMoz / fundamentals.resourceMoz / 0.35 * max);
+}
+
+function balanceEvidenceScore(fundamentals: MinerFundamentals, max: number) {
+  const net = netCashAud(fundamentals);
+  const enterprise = enterpriseValueAud(fundamentals);
+  if (net == null && fundamentals.balanceSheetScore == null) return null;
+  const manual = judgementPoints(fundamentals.balanceSheetScore, max);
+  if (net == null) return manual == null ? null : manual * 0.55;
+  if (enterprise && enterprise > 0) {
+    const netCashRatio = net / enterprise;
+    const derived = netCashRatio >= 0.1 ? max : netCashRatio >= 0 ? max * 0.78 : netCashRatio >= -0.2 ? max * 0.45 : max * 0.2;
+    return manual == null ? derived : derived * 0.65 + manual * 0.35;
+  }
+  const derived = net >= 0 ? max * 0.8 : max * 0.35;
+  return manual == null ? derived : derived * 0.65 + manual * 0.35;
+}
+
+function producerScore(fundamentals: MinerFundamentals): FundamentalScorePart[] {
+  const aisc = fundamentals.aiscUsdPerOz;
+  const production = fundamentals.productionOz;
+  return [
+    scoreOutOf(aisc == null ? null : aisc <= 14 ? 25 : aisc <= 20 ? 18 : aisc <= 28 ? 10 : 4, 25, aisc == null ? "Needs AISC to test operating margin." : `AISC ${numberOrDash(aisc, " USD/oz")}.`, "Cost position", "cost"),
+    scoreOutOf(balanceEvidenceScore(fundamentals, 20), 20, fundamentals.cashAud == null && fundamentals.debtAud == null ? "Manual balance judgement discounted until cash/debt are recorded." : "Cash, debt and enterprise value where available.", "Balance sheet", "balance"),
+    scoreOutOf(production == null ? null : production >= 1_000_000 ? 15 : production >= 300_000 ? 10 : 6, 15, production == null ? "Needs annual production." : `Production ${numberOrDash(production)} oz.`, "Production scale", "production"),
+    scoreOutOf(reserveConversionScore(fundamentals, 15), 15, fundamentals.resourceMoz && fundamentals.reserveMoz != null ? "Reserve conversion from recorded resource base." : "Needs resource and reserve.", "Reserve quality", "reserve"),
+    scoreOutOf(judgementPoints(fundamentals.jurisdictionScore, 10), 10, fundamentals.jurisdiction || "Needs jurisdiction.", "Jurisdiction", "jurisdiction"),
+    scoreOutOf(judgementPoints(fundamentals.managementScore, 10), 10, "Manual execution judgement.", "Management", "management"),
+    scoreOutOf(judgementPoints(fundamentals.dilutionScore, 5), 5, "Manual dilution judgement.", "Dilution", "dilution"),
+  ];
+}
+
+function developerScore(fundamentals: MinerFundamentals): FundamentalScorePart[] {
+  const enterprise = enterpriseValueAud(fundamentals);
+  const npv = fundamentals.npvAud;
+  const capex = fundamentals.capexAud;
+  return [
+    scoreOutOf(npv == null || !enterprise || enterprise <= 0 ? null : Math.min(25, Math.max(4, (npv / enterprise) * 8)), 25, npv == null || !enterprise ? "Needs NPV and enterprise value." : "NPV compared with enterprise value.", "Valuation support", "valuation"),
+    scoreOutOf(fundamentals.irrPercent == null ? null : fundamentals.irrPercent >= 30 ? 15 : fundamentals.irrPercent >= 20 ? 11 : fundamentals.irrPercent >= 12 ? 7 : 3, 15, fundamentals.irrPercent == null ? "Needs IRR." : `IRR ${numberOrDash(fundamentals.irrPercent, "%")}.`, "Project return", "irr"),
+    scoreOutOf(capex == null || !enterprise ? null : enterprise >= capex ? 15 : enterprise >= capex * 0.5 ? 9 : 4, 15, capex == null || !enterprise ? "Needs capex and market value." : "Funding task compared with current enterprise value.", "Funding scale", "funding"),
+    scoreOutOf(reserveConversionScore(fundamentals, 15), 15, fundamentals.resourceMoz && fundamentals.reserveMoz != null ? "Reserve conversion from recorded resource base." : "Needs resource and reserve.", "Resource quality", "resource"),
+    scoreOutOf(balanceEvidenceScore(fundamentals, 10), 10, fundamentals.cashAud == null && fundamentals.debtAud == null ? "Needs cash/debt to verify." : "Cash and debt position.", "Balance sheet", "balance"),
+    scoreOutOf(judgementPoints(fundamentals.jurisdictionScore, 10), 10, fundamentals.jurisdiction || "Needs jurisdiction.", "Jurisdiction", "jurisdiction"),
+    scoreOutOf(judgementPoints(fundamentals.managementScore, 10), 10, "Manual execution judgement.", "Management", "management"),
+  ];
+}
+
+function explorerScore(fundamentals: MinerFundamentals): FundamentalScorePart[] {
+  const enterprise = enterpriseValueAud(fundamentals);
+  const cashRunway = fundamentals.cashAud != null && enterprise ? fundamentals.cashAud / enterprise : null;
+  return [
+    scoreOutOf(fundamentals.resourceMoz == null ? null : fundamentals.resourceMoz >= 5 ? 25 : fundamentals.resourceMoz >= 2 ? 18 : fundamentals.resourceMoz >= 0.5 ? 10 : 5, 25, fundamentals.resourceMoz == null ? "Needs resource or target scale." : `Resource ${numberOrDash(fundamentals.resourceMoz, " Moz")}.`, "Resource potential", "resource"),
+    scoreOutOf(cashRunway == null ? null : cashRunway >= 0.25 ? 20 : cashRunway >= 0.1 ? 14 : cashRunway >= 0.04 ? 8 : 3, 20, cashRunway == null ? "Needs cash and market value." : "Cash as a share of enterprise value.", "Cash runway", "cash"),
+    scoreOutOf(judgementPoints(fundamentals.dilutionScore, 15), 15, "Manual dilution judgement.", "Dilution", "dilution"),
+    scoreOutOf(judgementPoints(fundamentals.jurisdictionScore, 15), 15, fundamentals.jurisdiction || "Needs jurisdiction.", "Jurisdiction", "jurisdiction"),
+    scoreOutOf(judgementPoints(fundamentals.managementScore, 15), 15, "Manual execution judgement.", "Management", "management"),
+    scoreOutOf(balanceEvidenceScore(fundamentals, 10), 10, fundamentals.cashAud == null && fundamentals.debtAud == null ? "Needs cash/debt to verify." : "Cash and debt position.", "Balance sheet", "balance"),
+  ];
+}
+
+function scoreModel(fundamentals: MinerFundamentals | undefined): FundamentalScoreRead["model"] {
+  const stage = (fundamentals?.projectStage ?? "").toLowerCase();
+  if (!fundamentals) return "unknown";
+  if (fundamentals.productionOz || /produc|operat/.test(stage)) return "producer";
+  if (/develop|permitting|study|feasibility|pre[- ]?production/.test(stage)) return "developer";
+  if (/explor|drill|discovery/.test(stage)) return "explorer";
+  return "unknown";
+}
+
+export function fundamentalScoreRead(fundamentals: MinerFundamentals | undefined): FundamentalScoreRead {
+  const model = scoreModel(fundamentals);
+  const parts = !fundamentals ? [] : model === "producer" ? producerScore(fundamentals) : model === "developer" ? developerScore(fundamentals) : model === "explorer" ? explorerScore(fundamentals) : [];
+  const scored = parts.filter((part) => part.score != null);
+  const maxScored = scored.reduce((sum, part) => sum + part.max, 0);
+  const maxPossible = parts.reduce((sum, part) => sum + part.max, 0);
+  const evidenceKeys = new Set(["cost", "production", "reserve", "valuation", "irr", "funding", "resource", "cash"]);
+  const factualCoverage = scored.filter((part) => evidenceKeys.has(part.key)).reduce((sum, part) => sum + part.max, 0);
+  const rawScore = maxScored < 45 || factualCoverage < 20 ? null : Math.round(scored.reduce((sum, part) => sum + (part.score ?? 0), 0) / maxScored * 100);
+  const judgement = riskJudgementScore(fundamentals);
+  const cappedScore = rawScore == null ? null : judgement != null && judgement < 2 ? Math.min(rawScore, 44) : judgement != null && judgement < 2.5 ? Math.min(rawScore, 55) : rawScore;
+  const coverage = maxPossible ? Math.round(maxScored / maxPossible * 100) : 0;
+  const status = cappedScore == null ? "F pending" : cappedScore >= 75 ? "Quality candidate" : cappedScore >= 50 ? "Mixed fundamentals" : "Weak fundamentals";
+  return { score: cappedScore, model, status, coverage, parts };
+}
+
+export function fundamentalQualityScore(fundamentals: MinerFundamentals | undefined) {
+  return fundamentalScoreRead(fundamentals).score;
 }
 
 export function valuationScore(fundamentals: MinerFundamentals | undefined) {
@@ -101,8 +215,8 @@ export function allocationRead(input: {
       label: "F",
       score: fundamental,
       tone: scoreTone(fundamental),
-      status: fundamental == null ? "Not scored" : fundamental >= 75 ? "Business" : fundamental >= 45 ? "Mixed" : "Weak",
-      note: stageMethodology(input.fundamentals),
+      status: fundamentalScoreRead(input.fundamentals).status,
+      note: `${stageMethodology(input.fundamentals)} Requires enough factual coverage before F is scored.`,
     },
     {
       key: "relative",
