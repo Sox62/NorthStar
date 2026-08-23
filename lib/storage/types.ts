@@ -310,6 +310,24 @@ export type QuantityUnit = "oz" | "lb";
 /** The period productionOz covers. Null reads as "year". */
 export type ReportingPeriod = "quarter" | "half" | "year";
 
+/**
+ * Which cost measure `aiscUsdPerOz` actually holds. Silver and polymetallic producers publish
+ * wildly different numbers for the same mine: an AISC net of by-product credits can sit at a
+ * fraction of the same operation's AISC per silver-equivalent ounce, and cash cost and CAS both
+ * exclude sustaining capital entirely. Ranking them against each other measures methodology, not
+ * cost position, so a cohort only ever compares figures sharing a basis.
+ */
+export type CostBasis = "aisc_byproduct" | "aisc_ageq" | "cash_cost" | "cas";
+
+export const COST_BASES: CostBasis[] = ["aisc_byproduct", "aisc_ageq", "cash_cost", "cas"];
+
+export const COST_BASIS_LABELS: Record<CostBasis, string> = {
+  aisc_byproduct: "AISC, net of by-product credits",
+  aisc_ageq: "AISC per equivalent ounce",
+  cash_cost: "Cash cost (excludes sustaining capital)",
+  cas: "Costs applicable to sales",
+};
+
 export const QUANTITY_UNITS: QuantityUnit[] = ["oz", "lb"];
 export const REPORTING_PERIODS: ReportingPeriod[] = ["quarter", "half", "year"];
 
@@ -323,6 +341,7 @@ export type MinerFundamentals = {
   aiscUsdPerOz: number | null;
   quantityUnit: QuantityUnit | null;
   productionPeriod: ReportingPeriod | null;
+  costBasis: CostBasis | null;
   resourceMoz: number | null;
   reserveMoz: number | null;
   cashAud: number | null;

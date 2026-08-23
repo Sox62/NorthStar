@@ -451,7 +451,7 @@ function buildOpportunityRows(input: {
       ? historyForBenchmark(input.prices, input.fxRates, input.benchmarkNodes.find((node) => node.id === item.selectionId) ?? input.savedIdeaNodes.find((node) => node.id === item.selectionId)!)
       : historyForHolding(input.prices, input.fxRates, asset);
     const entry = scoreEntryCondition(history, { relativeIntegrityHealthy: integrity });
-    const read = allocationRead({ fundamentals, cohort, relativeScore: relative.score, relativeVelocity: relative.velocity, entryScore: entry.score });
+    const read = allocationRead({ fundamentals, cohort, relativeScore: relative.score, relativeVelocity: relative.velocity, entryScore: entry.score, relativeCoverage: relative.coverage, entryCoverage: entry.coverage });
     const gauge = (key: "fundamental" | "relative" | "valuation" | "entry") => read.gauges.find((item) => item.key === key)?.score ?? null;
     return [{
       symbol: asset.symbol,
@@ -603,7 +603,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   const entryScore = useMemo(() => scoreEntryCondition(leftHistory, { relativeIntegrityHealthy }), [leftHistory, relativeIntegrityHealthy]);
   const selectedFundamentals = left ? fundamentalsBySymbol.get(left.symbol.toUpperCase()) : undefined;
   const fundamentalsCohort = useMemo(() => [...fundamentalsBySymbol.values()], [fundamentalsBySymbol]);
-  const allocationReadout = useMemo(() => allocationRead({ fundamentals: selectedFundamentals, cohort: fundamentalsCohort, relativeScore: relativeEngine?.score ?? null, relativeVelocity: relativeEngine?.velocity ?? null, entryScore: entryScore.score }), [selectedFundamentals, fundamentalsCohort, relativeEngine, entryScore.score]);
+  const allocationReadout = useMemo(() => allocationRead({ fundamentals: selectedFundamentals, cohort: fundamentalsCohort, relativeScore: relativeEngine?.score ?? null, relativeVelocity: relativeEngine?.velocity ?? null, entryScore: entryScore.score, relativeCoverage: relativeEngine?.coverage ?? null, entryCoverage: entryScore.coverage }), [selectedFundamentals, fundamentalsCohort, relativeEngine, entryScore]);
   const opportunityRows = useMemo(() => buildOpportunityRows({ holdings, savedIdeaNodes, fundamentalsBySymbol, prices, fxRates, benchmarkNodes, sort: opportunitySort }), [holdings, savedIdeaNodes, fundamentalsBySymbol, prices, fxRates, benchmarkNodes, opportunitySort]);
   const openOpportunity = (row: OpportunityRow) => {
     window.location.assign("/relative?kind=" + encodeURIComponent(row.selectionKind) + "&id=" + encodeURIComponent(row.selectionId));

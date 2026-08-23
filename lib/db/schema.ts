@@ -221,6 +221,8 @@ export const minerFundamentals = pgTable("miner_fundamentals", {
   quantityUnit: text("quantity_unit"),
   /** Period productionOz covers: 'quarter' | 'half' | 'year'. Null reads as 'year'. */
   productionPeriod: text("production_period"),
+  /** Which cost measure aiscUsdPerOz actually holds. Costs are only ever compared within one basis. */
+  costBasis: text("cost_basis"),
   resourceMoz: numeric("resource_moz", { precision: 28, scale: 6 }),
   reserveMoz: numeric("reserve_moz", { precision: 28, scale: 6 }),
   cashAud: numeric("cash_aud", { precision: 28, scale: 2 }),

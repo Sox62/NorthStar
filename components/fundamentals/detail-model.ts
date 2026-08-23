@@ -1,7 +1,8 @@
 import type { MinerFundamentals } from "@/lib/storage";
 import type { Holding } from "@/southernstar/types";
 import { dateOrDash, money, moneyOrDash, numberOrDash } from "./model";
-import { COST_SPREAD, MIN_COHORT, SCALE_SPREAD, VALUATION_SPREAD, annualisedProduction, cohortAnchoredScore, cohortMedianFor, quantityUnitOf, reportingPeriodOf, type CohortRead } from "./cohort";
+import { COST_BASIS_LABELS } from "@/lib/storage";
+import { COST_SPREAD, MIN_COHORT, SCALE_SPREAD, VALUATION_SPREAD, annualisedProduction, cohortAnchoredScore, cohortMedianFor, costBasisOf, quantityUnitOf, reportingPeriodOf, type CohortRead } from "./cohort";
 
 export type RiskTone = "good" | "warning" | "bad";
 export type SouthernStarTone = "good" | "warning" | "bad" | "muted";
@@ -13,6 +14,10 @@ export type SouthernStarGauge = {
   tone: SouthernStarTone;
   status: string;
   note: string;
+  /** 0-1 share of this signal's evidence that could actually be tested, or null where not tracked. */
+  coverage: number | null;
+  /** Which model produced the score, where more than one can — shown so the number is readable. */
+  basisLabel: string | null;
 };
 
 export type SouthernStarAllocationRead = {
@@ -23,6 +28,8 @@ export type SouthernStarAllocationRead = {
   scoredSignals: number;
   /** True when the allocation score was renormalised over fewer than four signals. */
   provisional: boolean;
+  /** Set when fewer than three of the four signals scored, so the read rests on too little. */
+  warning: string | null;
   gauges: SouthernStarGauge[];
 };
 
@@ -149,13 +156,15 @@ function scoreOutOf(value: number | null, max: number, note: string, label: stri
   return { key, label, score: value == null ? null : Math.min(max, Math.max(0, value)), max, note };
 }
 
-/** Says which peer group a component was judged against, or exactly what is missing. */
+/** Says which peer group a component was judged against, and how big it was, or what is missing. */
 function cohortNote(label: string, value: number | null, unitSuffix: string, cohort: CohortRead, scored: number | null) {
+  const peers = `${cohort.size} ${cohort.metal} peer${cohort.size === 1 ? "" : "s"}`;
+  const basis = cohort.basis ? ` · ${COST_BASIS_LABELS[cohort.basis]}` : "";
   if (scored != null) {
-    return `${numberOrDash(value, unitSuffix)} against a ${cohort.metal} peer median of ${numberOrDash(cohort.median, unitSuffix)} across ${cohort.size} names.`;
+    return `${numberOrDash(value, unitSuffix)} vs ${peers}, median ${numberOrDash(cohort.median, unitSuffix)}${basis}.`;
   }
   if (value == null) return `Needs ${label}.`;
-  return `Needs at least ${MIN_COHORT} ${cohort.metal} peers with ${label} recorded; ${cohort.size} available.`;
+  return `Needs at least ${MIN_COHORT} ${cohort.metal} peers with a comparable figure${basis}; ${cohort.size} available.`;
 }
 
 function judgementPoints(score: number | null | undefined, max: number) {
@@ -184,14 +193,16 @@ function balanceEvidenceScore(fundamentals: MinerFundamentals, max: number) {
 
 function producerScore(fundamentals: MinerFundamentals, cohort: MinerFundamentals[]): FundamentalScorePart[] {
   const unit = quantityUnitOf(fundamentals);
-  const costCohort = cohortMedianFor(fundamentals, cohort, (peer) => peer.aiscUsdPerOz);
+  // Costs are only ever ranked against figures on the same basis: an AISC net of by-product
+  // credits and an AISC per equivalent ounce describe the same mine with a several-fold gap.
+  const costCohort = cohortMedianFor(fundamentals, cohort, (peer) => peer.aiscUsdPerOz, { matchCostBasis: true });
   const cost = cohortAnchoredScore({ value: fundamentals.aiscUsdPerOz, cohort: costCohort, lowerIsBetter: true, spread: COST_SPREAD, max: 25 });
   // Annualised on both sides, or a name reporting a quarter is ranked against one reporting a year.
   const annual = annualisedProduction(fundamentals);
   const scaleCohort = cohortMedianFor(fundamentals, cohort, annualisedProduction);
   const scale = cohortAnchoredScore({ value: annual, cohort: scaleCohort, lowerIsBetter: false, spread: SCALE_SPREAD, max: 15 });
   return [
-    scoreOutOf(cost, 25, cohortNote("AISC", fundamentals.aiscUsdPerOz, ` USD/${unit}`, costCohort, cost), "Cost position", "cost"),
+    scoreOutOf(cost, 25, cohortNote(costBasisOf(fundamentals) ? COST_BASIS_LABELS[costBasisOf(fundamentals)!] : "a cost figure", fundamentals.aiscUsdPerOz, ` USD/${unit}`, costCohort, cost), "Cost position", "cost"),
     scoreOutOf(balanceEvidenceScore(fundamentals, 20), 20, fundamentals.cashAud == null && fundamentals.debtAud == null ? "Manual balance judgement discounted until cash/debt are recorded." : "Cash, debt and enterprise value where available.", "Balance sheet", "balance"),
     scoreOutOf(scale, 15, cohortNote("annual production", annual, ` ${unit}/yr`, scaleCohort, scale), "Production scale", "production"),
     scoreOutOf(reserveConversionScore(fundamentals, 15), 15, fundamentals.resourceMoz && fundamentals.reserveMoz != null ? "Reserve conversion from recorded resource base." : "Needs resource and reserve.", "Reserve quality", "reserve"),
@@ -303,6 +314,12 @@ function fundingDilution(fundamentals: MinerFundamentals, enterprise: number) {
  * at ten times it as nearly the same.
  */
 export const VALUATION_FULL_MARKS_MULTIPLE = 3;
+
+const VALUATION_BASIS_LABELS: Record<NonNullable<ValuationRead["basis"]>, string> = {
+  npv_ev: "NPV/EV",
+  ev_per_production: "cohort-relative",
+  ev_per_resource: "cohort-relative",
+};
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -432,6 +449,10 @@ export function allocationRead(input: {
   relativeScore: number | null;
   relativeVelocity: number | null;
   entryScore?: number | null;
+  /** 0-1 share of the ratio layers R could test. */
+  relativeCoverage?: number | null;
+  /** 0-1 share of the entry checks E could run. */
+  entryCoverage?: number | null;
 }) {
   const cohort = input.cohort ?? [];
   const fundamental = fundamentalQualityScore(input.fundamentals, cohort);
@@ -446,6 +467,8 @@ export function allocationRead(input: {
       tone: scoreTone(fundamental),
       status: fundamentalScoreRead(input.fundamentals, cohort).status,
       note: `${stageMethodology(input.fundamentals)} Requires enough factual coverage before F is scored.`,
+      coverage: fundamentalScoreRead(input.fundamentals, cohort).coverage / 100,
+      basisLabel: null,
     },
     {
       key: "relative",
@@ -454,6 +477,8 @@ export function allocationRead(input: {
       tone: scoreTone(input.relativeScore),
       status: input.relativeScore == null ? "Not scored" : input.relativeScore >= 75 ? "Leadership" : input.relativeScore >= 45 ? "Improving/neutral" : "Not earning capital",
       note: input.relativeVelocity == null ? "Reserve, sector and peer trend score." : "Reserve, sector and peer trend score; velocity " + (input.relativeVelocity >= 0 ? "+" : "") + Math.round(input.relativeVelocity) + " over 30d.",
+      coverage: input.relativeCoverage ?? null,
+      basisLabel: null,
     },
     {
       key: "valuation",
@@ -464,14 +489,18 @@ export function allocationRead(input: {
       note: valuation == null
         ? valuationDetail.detail
         : `${valuationDetail.detail} A good asset can still be a poor price.`,
+      coverage: null,
+      basisLabel: valuationDetail.basis ? VALUATION_BASIS_LABELS[valuationDetail.basis] : null,
     },
     {
       key: "entry",
       label: "E",
       score: entry,
       tone: scoreTone(entry),
-      status: entry == null ? "Not wired" : entry >= 75 ? "Attractive" : entry >= 45 ? "Mixed" : "Poor entry",
-      note: entry == null ? "Entry Score will use technical condition and structure; it is not inferred from relative strength." : "Technical condition and structural entry score.",
+      status: entry == null ? "E pending" : entry >= 75 ? "Attractive" : entry >= 45 ? "Mixed" : "Poor entry",
+      note: entry == null ? "Not enough stored price history to judge the setup; entry is never inferred from relative strength." : "Technical condition and structural entry score.",
+      coverage: input.entryCoverage ?? null,
+      basisLabel: null,
     },
   ];
   const weightedInputs = [
@@ -489,7 +518,11 @@ export function allocationRead(input: {
   const note = provisional
     ? read.note + " Provisional: " + scoredSignals + " of 4 signals scored."
     : read.note;
-  return { allocationScore, label: read.label, note, scoredSignals, provisional, gauges } satisfies SouthernStarAllocationRead;
+  // Renormalising over one or two signals produces a confident-looking number from very little.
+  const warning = scoredSignals < 3
+    ? `Allocation is renormalised over ${scoredSignals} of 4 signals${scoredSignals ? "" : " and cannot be scored"}. Treat it as a prompt to research, not as a ranking.`
+    : null;
+  return { allocationScore, label: read.label, note, scoredSignals, provisional, warning, gauges } satisfies SouthernStarAllocationRead;
 }
 
 /** Market capitalisation plus debt less cash — the figure a project NPV should be compared against. */

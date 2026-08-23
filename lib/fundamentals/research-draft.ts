@@ -132,6 +132,7 @@ export function buildFundamentalResearchDraft(source: FundamentalResearchSource)
     primaryMetal: null,
     quantityUnit: null,
     productionPeriod: null,
+    costBasis: null,
     jurisdiction: null,
     projectStage: null,
     productionOz: extracted.productionOz,

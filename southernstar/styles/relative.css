@@ -675,6 +675,26 @@
   font-size: 11px;
   line-height: 1.35;
 }
+.allocationGaugeMeta {
+  display: block;
+  margin-top: 4px;
+  color: var(--accent-gold);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: .04em;
+  opacity: .85;
+}
+.allocationWarning {
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  border: 1px solid rgba(224,190,110,.38);
+  border-radius: 10px;
+  background: rgba(224,190,110,.08);
+  color: var(--text-primary);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
 .allocationGauge.isGood { border-color: rgba(108,217,157,.30); }
 .allocationGauge.isWarning { border-color: rgba(224,190,110,.34); }
 .allocationGauge.isBad { border-color: rgba(255,127,135,.30); }

@@ -15,6 +15,7 @@ const base: MinerFundamentals = {
   aiscUsdPerOz: 14.2,
   quantityUnit: "oz",
   productionPeriod: "year",
+  costBasis: "aisc_byproduct",
   resourceMoz: 120,
   reserveMoz: 40,
   cashAud: 50_000_000,
@@ -222,7 +223,7 @@ test("cost position is judged against same-metal peers, not a fixed band", () =>
   // Under the old silver-calibrated bands any AISC above 28 scored 4 of 25, so every gold
   // producer in the book sat at the bottom of the cost curve permanently.
   assert.ok(cost?.score != null && cost.score > 12.5, `gold AISC below its peer median must beat neutral, got ${cost?.score}`);
-  assert.match(cost!.note, /gold peer median/);
+  assert.match(cost!.note, /4 gold peers/);
   assert.match(cost!.note, /USD\/oz/);
 });
 
@@ -257,6 +258,25 @@ test("per-pound and per-ounce names never share a cohort", () => {
   const cost = fundamentalScoreRead(pounds, [pounds, ...ouncePeers]).parts.find((part) => part.key === "cost");
 
   assert.equal(cost?.score, null, "three ounce peers are no cohort for a pound-quoted name");
+});
+
+test("costs are only ranked against figures on the same basis", () => {
+  // The same mine reports a several-fold lower number net of by-product credits than per
+  // equivalent ounce. Three peers on the wrong basis are no cohort at all.
+  const subject: MinerFundamentals = { ...base, symbol: "SUBJ", costBasis: "aisc_byproduct", aiscUsdPerOz: 6.07 };
+  const wrongBasis: MinerFundamentals[] = [
+    { ...base, symbol: "X1", costBasis: "aisc_ageq", aiscUsdPerOz: 36.89 },
+    { ...base, symbol: "X2", costBasis: "cash_cost", aiscUsdPerOz: 17.69 },
+    { ...base, symbol: "X3", costBasis: "cas", aiscUsdPerOz: 22.99 },
+  ];
+  const mixed = fundamentalScoreRead(subject, [subject, ...wrongBasis]).parts.find((part) => part.key === "cost");
+  assert.equal(mixed?.score, null, "a cost curve cannot be built from four different measures");
+
+  const sameBasis: MinerFundamentals[] = wrongBasis.map((peer, index) => ({ ...peer, costBasis: "aisc_byproduct" as const, aiscUsdPerOz: [5, 7, 9][index] }));
+  const matched = fundamentalScoreRead(subject, [subject, ...sameBasis]).parts.find((part) => part.key === "cost");
+  assert.ok(matched?.score != null, "peers on the same basis do form a cohort");
+  assert.match(matched!.note, /4 silver peers/);
+  assert.match(matched!.note, /by-product/);
 });
 
 test("a component with too few same-metal peers is not scored at all", () => {
@@ -356,7 +376,7 @@ test("allocationRead gates a quality leader when entry is absent", () => {
 
   assert.equal(read.label, "QUALITY LEADER / WAIT");
   assert.equal(read.gauges.map((gauge) => gauge.label).join(""), "FRVE");
-  assert.equal(read.gauges.find((gauge) => gauge.key === "entry")?.status, "Not wired");
+  assert.equal(read.gauges.find((gauge) => gauge.key === "entry")?.status, "E pending");
   assert.ok(read.note.includes("Entry Score"));
 });
 
@@ -384,6 +404,31 @@ test("allocationRead does not call an aligned setup mixed when entry is merely c
   assert.equal(read.label, "QUALITY LEADER / ENTRY CONSTRUCTIVE");
   assert.equal(read.provisional, false);
   assert.equal(read.scoredSignals, 4);
+});
+
+test("the gauges carry coverage and the model that produced the score", () => {
+  const read = allocationRead({ fundamentals: base, cohort, relativeScore: 80, relativeVelocity: 2, entryScore: 58, relativeCoverage: 0.7, entryCoverage: 0.8 });
+  const gauge = (key: string) => read.gauges.find((item) => item.key === key);
+
+  assert.equal(gauge("relative")?.coverage, 0.7);
+  assert.equal(gauge("entry")?.coverage, 0.8);
+  assert.equal(gauge("fundamental")?.coverage, 1);
+  assert.equal(gauge("valuation")?.basisLabel, "NPV/EV", "the reader must know which valuation model ran");
+});
+
+test("entry reads as pending rather than not wired", () => {
+  const read = allocationRead({ fundamentals: base, cohort, relativeScore: 80, relativeVelocity: 2 });
+
+  assert.equal(read.gauges.find((item) => item.key === "entry")?.status, "E pending");
+});
+
+test("allocationRead warns when it rests on fewer than three signals", () => {
+  const thin = allocationRead({ fundamentals: undefined, relativeScore: 80, relativeVelocity: 1 });
+  const full = allocationRead({ fundamentals: base, cohort, relativeScore: 80, relativeVelocity: 2, entryScore: 58 });
+
+  assert.equal(thin.scoredSignals, 1);
+  assert.match(thin.warning ?? "", /1 of 4 signals/);
+  assert.equal(full.warning, null, "four scored signals need no warning");
 });
 
 test("allocationRead names the pending case instead of guessing", () => {

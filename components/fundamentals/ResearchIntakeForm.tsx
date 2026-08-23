@@ -124,6 +124,15 @@ export function ResearchIntakeForm({ form, status, aiProvider, drafts, activeDra
         </label>
         <label><span>Production {form.quantityUnit === "lb" ? "lb" : "oz"}</span><input inputMode="decimal" value={form.productionOz} onChange={(event) => onChange("productionOz", event.target.value)} placeholder="12000000" /></label>
         <label><span>AISC USD/{form.quantityUnit === "lb" ? "lb" : "oz"}</span><input inputMode="decimal" value={form.aiscUsdPerOz} onChange={(event) => onChange("aiscUsdPerOz", event.target.value)} placeholder="18.50" /></label>
+        <label><span>Cost basis</span>
+          <select value={form.costBasis} onChange={(event) => onChange("costBasis", event.target.value)}>
+            <option value="">Not stated</option>
+            <option value="aisc_byproduct">AISC, net of by-product credits</option>
+            <option value="aisc_ageq">AISC per equivalent ounce</option>
+            <option value="cash_cost">Cash cost (excl. sustaining capital)</option>
+            <option value="cas">Costs applicable to sales</option>
+          </select>
+        </label>
         <label><span>Resource M{form.quantityUnit === "lb" ? "lb" : "oz"}</span><input inputMode="decimal" value={form.resourceMoz} onChange={(event) => onChange("resourceMoz", event.target.value)} placeholder="100" /></label>
         <label><span>Reserve M{form.quantityUnit === "lb" ? "lb" : "oz"}</span><input inputMode="decimal" value={form.reserveMoz} onChange={(event) => onChange("reserveMoz", event.target.value)} placeholder="50" /></label>
         <label><span>Cash A$</span><input inputMode="decimal" value={form.cashAud} onChange={(event) => onChange("cashAud", event.target.value)} /></label>

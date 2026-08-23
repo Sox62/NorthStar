@@ -53,6 +53,8 @@ export type ResearchFormState = {
   quantityUnit: string;
   /** "quarter" | "half" | "year" — blank reads as year. */
   productionPeriod: string;
+  /** Which cost measure the AISC field holds; costs are only compared within one basis. */
+  costBasis: string;
   resourceMoz: string;
   reserveMoz: string;
   cashAud: string;
@@ -95,6 +97,7 @@ export const blankResearchForm: ResearchFormState = {
   aiscUsdPerOz: "",
   quantityUnit: "",
   productionPeriod: "",
+  costBasis: "",
   resourceMoz: "",
   reserveMoz: "",
   cashAud: "",
@@ -121,6 +124,7 @@ export const RESEARCH_TEMPLATE_SCHEMA = `{
   "projectStage": "Producer | Developer | Explorer | Royalty | ETF | Other",
   "quantityUnit": "oz | lb - the unit behind production, resource, reserve and AISC",
   "productionPeriod": "quarter | half | year - the period the production figure covers",
+  "costBasis": "aisc_byproduct | aisc_ageq | cash_cost | cas - which cost measure the AISC field holds",
   "asOfDate": "YYYY-MM-DD",
   "productionOz": null,
   "aiscUsdPerOz": null,
@@ -250,6 +254,7 @@ export function researchFormForHolding(holding: Holding, saved: MinerFundamental
     aiscUsdPerOz: formNumberText(saved?.aiscUsdPerOz),
     quantityUnit: formText(saved?.quantityUnit),
     productionPeriod: formText(saved?.productionPeriod),
+    costBasis: formText(saved?.costBasis),
     resourceMoz: formNumberText(saved?.resourceMoz),
     reserveMoz: formNumberText(saved?.reserveMoz),
     cashAud: formNumberText(saved?.cashAud),
@@ -280,6 +285,7 @@ export function researchFormForIdea(saved: MinerFundamentals): ResearchFormState
     aiscUsdPerOz: formNumberText(saved.aiscUsdPerOz),
     quantityUnit: formText(saved.quantityUnit),
     productionPeriod: formText(saved.productionPeriod),
+    costBasis: formText(saved.costBasis),
     resourceMoz: formNumberText(saved.resourceMoz),
     reserveMoz: formNumberText(saved.reserveMoz),
     cashAud: formNumberText(saved.cashAud),
@@ -309,6 +315,7 @@ export function researchFormForDraft(draft: FundamentalResearchDraft): ResearchF
     aiscUsdPerOz: draft.aiscUsdPerOz,
     quantityUnit: draft.quantityUnit ?? null,
     productionPeriod: draft.productionPeriod ?? null,
+    costBasis: draft.costBasis ?? null,
     resourceMoz: draft.resourceMoz,
     reserveMoz: draft.reserveMoz,
     cashAud: draft.cashAud,
@@ -480,6 +487,7 @@ export async function saveResearchFundamentals(form: ResearchFormState): Promise
       aiscUsdPerOz: formNumber(form.aiscUsdPerOz),
       quantityUnit: (formValue(form.quantityUnit) as MinerFundamentals["quantityUnit"]) ?? null,
       productionPeriod: (formValue(form.productionPeriod) as MinerFundamentals["productionPeriod"]) ?? null,
+      costBasis: (formValue(form.costBasis) as MinerFundamentals["costBasis"]) ?? null,
       resourceMoz: formNumber(form.resourceMoz),
       reserveMoz: formNumber(form.reserveMoz),
       cashAud: formNumber(form.cashAud),

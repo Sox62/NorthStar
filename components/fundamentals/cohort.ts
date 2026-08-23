@@ -1,4 +1,4 @@
-import type { MinerFundamentals, QuantityUnit, ReportingPeriod } from "@/lib/storage";
+import type { CostBasis, MinerFundamentals, QuantityUnit, ReportingPeriod } from "@/lib/storage";
 
 export type MetalKey = "gold" | "silver" | "uranium" | "copper" | "platinum" | "other";
 
@@ -69,7 +69,12 @@ export function median(values: number[]) {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-export type CohortRead = { metal: MetalKey; unit: QuantityUnit; size: number; median: number | null };
+export type CohortRead = { metal: MetalKey; unit: QuantityUnit; basis: CostBasis | null; size: number; median: number | null };
+
+/** Null basis means the record has not said which cost measure it holds, so it matches only other unstated ones. */
+export function costBasisOf(fundamentals: MinerFundamentals | undefined): CostBasis | null {
+  return fundamentals?.costBasis ?? null;
+}
 
 /**
  * The peers that share both the metal and the recorded unit and actually carry the metric, plus
@@ -80,14 +85,17 @@ export function cohortMedianFor(
   fundamentals: MinerFundamentals | undefined,
   cohort: MinerFundamentals[],
   pick: (peer: MinerFundamentals) => number | null,
+  options: { matchCostBasis?: boolean } = {},
 ): CohortRead {
   const metal = primaryMetalKey(fundamentals);
   const unit = quantityUnitOf(fundamentals);
+  const basis = options.matchCostBasis ? costBasisOf(fundamentals) : null;
   const values = cohort
     .filter((peer) => primaryMetalKey(peer) === metal && quantityUnitOf(peer) === unit)
+    .filter((peer) => !options.matchCostBasis || costBasisOf(peer) === basis)
     .map(pick)
     .filter((value): value is number => value != null && Number.isFinite(value) && value > 0);
-  return { metal, unit, size: values.length, median: median(values) };
+  return { metal, unit, basis, size: values.length, median: median(values) };
 }
 
 /**

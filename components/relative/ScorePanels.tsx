@@ -33,6 +33,16 @@ function scoreValue(value: number | null) {
   return value == null ? "-" : String(Math.round(value));
 }
 
+/** "68% evidence" — how much of a signal's basis could actually be tested. */
+function coverageLabel(coverage: number | null) {
+  return coverage == null ? null : Math.round(coverage * 100) + "% evidence";
+}
+
+function GaugeMeta({ coverage, basisLabel }: { coverage: number | null; basisLabel: string | null }) {
+  const parts = [coverageLabel(coverage), basisLabel].filter(Boolean) as string[];
+  return parts.length ? <em className="allocationGaugeMeta">{parts.join(" · ")}</em> : null;
+}
+
 export function AllocationReadPanel({ read }: { read: SouthernStarAllocationRead }) {
   return (
     <div className="allocationReadPanel">
@@ -48,11 +58,14 @@ export function AllocationReadPanel({ read }: { read: SouthernStarAllocationRead
           <div className={"allocationGauge is" + gauge.tone.charAt(0).toUpperCase() + gauge.tone.slice(1)} key={gauge.key}>
             <div className="allocationGaugeTop"><span>{gauge.label}</span><strong>{gauge.score == null ? "-" : gauge.score}</strong></div>
             <b>{gauge.status}</b>
+            <GaugeMeta coverage={gauge.coverage} basisLabel={gauge.basisLabel} />
             <p>{gauge.note}</p>
           </div>
         ))}
       </div>
+      {read.warning ? <p className="allocationWarning" role="status">{read.warning}</p> : null}
       <p className="relativeScoreNote">Fundamentals tell us what we are prepared to own. Relative strength tells us what the market is rewarding. Entry condition tells us when to buy or add.</p>
+      <p className="relativeScoreNote"><strong>F/R/V/E are decision-support signals, not investment advice and not a buy or sell instruction.</strong> Each is a triage prompt for what to inspect next; every allocation decision stays yours, taken against the underlying sources rather than the score.</p>
     </div>
   );
 }
@@ -91,7 +104,7 @@ export function OpportunityMatrix({ rows, sort, onSort, onSelect }: { rows: Oppo
         <div>
           <p className="eyebrow">Opportunity matrix</p>
           <h3>F/R/V/E watchlist</h3>
-          <p>Holdings and saved ideas ranked by the signal you choose. Click a row to load its scorecard and chart context.</p>
+          <p>Holdings and saved ideas ranked by the signal you choose. Click a row to load its scorecard and chart context. These are decision-support signals, not investment advice or a buy/sell instruction.</p>
         </div>
       </div>
       <div className="opportunityTableWrap">
