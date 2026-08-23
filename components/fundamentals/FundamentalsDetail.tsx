@@ -12,6 +12,15 @@ import styles from "./FundamentalsDetail.module.css";
 const DEFAULT_PROBABILITY = 0.6;
 const DEFAULT_HAIRCUT = 35;
 
+function compactNotes(notes: string | null | undefined) {
+  const trimmed = notes?.replace(/\s+/g, " ").trim();
+  if (!trimmed) return null;
+  if (trimmed.length <= 260) return trimmed;
+  const sentenceEnd = trimmed.slice(0, 260).search(/[.!?](?:\s|$)/);
+  if (sentenceEnd >= 80) return trimmed.slice(0, sentenceEnd + 1);
+  return `${trimmed.slice(0, 240).trim()}...`;
+}
+
 function BarGroup({ bars }: { bars: MagnitudeBar[] }) {
   return (
     <div className={styles.bars}>
@@ -54,6 +63,8 @@ export function FundamentalsDetail({ holding, fundamentals, onClose, onEdit }: {
   const modes = useMemo(() => failureModes(fundamentals), [fundamentals]);
   const fundamentalScore = useMemo(() => fundamentalScoreRead(fundamentals), [fundamentals]);
   const riskJudgement = riskJudgementScore(fundamentals);
+  const notesPreview = compactNotes(fundamentals?.notes);
+  const hasFullNotes = Boolean(fundamentals?.notes?.trim());
 
   const descriptor = [
     fundamentals?.primaryMetal,
@@ -95,9 +106,16 @@ export function FundamentalsDetail({ holding, fundamentals, onClose, onEdit }: {
             </div>
 
             <p className={styles.thesis}>
-              {fundamentals?.notes?.trim()
+              {notesPreview
                 || "No thesis recorded. Add notes from the research intake form to keep the reasoning beside the numbers."}
             </p>
+
+            {hasFullNotes ? (
+              <details className={styles.fullNotes}>
+                <summary>View full notes</summary>
+                <div>{fundamentals?.notes}</div>
+              </details>
+            ) : null}
 
             <div className={styles.scoreSummary}>
               <strong>{fundamentalScore.status}</strong>

@@ -64,6 +64,35 @@
   text-wrap: pretty;
 }
 
+.fullNotes {
+  margin-top: 10px;
+  border: 1px solid rgba(106, 130, 153, 0.22);
+  border-radius: 10px;
+  background: rgba(4, 12, 20, 0.36);
+}
+
+.fullNotes summary {
+  padding: 9px 11px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.fullNotes summary:hover {
+  color: var(--text-primary);
+}
+
+.fullNotes div {
+  max-height: 180px;
+  overflow: auto;
+  padding: 0 11px 11px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
 .scoreSummary {
   display: flex;
   justify-content: space-between;
