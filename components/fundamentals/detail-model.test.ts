@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { MinerFundamentals } from "@/lib/storage";
-import { allocationRead, enterpriseValueAud, failureModes, fundamentalBars, fundamentalQualityScore, fundamentalScoreRead, netCashAud, riskJudgementScore, riskLevel, valuationBars, valuationRows, valuationScore } from "./detail-model";
+import { allocationRead, enterpriseValueAud, failureModes, fundamentalBars, fundamentalQualityScore, fundamentalScoreRead, netCashAud, riskJudgementScore, riskLevel, valuationBars, valuationRead, valuationRows, valuationScore } from "./detail-model";
 import { researchFormForHolding, researchFormForIdea } from "./model";
 import type { Holding } from "@/southernstar/types";
 
@@ -13,6 +13,8 @@ const base: MinerFundamentals = {
   projectStage: "Producing",
   productionOz: 3_200_000,
   aiscUsdPerOz: 14.2,
+  quantityUnit: "oz",
+  productionPeriod: "year",
   resourceMoz: 120,
   reserveMoz: 40,
   cashAud: 50_000_000,
@@ -30,6 +32,22 @@ const base: MinerFundamentals = {
   asOfDate: "2026-08-01",
   updatedAt: "2026-08-01T00:00:00.000Z",
 };
+
+/** Same-metal peers, so cost and scale have a cohort to be judged against. */
+const silverPeers: MinerFundamentals[] = [
+  { ...base, symbol: "SP1", aiscUsdPerOz: 18, productionOz: 2_000_000 },
+  { ...base, symbol: "SP2", aiscUsdPerOz: 22, productionOz: 1_200_000 },
+  { ...base, symbol: "SP3", aiscUsdPerOz: 26, productionOz: 900_000 },
+];
+const cohort: MinerFundamentals[] = [base, ...silverPeers];
+
+const goldMiner: MinerFundamentals = { ...base, symbol: "KGC", primaryMetal: "Gold", aiscUsdPerOz: 1821, productionOz: 2_012_106, npvAud: null };
+const goldCohort: MinerFundamentals[] = [
+  goldMiner,
+  { ...goldMiner, symbol: "G1", aiscUsdPerOz: 1926, productionOz: 1_540_000 },
+  { ...goldMiner, symbol: "G2", aiscUsdPerOz: 2103, productionOz: 379_050 },
+  { ...goldMiner, symbol: "G3", aiscUsdPerOz: 2088, productionOz: 336_540 },
+];
 
 test("riskLevel maps the 0-5 research scores onto severities", () => {
   assert.deepEqual(riskLevel(5), { level: "Low", tone: "good", score: 1 });
@@ -188,13 +206,66 @@ test("an unresearched holding draws no relational bars", () => {
 
 
 test("fundamental score uses the stage model and factual coverage", () => {
-  const read = fundamentalScoreRead(base);
+  const read = fundamentalScoreRead(base, cohort);
 
   assert.equal(read.model, "producer");
   assert.equal(read.coverage, 100);
-  assert.equal(read.score, 81);
-  assert.equal(fundamentalQualityScore(base), 81);
+  assert.equal(read.score, 85);
+  assert.equal(fundamentalQualityScore(base, cohort), 85);
   assert.equal(riskJudgementScore(base), 3.75);
+});
+
+test("cost position is judged against same-metal peers, not a fixed band", () => {
+  const read = fundamentalScoreRead(goldMiner, goldCohort);
+  const cost = read.parts.find((part) => part.key === "cost");
+
+  // Under the old silver-calibrated bands any AISC above 28 scored 4 of 25, so every gold
+  // producer in the book sat at the bottom of the cost curve permanently.
+  assert.ok(cost?.score != null && cost.score > 12.5, `gold AISC below its peer median must beat neutral, got ${cost?.score}`);
+  assert.match(cost!.note, /gold peer median/);
+  assert.match(cost!.note, /USD\/oz/);
+});
+
+test("uranium is scored in its own units rather than against ounce thresholds", () => {
+  const uranium: MinerFundamentals = { ...base, symbol: "PDN", primaryMetal: "Uranium", quantityUnit: "lb", aiscUsdPerOz: 43.3, productionOz: 4_820_000 };
+  const peers = [uranium, { ...uranium, symbol: "U1", aiscUsdPerOz: 39.09 }, { ...uranium, symbol: "U2", aiscUsdPerOz: 55 }];
+  const cost = fundamentalScoreRead(uranium, peers).parts.find((part) => part.key === "cost");
+
+  assert.ok(cost?.score != null);
+  assert.match(cost!.note, /USD\/lb/, "uranium is recorded per pound, and the label must say so");
+});
+
+test("production is annualised before it is compared", () => {
+  // The same mine, one record capturing a quarter and one capturing the full year.
+  const quarterly: MinerFundamentals = { ...base, symbol: "Q", productionOz: 1_000_000, productionPeriod: "quarter" };
+  const yearly: MinerFundamentals = { ...base, symbol: "Y", productionOz: 4_000_000, productionPeriod: "year" };
+  const third: MinerFundamentals = { ...base, symbol: "P3", productionOz: 2_000_000, productionPeriod: "year" };
+  const peers = [quarterly, yearly, third];
+  const scale = (subject: MinerFundamentals) => fundamentalScoreRead(subject, peers).parts.find((part) => part.key === "production")?.score;
+
+  assert.equal(scale(quarterly), scale(yearly), "a quarter must not be ranked against a year");
+  assert.match(fundamentalScoreRead(quarterly, peers).parts.find((part) => part.key === "production")!.note, /4,000,000 oz\/yr/);
+});
+
+test("per-pound and per-ounce names never share a cohort", () => {
+  const pounds: MinerFundamentals = { ...base, symbol: "LB", primaryMetal: "Silver", quantityUnit: "lb", aiscUsdPerOz: 20 };
+  const ouncePeers = [
+    { ...base, symbol: "OZ1", aiscUsdPerOz: 18 },
+    { ...base, symbol: "OZ2", aiscUsdPerOz: 22 },
+    { ...base, symbol: "OZ3", aiscUsdPerOz: 26 },
+  ];
+  const cost = fundamentalScoreRead(pounds, [pounds, ...ouncePeers]).parts.find((part) => part.key === "cost");
+
+  assert.equal(cost?.score, null, "three ounce peers are no cohort for a pound-quoted name");
+});
+
+test("a component with too few same-metal peers is not scored at all", () => {
+  const lonely: MinerFundamentals = { ...base, symbol: "SOLO", primaryMetal: "Platinum" };
+  const read = fundamentalScoreRead(lonely, [lonely]);
+  const cost = read.parts.find((part) => part.key === "cost");
+
+  assert.equal(cost?.score, null, "a guess is worse than an absence");
+  assert.match(cost!.note, /at least 3 platinum peers/);
 });
 
 test("fundamental score stays pending when too much evidence is missing", () => {
@@ -218,11 +289,70 @@ test("fundamental score stays pending when too much evidence is missing", () => 
 });
 
 test("fundamental and valuation scores stay separate", () => {
-  assert.equal(valuationScore(base), 65);
+  // base carries A$300m of capex against A$50m of cash, so a A$250m raise dilutes the NPV
+  // from 1.61x enterprise value to 1.25x before it is scored.
+  assert.equal(valuationScore(base), 60);
+});
+
+test("valuation risks an NPV by what it costs to fund the build", () => {
+  const unfundable: MinerFundamentals = { ...base, marketCapAud: 184_000_000, cashAud: null, debtAud: null, capexAud: 753_000_000, npvAud: 1_059_000_000 };
+  const funded: MinerFundamentals = { ...unfundable, capexAud: null };
+
+  const risked = valuationRead(unfundable);
+  const headline = valuationRead(funded);
+
+  // The headline NPV is 5.8x enterprise value, which the unrisked scale called a maximum
+  // discount; the capex is four times the size of the company, so holders keep about a fifth.
+  assert.equal(headline.score, 100);
+  assert.ok(risked.score != null && risked.score < 70, `unfundable capex must not read as a discount, got ${risked.score}`);
+  assert.ok(risked.fundingDilution != null && risked.fundingDilution < 0.25);
+  assert.match(risked.detail, /once .* of capex is funded/);
+});
+
+test("a build the company can pay for out of cash is not diluted", () => {
+  const selfFunded: MinerFundamentals = { ...base, cashAud: 400_000_000, capexAud: 300_000_000 };
+  const read = valuationRead(selfFunded);
+
+  assert.equal(read.fundingDilution, 1);
+  assert.doesNotMatch(read.detail, /capex is funded/);
+});
+
+test("valuation is symmetric in log space around parity", () => {
+  const at = (npvAud: number) => valuationScore({ ...base, cashAud: null, debtAud: null, capexAud: null, marketCapAud: 100_000_000, npvAud });
+
+  assert.equal(at(100_000_000), 50, "NPV equal to enterprise value is neutral");
+  assert.equal(at(300_000_000), 100, "three times enterprise value is full marks");
+  assert.equal(at(33_333_333), 0, "one third of enterprise value is the floor");
+  // The old linear form could not score below 25 for any positive NPV.
+  assert.equal(at(50_000_000), 18, "priced at twice its NPV is stretched, not fair");
+  assert.ok((at(150_000_000) ?? 0) > (at(120_000_000) ?? 0), "cheaper must always score higher");
+});
+
+test("valuation says which evidence is missing instead of going quietly blank", () => {
+  const noMarketCap = valuationRead({ ...base, marketCapAud: null });
+  assert.equal(noMarketCap.score, null);
+  assert.match(noMarketCap.detail, /market capitalisation/);
+
+  const noNpv = valuationRead({ ...base, npvAud: null });
+  assert.equal(noNpv.score, null);
+  assert.match(noNpv.detail, /NPV/);
+
+  const fund = valuationRead({ ...base, projectStage: "ETF", productionOz: null });
+  assert.equal(fund.score, null);
+  assert.match(fund.detail, /Classify the stage/);
+});
+
+test("developer fundamentals no longer double-count NPV against enterprise value", () => {
+  const developer: MinerFundamentals = { ...base, projectStage: "Developer", productionOz: null, aiscUsdPerOz: null };
+  const read = fundamentalScoreRead(developer);
+
+  assert.equal(read.model, "developer");
+  assert.ok(!read.parts.some((part) => part.key === "valuation"), "valuation belongs to V, not F");
+  assert.equal(read.parts.reduce((sum, part) => sum + part.max, 0), 100);
 });
 
 test("allocationRead gates a quality leader when entry is absent", () => {
-  const read = allocationRead({ fundamentals: base, relativeScore: 88, relativeVelocity: -4 });
+  const read = allocationRead({ fundamentals: base, cohort, relativeScore: 88, relativeVelocity: -4 });
 
   assert.equal(read.label, "QUALITY LEADER / WAIT");
   assert.equal(read.gauges.map((gauge) => gauge.label).join(""), "FRVE");
@@ -232,15 +362,41 @@ test("allocationRead gates a quality leader when entry is absent", () => {
 
 test("allocationRead distinguishes speculative momentum from high conviction", () => {
   const weakFundamentals = { ...base, jurisdictionScore: 1, balanceSheetScore: 2, dilutionScore: 1, managementScore: 2 };
-  const read = allocationRead({ fundamentals: weakFundamentals, relativeScore: 95, relativeVelocity: 11, entryScore: 70 });
+  const read = allocationRead({ fundamentals: weakFundamentals, cohort, relativeScore: 95, relativeVelocity: 11, entryScore: 70 });
 
   assert.equal(read.label, "SPECULATIVE MOMENTUM");
   assert.equal(read.gauges.find((gauge) => gauge.key === "fundamental")?.tone, "bad");
   assert.equal(read.gauges.find((gauge) => gauge.key === "relative")?.tone, "good");
 });
 
+test("valuation falls back to price per unit against the peer cohort when no NPV exists", () => {
+  const priced = goldCohort.map((peer, index) => ({ ...peer, marketCapAud: [20_000_000_000, 15_000_000_000, 4_000_000_000, 5_000_000_000][index] }));
+  const read = valuationRead(priced[0], priced);
+
+  assert.equal(read.basis, "ev_per_production");
+  assert.ok(read.score != null);
+  assert.match(read.detail, /per oz against a gold peer median/);
+});
+
+test("allocationRead does not call an aligned setup mixed when entry is merely constructive", () => {
+  const read = allocationRead({ fundamentals: base, cohort, relativeScore: 80, relativeVelocity: 2, entryScore: 58 });
+
+  assert.equal(read.label, "QUALITY LEADER / ENTRY CONSTRUCTIVE");
+  assert.equal(read.provisional, false);
+  assert.equal(read.scoredSignals, 4);
+});
+
+test("allocationRead names the pending case instead of guessing", () => {
+  const read = allocationRead({ fundamentals: undefined, relativeScore: null, relativeVelocity: null });
+
+  assert.equal(read.label, "INSUFFICIENT DATA");
+  assert.equal(read.allocationScore, null);
+  assert.equal(read.provisional, true);
+  assert.ok(read.note.includes("0 of 4 signals scored"));
+});
+
 test("allocationRead keeps quality watchlist separate from current leadership", () => {
-  const read = allocationRead({ fundamentals: { ...base, jurisdictionScore: 5, balanceSheetScore: 5, dilutionScore: 5, managementScore: 5 }, relativeScore: 35, relativeVelocity: 3 });
+  const read = allocationRead({ fundamentals: { ...base, jurisdictionScore: 5, balanceSheetScore: 5, dilutionScore: 5, managementScore: 5 }, cohort, relativeScore: 35, relativeVelocity: 3 });
 
   assert.equal(read.label, "QUALITY / NOT CURRENTLY EARNING CAPITAL");
   assert.ok(read.note.includes("market has not yet confirmed"));

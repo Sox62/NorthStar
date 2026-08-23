@@ -130,6 +130,8 @@ export function buildFundamentalResearchDraft(source: FundamentalResearchSource)
     symbol,
     name: cleanNullable(source.name),
     primaryMetal: null,
+    quantityUnit: null,
+    productionPeriod: null,
     jurisdiction: null,
     projectStage: null,
     productionOz: extracted.productionOz,

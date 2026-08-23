@@ -2,8 +2,8 @@ import type { SouthernStarAllocationRead } from "@/components/fundamentals/detai
 import type { EntryScoreResult } from "@/southernstar/lib/entry-score";
 import type { RelativeScoreCheck, RelativeScoreComponent } from "@/southernstar/lib/ratio-engine";
 
-export type RelativeLayer = { label: string; target: string; score: number; max: number; component: RelativeScoreComponent; velocity: number | null };
-export type RelativeEngineScore = { score: number; velocity: number | null; reserve: RelativeLayer; sector: RelativeLayer | null; peers: RelativeLayer; peerCount: number; peerWins: number; sentence: string };
+export type RelativeLayer = { label: string; target: string; score: number | null; max: number; component: RelativeScoreComponent; velocity: number | null };
+export type RelativeEngineScore = { score: number | null; coverage: number; velocity: number | null; reserve: RelativeLayer; sector: RelativeLayer | null; peers: RelativeLayer; peerCount: number; peerWins: number; sentence: string };
 export type OpportunitySortKey = "allocation" | "fundamental" | "relative" | "velocity" | "valuation" | "entry";
 export type OpportunityRow = { symbol: string; name: string; model: string; source: string; fundamental: number | null; relative: number | null; velocity: number | null; valuation: number | null; entry: number | null; allocation: number | null; allocationLabel: string; selectionKind: "holding" | "benchmark"; selectionId: string; };
 
@@ -124,7 +124,7 @@ export function RelativeScorePanel({ score }: { score: RelativeEngineScore }) {
       <div className="relativeScoreHero">
         <div>
           <p className="eyebrow">Relative ranking engine</p>
-          <h3>Relative Score {Math.round(score.score)} <span>{scoreBadge(score.score)}</span></h3>
+          <h3>{score.score == null ? "Relative Score pending" : "Relative Score " + Math.round(score.score)} <span>{scoreBadge(score.score)}</span></h3>
           <p>{score.sentence}</p>
         </div>
         <div>
@@ -137,7 +137,7 @@ export function RelativeScorePanel({ score }: { score: RelativeEngineScore }) {
           <div className="relativeScoreLayer" key={layer.label}>
             <div className="relativeScoreLayerHead">
               <span>{layer.label} vs {layer.target}</span>
-              <strong>{Math.round(layer.score)}/{layer.max}</strong>
+              <strong>{layer.score == null ? "-" : Math.round(layer.score)}/{layer.max}</strong>
             </div>
             {layer.label === "Peers" ? (
               <p>{score.peerCount ? "Outperforming " + score.peerWins + " of " + score.peerCount + " comparable peers." : "No comparable peer history yet."}</p>
@@ -155,7 +155,10 @@ export function RelativeScorePanel({ score }: { score: RelativeEngineScore }) {
           </div>
         ))}
       </div>
-      <p className="relativeScoreNote">Relative Score identifies what is earning capital. Entry Score is deliberately separate and not inferred here.</p>
+      <p className="relativeScoreNote">
+        Relative Score identifies what is earning capital. Entry Score is deliberately separate and not inferred here.
+        {score.coverage < 1 ? " Scored on " + Math.round(score.coverage * 100) + "% of the ratio layers; the rest lack stored history." : ""}
+      </p>
     </div>
   );
 }

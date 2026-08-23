@@ -254,6 +254,9 @@ export function minerFundamentalsFromRow(row: Record<string, unknown>): MinerFun
     projectStage: row.project_stage == null ? null : String(row.project_stage),
     productionOz: row.production_oz == null ? null : numberValue(row.production_oz),
     aiscUsdPerOz: row.aisc_usd_per_oz == null ? null : numberValue(row.aisc_usd_per_oz),
+    // Absent on draft rows, which do not carry these columns; null reads as oz/year downstream.
+    quantityUnit: row.quantity_unit == null ? null : String(row.quantity_unit) as MinerFundamentals["quantityUnit"],
+    productionPeriod: row.production_period == null ? null : String(row.production_period) as MinerFundamentals["productionPeriod"],
     resourceMoz: row.resource_moz == null ? null : numberValue(row.resource_moz),
     reserveMoz: row.reserve_moz == null ? null : numberValue(row.reserve_moz),
     cashAud: row.cash_aud == null ? null : numberValue(row.cash_aud),

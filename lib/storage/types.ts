@@ -300,6 +300,19 @@ export type Snapshot = {
   netContributions: number;
 };
 
+/**
+ * The unit behind productionOz, resourceMoz, reserveMoz and the denominator of aiscUsdPerOz.
+ * Uranium and copper are reported per pound; the field names say "oz" for historical reasons.
+ * Null reads as "oz" so existing rows keep their meaning.
+ */
+export type QuantityUnit = "oz" | "lb";
+
+/** The period productionOz covers. Null reads as "year". */
+export type ReportingPeriod = "quarter" | "half" | "year";
+
+export const QUANTITY_UNITS: QuantityUnit[] = ["oz", "lb"];
+export const REPORTING_PERIODS: ReportingPeriod[] = ["quarter", "half", "year"];
+
 export type MinerFundamentals = {
   symbol: string;
   name: string | null;
@@ -308,6 +321,8 @@ export type MinerFundamentals = {
   projectStage: string | null;
   productionOz: number | null;
   aiscUsdPerOz: number | null;
+  quantityUnit: QuantityUnit | null;
+  productionPeriod: ReportingPeriod | null;
   resourceMoz: number | null;
   reserveMoz: number | null;
   cashAud: number | null;

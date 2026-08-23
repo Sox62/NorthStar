@@ -235,6 +235,7 @@ export default function FundamentalsRisk() {
       <HeldMinerTable
         holdings={sortedHoldings}
         fundamentalsBySymbol={fundamentalsBySymbol}
+        cohort={fundamentals}
         loading={loading}
         totalMinerValue={value}
         onSelect={setSelected}
@@ -258,12 +259,13 @@ export default function FundamentalsRisk() {
         onImportTemplate={(nextForm) => { setResearchForm(nextForm); setResearchStatus({ saving: false, finding: false, message: "Imported AI template. Review, then save.", error: "" }); }}
       />
 
-      <ResearchIdeasTable ideas={researchFundamentals} loading={loading} onSelect={handleEditResearchIdea} />
+      <ResearchIdeasTable ideas={researchFundamentals} cohort={fundamentals} loading={loading} onSelect={handleEditResearchIdea} />
 
       {selected ? (
         <FundamentalsDetail
           holding={selected}
           fundamentals={fundamentalsBySymbol.get(selected.symbol.toUpperCase())}
+          cohort={fundamentals}
           onClose={() => setSelected(null)}
           onEdit={handleEditFundamentals}
         />

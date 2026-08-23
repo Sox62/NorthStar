@@ -16,12 +16,14 @@ import styles from "./FundamentalsRisk.module.css";
 type HeldMinerTableProps = {
   holdings: Holding[];
   fundamentalsBySymbol: Map<string, MinerFundamentals>;
+  /** Every recorded fundamental — cost and scale are scored against same-metal peers. */
+  cohort: MinerFundamentals[];
   loading: boolean;
   totalMinerValue: number;
   onSelect: (holding: Holding) => void;
 };
 
-export function HeldMinerTable({ holdings, fundamentalsBySymbol, loading, totalMinerValue, onSelect }: HeldMinerTableProps) {
+export function HeldMinerTable({ holdings, fundamentalsBySymbol, cohort, loading, totalMinerValue, onSelect }: HeldMinerTableProps) {
   return (
     <Card className={styles.tableCard}>
       <div className="panelHeader">
@@ -52,7 +54,7 @@ export function HeldMinerTable({ holdings, fundamentalsBySymbol, loading, totalM
             {holdings.map((holding) => {
               const saved = fundamentalsBySymbol.get(holding.symbol.toUpperCase());
               const status = saved ? { label: "Research saved", tone: "good" as const } : scoreStatus(holding);
-              const score = saved ? fundamentalScoreRead(saved).score : null;
+              const score = saved ? fundamentalScoreRead(saved, cohort).score : null;
               const riskJudgement = riskJudgementScore(saved);
               return (
                 <tr
@@ -107,11 +109,13 @@ export function HeldMinerTable({ holdings, fundamentalsBySymbol, loading, totalM
 
 type ResearchIdeasTableProps = {
   ideas: MinerFundamentals[];
+  /** Every recorded fundamental — cost and scale are scored against same-metal peers. */
+  cohort: MinerFundamentals[];
   loading: boolean;
   onSelect: (idea: MinerFundamentals) => void;
 };
 
-export function ResearchIdeasTable({ ideas, loading, onSelect }: ResearchIdeasTableProps) {
+export function ResearchIdeasTable({ ideas, cohort, loading, onSelect }: ResearchIdeasTableProps) {
   return (
     <Card className={styles.tableCard}>
       <div className="panelHeader">
@@ -138,7 +142,7 @@ export function ResearchIdeasTable({ ideas, loading, onSelect }: ResearchIdeasTa
           </thead>
           <tbody>
             {ideas.map((item) => {
-              const score = fundamentalScoreRead(item).score;
+              const score = fundamentalScoreRead(item, cohort).score;
               const riskJudgement = riskJudgementScore(item);
               return (
                 <tr

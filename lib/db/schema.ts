@@ -217,6 +217,10 @@ export const minerFundamentals = pgTable("miner_fundamentals", {
   projectStage: text("project_stage"),
   productionOz: numeric("production_oz", { precision: 28, scale: 4 }),
   aiscUsdPerOz: numeric("aisc_usd_per_oz", { precision: 28, scale: 4 }),
+  /** Unit behind production/resource/reserve and the AISC denominator: 'oz' or 'lb'. Null reads as 'oz'. */
+  quantityUnit: text("quantity_unit"),
+  /** Period productionOz covers: 'quarter' | 'half' | 'year'. Null reads as 'year'. */
+  productionPeriod: text("production_period"),
   resourceMoz: numeric("resource_moz", { precision: 28, scale: 6 }),
   reserveMoz: numeric("reserve_moz", { precision: 28, scale: 6 }),
   cashAud: numeric("cash_aud", { precision: 28, scale: 2 }),

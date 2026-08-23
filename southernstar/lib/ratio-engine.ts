@@ -56,11 +56,25 @@ export type RelativeScoreCheck = {
 };
 
 export type RelativeScoreComponent = {
-  score: number;
+  /** Coverage-normalised score out of `max`, or null when too little history exists to judge. */
+  score: number | null;
+  /** Points actually earned, before normalising for checks that could not run. */
+  rawScore: number;
   max: number;
+  /** Combined max of the checks that had enough history to run. */
+  availableMax: number;
+  /** availableMax as a share of max, 0-1. */
+  coverage: number;
   checks: RelativeScoreCheck[];
   availableChecks: number;
 };
+
+/**
+ * A ratio layer must be able to test this share of its checks before it reports a score.
+ * Below it the layer reports null, because a missing 200-day average is absence of evidence,
+ * not evidence of weakness.
+ */
+export const RELATIVE_COVERAGE_FLOOR = 0.5;
 
 export const RATIO_RANGES: Array<{ key: RatioRangeKey; label: string; days: number | null }> = [
   { key: "all", label: "All", days: null },
@@ -193,8 +207,11 @@ export function scoreRatioTrend(series: RatioPoint[], max = 50): RelativeScoreCo
     momentumCheck(series, "6m", "confirmation_6m", "6M", 5 * scale),
     breakoutCheck(series, scale),
   ];
-  const score = checks.reduce((sum, check) => sum + check.points, 0);
-  return { score, max, checks, availableChecks: checks.filter((check) => check.available).length };
+  const rawScore = checks.reduce((sum, check) => sum + check.points, 0);
+  const availableMax = checks.filter((check) => check.available).reduce((sum, check) => sum + check.max, 0);
+  const coverage = max ? availableMax / max : 0;
+  const score = availableMax > 0 && coverage >= RELATIVE_COVERAGE_FLOOR ? rawScore / availableMax * max : null;
+  return { score, rawScore, max, availableMax, coverage, checks, availableChecks: checks.filter((check) => check.available).length };
 }
 
 export function scoreRatioTrendVelocity(series: RatioPoint[], max = 50, days = 30) {
@@ -203,7 +220,10 @@ export function scoreRatioTrendVelocity(series: RatioPoint[], max = 50, days = 3
   const cutoff = dateTime(latest.date) - days * 24 * 60 * 60 * 1000;
   const priorSeries = series.filter((point) => dateTime(point.date) <= cutoff);
   if (priorSeries.length < 2) return null;
-  return scoreRatioTrend(series, max).score - scoreRatioTrend(priorSeries, max).score;
+  const current = scoreRatioTrend(series, max).score;
+  const prior = scoreRatioTrend(priorSeries, max).score;
+  if (current == null || prior == null) return null;
+  return current - prior;
 }
 
 function trendCheck(series: RatioPoint[], scale: number): RelativeScoreCheck {

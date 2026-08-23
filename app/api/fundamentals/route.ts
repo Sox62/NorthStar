@@ -18,6 +18,8 @@ const fundamentalsSchema = z.object({
   projectStage: nullableText,
   productionOz: nullableNumber,
   aiscUsdPerOz: nullableNumber,
+  quantityUnit: z.preprocess((value) => value === "" || value === undefined ? null : value, z.enum(["oz", "lb"]).nullable()),
+  productionPeriod: z.preprocess((value) => value === "" || value === undefined ? null : value, z.enum(["quarter", "half", "year"]).nullable()),
   resourceMoz: nullableNumber,
   reserveMoz: nullableNumber,
   cashAud: nullableNumber,

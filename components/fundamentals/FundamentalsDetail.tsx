@@ -40,9 +40,11 @@ function BarGroup({ bars }: { bars: MagnitudeBar[] }) {
   );
 }
 
-export function FundamentalsDetail({ holding, fundamentals, onClose, onEdit }: {
+export function FundamentalsDetail({ holding, fundamentals, cohort = [], onClose, onEdit }: {
   holding: Holding;
   fundamentals: MinerFundamentals | undefined;
+  /** Every recorded fundamental — cost, scale and price are scored against same-metal peers. */
+  cohort?: MinerFundamentals[];
   onClose: () => void;
   onEdit: (holding: Holding) => void;
 }) {
@@ -61,7 +63,7 @@ export function FundamentalsDetail({ holding, fundamentals, onClose, onEdit }: {
   );
   const relationBars = useMemo(() => fundamentalBars(fundamentals), [fundamentals]);
   const modes = useMemo(() => failureModes(fundamentals), [fundamentals]);
-  const fundamentalScore = useMemo(() => fundamentalScoreRead(fundamentals), [fundamentals]);
+  const fundamentalScore = useMemo(() => fundamentalScoreRead(fundamentals, cohort), [fundamentals, cohort]);
   const riskJudgement = riskJudgementScore(fundamentals);
   const notesPreview = compactNotes(fundamentals?.notes);
   const hasFullNotes = Boolean(fundamentals?.notes?.trim());

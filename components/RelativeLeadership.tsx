@@ -252,8 +252,23 @@ function strengthTone(score: number | null) {
   return undefined;
 }
 
-function componentWins(component: RelativeScoreComponent) {
+/** Three-valued: true is winning, false is losing, null is not yet knowable from stored history. */
+function componentWins(component: RelativeScoreComponent): boolean | null {
+  if (component.score == null) return null;
   return component.score >= component.max * 0.55;
+}
+
+/**
+ * Relative structure health for the Entry integrity gate. Previously a layer with too little
+ * history scored zero and so always failed, which capped Entry on every young holding that
+ * pulled back. Unknown must stay unknown.
+ */
+function relativeIntegrity(engine: RelativeEngineScore): boolean | null {
+  const reserve = componentWins(engine.reserve.component);
+  if (reserve == null) return null;
+  if (!reserve) return false;
+  const sector = engine.sector ? componentWins(engine.sector.component) : null;
+  return sector == null ? reserve : sector;
 }
 
 function layerScore(label: string, target: DashboardHolding, max: number, series: RatioPoint[]): RelativeLayer {
@@ -333,28 +348,56 @@ function buildRelativeEngineScore(input: {
     const peerSeries = buildRatioSeries(assetHistory, historyForBenchmark(input.prices, input.fxRates, node));
     return layerScore("Peer", peerInstrument, 20, peerSeries);
   });
-  const peerScore = peerLayers.length ? peerLayers.reduce((sum, layer) => sum + layer.score, 0) / peerLayers.length : 0;
-  const peerVelocityValues = peerLayers.map((layer) => layer.velocity).filter((value): value is number => value != null);
+  const scoredPeers = peerLayers.filter((layer) => layer.score != null);
+  const peerScore = scoredPeers.length ? scoredPeers.reduce((sum, layer) => sum + (layer.score ?? 0), 0) / scoredPeers.length : null;
+  const peerVelocityValues = scoredPeers.map((layer) => layer.velocity).filter((value): value is number => value != null);
   const peerVelocity = peerVelocityValues.length ? peerVelocityValues.reduce((sum, value) => sum + value, 0) / peerVelocityValues.length : null;
-  const peerWins = peerLayers.filter((layer) => componentWins(layer.component)).length;
+  const peerWins = peerLayers.filter((layer) => componentWins(layer.component) === true).length;
   const peers: RelativeLayer = {
     label: "Peers",
-    target: peerLayers.length ? String(peerLayers.length) + " peers" : "No peers",
+    target: scoredPeers.length ? String(scoredPeers.length) + " peers" : "No peers",
     score: peerScore,
     max: 20,
-    component: { score: peerScore, max: 20, checks: peerLayers.flatMap((layer) => layer.component.checks), availableChecks: peerLayers.reduce((sum, layer) => sum + layer.component.availableChecks, 0) },
+    component: {
+      score: peerScore,
+      rawScore: peerScore ?? 0,
+      max: 20,
+      availableMax: scoredPeers.length ? 20 : 0,
+      coverage: scoredPeers.length ? 1 : 0,
+      checks: peerLayers.flatMap((layer) => layer.component.checks),
+      availableChecks: peerLayers.reduce((sum, layer) => sum + layer.component.availableChecks, 0),
+    },
     velocity: peerVelocity,
   };
 
-  const velocityParts = [reserve.velocity, sector?.velocity ?? null, peers.velocity].filter((value): value is number => value != null);
-  const score = reserve.score + (sector?.score ?? 0) + peers.score;
-  const velocity = velocityParts.length ? velocityParts.reduce((sum, value) => sum + value, 0) : null;
+  // Layers that cannot be scored used to contribute zero against a fixed denominator of 100, so
+  // an unresolved sector ETF or an empty peer set read as relative weakness rather than as
+  // missing evidence. Score against the weight actually available, and refuse without the
+  // reserve ratio, which is the spine of the read.
+  const scoredLayers = [reserve, sector, peers].filter((layer): layer is RelativeLayer => Boolean(layer) && layer!.score != null);
+  const availableWeight = scoredLayers.reduce((sum, layer) => sum + layer.max, 0);
+  const coverage = availableWeight / 100;
+  const score = reserve.score != null && availableWeight > 0
+    ? scoredLayers.reduce((sum, layer) => sum + (layer.score ?? 0), 0) / availableWeight * 100
+    : null;
+  const velocityLayers = scoredLayers.filter((layer) => layer.velocity != null);
+  const velocityWeight = velocityLayers.reduce((sum, layer) => sum + layer.max, 0);
+  const velocity = score != null && velocityWeight > 0
+    ? velocityLayers.reduce((sum, layer) => sum + (layer.velocity ?? 0), 0) / velocityWeight * 100
+    : null;
   const sectorText = sector ? sector.target : "sector benchmark";
-  const peerText = peerLayers.length ? String(Math.round(peerWins / peerLayers.length * 100)) + "% of peers" : "no comparable peers yet";
-  const reserveText = componentWins(reserve.component) ? "beating " + reserve.target : "not yet beating " + reserve.target;
-  const sectorOutcome = sector && componentWins(sector.component) ? "beating " + sectorText : "not yet beating " + sectorText;
+  const peerText = scoredPeers.length ? String(Math.round(peerWins / scoredPeers.length * 100)) + "% of peers" : "no comparable peers yet";
+  const reserveVerdict = componentWins(reserve.component);
+  const reserveText = reserveVerdict == null
+    ? "not enough ratio history vs " + reserve.target
+    : reserveVerdict ? "beating " + reserve.target : "not yet beating " + reserve.target;
+  const sectorVerdict = sector ? componentWins(sector.component) : null;
+  const sectorOutcome = !sector
+    ? "no sector benchmark resolved"
+    : sectorVerdict == null ? "not enough ratio history vs " + sectorText
+      : sectorVerdict ? "beating " + sectorText : "not yet beating " + sectorText;
   const sentence = "Reserve: " + reserveText + " · Sector: " + sectorOutcome + " · Peers: " + peerText;
-  return { score, velocity, reserve, sector, peers, peerCount: peerLayers.length, peerWins, sentence };
+  return { score, coverage, velocity, reserve, sector, peers, peerCount: scoredPeers.length, peerWins, sentence };
 }
 
 function ComparisonOptionGroups({ permanent, custom, savedGroups, side }: { permanent: BenchmarkNode[]; custom: BenchmarkNode[]; savedGroups: IdeaGroup[]; side: "left" | "right" }) {
@@ -398,16 +441,17 @@ function buildOpportunityRows(input: {
 }): OpportunityRow[] {
   const heldAssets = input.holdings.filter(isChartable).map((holding) => ({ asset: holding, kind: "holding" as const, selectionId: holding.id, source: holding.ownerType === "SMSF" ? "Holding · SMSF" : "Holding · Personal" }));
   const ideaAssets = input.savedIdeaNodes.map((node) => ({ asset: benchmarkInstrument(node), kind: "benchmark" as const, selectionId: node.id, source: "Saved idea" }));
+  const cohort = [...input.fundamentalsBySymbol.values()];
   const rows = [...heldAssets, ...ideaAssets].flatMap((item): OpportunityRow[] => {
     const asset = item.asset;
     const fundamentals = input.fundamentalsBySymbol.get(asset.symbol.toUpperCase());
     const relative = buildRelativeEngineScore({ asset, prices: input.prices, fxRates: input.fxRates, holdings: input.holdings, savedIdeaNodes: input.savedIdeaNodes, benchmarkNodes: input.benchmarkNodes });
-    const integrity = componentWins(relative.reserve.component) && (!relative.sector || componentWins(relative.sector.component));
+    const integrity = relativeIntegrity(relative);
     const history = item.kind === "benchmark"
       ? historyForBenchmark(input.prices, input.fxRates, input.benchmarkNodes.find((node) => node.id === item.selectionId) ?? input.savedIdeaNodes.find((node) => node.id === item.selectionId)!)
       : historyForHolding(input.prices, input.fxRates, asset);
     const entry = scoreEntryCondition(history, { relativeIntegrityHealthy: integrity });
-    const read = allocationRead({ fundamentals, relativeScore: relative.score, relativeVelocity: relative.velocity, entryScore: entry.score });
+    const read = allocationRead({ fundamentals, cohort, relativeScore: relative.score, relativeVelocity: relative.velocity, entryScore: entry.score });
     const gauge = (key: "fundamental" | "relative" | "valuation" | "entry") => read.gauges.find((item) => item.key === key)?.score ?? null;
     return [{
       symbol: asset.symbol,
@@ -555,10 +599,11 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   const evidenceWindows = useMemo(() => relativeReturnWindows(fullSeries, evidenceRanges), [fullSeries]);
   const pairThreeMonth = evidenceWindows.find((item) => item.key === "3m")?.ratioReturnPercent ?? null;
   const relativeEngine = useMemo(() => left ? buildRelativeEngineScore({ asset: left, prices, fxRates, holdings, savedIdeaNodes, benchmarkNodes }) : null, [left, prices, fxRates, holdings, savedIdeaNodes, benchmarkNodes]);
-  const relativeIntegrityHealthy = relativeEngine ? componentWins(relativeEngine.reserve.component) && (!relativeEngine.sector || componentWins(relativeEngine.sector.component)) : null;
+  const relativeIntegrityHealthy = relativeEngine ? relativeIntegrity(relativeEngine) : null;
   const entryScore = useMemo(() => scoreEntryCondition(leftHistory, { relativeIntegrityHealthy }), [leftHistory, relativeIntegrityHealthy]);
   const selectedFundamentals = left ? fundamentalsBySymbol.get(left.symbol.toUpperCase()) : undefined;
-  const allocationReadout = useMemo(() => allocationRead({ fundamentals: selectedFundamentals, relativeScore: relativeEngine?.score ?? null, relativeVelocity: relativeEngine?.velocity ?? null, entryScore: entryScore.score }), [selectedFundamentals, relativeEngine, entryScore.score]);
+  const fundamentalsCohort = useMemo(() => [...fundamentalsBySymbol.values()], [fundamentalsBySymbol]);
+  const allocationReadout = useMemo(() => allocationRead({ fundamentals: selectedFundamentals, cohort: fundamentalsCohort, relativeScore: relativeEngine?.score ?? null, relativeVelocity: relativeEngine?.velocity ?? null, entryScore: entryScore.score }), [selectedFundamentals, fundamentalsCohort, relativeEngine, entryScore.score]);
   const opportunityRows = useMemo(() => buildOpportunityRows({ holdings, savedIdeaNodes, fundamentalsBySymbol, prices, fxRates, benchmarkNodes, sort: opportunitySort }), [holdings, savedIdeaNodes, fundamentalsBySymbol, prices, fxRates, benchmarkNodes, opportunitySort]);
   const openOpportunity = (row: OpportunityRow) => {
     window.location.assign("/relative?kind=" + encodeURIComponent(row.selectionKind) + "&id=" + encodeURIComponent(row.selectionId));

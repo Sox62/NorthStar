@@ -52,6 +52,27 @@ test("scoreEntryCondition caps a falling price when relative integrity fails", (
   assert.ok((healthy.score ?? 0) >= (failed.score ?? 0));
 });
 
+test("scoreEntryCondition normalises over the checks that could run", () => {
+  const values = [
+    ...Array.from({ length: 45 }, (_, index) => 80 + index * 0.4),
+    ...Array.from({ length: 15 }, (_, index) => 98 - index * 0.3),
+  ];
+  const result = scoreEntryCondition(history(values), { relativeIntegrityHealthy: true });
+  const distance = result.checks.find((check) => check.key === "distance_200dma");
+
+  assert.equal(distance?.available, false, "the long average cannot be tested on 60 closes");
+  assert.equal(result.coverage, 0.8);
+  assert.ok(result.score != null && result.score > result.rawScore, "a young instrument must not be marked down for missing history");
+});
+
+test("scoreEntryCondition returns null when too few checks can run", () => {
+  const result = scoreEntryCondition(history(Array.from({ length: 30 }, (_, index) => 50 + index * 0.3)), { relativeIntegrityHealthy: true });
+
+  assert.equal(result.score, null);
+  assert.equal(result.label, "Not enough history");
+  assert.ok(result.coverage < 0.6);
+});
+
 test("scoreEntryCondition returns null without enough stored closes", () => {
   const result = scoreEntryCondition(history([10, 11, 12]), { relativeIntegrityHealthy: true });
 

@@ -107,10 +107,25 @@ export function ResearchIntakeForm({ form, status, aiProvider, drafts, activeDra
         <label><span>Jurisdiction</span><input value={form.jurisdiction} onChange={(event) => onChange("jurisdiction", event.target.value)} placeholder="Mexico, Peru, Canada" /></label>
         <label><span>Stage</span><input value={form.projectStage} onChange={(event) => onChange("projectStage", event.target.value)} placeholder="Producer" /></label>
         <label><span>As of</span><input type="date" value={form.asOfDate} onChange={(event) => onChange("asOfDate", event.target.value)} /></label>
-        <label><span>Production oz</span><input inputMode="decimal" value={form.productionOz} onChange={(event) => onChange("productionOz", event.target.value)} placeholder="12000000" /></label>
-        <label><span>AISC USD/oz</span><input inputMode="decimal" value={form.aiscUsdPerOz} onChange={(event) => onChange("aiscUsdPerOz", event.target.value)} placeholder="18.50" /></label>
-        <label><span>Resource Moz</span><input inputMode="decimal" value={form.resourceMoz} onChange={(event) => onChange("resourceMoz", event.target.value)} placeholder="100" /></label>
-        <label><span>Reserve Moz</span><input inputMode="decimal" value={form.reserveMoz} onChange={(event) => onChange("reserveMoz", event.target.value)} placeholder="50" /></label>
+        <label><span>Quantity unit</span>
+          <select value={form.quantityUnit} onChange={(event) => onChange("quantityUnit", event.target.value)}>
+            <option value="">Ounces (default)</option>
+            <option value="oz">Ounces</option>
+            <option value="lb">Pounds</option>
+          </select>
+        </label>
+        <label><span>Production covers</span>
+          <select value={form.productionPeriod} onChange={(event) => onChange("productionPeriod", event.target.value)}>
+            <option value="">Full year (default)</option>
+            <option value="year">Full year</option>
+            <option value="half">Half year</option>
+            <option value="quarter">Quarter</option>
+          </select>
+        </label>
+        <label><span>Production {form.quantityUnit === "lb" ? "lb" : "oz"}</span><input inputMode="decimal" value={form.productionOz} onChange={(event) => onChange("productionOz", event.target.value)} placeholder="12000000" /></label>
+        <label><span>AISC USD/{form.quantityUnit === "lb" ? "lb" : "oz"}</span><input inputMode="decimal" value={form.aiscUsdPerOz} onChange={(event) => onChange("aiscUsdPerOz", event.target.value)} placeholder="18.50" /></label>
+        <label><span>Resource M{form.quantityUnit === "lb" ? "lb" : "oz"}</span><input inputMode="decimal" value={form.resourceMoz} onChange={(event) => onChange("resourceMoz", event.target.value)} placeholder="100" /></label>
+        <label><span>Reserve M{form.quantityUnit === "lb" ? "lb" : "oz"}</span><input inputMode="decimal" value={form.reserveMoz} onChange={(event) => onChange("reserveMoz", event.target.value)} placeholder="50" /></label>
         <label><span>Cash A$</span><input inputMode="decimal" value={form.cashAud} onChange={(event) => onChange("cashAud", event.target.value)} /></label>
         <label><span>Debt A$</span><input inputMode="decimal" value={form.debtAud} onChange={(event) => onChange("debtAud", event.target.value)} /></label>
         <label><span>Market cap A$</span><input inputMode="decimal" value={form.marketCapAud} onChange={(event) => onChange("marketCapAud", event.target.value)} placeholder="900000000" /></label>

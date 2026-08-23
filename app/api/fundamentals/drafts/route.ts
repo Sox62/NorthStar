@@ -20,7 +20,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const input = fundamentalsDraftSchema.parse(await request.json());
-    return NextResponse.json({ draft: await getStorage().createFundamentalResearchDraft(input) }, { status: 201 });
+    // Drafts do not carry quantityUnit/productionPeriod: an extractor cannot reliably infer
+    // either, so an accepted draft takes the oz/year defaults for review in the intake form.
+    return NextResponse.json({ draft: await getStorage().createFundamentalResearchDraft({ ...input, quantityUnit: null, productionPeriod: null }) }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid fundamentals draft" }, { status: 400 });
   }

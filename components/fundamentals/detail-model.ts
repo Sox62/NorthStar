@@ -1,6 +1,7 @@
 import type { MinerFundamentals } from "@/lib/storage";
 import type { Holding } from "@/southernstar/types";
 import { dateOrDash, money, moneyOrDash, numberOrDash } from "./model";
+import { COST_SPREAD, MIN_COHORT, SCALE_SPREAD, VALUATION_SPREAD, annualisedProduction, cohortAnchoredScore, cohortMedianFor, quantityUnitOf, reportingPeriodOf, type CohortRead } from "./cohort";
 
 export type RiskTone = "good" | "warning" | "bad";
 export type SouthernStarTone = "good" | "warning" | "bad" | "muted";
@@ -18,8 +19,73 @@ export type SouthernStarAllocationRead = {
   allocationScore: number | null;
   label: string;
   note: string;
+  /** How many of F/R/V/E actually produced a score. */
+  scoredSignals: number;
+  /** True when the allocation score was renormalised over fewer than four signals. */
+  provisional: boolean;
   gauges: SouthernStarGauge[];
 };
+
+type SignalBand = "strong" | "mixed" | "weak" | "unknown";
+type EntryBand = "good" | "constructive" | "poor" | "unknown";
+
+function signalBand(score: number | null): SignalBand {
+  if (score == null) return "unknown";
+  if (score >= 70) return "strong";
+  if (score < 50) return "weak";
+  return "mixed";
+}
+
+function entryBand(score: number | null): EntryBand {
+  if (score == null) return "unknown";
+  if (score >= 65) return "good";
+  if (score < 50) return "poor";
+  return "constructive";
+}
+
+/**
+ * Every F band against every R band, modulated by entry. The previous if/else ladder left gaps:
+ * a strong F with a strong R and an entry between 50 and 64 matched no branch and fell through
+ * to "signals are mixed", which is the opposite of what those three readings say.
+ */
+function allocationLabelFor(input: { fundamental: number | null; relative: number | null; entry: number | null; velocity: number | null }): { label: string; note: string } {
+  const fundamental = signalBand(input.fundamental);
+  const relative = signalBand(input.relative);
+  const entry = entryBand(input.entry);
+  const improving = input.velocity != null && input.velocity > 0;
+
+  if (fundamental === "strong" && relative === "strong") {
+    if (entry === "good") return { label: "OWN / ADD CANDIDATE", note: "Quality, market leadership and entry condition are aligned." };
+    if (entry === "constructive") return { label: "QUALITY LEADER / ENTRY CONSTRUCTIVE", note: "Fundamentals and relative strength agree and the setup is workable, though not at its most attractive." };
+    if (entry === "poor") return { label: "QUALITY LEADER / WAIT", note: "Fundamentals and relative strength agree, but the current price setup is a poor place to add." };
+    return { label: "QUALITY LEADER / WAIT", note: "Fundamentals and relative strength agree, but Entry Score has not confirmed an add point." };
+  }
+  if (fundamental === "strong") {
+    if (relative === "mixed") {
+      return improving
+        ? { label: "QUALITY / LEADERSHIP IMPROVING", note: "Fundamentals are strong and relative strength is turning up, but leadership is not yet established." }
+        : { label: "QUALITY / LEADERSHIP UNCONFIRMED", note: "Fundamentals are strong but relative strength is only middling; wait for the market to confirm." };
+    }
+    if (relative === "weak") return { label: "QUALITY / NOT CURRENTLY EARNING CAPITAL", note: "Fundamentals are strong but the market has not yet confirmed relative leadership." };
+    return { label: "QUALITY / RELATIVE PENDING", note: "Fundamentals are strong; there is not enough stored ratio history to judge relative leadership yet." };
+  }
+  if (fundamental === "mixed") {
+    if (relative === "strong") return { label: "MOMENTUM / FUNDAMENTALS MIXED", note: "The market is rewarding this, but the fundamental case is only partly made." };
+    if (relative === "mixed") return { label: "WATCH", note: "Neither the business nor the market is making a clear case; inspect before allocating." };
+    if (relative === "weak") return { label: "WATCH / NOT EARNING CAPITAL", note: "Mixed fundamentals and no relative leadership; nothing here demands capital." };
+    return { label: "WATCH / RELATIVE PENDING", note: "Fundamentals are mixed and there is not enough ratio history to judge leadership." };
+  }
+  if (fundamental === "weak") {
+    if (relative === "strong") return { label: "SPECULATIVE MOMENTUM", note: "Relative strength is strong, but fundamentals do not clear the risk gate." };
+    if (relative === "mixed") return { label: "SPECULATIVE / LEADERSHIP UNCONFIRMED", note: "Fundamentals do not clear the risk gate and the market has not confirmed the trade either." };
+    if (relative === "weak") return { label: "AVOID / RESEARCH ONLY", note: "Neither fundamentals nor relative strength currently justify capital." };
+    return { label: "WEAK FUNDAMENTALS / RELATIVE PENDING", note: "Fundamentals do not clear the risk gate; relative leadership cannot be judged yet." };
+  }
+  if (relative === "strong") return { label: "RELATIVE LEADER / FUNDAMENTALS PENDING", note: "The market is rewarding this, but F has too little recorded evidence to score. Research is the next step." };
+  if (relative === "mixed") return { label: "FUNDAMENTALS PENDING", note: "Relative strength is unremarkable and F has too little recorded evidence to score." };
+  if (relative === "weak") return { label: "NOT EARNING CAPITAL / FUNDAMENTALS PENDING", note: "Relative strength is weak and F has too little recorded evidence to score." };
+  return { label: "INSUFFICIENT DATA", note: "Neither fundamentals nor relative strength can be scored from what is recorded." };
+}
 
 export type FundamentalScorePart = {
   key: string;
@@ -83,6 +149,15 @@ function scoreOutOf(value: number | null, max: number, note: string, label: stri
   return { key, label, score: value == null ? null : Math.min(max, Math.max(0, value)), max, note };
 }
 
+/** Says which peer group a component was judged against, or exactly what is missing. */
+function cohortNote(label: string, value: number | null, unitSuffix: string, cohort: CohortRead, scored: number | null) {
+  if (scored != null) {
+    return `${numberOrDash(value, unitSuffix)} against a ${cohort.metal} peer median of ${numberOrDash(cohort.median, unitSuffix)} across ${cohort.size} names.`;
+  }
+  if (value == null) return `Needs ${label}.`;
+  return `Needs at least ${MIN_COHORT} ${cohort.metal} peers with ${label} recorded; ${cohort.size} available.`;
+}
+
 function judgementPoints(score: number | null | undefined, max: number) {
   return score == null ? null : score / 5 * max;
 }
@@ -107,13 +182,18 @@ function balanceEvidenceScore(fundamentals: MinerFundamentals, max: number) {
   return manual == null ? derived : derived * 0.65 + manual * 0.35;
 }
 
-function producerScore(fundamentals: MinerFundamentals): FundamentalScorePart[] {
-  const aisc = fundamentals.aiscUsdPerOz;
-  const production = fundamentals.productionOz;
+function producerScore(fundamentals: MinerFundamentals, cohort: MinerFundamentals[]): FundamentalScorePart[] {
+  const unit = quantityUnitOf(fundamentals);
+  const costCohort = cohortMedianFor(fundamentals, cohort, (peer) => peer.aiscUsdPerOz);
+  const cost = cohortAnchoredScore({ value: fundamentals.aiscUsdPerOz, cohort: costCohort, lowerIsBetter: true, spread: COST_SPREAD, max: 25 });
+  // Annualised on both sides, or a name reporting a quarter is ranked against one reporting a year.
+  const annual = annualisedProduction(fundamentals);
+  const scaleCohort = cohortMedianFor(fundamentals, cohort, annualisedProduction);
+  const scale = cohortAnchoredScore({ value: annual, cohort: scaleCohort, lowerIsBetter: false, spread: SCALE_SPREAD, max: 15 });
   return [
-    scoreOutOf(aisc == null ? null : aisc <= 14 ? 25 : aisc <= 20 ? 18 : aisc <= 28 ? 10 : 4, 25, aisc == null ? "Needs AISC to test operating margin." : `AISC ${numberOrDash(aisc, " USD/oz")}.`, "Cost position", "cost"),
+    scoreOutOf(cost, 25, cohortNote("AISC", fundamentals.aiscUsdPerOz, ` USD/${unit}`, costCohort, cost), "Cost position", "cost"),
     scoreOutOf(balanceEvidenceScore(fundamentals, 20), 20, fundamentals.cashAud == null && fundamentals.debtAud == null ? "Manual balance judgement discounted until cash/debt are recorded." : "Cash, debt and enterprise value where available.", "Balance sheet", "balance"),
-    scoreOutOf(production == null ? null : production >= 1_000_000 ? 15 : production >= 300_000 ? 10 : 6, 15, production == null ? "Needs annual production." : `Production ${numberOrDash(production)} oz.`, "Production scale", "production"),
+    scoreOutOf(scale, 15, cohortNote("annual production", annual, ` ${unit}/yr`, scaleCohort, scale), "Production scale", "production"),
     scoreOutOf(reserveConversionScore(fundamentals, 15), 15, fundamentals.resourceMoz && fundamentals.reserveMoz != null ? "Reserve conversion from recorded resource base." : "Needs resource and reserve.", "Reserve quality", "reserve"),
     scoreOutOf(judgementPoints(fundamentals.jurisdictionScore, 10), 10, fundamentals.jurisdiction || "Needs jurisdiction.", "Jurisdiction", "jurisdiction"),
     scoreOutOf(judgementPoints(fundamentals.managementScore, 10), 10, "Manual execution judgement.", "Management", "management"),
@@ -121,26 +201,33 @@ function producerScore(fundamentals: MinerFundamentals): FundamentalScorePart[] 
   ];
 }
 
+/**
+ * Valuation deliberately does not appear here. NPV against enterprise value is V's job, and
+ * scoring it in both places let a single input drive roughly a third of the Allocation read
+ * while the panel claimed the two were independent. F answers "is this worth owning at all",
+ * V answers "at this price".
+ */
 function developerScore(fundamentals: MinerFundamentals): FundamentalScorePart[] {
   const enterprise = enterpriseValueAud(fundamentals);
-  const npv = fundamentals.npvAud;
   const capex = fundamentals.capexAud;
   return [
-    scoreOutOf(npv == null || !enterprise || enterprise <= 0 ? null : Math.min(25, Math.max(4, (npv / enterprise) * 8)), 25, npv == null || !enterprise ? "Needs NPV and enterprise value." : "NPV compared with enterprise value.", "Valuation support", "valuation"),
-    scoreOutOf(fundamentals.irrPercent == null ? null : fundamentals.irrPercent >= 30 ? 15 : fundamentals.irrPercent >= 20 ? 11 : fundamentals.irrPercent >= 12 ? 7 : 3, 15, fundamentals.irrPercent == null ? "Needs IRR." : `IRR ${numberOrDash(fundamentals.irrPercent, "%")}.`, "Project return", "irr"),
-    scoreOutOf(capex == null || !enterprise ? null : enterprise >= capex ? 15 : enterprise >= capex * 0.5 ? 9 : 4, 15, capex == null || !enterprise ? "Needs capex and market value." : "Funding task compared with current enterprise value.", "Funding scale", "funding"),
-    scoreOutOf(reserveConversionScore(fundamentals, 15), 15, fundamentals.resourceMoz && fundamentals.reserveMoz != null ? "Reserve conversion from recorded resource base." : "Needs resource and reserve.", "Resource quality", "resource"),
-    scoreOutOf(balanceEvidenceScore(fundamentals, 10), 10, fundamentals.cashAud == null && fundamentals.debtAud == null ? "Needs cash/debt to verify." : "Cash and debt position.", "Balance sheet", "balance"),
-    scoreOutOf(judgementPoints(fundamentals.jurisdictionScore, 10), 10, fundamentals.jurisdiction || "Needs jurisdiction.", "Jurisdiction", "jurisdiction"),
+    scoreOutOf(fundamentals.irrPercent == null ? null : fundamentals.irrPercent >= 30 ? 20 : fundamentals.irrPercent >= 20 ? 15 : fundamentals.irrPercent >= 12 ? 9 : 4, 20, fundamentals.irrPercent == null ? "Needs IRR." : `IRR ${numberOrDash(fundamentals.irrPercent, "%")}.`, "Project return", "irr"),
+    scoreOutOf(capex == null || !enterprise ? null : enterprise >= capex ? 20 : enterprise >= capex * 0.5 ? 12 : 5, 20, capex == null || !enterprise ? "Needs capex and market value." : "Funding task compared with current enterprise value.", "Funding scale", "funding"),
+    scoreOutOf(reserveConversionScore(fundamentals, 20), 20, fundamentals.resourceMoz && fundamentals.reserveMoz != null ? "Reserve conversion from recorded resource base." : "Needs resource and reserve.", "Resource quality", "resource"),
+    scoreOutOf(balanceEvidenceScore(fundamentals, 15), 15, fundamentals.cashAud == null && fundamentals.debtAud == null ? "Needs cash/debt to verify." : "Cash and debt position.", "Balance sheet", "balance"),
+    scoreOutOf(judgementPoints(fundamentals.jurisdictionScore, 15), 15, fundamentals.jurisdiction || "Needs jurisdiction.", "Jurisdiction", "jurisdiction"),
     scoreOutOf(judgementPoints(fundamentals.managementScore, 10), 10, "Manual execution judgement.", "Management", "management"),
   ];
 }
 
-function explorerScore(fundamentals: MinerFundamentals): FundamentalScorePart[] {
+function explorerScore(fundamentals: MinerFundamentals, cohort: MinerFundamentals[]): FundamentalScorePart[] {
+  const unit = quantityUnitOf(fundamentals);
   const enterprise = enterpriseValueAud(fundamentals);
   const cashRunway = fundamentals.cashAud != null && enterprise ? fundamentals.cashAud / enterprise : null;
+  const resourceCohort = cohortMedianFor(fundamentals, cohort, (peer) => peer.resourceMoz);
+  const resource = cohortAnchoredScore({ value: fundamentals.resourceMoz, cohort: resourceCohort, lowerIsBetter: false, spread: SCALE_SPREAD, max: 25 });
   return [
-    scoreOutOf(fundamentals.resourceMoz == null ? null : fundamentals.resourceMoz >= 5 ? 25 : fundamentals.resourceMoz >= 2 ? 18 : fundamentals.resourceMoz >= 0.5 ? 10 : 5, 25, fundamentals.resourceMoz == null ? "Needs resource or target scale." : `Resource ${numberOrDash(fundamentals.resourceMoz, " Moz")}.`, "Resource potential", "resource"),
+    scoreOutOf(resource, 25, cohortNote("a resource estimate", fundamentals.resourceMoz, ` M${unit}`, resourceCohort, resource), "Resource potential", "resource"),
     scoreOutOf(cashRunway == null ? null : cashRunway >= 0.25 ? 20 : cashRunway >= 0.1 ? 14 : cashRunway >= 0.04 ? 8 : 3, 20, cashRunway == null ? "Needs cash and market value." : "Cash as a share of enterprise value.", "Cash runway", "cash"),
     scoreOutOf(judgementPoints(fundamentals.dilutionScore, 15), 15, "Manual dilution judgement.", "Dilution", "dilution"),
     scoreOutOf(judgementPoints(fundamentals.jurisdictionScore, 15), 15, fundamentals.jurisdiction || "Needs jurisdiction.", "Jurisdiction", "jurisdiction"),
@@ -158,9 +245,9 @@ function scoreModel(fundamentals: MinerFundamentals | undefined): FundamentalSco
   return "unknown";
 }
 
-export function fundamentalScoreRead(fundamentals: MinerFundamentals | undefined): FundamentalScoreRead {
+export function fundamentalScoreRead(fundamentals: MinerFundamentals | undefined, cohort: MinerFundamentals[] = []): FundamentalScoreRead {
   const model = scoreModel(fundamentals);
-  const parts = !fundamentals ? [] : model === "producer" ? producerScore(fundamentals) : model === "developer" ? developerScore(fundamentals) : model === "explorer" ? explorerScore(fundamentals) : [];
+  const parts = !fundamentals ? [] : model === "producer" ? producerScore(fundamentals, cohort) : model === "developer" ? developerScore(fundamentals) : model === "explorer" ? explorerScore(fundamentals, cohort) : [];
   const scored = parts.filter((part) => part.score != null);
   const maxScored = scored.reduce((sum, part) => sum + part.max, 0);
   const maxPossible = parts.reduce((sum, part) => sum + part.max, 0);
@@ -174,21 +261,159 @@ export function fundamentalScoreRead(fundamentals: MinerFundamentals | undefined
   return { score: cappedScore, model, status, coverage, parts };
 }
 
-export function fundamentalQualityScore(fundamentals: MinerFundamentals | undefined) {
-  return fundamentalScoreRead(fundamentals).score;
+export function fundamentalQualityScore(fundamentals: MinerFundamentals | undefined, cohort: MinerFundamentals[] = []) {
+  return fundamentalScoreRead(fundamentals, cohort).score;
 }
 
-export function valuationScore(fundamentals: MinerFundamentals | undefined) {
-  const npv = fundamentals?.npvAud ?? null;
+export type ValuationRead = {
+  score: number | null;
+  basis: "npv_ev" | "ev_per_production" | "ev_per_resource" | null;
+  label: string;
+  status: string;
+  detail: string;
+  /** Share of a project NPV still owned by today's holders after the build is funded, 0-1. */
+  fundingDilution: number | null;
+};
+
+/**
+ * An NPV only reaches today's shareholders through whatever equity survives building the mine.
+ * Where capex exceeds cash on hand the shortfall has to be raised, and at roughly current market
+ * value that raise costs existing holders `raise / (enterprise + raise)` of the project.
+ *
+ * This is the difference between a headline NPV of 5.7x enterprise value and the ~1.1x its
+ * holders would actually own after funding a capex four times the size of the company. Without
+ * it, V scores an unfundable paper NPV as a maximum discount while F's own funding-scale
+ * component correctly scores it near zero — the two halves of the read contradicting each other.
+ *
+ * Deliberately only the funding haircut. Study confidence (PEA vs PFS vs DFS) and the vintage of
+ * the commodity price the study assumed are not risked here, because neither is a recorded field.
+ */
+function fundingDilution(fundamentals: MinerFundamentals, enterprise: number) {
+  const capex = fundamentals.capexAud;
+  if (capex == null || capex <= 0) return 1;
+  const raise = Math.max(0, capex - (fundamentals.cashAud ?? 0));
+  if (raise <= 0) return 1;
+  return enterprise / (enterprise + raise);
+}
+
+/**
+ * Parity scores 50 and the scale is symmetric in log space: three times enterprise value scores
+ * 100, one third of it scores 0. The previous linear form could not fall below 25 for any
+ * positive NPV and saturated at 3x, so it read an asset priced at twice its NPV and one priced
+ * at ten times it as nearly the same.
+ */
+export const VALUATION_FULL_MARKS_MULTIPLE = 3;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function valuationStatus(score: number) {
+  return score >= 75 ? "Discount" : score >= 45 ? "Fair/mixed" : "Stretched";
+}
+
+/**
+ * For names carrying no project NPV, price is judged per unit of what they actually own against
+ * the same-metal peer median: enterprise value per annual ounce for a producer, per resource
+ * ounce for a developer or explorer. Anchoring on the cohort avoids inventing a fair multiple
+ * for each metal, and it answers the question a portfolio actually asks — cheap or dear
+ * *relative to the alternatives already on the screen*.
+ */
+function perUnitValuation(input: {
+  fundamentals: MinerFundamentals;
+  enterprise: number;
+  cohort: MinerFundamentals[];
+  model: FundamentalScoreRead["model"];
+}): ValuationRead | null {
+  const { fundamentals, enterprise, cohort, model } = input;
+  const unit = quantityUnitOf(fundamentals);
+  const basis = model === "producer"
+    ? { key: "ev_per_production" as const, label: `Enterprise value per annual ${unit}`, pick: annualisedProduction, quantity: annualisedProduction(fundamentals) }
+    : { key: "ev_per_resource" as const, label: `Enterprise value per resource ${unit}`, pick: (peer: MinerFundamentals) => peer.resourceMoz, quantity: fundamentals.resourceMoz };
+  if (basis.quantity == null || basis.quantity <= 0) return null;
+  const perUnit = enterprise / basis.quantity;
+  const peers = cohortMedianFor(fundamentals, cohort, (peer) => {
+    const peerEnterprise = enterpriseValueAud(peer);
+    const peerQuantity = basis.pick(peer);
+    return peerEnterprise != null && peerEnterprise > 0 && peerQuantity != null && peerQuantity > 0 ? peerEnterprise / peerQuantity : null;
+  });
+  const raw = cohortAnchoredScore({ value: perUnit, cohort: peers, lowerIsBetter: true, spread: VALUATION_SPREAD, max: 100 });
+  if (raw == null) return null;
+  const score = Math.round(raw);
+  return {
+    score,
+    basis: basis.key,
+    label: basis.label,
+    status: valuationStatus(score),
+    // A price per producing ounce already reflects the asset as built, so there is nothing to risk.
+    fundingDilution: null,
+    detail: `${moneyOrDash(perUnit)} per ${unit} against a ${peers.metal} peer median of ${moneyOrDash(peers.median)} across ${peers.size} names.`,
+  };
+}
+
+export function valuationRead(fundamentals: MinerFundamentals | undefined, cohort: MinerFundamentals[] = []): ValuationRead {
+  const model = scoreModel(fundamentals);
+  if (!fundamentals || model === "unknown") {
+    return {
+      score: null,
+      basis: null,
+      label: "No valuation model",
+      status: "Not valued",
+      fundingDilution: null,
+      detail: "Classify the stage as producer, developer or explorer first. A fund's market price is its own valuation.",
+    };
+  }
   const enterprise = enterpriseValueAud(fundamentals);
-  if (npv == null || !enterprise || enterprise <= 0) return null;
-  return Math.round(Math.min(100, Math.max(0, 50 + (npv / enterprise - 1) * 25)));
+  if (enterprise == null || enterprise <= 0) {
+    return {
+      score: null,
+      basis: null,
+      label: "NPV vs enterprise value",
+      status: "Not valued",
+      fundingDilution: null,
+      detail: fundamentals.marketCapAud == null
+        ? "Needs market capitalisation before enterprise value can be derived."
+        : "Enterprise value is not positive, so a ratio to it would not mean anything.",
+    };
+  }
+  if (fundamentals.npvAud == null) {
+    const perUnit = perUnitValuation({ fundamentals, enterprise, cohort, model });
+    if (perUnit) return perUnit;
+    const unit = quantityUnitOf(fundamentals);
+    return {
+      score: null,
+      basis: null,
+      label: model === "producer" ? `Enterprise value per annual ${unit}` : `Enterprise value per resource ${unit}`,
+      status: "Not valued",
+      fundingDilution: null,
+      detail: `Needs a sourced NPV, or at least ${MIN_COHORT} same-metal peers carrying both a market capitalisation and a ${model === "producer" ? "production" : "resource"} figure.`,
+    };
+  }
+  const dilution = fundingDilution(fundamentals, enterprise);
+  const headline = fundamentals.npvAud / enterprise;
+  const ratio = headline * dilution;
+  const score = Math.round(clamp(50 + 50 * Math.log(ratio) / Math.log(VALUATION_FULL_MARKS_MULTIPLE), 0, 100));
+  const raise = Math.max(0, (fundamentals.capexAud ?? 0) - (fundamentals.cashAud ?? 0));
+  return {
+    score,
+    basis: "npv_ev",
+    label: "NPV vs enterprise value",
+    status: valuationStatus(score),
+    fundingDilution: dilution,
+    detail: dilution < 1
+      ? `NPV is ${headline.toFixed(2)}x enterprise value, ${ratio.toFixed(2)}x once ${moneyOrDash(raise)} of capex is funded.`
+      : `NPV is ${headline.toFixed(2)}x enterprise value.`,
+  };
+}
+
+export function valuationScore(fundamentals: MinerFundamentals | undefined, cohort: MinerFundamentals[] = []) {
+  return valuationRead(fundamentals, cohort).score;
 }
 
 export function stageMethodology(fundamentals: MinerFundamentals | undefined) {
   const stage = (fundamentals?.projectStage ?? "").toLowerCase();
   if (fundamentals?.productionOz || /produc|operat/.test(stage)) return "Producer model: margins, balance sheet, production quality, jurisdiction, management and growth.";
-  if (/develop|permitting|study|feasibility|pre[- ]?production/.test(stage)) return "Developer model: resource quality, NPV/market cap, IRR, capex funding, permitting, jurisdiction and timeline.";
+  if (/develop|permitting|study|feasibility|pre[- ]?production/.test(stage)) return "Developer model: resource quality, IRR, capex funding, permitting, jurisdiction and management; price is scored separately as V.";
   if (/explor|drill|discovery/.test(stage)) return "Explorer model: geology, resource potential, cash runway, enterprise value, drill results, dilution, jurisdiction and management.";
   return "Stage not set: use the saved fundamentals screen to classify this as producer, developer or explorer.";
 }
@@ -202,12 +427,16 @@ export function scoreTone(score: number | null): SouthernStarTone {
 
 export function allocationRead(input: {
   fundamentals: MinerFundamentals | undefined;
+  /** Every recorded fundamental, so cost, scale and price can be judged against same-metal peers. */
+  cohort?: MinerFundamentals[];
   relativeScore: number | null;
   relativeVelocity: number | null;
   entryScore?: number | null;
 }) {
-  const fundamental = fundamentalQualityScore(input.fundamentals);
-  const valuation = valuationScore(input.fundamentals);
+  const cohort = input.cohort ?? [];
+  const fundamental = fundamentalQualityScore(input.fundamentals, cohort);
+  const valuationDetail = valuationRead(input.fundamentals, cohort);
+  const valuation = valuationDetail.score;
   const entry = input.entryScore ?? null;
   const gauges: SouthernStarGauge[] = [
     {
@@ -215,7 +444,7 @@ export function allocationRead(input: {
       label: "F",
       score: fundamental,
       tone: scoreTone(fundamental),
-      status: fundamentalScoreRead(input.fundamentals).status,
+      status: fundamentalScoreRead(input.fundamentals, cohort).status,
       note: `${stageMethodology(input.fundamentals)} Requires enough factual coverage before F is scored.`,
     },
     {
@@ -231,8 +460,10 @@ export function allocationRead(input: {
       label: "V",
       score: valuation,
       tone: scoreTone(valuation),
-      status: valuation == null ? "Not valued" : valuation >= 75 ? "Discount" : valuation >= 45 ? "Fair/mixed" : "Stretched",
-      note: valuation == null ? "Needs sourced NPV and enterprise value; valuation is separate from business quality." : "NPV versus enterprise value; a good asset can still be a poor price.",
+      status: valuationDetail.status,
+      note: valuation == null
+        ? valuationDetail.detail
+        : `${valuationDetail.detail} A good asset can still be a poor price.`,
     },
     {
       key: "entry",
@@ -252,34 +483,13 @@ export function allocationRead(input: {
   const allocationScore = weightedInputs.length
     ? Math.round(weightedInputs.reduce((sum, item) => sum + item.value * item.weight, 0) / weightedInputs.reduce((sum, item) => sum + item.weight, 0))
     : null;
-  const strongF = fundamental != null && fundamental >= 70;
-  const weakF = fundamental != null && fundamental < 50;
-  const strongR = input.relativeScore != null && input.relativeScore >= 70;
-  const weakR = input.relativeScore != null && input.relativeScore < 50;
-  const goodEntry = entry != null && entry >= 65;
-  const poorEntry = entry != null && entry < 50;
-  let label = "WATCH";
-  let note = "Signals are mixed; inspect the disagreement before allocating.";
-  if (strongF && strongR && goodEntry) {
-    label = "OWN / ADD CANDIDATE";
-    note = "Quality, market leadership and entry condition are aligned.";
-  } else if (strongF && strongR && (poorEntry || entry == null)) {
-    label = "QUALITY LEADER / WAIT";
-    note = "Fundamentals and relative strength agree, but Entry Score has not confirmed an add point.";
-  } else if (strongF && weakR) {
-    label = "QUALITY / NOT CURRENTLY EARNING CAPITAL";
-    note = "Fundamentals are strong but the market has not yet confirmed relative leadership.";
-  } else if (weakF && strongR) {
-    label = "SPECULATIVE MOMENTUM";
-    note = "Relative strength is strong, but fundamentals do not clear the risk gate.";
-  } else if (weakF && weakR) {
-    label = "AVOID / RESEARCH ONLY";
-    note = "Neither fundamentals nor relative strength currently justify capital.";
-  } else if (strongR && input.relativeVelocity != null && input.relativeVelocity > 0) {
-    label = "RELATIVE IMPROVEMENT";
-    note = "Market leadership is improving; fundamentals and entry need confirmation.";
-  }
-  return { allocationScore, label, note, gauges } satisfies SouthernStarAllocationRead;
+  const read = allocationLabelFor({ fundamental, relative: input.relativeScore, entry, velocity: input.relativeVelocity });
+  const scoredSignals = weightedInputs.length;
+  const provisional = scoredSignals < 4;
+  const note = provisional
+    ? read.note + " Provisional: " + scoredSignals + " of 4 signals scored."
+    : read.note;
+  return { allocationScore, label: read.label, note, scoredSignals, provisional, gauges } satisfies SouthernStarAllocationRead;
 }
 
 /** Market capitalisation plus debt less cash — the figure a project NPV should be compared against. */
@@ -296,10 +506,11 @@ export function fundamentalFields(holding: Holding, fundamentals: MinerFundament
     { key: "stage", label: "Project stage", value: fundamentals?.projectStage || "-" },
     { key: "jurisdiction", label: "Jurisdiction", value: fundamentals?.jurisdiction || "-" },
     { key: "exchange", label: "Exchange", value: holding.exchange || "-" },
-    { key: "production", label: "Production oz", value: numberOrDash(fundamentals?.productionOz) },
-    { key: "aisc", label: "AISC US$/oz", value: numberOrDash(fundamentals?.aiscUsdPerOz) },
-    { key: "resource", label: "Resource Moz", value: numberOrDash(fundamentals?.resourceMoz) },
-    { key: "reserve", label: "Reserve Moz", value: numberOrDash(fundamentals?.reserveMoz) },
+    { key: "production", label: `Production ${quantityUnitOf(fundamentals)} (${reportingPeriodOf(fundamentals)})`, value: numberOrDash(fundamentals?.productionOz) },
+    { key: "annual", label: `Annualised ${quantityUnitOf(fundamentals)}`, value: numberOrDash(annualisedProduction(fundamentals)) },
+    { key: "aisc", label: `AISC US$/${quantityUnitOf(fundamentals)}`, value: numberOrDash(fundamentals?.aiscUsdPerOz) },
+    { key: "resource", label: `Resource M${quantityUnitOf(fundamentals)}`, value: numberOrDash(fundamentals?.resourceMoz) },
+    { key: "reserve", label: `Reserve M${quantityUnitOf(fundamentals)}`, value: numberOrDash(fundamentals?.reserveMoz) },
     { key: "cash", label: "Cash", value: moneyOrDash(fundamentals?.cashAud) },
     { key: "debt", label: "Debt", value: moneyOrDash(fundamentals?.debtAud) },
     { key: "net", label: "Net cash", value: moneyOrDash(net) },

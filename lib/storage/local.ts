@@ -852,6 +852,8 @@ export class LocalStorageAdapter implements StorageAdapter {
       projectStage: draft.projectStage,
       productionOz: draft.productionOz,
       aiscUsdPerOz: draft.aiscUsdPerOz,
+      quantityUnit: draft.quantityUnit ?? null,
+      productionPeriod: draft.productionPeriod ?? null,
       resourceMoz: draft.resourceMoz,
       reserveMoz: draft.reserveMoz,
       cashAud: draft.cashAud,

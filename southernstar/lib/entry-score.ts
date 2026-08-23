@@ -11,20 +11,37 @@ export type EntryScoreCheck = {
 };
 
 export type EntryScoreResult = {
+  /** Coverage-normalised score out of `max`, or null when too little history exists to judge. */
   score: number | null;
+  /** Points actually earned, before normalising for checks that could not run. */
+  rawScore: number;
   max: number;
+  /** Combined max of the checks that had enough history to run. */
+  availableMax: number;
+  /** availableMax as a share of max, 0-1. */
+  coverage: number;
   checks: EntryScoreCheck[];
   integrityGateApplied: boolean;
   label: string;
   note: string;
 };
 
+/**
+ * Entry must be able to test this share of its checks before it reports a score. A young
+ * instrument used to score near zero on the long-average and breakout checks purely because
+ * the history did not exist yet, which read as "poor entry" rather than "not yet knowable".
+ */
+export const ENTRY_COVERAGE_FLOOR = 0.6;
+
 export function scoreEntryCondition(history: RatioHistoryPoint[], options: { relativeIntegrityHealthy: boolean | null } = { relativeIntegrityHealthy: null }): EntryScoreResult {
   const points = normaliseHistory(history);
   if (points.length < 20) {
     return {
       score: null,
+      rawScore: 0,
       max: 100,
+      availableMax: 0,
+      coverage: 0,
       checks: [],
       integrityGateApplied: false,
       label: "Not enough history",
@@ -39,13 +56,32 @@ export function scoreEntryCondition(history: RatioHistoryPoint[], options: { rel
     breakoutRetest(points),
   ];
   const raw = checks.reduce((sum, check) => sum + check.points, 0);
+  const availableMax = checks.filter((check) => check.available).reduce((sum, check) => sum + check.max, 0);
+  const coverage = availableMax / 100;
   const gate = relativeIntegrityGate(points, options.relativeIntegrityHealthy);
   checks.push(gate);
-  const gated = gate.passed ? raw : Math.min(raw, 45);
+  if (coverage < ENTRY_COVERAGE_FLOOR) {
+    return {
+      score: null,
+      rawScore: raw,
+      max: 100,
+      availableMax,
+      coverage,
+      checks,
+      integrityGateApplied: false,
+      label: "Not enough history",
+      note: "Only " + Math.round(coverage * 100) + "% of the entry checks have enough stored closes to run, so no entry score is reported.",
+    };
+  }
+  const normalised = raw / availableMax * 100;
+  const gated = gate.passed ? normalised : Math.min(normalised, 45);
   const score = Math.round(Math.min(100, Math.max(0, gated)));
   return {
     score,
+    rawScore: raw,
     max: 100,
+    availableMax,
+    coverage,
     checks,
     integrityGateApplied: !gate.passed,
     label: score >= 75 ? "Attractive" : score >= 55 ? "Constructive" : score >= 40 ? "Mixed" : "Poor entry",
@@ -118,7 +154,8 @@ function macdMomentum(points: RatioHistoryPoint[]): EntryScoreCheck {
   const macd = macdSeries(closes);
   const latest = macd.at(-1);
   const prior = macd.at(-4) ?? macd.at(-2);
-  const available = Boolean(latest && prior);
+  // A 26-period EMA needs materially more than the 20-close minimum before it means anything.
+  const available = Boolean(latest && prior) && closes.length >= 35;
   const histRising = available && latest!.histogram > prior!.histogram;
   const positiveCross = available && latest!.macd > latest!.signal;
   const score = !available ? 0 : positiveCross && histRising ? 15 : histRising ? 10 : positiveCross ? 7 : 0;
@@ -129,7 +166,7 @@ function macdMomentum(points: RatioHistoryPoint[]): EntryScoreCheck {
     points: score,
     available,
     passed: available && score >= 10,
-    detail: available ? (positiveCross ? "MACD above signal" : "MACD below signal") + (histRising ? "; histogram rising" : "; histogram not rising") : "needs MACD history",
+    detail: available ? (positiveCross ? "MACD above signal" : "MACD below signal") + (histRising ? "; histogram rising" : "; histogram not rising") : "needs roughly 35 stored closes",
   };
 }
 

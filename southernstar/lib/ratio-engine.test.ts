@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { StoredDailyPrice, StoredFxRate } from "@/lib/storage";
-import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, relativeStrengthScore, scoreRatioTrend, scoreRatioTrendVelocity } from "./ratio-engine";
+import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, RELATIVE_COVERAGE_FLOOR, relativeReturnWindows, relativeStrengthScore, scoreRatioTrend, scoreRatioTrendVelocity } from "./ratio-engine";
 
 function closeTo(actual: number | null | undefined, expected: number, delta = 0.000001) {
   assert.ok(actual != null && Math.abs(actual - expected) <= delta, `expected ${actual} to be within ${delta} of ${expected}`);
@@ -158,10 +158,28 @@ test("scoreRatioTrend rewards trend, persistence and breakout transparently", ()
   const series = ratioSeries(Array.from({ length: 240 }, (_, index) => 100 + index * 0.5));
   const score = scoreRatioTrend(series, 50);
 
-  assert.equal(Math.round(score.score), 50);
+  assert.ok(score.score != null);
+  assert.equal(Math.round(score.score!), 50);
+  assert.equal(score.coverage, 1);
   assert.deepEqual(score.checks.map((check) => check.passed), [true, true, true, true, true]);
   assert.equal(score.checks[0].max, 20);
   assert.match(score.checks[0].detail, /200D/);
+});
+
+test("scoreRatioTrend reports null rather than a low score when the trend checks cannot run", () => {
+  // A ratio in a clean uptrend, but with too little stored history for the moving averages.
+  const series = ratioSeries(Array.from({ length: 60 }, (_, index) => 100 + index * 0.5));
+  const score = scoreRatioTrend(series, 50);
+
+  assert.equal(score.score, null, "absence of history must not read as relative weakness");
+  assert.ok(score.rawScore > 0, "the checks that could run did pass");
+  assert.ok(score.coverage < RELATIVE_COVERAGE_FLOOR);
+  assert.deepEqual(score.checks.filter((check) => !check.available).map((check) => check.key), ["long_trend", "medium_trend"]);
+});
+
+test("scoreRatioTrendVelocity stays null when either end lacks coverage", () => {
+  const series = ratioSeries(Array.from({ length: 60 }, (_, index) => 100 + index * 0.5));
+  assert.equal(scoreRatioTrendVelocity(series, 50), null);
 });
 
 test("scoreRatioTrendVelocity compares the current score with 30 days ago", () => {
