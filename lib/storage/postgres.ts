@@ -555,6 +555,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       SELECT symbol,name,primary_metal,jurisdiction,project_stage,production_oz,aisc_usd_per_oz,
         quantity_unit,production_period,cost_basis,economic_study_stage,economic_study_date::text,
         next_study_stage,balance_as_of_date::text,market_cap_as_of_date::text,last_capital_event_date::text,
+        last_equity_event_date::text,last_debt_event_date::text,
         resource_moz,reserve_moz,cash_aud,debt_aud,market_cap_aud,npv_aud,capex_aud,irr_percent,
         jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,
         as_of_date::text,updated_at::text
@@ -576,8 +577,9 @@ export class PostgresStorageAdapter implements StorageAdapter {
         jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,as_of_date,
         quantity_unit,production_period,cost_basis,
         economic_study_stage,economic_study_date,next_study_stage,
-        balance_as_of_date,market_cap_as_of_date,last_capital_event_date,updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,NOW())
+        balance_as_of_date,market_cap_as_of_date,last_capital_event_date,
+        last_equity_event_date,last_debt_event_date,updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,NOW())
       ON CONFLICT (symbol) DO UPDATE SET
         name=EXCLUDED.name,primary_metal=EXCLUDED.primary_metal,jurisdiction=EXCLUDED.jurisdiction,
         project_stage=EXCLUDED.project_stage,production_oz=EXCLUDED.production_oz,aisc_usd_per_oz=EXCLUDED.aisc_usd_per_oz,
@@ -591,10 +593,12 @@ export class PostgresStorageAdapter implements StorageAdapter {
         economic_study_stage=EXCLUDED.economic_study_stage,economic_study_date=EXCLUDED.economic_study_date,
         next_study_stage=EXCLUDED.next_study_stage,balance_as_of_date=EXCLUDED.balance_as_of_date,
         market_cap_as_of_date=EXCLUDED.market_cap_as_of_date,last_capital_event_date=EXCLUDED.last_capital_event_date,
+        last_equity_event_date=EXCLUDED.last_equity_event_date,last_debt_event_date=EXCLUDED.last_debt_event_date,
         updated_at=NOW()
       RETURNING symbol,name,primary_metal,jurisdiction,project_stage,production_oz,aisc_usd_per_oz,
         quantity_unit,production_period,cost_basis,economic_study_stage,economic_study_date::text,
         next_study_stage,balance_as_of_date::text,market_cap_as_of_date::text,last_capital_event_date::text,
+        last_equity_event_date::text,last_debt_event_date::text,
         resource_moz,reserve_moz,cash_aud,debt_aud,market_cap_aud,npv_aud,capex_aud,irr_percent,
         jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,
         as_of_date::text,updated_at::text
@@ -606,6 +610,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       input.quantityUnit ?? null, input.productionPeriod ?? null, input.costBasis ?? null,
       input.economicStudyStage ?? null, input.economicStudyDate ?? null, input.nextStudyStage ?? null,
       input.balanceAsOfDate ?? null, input.marketCapAsOfDate ?? null, input.lastCapitalEventDate ?? null,
+      input.lastEquityEventDate ?? null, input.lastDebtEventDate ?? null,
     ]);
     return minerFundamentalsFromRow(result.rows[0]);
   }
@@ -685,6 +690,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
         RETURNING symbol,name,primary_metal,jurisdiction,project_stage,production_oz,aisc_usd_per_oz,
           quantity_unit,production_period,cost_basis,economic_study_stage,economic_study_date::text,
           next_study_stage,balance_as_of_date::text,market_cap_as_of_date::text,last_capital_event_date::text,
+          last_equity_event_date::text,last_debt_event_date::text,
           resource_moz,reserve_moz,cash_aud,debt_aud,market_cap_aud,npv_aud,capex_aud,irr_percent,
           jurisdiction_score,balance_sheet_score,dilution_score,management_score,notes,source_url,
           as_of_date::text,updated_at::text

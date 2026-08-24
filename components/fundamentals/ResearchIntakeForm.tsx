@@ -112,6 +112,7 @@ export function ResearchIntakeForm({ form, status, aiProvider, drafts, activeDra
             <option value="">Ounces (default)</option>
             <option value="oz">Ounces</option>
             <option value="lb">Pounds</option>
+            <option value="t">Tonnes</option>
           </select>
         </label>
         <label><span>Production covers</span>
@@ -142,7 +143,8 @@ export function ResearchIntakeForm({ form, status, aiProvider, drafts, activeDra
         </label>
         <label><span>Balance as at</span><input type="date" value={form.balanceAsOfDate} onChange={(event) => onChange("balanceAsOfDate", event.target.value)} /></label>
         <label><span>Market cap as at</span><input type="date" value={form.marketCapAsOfDate} onChange={(event) => onChange("marketCapAsOfDate", event.target.value)} /></label>
-        <label><span>Last capital event</span><input type="date" value={form.lastCapitalEventDate} onChange={(event) => onChange("lastCapitalEventDate", event.target.value)} /></label>
+        <label><span>Last equity event</span><input type="date" value={form.lastEquityEventDate} onChange={(event) => onChange("lastEquityEventDate", event.target.value)} /></label>
+        <label><span>Last debt event</span><input type="date" value={form.lastDebtEventDate} onChange={(event) => onChange("lastDebtEventDate", event.target.value)} /></label>
         <label><span>Cost basis</span>
           <select value={form.costBasis} onChange={(event) => onChange("costBasis", event.target.value)}>
             <option value="">Not stated</option>

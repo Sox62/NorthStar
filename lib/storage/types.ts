@@ -302,10 +302,11 @@ export type Snapshot = {
 
 /**
  * The unit behind productionOz, resourceMoz, reserveMoz and the denominator of aiscUsdPerOz.
- * Uranium and copper are reported per pound; the field names say "oz" for historical reasons.
- * Null reads as "oz" so existing rows keep their meaning.
+ * Uranium and copper are reported per pound and bulk commodities such as coal per tonne; the
+ * field names say "oz" for historical reasons. Null reads as "oz" so existing rows keep their
+ * meaning.
  */
-export type QuantityUnit = "oz" | "lb";
+export type QuantityUnit = "oz" | "lb" | "t";
 
 /** The period productionOz covers. Null reads as "year". */
 export type ReportingPeriod = "quarter" | "half" | "year";
@@ -343,8 +344,18 @@ export type MinerFundamentals = {
   nextStudyStage: StudyStage | null;
   balanceAsOfDate: string | null;
   marketCapAsOfDate: string | null;
-  /** A capital raise, placement or buyback. Anything recorded before it is known-wrong, not stale. */
+  /** Legacy single capital-event date, read as an equity event. Prefer the two below. */
   lastCapitalEventDate: string | null;
+  /**
+   * A raise, placement or buyback. Invalidates both the market capitalisation (share count moved)
+   * and the balance sheet (cash moved).
+   */
+  lastEquityEventDate: string | null;
+  /**
+   * A drawdown, repayment or refinancing. Invalidates the balance sheet only — a debt event does
+   * not touch the share count, so it must not mark a market capitalisation known-wrong.
+   */
+  lastDebtEventDate: string | null;
   resourceMoz: number | null;
   reserveMoz: number | null;
   cashAud: number | null;

@@ -62,8 +62,12 @@ export type ResearchFormState = {
   nextStudyStage: string;
   balanceAsOfDate: string;
   marketCapAsOfDate: string;
-  /** A raise or buyback after an as-of date makes that figure known-wrong, not stale. */
+  /** Legacy single capital-event date, read as an equity event. */
   lastCapitalEventDate: string;
+  /** A raise, placement or buyback — invalidates market cap and balance sheet. */
+  lastEquityEventDate: string;
+  /** A drawdown, repayment or refinancing — invalidates the balance sheet only. */
+  lastDebtEventDate: string;
   resourceMoz: string;
   reserveMoz: string;
   cashAud: string;
@@ -113,6 +117,8 @@ export const blankResearchForm: ResearchFormState = {
   balanceAsOfDate: "",
   marketCapAsOfDate: "",
   lastCapitalEventDate: "",
+  lastEquityEventDate: "",
+  lastDebtEventDate: "",
   resourceMoz: "",
   reserveMoz: "",
   cashAud: "",
@@ -145,7 +151,8 @@ export const RESEARCH_TEMPLATE_SCHEMA = `{
   "nextStudyStage": "scoping | pfs | dfs - a higher-tier study already under way, if any",
   "balanceAsOfDate": "YYYY-MM-DD - date the cash and debt figures were taken",
   "marketCapAsOfDate": "YYYY-MM-DD - date the market capitalisation was taken",
-  "lastCapitalEventDate": "YYYY-MM-DD - most recent raise, placement or buyback",
+  "lastEquityEventDate": "YYYY-MM-DD - most recent raise, placement or buyback",
+  "lastDebtEventDate": "YYYY-MM-DD - most recent drawdown, repayment or refinancing",
   "asOfDate": "YYYY-MM-DD",
   "productionOz": null,
   "aiscUsdPerOz": null,
@@ -282,6 +289,8 @@ export function researchFormForHolding(holding: Holding, saved: MinerFundamental
     balanceAsOfDate: formText(saved?.balanceAsOfDate).slice(0, 10),
     marketCapAsOfDate: formText(saved?.marketCapAsOfDate).slice(0, 10),
     lastCapitalEventDate: formText(saved?.lastCapitalEventDate).slice(0, 10),
+    lastEquityEventDate: formText(saved?.lastEquityEventDate).slice(0, 10),
+    lastDebtEventDate: formText(saved?.lastDebtEventDate).slice(0, 10),
     resourceMoz: formNumberText(saved?.resourceMoz),
     reserveMoz: formNumberText(saved?.reserveMoz),
     cashAud: formNumberText(saved?.cashAud),
@@ -319,6 +328,8 @@ export function researchFormForIdea(saved: MinerFundamentals): ResearchFormState
     balanceAsOfDate: formText(saved.balanceAsOfDate).slice(0, 10),
     marketCapAsOfDate: formText(saved.marketCapAsOfDate).slice(0, 10),
     lastCapitalEventDate: formText(saved.lastCapitalEventDate).slice(0, 10),
+    lastEquityEventDate: formText(saved.lastEquityEventDate).slice(0, 10),
+    lastDebtEventDate: formText(saved.lastDebtEventDate).slice(0, 10),
     resourceMoz: formNumberText(saved.resourceMoz),
     reserveMoz: formNumberText(saved.reserveMoz),
     cashAud: formNumberText(saved.cashAud),
@@ -355,6 +366,8 @@ export function researchFormForDraft(draft: FundamentalResearchDraft): ResearchF
     balanceAsOfDate: draft.balanceAsOfDate ?? null,
     marketCapAsOfDate: draft.marketCapAsOfDate ?? null,
     lastCapitalEventDate: draft.lastCapitalEventDate ?? null,
+    lastEquityEventDate: draft.lastEquityEventDate ?? null,
+    lastDebtEventDate: draft.lastDebtEventDate ?? null,
     resourceMoz: draft.resourceMoz,
     reserveMoz: draft.reserveMoz,
     cashAud: draft.cashAud,
@@ -533,6 +546,8 @@ export async function saveResearchFundamentals(form: ResearchFormState): Promise
       balanceAsOfDate: formValue(form.balanceAsOfDate),
       marketCapAsOfDate: formValue(form.marketCapAsOfDate),
       lastCapitalEventDate: formValue(form.lastCapitalEventDate),
+      lastEquityEventDate: formValue(form.lastEquityEventDate),
+      lastDebtEventDate: formValue(form.lastDebtEventDate),
       resourceMoz: formNumber(form.resourceMoz),
       reserveMoz: formNumber(form.reserveMoz),
       cashAud: formNumber(form.cashAud),

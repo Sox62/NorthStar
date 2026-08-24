@@ -861,6 +861,8 @@ export class LocalStorageAdapter implements StorageAdapter {
       balanceAsOfDate: draft.balanceAsOfDate ?? null,
       marketCapAsOfDate: draft.marketCapAsOfDate ?? null,
       lastCapitalEventDate: draft.lastCapitalEventDate ?? null,
+      lastEquityEventDate: draft.lastEquityEventDate ?? null,
+      lastDebtEventDate: draft.lastDebtEventDate ?? null,
       resourceMoz: draft.resourceMoz,
       reserveMoz: draft.reserveMoz,
       cashAud: draft.cashAud,

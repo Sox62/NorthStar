@@ -230,8 +230,12 @@ export const minerFundamentals = pgTable("miner_fundamentals", {
   nextStudyStage: text("next_study_stage"),
   balanceAsOfDate: date("balance_as_of_date"),
   marketCapAsOfDate: date("market_cap_as_of_date"),
-  /** A raise, placement or buyback after an as-of date makes that figure known-wrong, not merely old. */
+  /** Legacy single capital-event date. Read as an equity event; prefer the two below. */
   lastCapitalEventDate: date("last_capital_event_date"),
+  /** A raise, placement or buyback: changes both the share count and the cash. */
+  lastEquityEventDate: date("last_equity_event_date"),
+  /** A drawdown, repayment or refinancing: changes the balance sheet but not the share count. */
+  lastDebtEventDate: date("last_debt_event_date"),
   resourceMoz: numeric("resource_moz", { precision: 28, scale: 6 }),
   reserveMoz: numeric("reserve_moz", { precision: 28, scale: 6 }),
   cashAud: numeric("cash_aud", { precision: 28, scale: 2 }),

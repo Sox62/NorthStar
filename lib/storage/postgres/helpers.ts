@@ -264,6 +264,8 @@ export function minerFundamentalsFromRow(row: Record<string, unknown>): MinerFun
     balanceAsOfDate: row.balance_as_of_date == null ? null : String(row.balance_as_of_date),
     marketCapAsOfDate: row.market_cap_as_of_date == null ? null : String(row.market_cap_as_of_date),
     lastCapitalEventDate: row.last_capital_event_date == null ? null : String(row.last_capital_event_date),
+    lastEquityEventDate: row.last_equity_event_date == null ? null : String(row.last_equity_event_date),
+    lastDebtEventDate: row.last_debt_event_date == null ? null : String(row.last_debt_event_date),
     resourceMoz: row.resource_moz == null ? null : numberValue(row.resource_moz),
     reserveMoz: row.reserve_moz == null ? null : numberValue(row.reserve_moz),
     cashAud: row.cash_aud == null ? null : numberValue(row.cash_aud),

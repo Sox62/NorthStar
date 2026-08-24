@@ -23,6 +23,8 @@ const base: MinerFundamentals = {
   balanceAsOfDate: null,
   marketCapAsOfDate: null,
   lastCapitalEventDate: null,
+  lastEquityEventDate: null,
+  lastDebtEventDate: null,
   resourceMoz: 120,
   reserveMoz: 40,
   cashAud: 50_000_000,
@@ -390,6 +392,40 @@ test("a capital event makes an earlier figure superseded, not merely stale", () 
   const read = valuationRead(raised, [], "2026-08-23");
   assert.equal(read.score, null);
   assert.match(read.detail, /known-wrong rather than merely old/);
+});
+
+test("a debt event invalidates the balance sheet but not the share count", () => {
+  // A refinancing changes what the company owes without issuing a share, so a market
+  // capitalisation taken before it is still a fair description of the company.
+  const refinanced: MinerFundamentals = { ...base, balanceAsOfDate: "2026-06-30", marketCapAsOfDate: "2026-07-08", lastDebtEventDate: "2026-07-27" };
+
+  assert.equal(balanceState(refinanced, "2026-08-23"), "superseded");
+  assert.equal(marketCapState(refinanced, "2026-08-23"), "stale", "a debt event must not mark the market cap known-wrong");
+});
+
+test("an equity event invalidates both, and the legacy field still means equity", () => {
+  const raised: MinerFundamentals = { ...base, balanceAsOfDate: "2026-03-31", marketCapAsOfDate: "2026-06-05", lastEquityEventDate: "2026-08-05" };
+  const legacy: MinerFundamentals = { ...base, balanceAsOfDate: "2026-03-31", marketCapAsOfDate: "2026-06-05", lastCapitalEventDate: "2026-08-05" };
+
+  for (const record of [raised, legacy]) {
+    assert.equal(balanceState(record, "2026-08-23"), "superseded");
+    assert.equal(marketCapState(record, "2026-08-23"), "superseded");
+  }
+});
+
+test("tonnes are a unit like any other", () => {
+  const coal: MinerFundamentals = { ...base, symbol: "SMR", primaryMetal: "Metallurgical coal", quantityUnit: "t", aiscUsdPerOz: 93, productionOz: 6_500_000, productionPeriod: "half" };
+  const peers: MinerFundamentals[] = [coal,
+    { ...coal, symbol: "C1", aiscUsdPerOz: 88 },
+    { ...coal, symbol: "C2", aiscUsdPerOz: 104 },
+  ];
+  const cost = fundamentalScoreRead(coal, peers).parts.find((part) => part.key === "cost");
+
+  assert.ok(cost?.score != null);
+  assert.match(cost!.note, /USD\/t/, "a per-tonne cost must be labelled per tonne");
+  // And a tonne-quoted name still never shares a cohort with an ounce-quoted one.
+  const ouncePeers = peers.map((peer) => ({ ...peer, quantityUnit: "oz" as const }));
+  assert.equal(fundamentalScoreRead(coal, [coal, ...ouncePeers.slice(1)]).parts.find((part) => part.key === "cost")?.score, null);
 });
 
 test("stale and current are derived from the clock, superseded is not", () => {

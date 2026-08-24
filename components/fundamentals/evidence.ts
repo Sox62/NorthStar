@@ -54,12 +54,28 @@ export function evidenceState(input: {
   return age > halfLifeDays ? "stale" : "current";
 }
 
+function latest(...dates: Array<string | null | undefined>) {
+  const known = dates.filter((date): date is string => Boolean(date));
+  return known.length ? known.reduce((a, b) => (a > b ? a : b)) : null;
+}
+
+/**
+ * An equity event moves the share count, so it invalidates a market capitalisation. A debt event
+ * does not — a refinancing changes what the company owes without issuing a share, and marking the
+ * market cap known-wrong on that basis withholds a perfectly good figure from scoring.
+ * The legacy single date is read as an equity event, which is what it was recorded to mean.
+ */
+function equityEvent(fundamentals: MinerFundamentals) {
+  return latest(fundamentals.lastEquityEventDate, fundamentals.lastCapitalEventDate);
+}
+
 /** Cash and debt. Falls back to the record's general asOfDate when no balance date is recorded. */
 export function balanceState(fundamentals: MinerFundamentals | undefined, asAt?: string): EvidenceState {
   if (!fundamentals) return "unknown";
   return evidenceState({
+    // Either kind of event moves the balance sheet.
     asOf: fundamentals.balanceAsOfDate ?? fundamentals.asOfDate,
-    supersededAfter: fundamentals.lastCapitalEventDate,
+    supersededAfter: latest(equityEvent(fundamentals), fundamentals.lastDebtEventDate),
     halfLifeDays: HALF_LIFE_DAYS.balance,
     asAt,
   });
@@ -69,7 +85,7 @@ export function marketCapState(fundamentals: MinerFundamentals | undefined, asAt
   if (!fundamentals) return "unknown";
   return evidenceState({
     asOf: fundamentals.marketCapAsOfDate ?? fundamentals.asOfDate,
-    supersededAfter: fundamentals.lastCapitalEventDate,
+    supersededAfter: equityEvent(fundamentals),
     halfLifeDays: HALF_LIFE_DAYS.marketCap,
     asAt,
   });

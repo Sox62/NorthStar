@@ -421,7 +421,8 @@ export function valuationRead(fundamentals: MinerFundamentals | undefined, cohor
   const enterprise = scoreableEnterpriseValue(fundamentals, asAt);
   if (enterprise == null || enterprise <= 0) {
     const balance = balanceState(fundamentals, asAt);
-    const supersededBy = fundamentals.lastCapitalEventDate;
+    const supersededBy = [fundamentals.lastEquityEventDate, fundamentals.lastDebtEventDate, fundamentals.lastCapitalEventDate]
+      .filter(Boolean).sort().at(-1);
     return {
       score: null,
       basis: null,
@@ -431,7 +432,7 @@ export function valuationRead(fundamentals: MinerFundamentals | undefined, cohor
       historicalEconomics: economics.eligible ? null : history,
       marketCapState: capState,
       detail: capState === "superseded" || balance === "superseded"
-        ? `Market capitalisation and cash pre-date a capital event on ${supersededBy}, so enterprise value is known-wrong rather than merely old. Excluded from scoring until both are refreshed.`
+        ? `${capState === "superseded" ? "Market capitalisation and the balance sheet pre-date" : "The balance sheet pre-dates"} a capital event on ${supersededBy}, so enterprise value is known-wrong rather than merely old. Excluded from scoring until refreshed.`
         : fundamentals.marketCapAud == null
           ? "Needs market capitalisation before enterprise value can be derived."
           : "Enterprise value is not positive, so a ratio to it would not mean anything.",

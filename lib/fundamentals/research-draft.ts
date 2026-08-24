@@ -139,6 +139,8 @@ export function buildFundamentalResearchDraft(source: FundamentalResearchSource)
     balanceAsOfDate: null,
     marketCapAsOfDate: null,
     lastCapitalEventDate: null,
+    lastEquityEventDate: null,
+    lastDebtEventDate: null,
     jurisdiction: null,
     projectStage: null,
     productionOz: extracted.productionOz,
