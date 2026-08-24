@@ -124,6 +124,25 @@ export function ResearchIntakeForm({ form, status, aiProvider, drafts, activeDra
         </label>
         <label><span>Production {form.quantityUnit === "lb" ? "lb" : "oz"}</span><input inputMode="decimal" value={form.productionOz} onChange={(event) => onChange("productionOz", event.target.value)} placeholder="12000000" /></label>
         <label><span>AISC USD/{form.quantityUnit === "lb" ? "lb" : "oz"}</span><input inputMode="decimal" value={form.aiscUsdPerOz} onChange={(event) => onChange("aiscUsdPerOz", event.target.value)} placeholder="18.50" /></label>
+        <label><span>Study stage</span>
+          <select value={form.economicStudyStage} onChange={(event) => onChange("economicStudyStage", event.target.value)}>
+            <option value="">Not stated</option>
+            <option value="scoping">Scoping Study</option>
+            <option value="pfs">Pre-Feasibility Study</option>
+            <option value="dfs">Feasibility Study</option>
+          </select>
+        </label>
+        <label><span>Study date</span><input type="date" value={form.economicStudyDate} onChange={(event) => onChange("economicStudyDate", event.target.value)} /></label>
+        <label><span>Higher study under way</span>
+          <select value={form.nextStudyStage} onChange={(event) => onChange("nextStudyStage", event.target.value)}>
+            <option value="">None</option>
+            <option value="pfs">Pre-Feasibility Study</option>
+            <option value="dfs">Feasibility Study</option>
+          </select>
+        </label>
+        <label><span>Balance as at</span><input type="date" value={form.balanceAsOfDate} onChange={(event) => onChange("balanceAsOfDate", event.target.value)} /></label>
+        <label><span>Market cap as at</span><input type="date" value={form.marketCapAsOfDate} onChange={(event) => onChange("marketCapAsOfDate", event.target.value)} /></label>
+        <label><span>Last capital event</span><input type="date" value={form.lastCapitalEventDate} onChange={(event) => onChange("lastCapitalEventDate", event.target.value)} /></label>
         <label><span>Cost basis</span>
           <select value={form.costBasis} onChange={(event) => onChange("costBasis", event.target.value)}>
             <option value="">Not stated</option>

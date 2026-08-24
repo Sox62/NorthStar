@@ -223,6 +223,15 @@ export const minerFundamentals = pgTable("miner_fundamentals", {
   productionPeriod: text("production_period"),
   /** Which cost measure aiscUsdPerOz actually holds. Costs are only ever compared within one basis. */
   costBasis: text("cost_basis"),
+  /** Confidence tier of the study behind npvAud/capexAud/irrPercent: 'scoping' | 'pfs' | 'dfs'. */
+  economicStudyStage: text("economic_study_stage"),
+  economicStudyDate: date("economic_study_date"),
+  /** A higher-tier study already under way supersedes the recorded economics. */
+  nextStudyStage: text("next_study_stage"),
+  balanceAsOfDate: date("balance_as_of_date"),
+  marketCapAsOfDate: date("market_cap_as_of_date"),
+  /** A raise, placement or buyback after an as-of date makes that figure known-wrong, not merely old. */
+  lastCapitalEventDate: date("last_capital_event_date"),
   resourceMoz: numeric("resource_moz", { precision: 28, scale: 6 }),
   reserveMoz: numeric("reserve_moz", { precision: 28, scale: 6 }),
   cashAud: numeric("cash_aud", { precision: 28, scale: 2 }),

@@ -4,6 +4,7 @@ import { dateOrDash, money, moneyOrDash, numberOrDash } from "./model";
 // Everything imported from "@/lib/storage" here must stay `import type`. It is a barrel that
 // reaches lib/storage/postgres.ts and therefore `pg`; a value import from it drags dns/net/tls/fs
 // into the client bundle, because this module is reachable from RelativeLeadership.
+import { EVIDENCE_LABELS, balanceState, economicsRead, marketCapState, type EvidenceState } from "./evidence";
 import { COST_BASIS_LABELS, COST_SPREAD, MIN_COHORT, SCALE_SPREAD, VALUATION_SPREAD, annualisedProduction, cohortAnchoredScore, cohortMedianFor, costBasisOf, quantityUnitOf, reportingPeriodOf, type CohortRead } from "./cohort";
 
 export type RiskTone = "good" | "warning" | "bad";
@@ -32,6 +33,8 @@ export type SouthernStarAllocationRead = {
   provisional: boolean;
   /** Set when fewer than three of the four signals scored, so the read rests on too little. */
   warning: string | null;
+  /** Recorded economics that were not allowed to price the asset, kept for display. */
+  historicalEconomics: HistoricalEconomics | null;
   gauges: SouthernStarGauge[];
 };
 
@@ -179,6 +182,8 @@ function reserveConversionScore(fundamentals: MinerFundamentals, max: number) {
 }
 
 function balanceEvidenceScore(fundamentals: MinerFundamentals, max: number) {
+  // A cash figure a later raise has already invalidated is not weak evidence, it is wrong evidence.
+  if (balanceState(fundamentals) === "superseded") return null;
   const net = netCashAud(fundamentals);
   const enterprise = enterpriseValueAud(fundamentals);
   if (net == null && fundamentals.balanceSheetScore == null) return null;
@@ -221,7 +226,7 @@ function producerScore(fundamentals: MinerFundamentals, cohort: MinerFundamental
  * V answers "at this price".
  */
 function developerScore(fundamentals: MinerFundamentals): FundamentalScorePart[] {
-  const enterprise = enterpriseValueAud(fundamentals);
+  const enterprise = scoreableEnterpriseValue(fundamentals);
   const capex = fundamentals.capexAud;
   return [
     scoreOutOf(fundamentals.irrPercent == null ? null : fundamentals.irrPercent >= 30 ? 20 : fundamentals.irrPercent >= 20 ? 15 : fundamentals.irrPercent >= 12 ? 9 : 4, 20, fundamentals.irrPercent == null ? "Needs IRR." : `IRR ${numberOrDash(fundamentals.irrPercent, "%")}.`, "Project return", "irr"),
@@ -235,7 +240,7 @@ function developerScore(fundamentals: MinerFundamentals): FundamentalScorePart[]
 
 function explorerScore(fundamentals: MinerFundamentals, cohort: MinerFundamentals[]): FundamentalScorePart[] {
   const unit = quantityUnitOf(fundamentals);
-  const enterprise = enterpriseValueAud(fundamentals);
+  const enterprise = scoreableEnterpriseValue(fundamentals);
   const cashRunway = fundamentals.cashAud != null && enterprise ? fundamentals.cashAud / enterprise : null;
   const resourceCohort = cohortMedianFor(fundamentals, cohort, (peer) => peer.resourceMoz);
   const resource = cohortAnchoredScore({ value: fundamentals.resourceMoz, cohort: resourceCohort, lowerIsBetter: false, spread: SCALE_SPREAD, max: 25 });
@@ -278,6 +283,16 @@ export function fundamentalQualityScore(fundamentals: MinerFundamentals | undefi
   return fundamentalScoreRead(fundamentals, cohort).score;
 }
 
+export type HistoricalEconomics = {
+  npvAud: number | null;
+  irrPercent: number | null;
+  capexAud: number | null;
+  stageLabel: string | null;
+  studyDate: string | null;
+  /** Why it is history rather than a price. */
+  reason: string;
+};
+
 export type ValuationRead = {
   score: number | null;
   basis: "npv_ev" | "ev_per_production" | "ev_per_resource" | null;
@@ -286,6 +301,13 @@ export type ValuationRead = {
   detail: string;
   /** Share of a project NPV still owned by today's holders after the build is funded, 0-1. */
   fundingDilution: number | null;
+  /**
+   * Recorded economics that were not allowed to price the asset. Kept and displayed rather than
+   * discarded: a superseded study is still the best published description of the project.
+   */
+  historicalEconomics: HistoricalEconomics | null;
+  /** Freshness of the market capitalisation behind the enterprise value. */
+  marketCapState: EvidenceState;
 };
 
 /**
@@ -366,12 +388,15 @@ function perUnitValuation(input: {
     status: valuationStatus(score),
     // A price per producing ounce already reflects the asset as built, so there is nothing to risk.
     fundingDilution: null,
+    historicalEconomics: null,
+    marketCapState: "current",
     detail: `${moneyOrDash(perUnit)} per ${unit} against a ${peers.metal} peer median of ${moneyOrDash(peers.median)} across ${peers.size} names.`,
   };
 }
 
-export function valuationRead(fundamentals: MinerFundamentals | undefined, cohort: MinerFundamentals[] = []): ValuationRead {
+export function valuationRead(fundamentals: MinerFundamentals | undefined, cohort: MinerFundamentals[] = [], asAt?: string): ValuationRead {
   const model = scoreModel(fundamentals);
+  const capState = marketCapState(fundamentals, asAt);
   if (!fundamentals || model === "unknown") {
     return {
       score: null,
@@ -379,25 +404,42 @@ export function valuationRead(fundamentals: MinerFundamentals | undefined, cohor
       label: "No valuation model",
       status: "Not valued",
       fundingDilution: null,
+      historicalEconomics: null,
+      marketCapState: capState,
       detail: "Classify the stage as producer, developer or explorer first. A fund's market price is its own valuation.",
     };
   }
-  const enterprise = enterpriseValueAud(fundamentals);
+  const economics = economicsRead({ fundamentals, requiresCapex: model === "developer", asAt });
+  const history: HistoricalEconomics | null = fundamentals.npvAud == null ? null : {
+    npvAud: fundamentals.npvAud,
+    irrPercent: fundamentals.irrPercent,
+    capexAud: fundamentals.capexAud,
+    stageLabel: economics.stageLabel,
+    studyDate: economics.studyDate,
+    reason: economics.reason,
+  };
+  const enterprise = scoreableEnterpriseValue(fundamentals, asAt);
   if (enterprise == null || enterprise <= 0) {
+    const balance = balanceState(fundamentals, asAt);
+    const supersededBy = fundamentals.lastCapitalEventDate;
     return {
       score: null,
       basis: null,
       label: "NPV vs enterprise value",
       status: "Not valued",
       fundingDilution: null,
-      detail: fundamentals.marketCapAud == null
-        ? "Needs market capitalisation before enterprise value can be derived."
-        : "Enterprise value is not positive, so a ratio to it would not mean anything.",
+      historicalEconomics: economics.eligible ? null : history,
+      marketCapState: capState,
+      detail: capState === "superseded" || balance === "superseded"
+        ? `Market capitalisation and cash pre-date a capital event on ${supersededBy}, so enterprise value is known-wrong rather than merely old. Excluded from scoring until both are refreshed.`
+        : fundamentals.marketCapAud == null
+          ? "Needs market capitalisation before enterprise value can be derived."
+          : "Enterprise value is not positive, so a ratio to it would not mean anything.",
     };
   }
-  if (fundamentals.npvAud == null) {
+  if (fundamentals.npvAud == null || !economics.eligible) {
     const perUnit = perUnitValuation({ fundamentals, enterprise, cohort, model });
-    if (perUnit) return perUnit;
+    if (perUnit) return { ...perUnit, historicalEconomics: history, marketCapState: capState };
     const unit = quantityUnitOf(fundamentals);
     return {
       score: null,
@@ -405,7 +447,11 @@ export function valuationRead(fundamentals: MinerFundamentals | undefined, cohor
       label: model === "producer" ? `Enterprise value per annual ${unit}` : `Enterprise value per resource ${unit}`,
       status: "Not valued",
       fundingDilution: null,
-      detail: `Needs a sourced NPV, or at least ${MIN_COHORT} same-metal peers carrying both a market capitalisation and a ${model === "producer" ? "production" : "resource"} figure.`,
+      historicalEconomics: history,
+      marketCapState: capState,
+      detail: history
+        ? economics.reason
+        : `Needs a sourced NPV, or at least ${MIN_COHORT} same-metal peers carrying both a market capitalisation and a ${model === "producer" ? "production" : "resource"} figure.`,
     };
   }
   const dilution = fundingDilution(fundamentals, enterprise);
@@ -419,14 +465,16 @@ export function valuationRead(fundamentals: MinerFundamentals | undefined, cohor
     label: "NPV vs enterprise value",
     status: valuationStatus(score),
     fundingDilution: dilution,
+    historicalEconomics: null,
+    marketCapState: capState,
     detail: dilution < 1
       ? `NPV is ${headline.toFixed(2)}x enterprise value, ${ratio.toFixed(2)}x once ${moneyOrDash(raise)} of capex is funded.`
       : `NPV is ${headline.toFixed(2)}x enterprise value.`,
   };
 }
 
-export function valuationScore(fundamentals: MinerFundamentals | undefined, cohort: MinerFundamentals[] = []) {
-  return valuationRead(fundamentals, cohort).score;
+export function valuationScore(fundamentals: MinerFundamentals | undefined, cohort: MinerFundamentals[] = [], asAt?: string) {
+  return valuationRead(fundamentals, cohort, asAt).score;
 }
 
 export function stageMethodology(fundamentals: MinerFundamentals | undefined) {
@@ -492,7 +540,9 @@ export function allocationRead(input: {
         ? valuationDetail.detail
         : `${valuationDetail.detail} A good asset can still be a poor price.`,
       coverage: null,
-      basisLabel: valuationDetail.basis ? VALUATION_BASIS_LABELS[valuationDetail.basis] : null,
+      basisLabel: valuationDetail.basis
+        ? VALUATION_BASIS_LABELS[valuationDetail.basis]
+        : valuationDetail.marketCapState === "superseded" ? EVIDENCE_LABELS.superseded : null,
     },
     {
       key: "entry",
@@ -524,13 +574,25 @@ export function allocationRead(input: {
   const warning = scoredSignals < 3
     ? `Allocation is renormalised over ${scoredSignals} of 4 signals${scoredSignals ? "" : " and cannot be scored"}. Treat it as a prompt to research, not as a ranking.`
     : null;
-  return { allocationScore, label: read.label, note, scoredSignals, provisional, warning, gauges } satisfies SouthernStarAllocationRead;
+  return { allocationScore, label: read.label, note, scoredSignals, provisional, warning, historicalEconomics: valuationDetail.historicalEconomics, gauges } satisfies SouthernStarAllocationRead;
 }
 
 /** Market capitalisation plus debt less cash — the figure a project NPV should be compared against. */
 export function enterpriseValueAud(fundamentals: MinerFundamentals | undefined) {
   if (!fundamentals?.marketCapAud) return null;
   return fundamentals.marketCapAud + (fundamentals.debtAud ?? 0) - (fundamentals.cashAud ?? 0);
+}
+
+/**
+ * The same figure, but withheld from scoring once a recorded capital event post-dates it. A raise
+ * changes both the share count and the cash, so a market cap taken before it does not describe the
+ * company any more — that is a different claim from "old", and it should not be averaged into a
+ * score with a warning attached. Display keeps using enterpriseValueAud so nothing is hidden.
+ */
+export function scoreableEnterpriseValue(fundamentals: MinerFundamentals | undefined, asAt?: string) {
+  if (marketCapState(fundamentals, asAt) === "superseded") return null;
+  if (balanceState(fundamentals, asAt) === "superseded") return null;
+  return enterpriseValueAud(fundamentals);
 }
 
 export function fundamentalFields(holding: Holding, fundamentals: MinerFundamentals | undefined): DetailField[] {

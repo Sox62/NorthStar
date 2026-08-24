@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { MinerFundamentals } from "@/lib/storage";
-import { allocationRead, enterpriseValueAud, failureModes, fundamentalBars, fundamentalQualityScore, fundamentalScoreRead, netCashAud, riskJudgementScore, riskLevel, valuationBars, valuationRead, valuationRows, valuationScore } from "./detail-model";
+import { balanceState, marketCapState } from "./evidence";
+import { allocationRead, enterpriseValueAud, scoreableEnterpriseValue, failureModes, fundamentalBars, fundamentalQualityScore, fundamentalScoreRead, netCashAud, riskJudgementScore, riskLevel, valuationBars, valuationRead, valuationRows, valuationScore } from "./detail-model";
 import { researchFormForHolding, researchFormForIdea } from "./model";
 import type { Holding } from "@/southernstar/types";
 
@@ -16,6 +17,12 @@ const base: MinerFundamentals = {
   quantityUnit: "oz",
   productionPeriod: "year",
   costBasis: "aisc_byproduct",
+  economicStudyStage: null,
+  economicStudyDate: null,
+  nextStudyStage: null,
+  balanceAsOfDate: null,
+  marketCapAsOfDate: null,
+  lastCapitalEventDate: null,
   resourceMoz: 120,
   reserveMoz: 40,
   cashAud: 50_000_000,
@@ -369,6 +376,63 @@ test("developer fundamentals no longer double-count NPV against enterprise value
   assert.equal(read.model, "developer");
   assert.ok(!read.parts.some((part) => part.key === "valuation"), "valuation belongs to V, not F");
   assert.equal(read.parts.reduce((sum, part) => sum + part.max, 0), 100);
+});
+
+test("a capital event makes an earlier figure superseded, not merely stale", () => {
+  const raised: MinerFundamentals = { ...base, marketCapAsOfDate: "2026-06-05", balanceAsOfDate: "2026-03-31", lastCapitalEventDate: "2026-08-05" };
+
+  assert.equal(marketCapState(raised, "2026-08-23"), "superseded");
+  assert.equal(balanceState(raised, "2026-08-23"), "superseded");
+  // Display keeps the figure; only scoring withholds it.
+  assert.ok(enterpriseValueAud(raised) != null);
+  assert.equal(scoreableEnterpriseValue(raised, "2026-08-23"), null);
+
+  const read = valuationRead(raised, [], "2026-08-23");
+  assert.equal(read.score, null);
+  assert.match(read.detail, /known-wrong rather than merely old/);
+});
+
+test("stale and current are derived from the clock, superseded is not", () => {
+  const dated: MinerFundamentals = { ...base, marketCapAsOfDate: "2026-08-01", balanceAsOfDate: "2026-08-01", lastCapitalEventDate: null };
+
+  assert.equal(marketCapState(dated, "2026-08-23"), "current");
+  assert.equal(marketCapState(dated, "2026-11-01"), "stale", "a market cap ages out in weeks");
+  assert.equal(balanceState(dated, "2026-11-01"), "current", "a balance sheet holds until the next quarterly");
+  assert.equal(marketCapState({ ...base, marketCapAsOfDate: null, asOfDate: null }), "unknown");
+});
+
+test("a scoping study is history rather than a price", () => {
+  const scoping: MinerFundamentals = { ...base, projectStage: "Developer", productionOz: null, economicStudyStage: "scoping", economicStudyDate: "2023-04-26" };
+  const read = valuationRead(scoping, [], "2026-08-23");
+
+  assert.equal(read.score, null, "a scoping study must not price the asset");
+  assert.ok(read.historicalEconomics != null, "but the numbers are kept");
+  assert.equal(read.historicalEconomics!.stageLabel, "Scoping Study");
+  assert.match(read.historicalEconomics!.reason, /too low-confidence/);
+});
+
+test("a higher-tier study under way supersedes the recorded economics", () => {
+  const superseded: MinerFundamentals = { ...base, projectStage: "Developer", productionOz: null, economicStudyStage: "pfs", nextStudyStage: "dfs" };
+  const read = valuationRead(superseded, [], "2026-08-23");
+
+  assert.equal(read.score, null);
+  assert.match(read.historicalEconomics?.reason ?? "", /feasibility study is under way/);
+});
+
+test("a developer NPV with no capital cost is not priced unrisked", () => {
+  const noCapex: MinerFundamentals = { ...base, projectStage: "Developer", productionOz: null, economicStudyStage: "dfs", capexAud: null };
+  const producer: MinerFundamentals = { ...base, economicStudyStage: "dfs", capexAud: null };
+
+  assert.equal(valuationRead(noCapex, [], "2026-08-23").score, null, "no capex means no funding haircut can apply");
+  assert.match(valuationRead(noCapex, [], "2026-08-23").historicalEconomics?.reason ?? "", /scored unrisked/);
+  assert.ok(valuationRead(producer, [], "2026-08-23").score != null, "a producer has nothing left to build");
+});
+
+test("an unrecorded study stage keeps the previous behaviour", () => {
+  const read = valuationRead({ ...base, projectStage: "Developer", productionOz: null }, [], "2026-08-23");
+
+  assert.ok(read.score != null, "recording the stage is what arms the gate, not leaving it blank");
+  assert.equal(read.historicalEconomics, null);
 });
 
 test("allocationRead gates a quality leader when entry is absent", () => {

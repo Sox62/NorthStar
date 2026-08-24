@@ -55,6 +55,15 @@ export type ResearchFormState = {
   productionPeriod: string;
   /** Which cost measure the AISC field holds; costs are only compared within one basis. */
   costBasis: string;
+  /** "scoping" | "pfs" | "dfs" — confidence tier of the study behind NPV/capex/IRR. */
+  economicStudyStage: string;
+  economicStudyDate: string;
+  /** A higher tier already under way supersedes the recorded economics. */
+  nextStudyStage: string;
+  balanceAsOfDate: string;
+  marketCapAsOfDate: string;
+  /** A raise or buyback after an as-of date makes that figure known-wrong, not stale. */
+  lastCapitalEventDate: string;
   resourceMoz: string;
   reserveMoz: string;
   cashAud: string;
@@ -98,6 +107,12 @@ export const blankResearchForm: ResearchFormState = {
   quantityUnit: "",
   productionPeriod: "",
   costBasis: "",
+  economicStudyStage: "",
+  economicStudyDate: "",
+  nextStudyStage: "",
+  balanceAsOfDate: "",
+  marketCapAsOfDate: "",
+  lastCapitalEventDate: "",
   resourceMoz: "",
   reserveMoz: "",
   cashAud: "",
@@ -125,6 +140,12 @@ export const RESEARCH_TEMPLATE_SCHEMA = `{
   "quantityUnit": "oz | lb - the unit behind production, resource, reserve and AISC",
   "productionPeriod": "quarter | half | year - the period the production figure covers",
   "costBasis": "aisc_byproduct | aisc_ageq | cash_cost | cas - which cost measure the AISC field holds",
+  "economicStudyStage": "scoping | pfs | dfs - confidence tier of the study behind NPV, capex and IRR",
+  "economicStudyDate": "YYYY-MM-DD - date of that study",
+  "nextStudyStage": "scoping | pfs | dfs - a higher-tier study already under way, if any",
+  "balanceAsOfDate": "YYYY-MM-DD - date the cash and debt figures were taken",
+  "marketCapAsOfDate": "YYYY-MM-DD - date the market capitalisation was taken",
+  "lastCapitalEventDate": "YYYY-MM-DD - most recent raise, placement or buyback",
   "asOfDate": "YYYY-MM-DD",
   "productionOz": null,
   "aiscUsdPerOz": null,
@@ -255,6 +276,12 @@ export function researchFormForHolding(holding: Holding, saved: MinerFundamental
     quantityUnit: formText(saved?.quantityUnit),
     productionPeriod: formText(saved?.productionPeriod),
     costBasis: formText(saved?.costBasis),
+    economicStudyStage: formText(saved?.economicStudyStage),
+    economicStudyDate: formText(saved?.economicStudyDate).slice(0, 10),
+    nextStudyStage: formText(saved?.nextStudyStage),
+    balanceAsOfDate: formText(saved?.balanceAsOfDate).slice(0, 10),
+    marketCapAsOfDate: formText(saved?.marketCapAsOfDate).slice(0, 10),
+    lastCapitalEventDate: formText(saved?.lastCapitalEventDate).slice(0, 10),
     resourceMoz: formNumberText(saved?.resourceMoz),
     reserveMoz: formNumberText(saved?.reserveMoz),
     cashAud: formNumberText(saved?.cashAud),
@@ -286,6 +313,12 @@ export function researchFormForIdea(saved: MinerFundamentals): ResearchFormState
     quantityUnit: formText(saved.quantityUnit),
     productionPeriod: formText(saved.productionPeriod),
     costBasis: formText(saved.costBasis),
+    economicStudyStage: formText(saved.economicStudyStage),
+    economicStudyDate: formText(saved.economicStudyDate).slice(0, 10),
+    nextStudyStage: formText(saved.nextStudyStage),
+    balanceAsOfDate: formText(saved.balanceAsOfDate).slice(0, 10),
+    marketCapAsOfDate: formText(saved.marketCapAsOfDate).slice(0, 10),
+    lastCapitalEventDate: formText(saved.lastCapitalEventDate).slice(0, 10),
     resourceMoz: formNumberText(saved.resourceMoz),
     reserveMoz: formNumberText(saved.reserveMoz),
     cashAud: formNumberText(saved.cashAud),
@@ -316,6 +349,12 @@ export function researchFormForDraft(draft: FundamentalResearchDraft): ResearchF
     quantityUnit: draft.quantityUnit ?? null,
     productionPeriod: draft.productionPeriod ?? null,
     costBasis: draft.costBasis ?? null,
+    economicStudyStage: draft.economicStudyStage ?? null,
+    economicStudyDate: draft.economicStudyDate ?? null,
+    nextStudyStage: draft.nextStudyStage ?? null,
+    balanceAsOfDate: draft.balanceAsOfDate ?? null,
+    marketCapAsOfDate: draft.marketCapAsOfDate ?? null,
+    lastCapitalEventDate: draft.lastCapitalEventDate ?? null,
     resourceMoz: draft.resourceMoz,
     reserveMoz: draft.reserveMoz,
     cashAud: draft.cashAud,
@@ -488,6 +527,12 @@ export async function saveResearchFundamentals(form: ResearchFormState): Promise
       quantityUnit: (formValue(form.quantityUnit) as MinerFundamentals["quantityUnit"]) ?? null,
       productionPeriod: (formValue(form.productionPeriod) as MinerFundamentals["productionPeriod"]) ?? null,
       costBasis: (formValue(form.costBasis) as MinerFundamentals["costBasis"]) ?? null,
+      economicStudyStage: (formValue(form.economicStudyStage) as MinerFundamentals["economicStudyStage"]) ?? null,
+      economicStudyDate: formValue(form.economicStudyDate),
+      nextStudyStage: (formValue(form.nextStudyStage) as MinerFundamentals["nextStudyStage"]) ?? null,
+      balanceAsOfDate: formValue(form.balanceAsOfDate),
+      marketCapAsOfDate: formValue(form.marketCapAsOfDate),
+      lastCapitalEventDate: formValue(form.lastCapitalEventDate),
       resourceMoz: formNumber(form.resourceMoz),
       reserveMoz: formNumber(form.reserveMoz),
       cashAud: formNumber(form.cashAud),

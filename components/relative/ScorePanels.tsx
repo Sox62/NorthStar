@@ -1,4 +1,4 @@
-import type { SouthernStarAllocationRead } from "@/components/fundamentals/detail-model";
+import type { HistoricalEconomics, SouthernStarAllocationRead } from "@/components/fundamentals/detail-model";
 import type { EntryScoreResult } from "@/southernstar/lib/entry-score";
 import type { RelativeScoreCheck, RelativeScoreComponent } from "@/southernstar/lib/ratio-engine";
 
@@ -43,6 +43,30 @@ function GaugeMeta({ coverage, basisLabel }: { coverage: number | null; basisLab
   return parts.length ? <em className="allocationGaugeMeta">{parts.join(" · ")}</em> : null;
 }
 
+function money(value: number | null) {
+  if (value == null) return null;
+  const millions = value / 1_000_000;
+  return "A$" + (millions >= 1000 ? (millions / 1000).toFixed(2) + "bn" : millions.toFixed(0) + "m");
+}
+
+/**
+ * Economics that were recorded but not allowed to price the asset. Shown rather than discarded —
+ * a superseded study is still the best published description of a project, it just is not a price.
+ */
+function HistoricalEconomicsNote({ economics }: { economics: HistoricalEconomics }) {
+  const figures = [
+    money(economics.npvAud) ? money(economics.npvAud) + " NPV" : null,
+    economics.irrPercent == null ? null : Math.round(economics.irrPercent) + "% IRR",
+    money(economics.capexAud) ? money(economics.capexAud) + " capex" : null,
+  ].filter(Boolean).join(" · ");
+  const provenance = [economics.stageLabel, economics.studyDate].filter(Boolean).join(", ");
+  return (
+    <p className="allocationHistory">
+      <strong>Historical economics:</strong> {figures || "recorded"}{provenance ? ` (${provenance})` : ""} — not scored. {economics.reason}
+    </p>
+  );
+}
+
 export function AllocationReadPanel({ read }: { read: SouthernStarAllocationRead }) {
   return (
     <div className="allocationReadPanel">
@@ -63,6 +87,7 @@ export function AllocationReadPanel({ read }: { read: SouthernStarAllocationRead
           </div>
         ))}
       </div>
+      {read.historicalEconomics ? <HistoricalEconomicsNote economics={read.historicalEconomics} /> : null}
       {read.warning ? <p className="allocationWarning" role="status">{read.warning}</p> : null}
       <p className="relativeScoreNote">Fundamentals tell us what we are prepared to own. Relative strength tells us what the market is rewarding. Entry condition tells us when to buy or add.</p>
       <p className="relativeScoreNote"><strong>F/R/V/E are decision-support signals, not investment advice and not a buy or sell instruction.</strong> Each is a triage prompt for what to inspect next; every allocation decision stays yours, taken against the underlying sources rather than the score.</p>

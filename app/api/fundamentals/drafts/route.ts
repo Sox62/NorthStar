@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     const input = fundamentalsDraftSchema.parse(await request.json());
     // Drafts do not carry quantityUnit/productionPeriod: an extractor cannot reliably infer
     // either, so an accepted draft takes the oz/year defaults for review in the intake form.
-    return NextResponse.json({ draft: await getStorage().createFundamentalResearchDraft({ ...input, quantityUnit: null, productionPeriod: null, costBasis: null }) }, { status: 201 });
+    return NextResponse.json({ draft: await getStorage().createFundamentalResearchDraft({ ...input, quantityUnit: null, productionPeriod: null, costBasis: null, economicStudyStage: null, economicStudyDate: null, nextStudyStage: null, balanceAsOfDate: null, marketCapAsOfDate: null, lastCapitalEventDate: null }) }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid fundamentals draft" }, { status: 400 });
   }

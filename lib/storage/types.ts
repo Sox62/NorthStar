@@ -319,6 +319,13 @@ export type ReportingPeriod = "quarter" | "half" | "year";
  */
 export type CostBasis = "aisc_byproduct" | "aisc_ageq" | "cash_cost" | "cas";
 
+/**
+ * Confidence tier of a published project economic study. A scoping study (PEA) and a feasibility
+ * study are not the same evidence, and a study already being superseded by a higher tier is
+ * history rather than a current valuation input.
+ */
+export type StudyStage = "scoping" | "pfs" | "dfs";
+
 export type MinerFundamentals = {
   symbol: string;
   name: string | null;
@@ -330,6 +337,14 @@ export type MinerFundamentals = {
   quantityUnit: QuantityUnit | null;
   productionPeriod: ReportingPeriod | null;
   costBasis: CostBasis | null;
+  economicStudyStage: StudyStage | null;
+  economicStudyDate: string | null;
+  /** Set when a higher-tier study is under way, which supersedes the recorded economics. */
+  nextStudyStage: StudyStage | null;
+  balanceAsOfDate: string | null;
+  marketCapAsOfDate: string | null;
+  /** A capital raise, placement or buyback. Anything recorded before it is known-wrong, not stale. */
+  lastCapitalEventDate: string | null;
   resourceMoz: number | null;
   reserveMoz: number | null;
   cashAud: number | null;
