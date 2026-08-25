@@ -72,4 +72,6 @@ test("every tile declares a currency and unit, so no price renders bare", () => 
   }
   // Sprott trades in Toronto: assuming USD here would misprice the uranium tile by the cross rate.
   assert.equal(MARKET_TILE_INSTRUMENTS.find((tile) => tile.key === "uranium")?.currency, "CAD");
+  assert.equal(MARKET_TILE_INSTRUMENTS.find((tile) => tile.key === "oil")?.providerSymbol, "CL=F");
+  assert.equal(MARKET_TILE_INSTRUMENTS.find((tile) => tile.key === "oil")?.unit, "bbl");
 });

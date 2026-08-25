@@ -6,12 +6,12 @@ import {
   type YahooChartResponse,
 } from "./market-data";
 
-export type MarketTileUnit = "oz" | "lb" | "index" | "unit";
+export type MarketTileUnit = "oz" | "lb" | "bbl" | "index" | "unit";
 
 /**
  * The reference markets on the State of play tiles. Gold, silver and platinum keep their live
  * Swissquote spot price on screen; this feed exists for the previous close behind the daily move,
- * and for the three tiles the spot feed does not cover at all.
+ * and for the four tiles the spot feed does not cover at all.
  *
  * Every provider symbol was fetched and confirmed to return a quote before being listed here.
  * Sprott (U-UN.TO) prices in CAD, which is why the tiles show a currency rather than assuming USD.
@@ -21,6 +21,7 @@ export const MARKET_TILE_INSTRUMENTS = [
   { key: "silver", label: "Silver", providerSymbol: "SI=F", currency: "USD", unit: "oz" },
   { key: "platinum", label: "Platinum", providerSymbol: "PL=F", currency: "USD", unit: "oz" },
   { key: "copper", label: "Copper", providerSymbol: "HG=F", currency: "USD", unit: "lb" },
+  { key: "oil", label: "Oil", providerSymbol: "CL=F", currency: "USD", unit: "bbl" },
   { key: "uranium", label: "Uranium", providerSymbol: "U-UN.TO", currency: "CAD", unit: "unit" },
   { key: "spx", label: "SPX", providerSymbol: "^GSPC", currency: "USD", unit: "index" },
 ] as const satisfies ReadonlyArray<{

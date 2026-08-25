@@ -721,17 +721,17 @@ body.southernstar .nsMetalsHeader {
 body.southernstar .nsMetalsGrid {
   display:grid;
   /*
-   * Auto-fit lets the market strip absorb more reference tiles on wide screens while still
-   * wrapping naturally on tablet and mobile. The floor is deliberately compact so seven current
-   * tiles, including SPX, sit in one row on normal desktop widths.
+   * Eight reference tiles should stay in one market row on desktop. The lower floor lets the added
+   * oil tile fit without creating a stranded second line, while tablet and mobile still wrap.
    */
-  grid-template-columns:repeat(auto-fit, minmax(132px, 1fr));
+  grid-template-columns:repeat(auto-fit, minmax(118px, 1fr));
   gap:10px;
 }
 
 body.southernstar .nsMetalTile {
   display:block;
   min-width:0;
+  min-height:132px;
   padding:11px 12px;
   border:1px solid rgba(122,149,178,0.18);
   border-radius:14px;
@@ -3051,9 +3051,8 @@ body.southernstar .nsHoldingRow > div > span.nsCellLabel {
   }
 }
 
-/* Two-column mobile grids strand a lone final item — three header buttons leave "Sign out"
-   by itself, seven market tiles leave SPX. Let the odd one out take the full row so it reads
-   as deliberate rather than dropped. */
+/* Two-column mobile grids strand a lone final item — three header buttons leave "Sign out" by
+   itself. Let odd item counts take the full row so the layout reads as deliberate rather than dropped. */
 @media (max-width: 760px) {
   body.southernstar .nsReportLinks > :last-child:nth-child(odd) {
     grid-column:1 / -1;

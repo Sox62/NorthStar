@@ -22,7 +22,7 @@ type MarketTileApiQuote = {
   previousClose: number | null;
   currency: string;
   /** Carried by the feed for completeness; the tile prints currency and figure only. */
-  unit: "oz" | "lb" | "index" | "unit";
+  unit: "oz" | "lb" | "bbl" | "index" | "unit";
   priceDate: string;
 };
 
@@ -39,7 +39,7 @@ type Tile = {
 };
 
 // Venues verified against TradingView symbol pages: TVC carries GOLD, SILVER and GOLDSILVER but
-// not platinum or copper, which is why those two sit on other venues.
+// not platinum, copper or WTI crude, which is why those sit on other venues.
 const TILES: Tile[] = [
   { key: "gold", label: "Gold", metal: "gold", tradingViewSymbol: "TVC:GOLD", color: SECTOR_COLORS["Gold miners"] },
   { key: "silver", label: "Silver", metal: "silver", tradingViewSymbol: "TVC:SILVER", color: SECTOR_COLORS["Silver bullion"] },
@@ -48,6 +48,7 @@ const TILES: Tile[] = [
   { key: "gsr", label: "GSR", tradingViewSymbol: tradingViewRatioExpression("TVC:GOLD", "TVC:SILVER"), color: SECTOR_COLORS["Silver miners"] },
   { key: "platinum", label: "Platinum", metal: "platinum", tradingViewSymbol: "ACTIVTRADES:PLATINUM", color: SECTOR_COLORS["Platinum bullion"] },
   { key: "copper", label: "Copper", tradingViewSymbol: "CAPITALCOM:COPPER", color: SECTOR_COLORS.Oil },
+  { key: "oil", label: "Oil", tradingViewSymbol: "NYMEX:CL1!", color: SECTOR_COLORS.Oil },
   { key: "uranium", label: "Uranium", tradingViewSymbol: "TSX:U.UN", color: SECTOR_COLORS["Uranium miners"], note: "Sprott" },
   { key: "spx", label: "SPX", tradingViewSymbol: "SP:SPX", color: SECTOR_COLORS["Broad equities"] },
 ];
@@ -80,7 +81,7 @@ export function MarketsPanel() {
       if (cancelled) return;
       setSpot(new Map((metals.quotes ?? []).map((quote) => [quote.metal, quote])));
       setTiles(new Map((markets.quotes ?? []).map((quote) => [quote.key, quote])));
-      // Six tiles failing one provider would print six near-identical lines, so the daily-move
+      // A provider outage can print near-identical lines for several tiles, so the daily-move
       // feed is reported as a single sentence and the spot errors are kept verbatim.
       const moveErrors = markets.errors ?? [];
       setErrors([
