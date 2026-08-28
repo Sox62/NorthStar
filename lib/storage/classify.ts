@@ -33,6 +33,7 @@ const SYMBOL_SECTORS: Record<string, Sector> = {
   NXG: "Uranium miners",
   NUKZ: "Uranium miners",
   PDN: "Uranium miners",
+  SMR: "Uranium miners",
   U: "Uranium miners",
   "U.UN": "Uranium miners",
   URA: "Uranium miners",
@@ -40,6 +41,8 @@ const SYMBOL_SECTORS: Record<string, Sector> = {
   UUUU: "Uranium miners",
 
   LAM: "Uranium explorers",
+  LEU: "Uranium miners",
+  SLX: "Uranium miners",
 
   VELO: "Technology",
 

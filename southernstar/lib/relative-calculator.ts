@@ -1,3 +1,5 @@
+import { buildRatioSeries, relativeReturnWindows, type RatioHistoryPoint } from "./ratio-engine";
+
 export type RelativeCalculatorInput = {
   leftLabel: string;
   rightLabel: string;
@@ -42,20 +44,31 @@ export function calculateRelativeRelationship(input: RelativeCalculatorInput): R
   const leftEndAud = cleaned.leftEndPrice * cleaned.leftEndFxToAud;
   const rightStartAud = cleaned.rightStartPrice * cleaned.rightStartFxToAud;
   const rightEndAud = cleaned.rightEndPrice * cleaned.rightEndFxToAud;
-  const leftLocalReturnPercent = pctReturn(cleaned.leftStartPrice, cleaned.leftEndPrice);
-  const rightLocalReturnPercent = pctReturn(cleaned.rightStartPrice, cleaned.rightEndPrice);
-  const leftAudReturnPercent = pctReturn(leftStartAud, leftEndAud);
-  const rightAudReturnPercent = pctReturn(rightStartAud, rightEndAud);
-  const ratioStart = leftStartAud / rightStartAud;
-  const ratioEnd = leftEndAud / rightEndAud;
-  const ratioReturnPercent = pctReturn(ratioStart, ratioEnd);
-  const rawRatioStart = cleaned.leftStartPrice / cleaned.rightStartPrice;
-  const rawRatioEnd = cleaned.leftEndPrice / cleaned.rightEndPrice;
-  const rawRatioReturnPercent = pctReturn(rawRatioStart, rawRatioEnd);
-  const fxRatioStart = cleaned.leftStartFxToAud / cleaned.rightStartFxToAud;
-  const fxRatioEnd = cleaned.leftEndFxToAud / cleaned.rightEndFxToAud;
-  const fxRatioReturnPercent = pctReturn(fxRatioStart, fxRatioEnd);
-  const fxContributionPercent = ratioReturnPercent - rawRatioReturnPercent;
+  const series = buildRatioSeries([
+    manualPoint("1970-01-01", cleaned.leftStartPrice, cleaned.leftStartFxToAud),
+    manualPoint("1970-01-02", cleaned.leftEndPrice, cleaned.leftEndFxToAud),
+  ], [
+    manualPoint("1970-01-01", cleaned.rightStartPrice, cleaned.rightStartFxToAud),
+    manualPoint("1970-01-02", cleaned.rightEndPrice, cleaned.rightEndFxToAud),
+  ]);
+  const first = series[0];
+  const last = series.at(-1);
+  const window = relativeReturnWindows(series).find((item) => item.key === "all");
+  if (!first || !last || !window) throw new Error("Manual comparison could not be calculated.");
+  const leftLocalReturnPercent = window.leftLocalReturnPercent!;
+  const rightLocalReturnPercent = window.rightLocalReturnPercent!;
+  const leftAudReturnPercent = window.leftReturnPercent!;
+  const rightAudReturnPercent = window.rightReturnPercent!;
+  const ratioStart = first.ratio / 100;
+  const ratioEnd = last.ratio / 100;
+  const ratioReturnPercent = window.ratioReturnPercent!;
+  const rawRatioStart = first.rawRatio / 100;
+  const rawRatioEnd = last.rawRatio / 100;
+  const rawRatioReturnPercent = window.rawRatioReturnPercent!;
+  const fxRatioStart = first.fxRatio;
+  const fxRatioEnd = last.fxRatio;
+  const fxRatioReturnPercent = window.fxRatioReturnPercent!;
+  const fxContributionPercent = window.fxContributionPercent!;
   const winner = Math.abs(ratioReturnPercent) < 0.000001 ? "flat" : ratioReturnPercent > 0 ? "left" : "right";
   const interpretation = winner === "flat"
     ? `${cleaned.leftLabel} and ${cleaned.rightLabel} were flat relative to each other on an AUD-normalised basis.`
@@ -101,8 +114,15 @@ function cleanInput(input: RelativeCalculatorInput): RelativeCalculatorInput {
   return cleaned;
 }
 
-function pctReturn(start: number, end: number) {
-  return end / start * 100 - 100;
+function manualPoint(date: string, close: number, fxRateToAud: number): RatioHistoryPoint {
+  return {
+    date,
+    close,
+    currency: "MANUAL",
+    fxRateToAud,
+    valueAud: close * fxRateToAud,
+    source: "Manual calculator input",
+  };
 }
 
 function formatPercent(value: number) {

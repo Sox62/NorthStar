@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { StoredDailyPrice, StoredFxRate } from "@/lib/storage";
-import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, RELATIVE_COVERAGE_FLOOR, relativeReturnWindows, relativeStrengthScore, scoreRatioTrend, scoreRatioTrendVelocity } from "./ratio-engine";
+import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, latestRatioTrendState, MAX_RATIO_CARRY_FORWARD_DAYS, ratioMovingAverageSeries, RELATIVE_COVERAGE_FLOOR, relativeReturnWindows, relativeStrengthScore, scoreRatioTrend, scoreRatioTrendVelocity } from "./ratio-engine";
 
 function closeTo(actual: number | null | undefined, expected: number, delta = 0.000001) {
   assert.ok(actual != null && Math.abs(actual - expected) <= delta, `expected ${actual} to be within ${delta} of ${expected}`);
@@ -90,6 +90,24 @@ test("buildRatioSeries decomposes raw relative moves and FX contribution", () =>
   closeTo(window.fxRatioReturnPercent, -4.9759229535);
 });
 
+test("buildRatioSeries leaves raw and normalised returns identical for same-currency pairs", () => {
+  const left = buildInstrumentHistory(
+    [price("DYL", "ASX", "AUD", 10, "2026-08-01"), price("DYL", "ASX", "AUD", 12, "2026-08-02")],
+    [],
+    { symbol: "DYL", exchange: "ASX", currency: "AUD" },
+  );
+  const right = buildInstrumentHistory(
+    [price("PDN", "ASX", "AUD", 10, "2026-08-01"), price("PDN", "ASX", "AUD", 11, "2026-08-02")],
+    [],
+    { symbol: "PDN", exchange: "ASX", currency: "AUD" },
+  );
+  const window = relativeReturnWindows(buildRatioSeries(left, right)).find((item) => item.key === "all")!;
+
+  closeTo(window.rawRatioReturnPercent, 9.0909090909);
+  closeTo(window.ratioReturnPercent, 9.0909090909);
+  closeTo(window.fxContributionPercent, 0);
+});
+
 test("buildRatioSeries carries forward latest known closes for mismatched market dates", () => {
   const left = buildInstrumentHistory(
     [price("PDN", "ASX", "AUD", 10, "2026-08-01"), price("PDN", "ASX", "AUD", 12, "2026-08-03")],
@@ -106,6 +124,23 @@ test("buildRatioSeries carries forward latest known closes for mismatched market
   assert.equal(series[0].left, 10);
   assert.equal(series[1].left, 12);
   assert.equal(series[1].right, 50);
+});
+
+test("buildRatioSeries stops carrying a stale leg after the alignment window", () => {
+  const left = buildInstrumentHistory(
+    [price("PDN", "ASX", "AUD", 10, "2026-08-03"), price("PDN", "ASX", "AUD", 12, "2026-08-07")],
+    [],
+    { symbol: "PDN", exchange: "ASX", currency: "AUD" },
+  );
+  const right = buildInstrumentHistory(
+    [price("URA", "AMEX", "USD", 50, "2026-08-03")],
+    [fx("USD", 1.5, "2026-08-03")],
+    { symbol: "URA", exchange: "AMEX", currency: "USD" },
+  );
+  const series = buildRatioSeries(left, right);
+
+  assert.equal(MAX_RATIO_CARRY_FORWARD_DAYS, 3);
+  assert.deepEqual(series.map((point) => point.date), ["2026-08-03"]);
 });
 
 test("applyRatioRange and relativeReturnWindows calculate period returns", () => {
@@ -159,6 +194,17 @@ test("relativeStrengthScore weights recent ratio leadership", () => {
 
   closeTo(score, 60.625);
   assert.equal(relativeStrengthScore([returnWindow({ key: "1m", label: "1M", days: 31, startDate: null, endDate: null, ratioReturnPercent: null, leftReturnPercent: null, rightReturnPercent: null, points: 0 })]), null);
+});
+
+test("ratioMovingAverageSeries supports SMA and EMA on the selected basis", () => {
+  const series = ratioSeries([100, 110, 130, 160]);
+  const sma = ratioMovingAverageSeries(series, { type: "sma", period: 3 });
+  const ema = ratioMovingAverageSeries(series, { type: "ema", period: 3 });
+
+  assert.deepEqual(sma.map((point) => point.movingAverage), [null, null, 113.33333333333333, 133.33333333333334]);
+  closeTo(ema[2].movingAverage, 113.33333333333333);
+  closeTo(ema[3].movingAverage, 136.66666666666666);
+  assert.equal(latestRatioTrendState(series, { type: "sma", period: 3 }), "strengthening");
 });
 
 function returnWindow(input: {

@@ -61,5 +61,21 @@ test("research benchmarks include permanent non-holding candidates", () => {
   assert.ok(symbols.includes("SPY"));
   assert.ok(symbols.includes("RSP"));
   assert.ok(symbols.includes("QQQ"));
+  assert.ok(symbols.includes("URA"));
+  assert.ok(symbols.includes("ATOM"));
+  assert.ok(symbols.includes("COPX"));
+  assert.ok(symbols.includes("WIRE"));
+  assert.ok(symbols.includes("LEU"));
+  assert.ok(symbols.includes("SLX"));
+  assert.ok(symbols.includes("SMR"));
   assert.ok(symbols.includes("USD"));
+});
+
+test("benchmark nodes carry instrument type and hedge metadata where applicable", () => {
+  const ura = RESEARCH_BENCHMARKS.find((node) => node.symbol === "URA")!;
+  const gold = RESEARCH_BENCHMARKS.find((node) => node.symbol === "GOLD")!;
+
+  assert.equal(ura.instrumentType, "etf");
+  assert.equal(ura.currencyHedging, "unknown");
+  assert.equal(gold.instrumentType, "commodity");
 });

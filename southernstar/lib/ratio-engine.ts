@@ -2,6 +2,13 @@ import type { StoredDailyPrice, StoredFxRate } from "@/lib/storage";
 
 export type RatioRangeKey = "all" | "5y" | "3y" | "12m" | "6m" | "3m" | "1m";
 export type RatioBasis = "fx_normalised" | "raw_market";
+export type RatioMovingAverageType = "sma" | "ema";
+export type RatioTrendState = "strengthening" | "weakening" | "neutral";
+
+export type RatioMovingAverageConfig = {
+  type: RatioMovingAverageType;
+  period: number;
+};
 
 export type RatioInstrument = {
   id?: string;
@@ -38,6 +45,13 @@ export type RatioPoint = {
   rawRatio: number;
   fxRatio: number;
   ratio: number;
+};
+
+export type RatioMovingAveragePoint = {
+  date: string;
+  value: number;
+  movingAverage: number | null;
+  trendState: RatioTrendState;
 };
 
 export type RelativeReturnWindow = {
@@ -87,6 +101,7 @@ export type RelativeScoreComponent = {
  * not evidence of weakness.
  */
 export const RELATIVE_COVERAGE_FLOOR = 0.5;
+export const MAX_RATIO_CARRY_FORWARD_DAYS = 3;
 
 export const RATIO_RANGES: Array<{ key: RatioRangeKey; label: string; days: number | null }> = [
   { key: "all", label: "All", days: null },
@@ -151,6 +166,7 @@ export function buildRatioSeries(leftHistory: RatioHistoryPoint[], rightHistory:
     latestLeft = leftByDate.get(date) ?? latestLeft;
     latestRight = rightByDate.get(date) ?? latestRight;
     if (!latestLeft || !latestRight || !latestRight.valueAud) continue;
+    if (!withinCarryForwardWindow(latestLeft.date, date) || !withinCarryForwardWindow(latestRight.date, date)) continue;
     joined.push({ date, left: latestLeft, right: latestRight });
   }
   const first = joined[0];
@@ -214,6 +230,22 @@ export function ratioValueForBasis(point: RatioPoint, basis: RatioBasis) {
 
 export function ratioReturnForBasis(window: RelativeReturnWindow, basis: RatioBasis) {
   return basis === "raw_market" ? window.rawRatioReturnPercent : window.ratioReturnPercent;
+}
+
+export function ratioMovingAverageSeries(series: RatioPoint[], config: RatioMovingAverageConfig, basis: RatioBasis = "fx_normalised"): RatioMovingAveragePoint[] {
+  const period = normaliseMovingAveragePeriod(config.period);
+  const values = series.map((point) => ratioValueForBasis(point, basis));
+  const averages = config.type === "ema" ? exponentialMovingAverage(values, period) : simpleMovingAverage(values, period);
+  return series.map((point, index) => ({
+    date: point.date,
+    value: values[index],
+    movingAverage: averages[index],
+    trendState: ratioTrendState(values[index], averages[index], previousAverage(averages, index)),
+  }));
+}
+
+export function latestRatioTrendState(series: RatioPoint[], config: RatioMovingAverageConfig, basis: RatioBasis = "fx_normalised"): RatioTrendState {
+  return ratioMovingAverageSeries(series, config, basis).at(-1)?.trendState ?? "neutral";
 }
 
 export function leftReturnForBasis(window: RelativeReturnWindow, basis: RatioBasis) {
@@ -340,6 +372,55 @@ function movingAverage(series: RatioPoint[], lookback: number) {
   return slice.reduce((sum, point) => sum + point.ratio, 0) / slice.length;
 }
 
+function simpleMovingAverage(values: number[], period: number) {
+  let sum = 0;
+  return values.map((value, index) => {
+    sum += value;
+    if (index >= period) sum -= values[index - period];
+    return index + 1 >= period ? sum / period : null;
+  });
+}
+
+function exponentialMovingAverage(values: number[], period: number) {
+  const alpha = 2 / (period + 1);
+  let ema: number | null = null;
+  let seedSum = 0;
+  return values.map((value, index) => {
+    if (index + 1 < period) {
+      seedSum += value;
+      return null;
+    }
+    if (index + 1 === period) {
+      seedSum += value;
+      ema = seedSum / period;
+      return ema;
+    }
+    ema = value * alpha + ema! * (1 - alpha);
+    return ema;
+  });
+}
+
+function previousAverage(averages: Array<number | null>, index: number) {
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    if (averages[cursor] != null) return averages[cursor];
+  }
+  return null;
+}
+
+function ratioTrendState(value: number, average: number | null, previous: number | null): RatioTrendState {
+  if (average == null || previous == null) return "neutral";
+  const tolerance = Math.max(Math.abs(average) * 0.0005, 0.000001);
+  const averageChange = average - previous;
+  if (value > average + tolerance && averageChange > -tolerance) return "strengthening";
+  if (value < average - tolerance && averageChange < tolerance) return "weakening";
+  return "neutral";
+}
+
+function normaliseMovingAveragePeriod(value: number) {
+  if (!Number.isFinite(value)) return 36;
+  return Math.max(2, Math.min(250, Math.round(value)));
+}
+
 function formatRatio(value: number) {
   if (value >= 10) return value.toFixed(1);
   if (value >= 1) return value.toFixed(2);
@@ -403,4 +484,9 @@ function normaliseCurrency(value: string) {
 
 function dateTime(value: string) {
   return new Date(`${value}T12:00:00Z`).getTime();
+}
+
+function withinCarryForwardWindow(sourceDate: string, targetDate: string) {
+  const ageDays = (dateTime(targetDate) - dateTime(sourceDate)) / (24 * 60 * 60 * 1000);
+  return ageDays >= 0 && ageDays <= MAX_RATIO_CARRY_FORWARD_DAYS;
 }

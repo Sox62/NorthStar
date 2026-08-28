@@ -1,4 +1,4 @@
-import type { BenchmarkNode } from "./benchmark-tree";
+import { RESEARCH_BENCHMARKS, type BenchmarkNode } from "./benchmark-tree";
 
 export type SelectionKind = "holding" | "benchmark";
 
@@ -41,14 +41,26 @@ export function customBenchmarkNode(input: string): BenchmarkNode | null {
   const symbol = second ?? first;
   if (!/^[A-Z0-9][A-Z0-9._-]{0,15}$/.test(symbol)) return null;
   if (venue && !/^[A-Z0-9_]{2,12}$/.test(venue)) return null;
+  const known = venue ? null : RESEARCH_BENCHMARKS.find((node) => node.symbol === symbol);
+  const resolvedVenue = venue || known?.tradingViewSymbol?.split(":")[0] || "";
 
   return {
-    id: `custom:${venue}:${symbol}`,
-    label: venue ? `${symbol} · ${venue}` : symbol,
-    role: "leader",
+    id: `custom:${resolvedVenue}:${symbol}`,
+    label: resolvedVenue ? `${symbol} · ${resolvedVenue}` : symbol,
+    role: known?.role ?? "leader",
     symbol,
-    tradingViewSymbol: venue ? `${venue}:${symbol}` : symbol,
-    basisCurrency: "USD",
+    tradingViewSymbol: resolvedVenue ? `${resolvedVenue}:${symbol}` : symbol,
+    basisCurrency: known?.basisCurrency ?? currencyForVenue(resolvedVenue),
+    instrumentType: known?.instrumentType ?? "equity",
+    currencyHedging: known?.currencyHedging,
     note: "Typed comparison. Backfill history to chart the ratio in SouthernStar.",
   };
+}
+
+function currencyForVenue(venue: string): BenchmarkNode["basisCurrency"] {
+  const normalised = venue.trim().toUpperCase();
+  if (["ASX", "AU", "AUS", "CHIXAU"].includes(normalised)) return "AUD";
+  if (["TSX", "TSXV", "TSE", "CVE", "CA", "CANADA", "TSX/TSXV"].includes(normalised)) return "CAD";
+  if (["LSE", "LON", "LN", "GB", "UK"].includes(normalised)) return "GBP";
+  return "USD";
 }

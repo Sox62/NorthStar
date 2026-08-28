@@ -5,13 +5,15 @@ import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import TradingViewWidget from "@/components/TradingViewWidget";
 import { RatioChart, RelativePeriodCell, type RatioMode } from "@/components/relative/RatioChart";
+import { RelativeStrengthStack } from "@/components/relative/RelativeStrengthStack";
 import { AllocationReadPanel, EntryScorePanel, OpportunityMatrix, RelativeScorePanel, velocityLabel, type OpportunityRow, type OpportunitySortKey, type RelativeEngineScore, type RelativeLayer } from "@/components/relative/ScorePanels";
 import { allocationRead } from "@/components/fundamentals/detail-model";
 import type { DashboardData, DashboardHolding, MinerFundamentals, OwnerType, Scope, StoredDailyPrice, StoredFxRate, StructuralLevel } from "@/lib/storage";
 import { Card, Notice, SummaryGrid } from "@/southernstar/components";
 import { RESEARCH_BENCHMARKS, resolveBenchmarkTree, type BenchmarkNode } from "@/southernstar/lib/benchmark-tree";
 import { scoreEntryCondition } from "@/southernstar/lib/entry-score";
-import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, ratioReturnForBasis, relativeReturnWindows, scoreRatioTrend, scoreRatioTrendVelocity, RATIO_RANGES, type RatioBasis, type RatioPoint, type RatioRangeKey, type RelativeScoreComponent } from "@/southernstar/lib/ratio-engine";
+import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, ratioReturnForBasis, relativeReturnWindows, scoreRatioTrend, scoreRatioTrendVelocity, RATIO_RANGES, type RatioBasis, type RatioMovingAverageConfig, type RatioPoint, type RatioRangeKey, type RelativeScoreComponent } from "@/southernstar/lib/ratio-engine";
+import { buildRelativeStrengthStack, relativeStrengthStackBackfillKeys } from "@/southernstar/lib/relative-strength-stack";
 import { sectorForInstrument } from "@/southernstar/lib/sector-map";
 import { customBenchmarkNode, parseSelectionValue, selectionValue } from "@/southernstar/lib/selection";
 import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/southernstar/lib/tradingview";
@@ -509,10 +511,12 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   const [leftBenchmarkId, setLeftBenchmarkId] = useState("");
   const [rightBenchmarkId, setRightBenchmarkId] = useState("");
   const [ratioBasis, setRatioBasis] = useState<RatioBasis>("fx_normalised");
+  const [stackMovingAverage, setStackMovingAverage] = useState<RatioMovingAverageConfig>({ type: "sma", period: 36 });
   const [mode, setMode] = useState<RatioMode>("ratio");
   const [range, setRange] = useState<RangeKey>("all");
   const [loading, setLoading] = useState(true);
   const [backfillBusy, setBackfillBusy] = useState(false);
+  const [stackBackfillBusy, setStackBackfillBusy] = useState(false);
   const [customNodes, setCustomNodes] = useState<BenchmarkNode[]>([]);
   const [customLeftInput, setCustomLeftInput] = useState("");
   const [customRightInput, setCustomRightInput] = useState("");
@@ -612,6 +616,16 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   const leftHistory = historyForComparison(prices, fxRates, selectedLeftBenchmark ? null : left, selectedLeftBenchmark);
   const rightHistory = historyForComparison(prices, fxRates, selectedBenchmark ? null : right, selectedBenchmark);
   const fullSeries = left && right ? buildRatioSeries(leftHistory, rightHistory) : [];
+  const relativeStack = useMemo(() => left ? buildRelativeStrengthStack({
+    subject: left,
+    subjectNode: selectedLeftBenchmark,
+    prices,
+    fxRates,
+    benchmarkNodes,
+    basis: ratioBasis,
+    movingAverage: stackMovingAverage,
+  }) : [], [left, selectedLeftBenchmark, prices, fxRates, benchmarkNodes, ratioBasis, stackMovingAverage]);
+  const stackBackfillKeys = useMemo(() => left ? relativeStrengthStackBackfillKeys(left, relativeStack) : [], [left, relativeStack]);
   const series = applyRatioRange(fullSeries, range);
   const evidenceWindows = useMemo(() => relativeReturnWindows(fullSeries, evidenceRanges), [fullSeries]);
   const pairThreeMonthWindow = evidenceWindows.find((item) => item.key === "3m") ?? null;
@@ -765,40 +779,62 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
     }
   };
 
+  const reloadDashboardsAndPrices = async () => {
+    const [overall, personal, smsf, storedPrices] = await Promise.all([
+      loadDashboard("overall"),
+      loadDashboard("personal"),
+      loadDashboard("smsf"),
+      loadStoredPrices(),
+    ]);
+    setDashboards({ overall, personal, smsf });
+    setPrices(storedPrices.prices);
+    setFxRates(storedPrices.fxRates);
+  };
+
+  const backfillSymbols = async (symbols: string[]) => {
+    const response = await fetch("/api/prices/backfill", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        range: "max",
+        symbols,
+      }),
+    });
+    const payload = await response.json();
+    if (!response.ok || payload.error) throw new Error(payload.error || "Historical backfill failed");
+    await reloadDashboardsAndPrices();
+    const warnings = Array.isArray(payload.errors) && payload.errors.length ? ` with warnings: ${payload.errors.slice(0, 2).join("; ")}` : "";
+    setOperationMessage(`Backfilled ${payload.imported ?? 0} historical closes across all available provider history${warnings}.`);
+  };
+
   const backfillSelected = async () => {
     if (!left || !right) return;
     setBackfillBusy(true);
     setOperationMessage("");
     setError("");
     try {
-      const response = await fetch("/api/prices/backfill", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          range: "max",
-          symbols: [
-            selectedLeftBenchmark ? backfillKeyForBenchmark(selectedLeftBenchmark) : backfillKeyForHolding(left),
-            selectedBenchmark ? backfillKeyForBenchmark(selectedBenchmark) : backfillKeyForHolding(right),
-          ],
-        }),
-      });
-      const payload = await response.json();
-      if (!response.ok && payload.error) throw new Error(payload.error);
-      const [overall, personal, smsf, storedPrices] = await Promise.all([
-        loadDashboard("overall"),
-        loadDashboard("personal"),
-        loadDashboard("smsf"),
-        loadStoredPrices(),
+      await backfillSymbols([
+        selectedLeftBenchmark ? backfillKeyForBenchmark(selectedLeftBenchmark) : backfillKeyForHolding(left),
+        selectedBenchmark ? backfillKeyForBenchmark(selectedBenchmark) : backfillKeyForHolding(right),
       ]);
-      setDashboards({ overall, personal, smsf });
-      setPrices(storedPrices.prices);
-      setFxRates(storedPrices.fxRates);
-      const warnings = Array.isArray(payload.errors) && payload.errors.length ? ` with warnings: ${payload.errors.slice(0, 2).join("; ")}` : "";
-      setOperationMessage(`Backfilled ${payload.imported ?? 0} historical closes across all available provider history${warnings}.`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Historical backfill failed");
     } finally {
       setBackfillBusy(false);
+    }
+  };
+
+  const backfillStack = async () => {
+    if (!left || !stackBackfillKeys.length) return;
+    setStackBackfillBusy(true);
+    setOperationMessage("");
+    setError("");
+    try {
+      await backfillSymbols(stackBackfillKeys);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Stack history backfill failed");
+    } finally {
+      setStackBackfillBusy(false);
     }
   };
 
@@ -956,6 +992,19 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
               <button type="button" className={ratioBasis === "raw_market" ? "isActive" : ""} onClick={() => setRatioBasis("raw_market")}>Raw Market Ratio</button>
             </div>
           </div>
+          <div className="relativeRangeBar">
+            <div>
+              <p className="eyebrow">Time range</p>
+              <strong>{ranges.find((item) => item.key === range)?.label ?? "All"}</strong>
+            </div>
+            <div className="scopeSwitch" role="tablist" aria-label="Comparison range">
+              {ranges.map((item) => (
+                <button key={item.key} type="button" className={range === item.key ? "isActive" : ""} onClick={() => setRange(item.key)}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <SummaryGrid
             entries={[
               percentSummary("Relative strength", ratioChange),
@@ -966,6 +1015,41 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
               strengthEntry,
               velocityEntry,
             ]}
+          />
+
+          {leftTvSymbol ? (
+            <div className="relativeTvPanel isPrice">
+              <div className="relativeTvHeader">
+                <div>
+                  <p className="eyebrow">Price chart</p>
+                  <h3>{left.symbol} - {left.name}</h3>
+                  <span>{leftTvSymbol}</span>
+                </div>
+                <div className="relativeActions">
+                  {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>Open in TV</a> : null}
+                </div>
+              </div>
+              <TradingViewWidget
+                symbol={leftTvSymbol}
+                className="tradingview-widget-container stockChartWidget relativeTvWidget"
+                minHeight={440}
+                maxHeight={620}
+                compactMinHeight={300}
+                compactMaxHeight={420}
+                heightRatio={0.58}
+                compactHeightRatio={0.48}
+              />
+            </div>
+          ) : null}
+
+          <RelativeStrengthStack
+            items={relativeStack}
+            basis={ratioBasis}
+            range={range}
+            movingAverage={stackMovingAverage}
+            onMovingAverageChange={setStackMovingAverage}
+            onBackfill={() => void backfillStack()}
+            backfillBusy={stackBackfillBusy}
           />
 
           <AllocationReadPanel read={allocationReadout} />
@@ -1021,16 +1105,9 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                 <button type="button" className={mode === "ratio" ? "isActive" : ""} onClick={() => setMode("ratio")}>Ratio</button>
                 <button type="button" className={mode === "indexed" ? "isActive" : ""} onClick={() => setMode("indexed")}>Indexed</button>
               </div>
-              <div className="scopeSwitch" role="tablist" aria-label="Chart range">
-                {ranges.map((item) => (
-                  <button key={item.key} type="button" className={range === item.key ? "isActive" : ""} onClick={() => setRange(item.key)}>
-                    {item.label}
-                  </button>
-                ))}
-              </div>
             </div>
             {series.length >= 2 ? (
-              <RatioChart series={series} mode={mode} basis={ratioBasis} left={left} right={right} />
+              <RatioChart series={series} mode={mode} basis={ratioBasis} movingAverage={stackMovingAverage} left={left} right={right} />
             ) : (
               <div className="relativeEmpty">
                 <strong>No overlapping stored closes</strong>

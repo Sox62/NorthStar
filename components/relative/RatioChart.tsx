@@ -1,7 +1,7 @@
 import type { PointerEvent } from "react";
 import { useRef, useState } from "react";
 import type { DashboardHolding } from "@/lib/storage";
-import { leftReturnForBasis, ratioReturnForBasis, ratioValueForBasis, rightReturnForBasis, type RatioBasis, type RatioPoint, type RelativeReturnWindow } from "@/southernstar/lib/ratio-engine";
+import { leftReturnForBasis, ratioMovingAverageSeries, ratioReturnForBasis, ratioValueForBasis, rightReturnForBasis, type RatioBasis, type RatioMovingAverageConfig, type RatioPoint, type RelativeReturnWindow } from "@/southernstar/lib/ratio-engine";
 
 export type RatioMode = "ratio" | "indexed";
 
@@ -43,7 +43,7 @@ function indexedValueFor(point: RatioPoint, first: RatioPoint | undefined, basis
   return start ? value / start * 100 : 100;
 }
 
-export function RatioChart({ series, mode, basis = "fx_normalised", left, right }: { series: RatioPoint[]; mode: RatioMode; basis?: RatioBasis; left: DashboardHolding; right: DashboardHolding }) {
+export function RatioChart({ series, mode, basis = "fx_normalised", movingAverage, left, right }: { series: RatioPoint[]; mode: RatioMode; basis?: RatioBasis; movingAverage?: RatioMovingAverageConfig; left: DashboardHolding; right: DashboardHolding }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const chartRef = useRef<SVGSVGElement | null>(null);
   const width = 920;
@@ -54,8 +54,9 @@ export function RatioChart({ series, mode, basis = "fx_normalised", left, right 
   const chartWidth = width - padX * 2;
   const chartHeight = height - padTop - padBottom;
   const first = series[0];
+  const average = movingAverage ? ratioMovingAverageSeries(series, movingAverage, basis) : [];
   const values = mode === "ratio"
-    ? series.map((point) => ratioValueForBasis(point, basis))
+    ? [...series.map((point) => ratioValueForBasis(point, basis)), ...average.map((point) => point.movingAverage).filter((value): value is number => value != null)]
     : series.flatMap((point) => [indexedValueFor(point, first, basis, "left"), indexedValueFor(point, first, basis, "right")]);
   const rawMax = values.length ? Math.max(...values) : 1;
   const rawMin = values.length ? Math.min(...values) : 0;
@@ -78,6 +79,15 @@ export function RatioChart({ series, mode, basis = "fx_normalised", left, right 
       const pointXY = xy(point, index, key);
       return `${index === 0 ? "M" : "L"} ${pointXY.x.toFixed(2)} ${pointXY.y.toFixed(2)}`;
     }).join(" ");
+  const movingAveragePath = average
+    .filter((point) => point.movingAverage != null)
+    .map((point, index) => {
+      const seriesIndex = series.findIndex((seriesPoint) => seriesPoint.date === point.date);
+      const x = padX + (series.length === 1 ? chartWidth : Math.max(0, seriesIndex) / Math.max(1, series.length - 1) * chartWidth);
+      const y = padTop + (max - point.movingAverage!) / range * chartHeight;
+      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(" ");
   const active = hoverIndex == null ? null : series[hoverIndex];
   const activeXY = active ? xy(active, hoverIndex!, mode === "ratio" ? "ratio" : "leftIndexed") : null;
   const ticks = [max, min + range / 2, min];
@@ -105,7 +115,10 @@ export function RatioChart({ series, mode, basis = "fx_normalised", left, right 
           );
         })}
         {mode === "ratio" ? (
-          <path className="relativeChartLine isRatio" d={pathFor("ratio")} />
+          <>
+            <path className="relativeChartLine isRatio" d={pathFor("ratio")} />
+            {movingAveragePath ? <path className="relativeChartLine isAverage" d={movingAveragePath} /> : null}
+          </>
         ) : (
           <>
             <path className="relativeChartLine isLeft" d={pathFor("leftIndexed")} />

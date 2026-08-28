@@ -66,6 +66,24 @@
   color: var(--text-primary);
   font-size: 14px;
 }
+.relativeRangeBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(106,130,153,.16);
+  border-radius: 14px;
+  background: rgba(2,9,18,.22);
+}
+.relativeRangeBar .eyebrow {
+  margin-bottom: 4px;
+}
+.relativeRangeBar strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
 .relativePeriodEvidence {
   display: grid;
   gap: 10px;
@@ -146,6 +164,11 @@
 .relativeChartLine.isLeft {
   stroke: var(--accent);
 }
+.relativeChartLine.isAverage {
+  stroke: #78d2c3;
+  stroke-width: 2;
+  opacity: .86;
+}
 .relativeChartLine.isRight {
   stroke: #8fb4d8;
 }
@@ -223,6 +246,143 @@
 .relativeTvPanel.isPrimary {
   background: rgba(9,21,32,.50);
 }
+.relativeTvPanel.isPrice {
+  background: rgba(8,18,27,.44);
+}
+.relativeStack {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid rgba(106,130,153,.22);
+  border-radius: 16px;
+  background: rgba(4,12,20,.34);
+}
+.relativeStackHeader,
+.relativeStackItemHeader,
+.relativeStackControls,
+.relativeStackMeta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.relativeStackHeader h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 22px;
+}
+.relativeStackHeader span,
+.relativeStackItemHeader em,
+.relativeStackItemHeader span,
+.relativeStackMeta,
+.relativeStackWarning,
+.relativeStackEmpty span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+.relativeStackControls {
+  align-items: end;
+  flex-wrap: wrap;
+}
+.relativeStackControls label {
+  display: grid;
+  gap: 5px;
+}
+.relativeStackControls label span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.relativeStackControls input {
+  width: 92px;
+  min-height: 38px;
+  border: 1px solid rgba(106,130,153,.30);
+  border-radius: 10px;
+  background: rgba(4,12,20,.58);
+  color: var(--text-primary);
+  padding: 8px 10px;
+}
+.relativeStackGrid {
+  display: grid;
+  gap: 10px;
+}
+.relativeStackItem {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(106,130,153,.18);
+  border-radius: 14px;
+  background: rgba(2,9,18,.42);
+}
+.relativeStackItemHeader {
+  align-items: baseline;
+}
+.relativeStackItemHeader > div {
+  min-width: 0;
+}
+.relativeStackItemHeader > div:first-child,
+.relativeStackItemHeader > div:last-child {
+  display: grid;
+  gap: 3px;
+}
+.relativeStackItemHeader > div:last-child {
+  justify-items: end;
+  min-width: 120px;
+}
+.relativeStackItemHeader strong {
+  color: var(--text-primary);
+  font-size: 18px;
+}
+.relativeStackItemHeader > div:first-child > span {
+  color: var(--accent-gold);
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.relativeStackItemHeader .positive { color: var(--status-positive); }
+.relativeStackItemHeader .negative { color: var(--status-negative); }
+.relativeStackChartWrap {
+  position: relative;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(106,130,153,.16);
+  border-radius: 12px;
+  background: rgba(4,12,20,.30);
+}
+.relativeStackChart {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 138px;
+}
+.relativeStackMeta {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  padding: 0 10px 10px;
+}
+.relativeStackWarning {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(215,181,109,.24);
+  border-radius: 10px;
+  background: rgba(215,181,109,.06);
+}
+.relativeStackEmpty {
+  display: grid;
+  gap: 5px;
+  min-height: 118px;
+  margin-top: 10px;
+  align-content: center;
+  padding: 12px;
+  border: 1px dashed rgba(106,130,153,.28);
+  border-radius: 12px;
+}
+.relativeStackEmpty strong {
+  color: var(--text-primary);
+}
 .relativeAuditPanel {
   margin-top: 14px;
   border: 1px solid rgba(106,130,153,.18);
@@ -276,6 +436,19 @@
   }
   .relativeBasisBar {
     display: grid;
+  }
+  .relativeRangeBar,
+  .relativeStackHeader,
+  .relativeStackItemHeader {
+    display: grid;
+  }
+  .relativeRangeBar .scopeSwitch,
+  .relativeStackControls,
+  .relativeStackControls .scopeSwitch {
+    width: 100%;
+  }
+  .relativeStackItemHeader > div:last-child {
+    justify-items: start;
   }
   .relativePeriodHeader {
     display: grid;

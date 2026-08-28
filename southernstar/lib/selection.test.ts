@@ -55,10 +55,16 @@ test("benchmark TradingView symbols carry a venue that TradingView actually list
 });
 
 test("a typed ticker becomes a chartable node, with or without a venue", () => {
-  assert.equal(customBenchmarkNode("XLE")?.tradingViewSymbol, "XLE");
+  assert.equal(customBenchmarkNode("XYZ")?.tradingViewSymbol, "XYZ");
+  assert.equal(customBenchmarkNode("XLE")?.tradingViewSymbol, "AMEX:XLE");
   assert.equal(customBenchmarkNode("amex:xle")?.tradingViewSymbol, "AMEX:XLE");
   assert.equal(customBenchmarkNode("amex:xle")?.symbol, "XLE");
   assert.equal(customBenchmarkNode(" asx:bhp ")?.label, "BHP · ASX");
+  assert.equal(customBenchmarkNode("ASX:WIRE")?.basisCurrency, "AUD");
+  assert.equal(customBenchmarkNode("SLX")?.basisCurrency, "AUD");
+  assert.equal(customBenchmarkNode("SLX")?.tradingViewSymbol, "ASX:SLX");
+  assert.equal(customBenchmarkNode("TSX:CCO")?.basisCurrency, "CAD");
+  assert.equal(customBenchmarkNode("LSE:SILV")?.basisCurrency, "GBP");
 });
 
 test("a typed node round-trips through the selection value", () => {

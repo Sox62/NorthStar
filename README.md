@@ -125,6 +125,12 @@ RS(A,B) = (Price A × FX[A→AUD]) / (Price B × FX[B→AUD])
 
 The stored-close relative engine uses this FX-normalised AUD basis by default. Raw quoted-market ratios remain available as an audit view, and the app reports the FX contribution separately from the underlying quoted-price relative move.
 
+The Relative page uses the same engine for arbitrary A/B comparisons and the automatic Relative Strength Stack. When an instrument is selected, SouthernStar resolves a profile with market, sector, sector-leader and capital benchmarks, then shows those ratios on a shared time axis under the selected instrument's price chart.
+
+Historical price alignment is daily and explicit: if one market is closed, SouthernStar carries forward the most recent close for that leg for up to three calendar days. It does not interpolate prices, and it drops observations where either side is stale beyond that window.
+
+Stack charts support SMA and EMA trend overlays with a configurable period. Trend state is kept as evidence only; it is not a buy/sell rule. If a comparison involves an ETF whose hedge status is not confirmed unhedged, the UI warns that currency-normalised trading prices do not reverse-engineer any underlying ETF currency hedge.
+
 ## Passkey login
 
 SouthernStar uses passkeys for normal sign-in. Open `/login`, enter the existing `NORTH_STAR_USERNAME` and `NORTH_STAR_PASSWORD` once, then create a passkey with Face ID, Touch ID, Windows Hello or a hardware security key.

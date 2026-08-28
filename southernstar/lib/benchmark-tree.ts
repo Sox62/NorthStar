@@ -3,6 +3,8 @@ import type { Sector } from "@/southernstar/types";
 import { tradingViewSymbolForInstrument } from "./tradingview";
 
 export type BenchmarkRole = "reserve" | "commodity" | "sector_etf" | "leader" | "peer_group" | "candidate";
+export type BenchmarkInstrumentType = "equity" | "etf" | "commodity" | "currency" | "peer_group" | "cash" | "unknown";
+export type CurrencyHedging = "hedged" | "unhedged" | "partial" | "unknown";
 
 export type BenchmarkNode = {
   id: string;
@@ -11,6 +13,8 @@ export type BenchmarkNode = {
   symbol?: string;
   tradingViewSymbol?: string;
   basisCurrency: "AUD" | "USD" | "CAD" | "GBP";
+  instrumentType?: BenchmarkInstrumentType;
+  currencyHedging?: CurrencyHedging;
   note?: string;
 };
 
@@ -45,6 +49,7 @@ const GOLD_RESERVE: BenchmarkNode = {
   symbol: "GOLD",
   tradingViewSymbol: "TVC:GOLD",
   basisCurrency: "USD",
+  instrumentType: "commodity",
   note: "Reserve benchmark and numeraire; not an actual holding unless gold appears in allocations.",
 };
 export const RESEARCH_BENCHMARKS: BenchmarkNode[] = [
@@ -61,8 +66,19 @@ export const RESEARCH_BENCHMARKS: BenchmarkNode[] = [
   sectorEtf("silj", "Junior silver miners ETF", "SILJ", "AMEX:SILJ"),
   sectorEtf("urnm", "Uranium miners ETF", "URNM", "AMEX:URNM"),
   sectorEtf("ura", "Uranium ETF", "URA", "AMEX:URA"),
+  sectorEtf("atom", "Australian uranium ETF", "ATOM", "ASX:ATOM", "AUD"),
+  sectorEtf("copx", "Copper miners ETF", "COPX", "AMEX:COPX"),
+  sectorEtf("wire", "Australian copper miners ETF", "WIRE", "ASX:WIRE", "AUD"),
+  leader("ccj", "Uranium leader", "CCJ", "NYSE:CCJ"),
+  candidate("leu", "Centrus Energy", "LEU", "NYSE:LEU"),
+  candidate("slx", "Silex Systems", "SLX", "ASX:SLX", "AUD"),
+  candidate("smr", "NuScale Power", "SMR", "NYSE:SMR"),
+  leader("aem", "Large gold miner leader", "AEM", "NYSE:AEM"),
+  leader("paas", "Silver miner leader", "PAAS", "NASDAQ:PAAS"),
+  leader("fcx", "Copper miner leader", "FCX", "NYSE:FCX"),
   sectorEtf("xle", "Energy sector ETF", "XLE", "AMEX:XLE"),
   sectorEtf("xop", "Oil & gas exploration ETF", "XOP", "AMEX:XOP"),
+  leader("xom", "Energy leader", "XOM", "NYSE:XOM"),
 ];
 
 const TEMPLATES: Record<Sector, BenchmarkTemplate> = {
@@ -227,27 +243,31 @@ function candidateNode(input: BenchmarkTreeInput, sector: Sector): BenchmarkNode
     symbol,
     tradingViewSymbol: tradingViewSymbolForInstrument({ symbol, exchange }),
     basisCurrency: currency,
+    instrumentType: sector === "Cash" ? "cash" : "equity",
     note: sector === "Cash" ? "Cash holding" : undefined,
   };
 }
 
 function commodity(id: string, label: string, symbol: string, tradingViewSymbol?: string, basisCurrency: BenchmarkNode["basisCurrency"] = "USD", note?: string): TemplateNode {
-  return { id: `commodity:${id}`, label, role: "commodity", symbol, tradingViewSymbol, basisCurrency, note };
+  return { id: `commodity:${id}`, label, role: "commodity", symbol, tradingViewSymbol, basisCurrency, instrumentType: "commodity", note };
 }
 
-function sectorEtf(id: string, label: string, symbol: string, tradingViewSymbol: string, basisCurrency: BenchmarkNode["basisCurrency"] = "USD"): TemplateNode {
-  return { id: `sector_etf:${id}`, label, role: "sector_etf", symbol, tradingViewSymbol, basisCurrency };
+function sectorEtf(id: string, label: string, symbol: string, tradingViewSymbol: string, basisCurrency: BenchmarkNode["basisCurrency"] = "USD", currencyHedging: CurrencyHedging = "unknown"): TemplateNode {
+  return { id: `sector_etf:${id}`, label, role: "sector_etf", symbol, tradingViewSymbol, basisCurrency, instrumentType: "etf", currencyHedging };
 }
 
 function leader(id: string, label: string, symbol: string, tradingViewSymbol: string, basisCurrency: BenchmarkNode["basisCurrency"] = "USD"): TemplateNode {
-  return { id: `leader:${id}`, label, role: "leader", symbol, tradingViewSymbol, basisCurrency };
+  return { id: `leader:${id}`, label, role: "leader", symbol, tradingViewSymbol, basisCurrency, instrumentType: "equity" };
 }
 
 function peerGroup(id: string, label: string): TemplateNode {
-  return { id: `peer_group:${id}`, label, role: "peer_group", basisCurrency: "AUD" };
+  return { id: `peer_group:${id}`, label, role: "peer_group", basisCurrency: "AUD", instrumentType: "peer_group" };
 }
 function currencyBenchmark(id: string, label: string, symbol: string, tradingViewSymbol: string): TemplateNode {
-  return { id: `currency:${id}`, label, role: "reserve", symbol, tradingViewSymbol, basisCurrency: "USD", note: "Currency benchmark uses stored FX rates for SouthernStar ratio history." };
+  return { id: `currency:${id}`, label, role: "reserve", symbol, tradingViewSymbol, basisCurrency: "USD", instrumentType: "currency", note: "Currency benchmark uses stored FX rates for SouthernStar ratio history." };
+}
+function candidate(id: string, label: string, symbol: string, tradingViewSymbol: string, basisCurrency: BenchmarkNode["basisCurrency"] = "USD"): TemplateNode {
+  return { id: `candidate:${id}`, label, role: "candidate", symbol, tradingViewSymbol, basisCurrency, instrumentType: "equity" };
 }
 
 function dedupeNodes(nodes: BenchmarkNode[]) {

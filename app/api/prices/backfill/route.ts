@@ -38,7 +38,16 @@ const BENCHMARK_BACKFILL_INSTRUMENTS: Record<string, PriceableInstrument> = {
   GDX: benchmarkInstrument("GDX", "AMEX", "VanEck Gold Miners ETF", "USD", "Gold miners"),
   URNM: benchmarkInstrument("URNM", "AMEX", "Sprott Uranium Miners ETF", "USD", "Uranium miners"),
   URA: benchmarkInstrument("URA", "AMEX", "Global X Uranium ETF", "USD", "Uranium miners"),
+  ATOM: benchmarkInstrument("ATOM", "ASX", "Global X Uranium ETF", "AUD", "Uranium miners"),
   CCJ: benchmarkInstrument("CCJ", "NYSE", "Cameco", "USD", "Uranium miners"),
+  LEU: benchmarkInstrument("LEU", "NYSE", "Centrus Energy", "USD", "Uranium miners"),
+  SLX: benchmarkInstrument("SLX", "ASX", "Silex Systems", "AUD", "Uranium miners"),
+  SMR: benchmarkInstrument("SMR", "NYSE", "NuScale Power", "USD", "Uranium miners"),
+  COPX: benchmarkInstrument("COPX", "AMEX", "Global X Copper Miners ETF", "USD", "Copper miners"),
+  WIRE: benchmarkInstrument("WIRE", "ASX", "Global X Copper Miners ETF", "AUD", "Copper miners"),
+  FCX: benchmarkInstrument("FCX", "NYSE", "Freeport-McMoRan", "USD", "Copper miners"),
+  AEM: benchmarkInstrument("AEM", "NYSE", "Agnico Eagle Mines", "USD", "Gold miners"),
+  PAAS: benchmarkInstrument("PAAS", "NASDAQ", "Pan American Silver", "USD", "Silver miners"),
   XLE: benchmarkInstrument("XLE", "AMEX", "Energy Select Sector SPDR", "USD", "Oil"),
   XOP: benchmarkInstrument("XOP", "AMEX", "SPDR Oil & Gas Exploration ETF", "USD", "Oil"),
   XOM: benchmarkInstrument("XOM", "NYSE", "Exxon Mobil", "USD", "Oil"),
@@ -73,10 +82,18 @@ function adHocRequests(requested: Set<string>, known: PriceableInstrument[]) {
   for (const key of requested) {
     const [symbol, exchange = ""] = key.split(":");
     if (!symbol || covered.has(normaliseKey(symbol)) || isFxPairSymbol(symbol)) continue;
-    const instrument = benchmarkInstrument(symbol, exchange, symbol, "USD", "Ad-hoc comparison");
+    const instrument = benchmarkInstrument(symbol, exchange, symbol, currencyForExchange(exchange), "Ad-hoc comparison");
     instruments.set(normaliseKey(symbol) + ":" + normaliseKey(exchange), instrument);
   }
   return [...instruments.values()];
+}
+
+function currencyForExchange(exchange: string) {
+  const venue = normaliseKey(exchange);
+  if (["ASX", "AU", "AUS", "CHIXAU"].includes(venue)) return "AUD";
+  if (["TSX", "TSXV", "TSE", "CVE", "CA", "CANADA", "TSX/TSXV"].includes(venue)) return "CAD";
+  if (["LSE", "LON", "LN", "GB", "UK"].includes(venue)) return "GBP";
+  return "USD";
 }
 
 export async function POST(request: Request) {
