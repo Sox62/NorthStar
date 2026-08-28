@@ -407,7 +407,7 @@
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 3;
+  stroke-width: 1.5;
 }
 .relativeChartLine.isRatio,
 .relativeChartLine.isLeft {
@@ -415,7 +415,7 @@
 }
 .relativeChartLine.isAverage {
   stroke: #78d2c3;
-  stroke-width: 2;
+  stroke-width: 1;
   opacity: .86;
 }
 .relativeChartLine.isRight {
