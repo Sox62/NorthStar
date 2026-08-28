@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MARKET_TILE_INSTRUMENTS, previousCloseFromSeries } from "./market-tiles";
+import { MARKET_TILE_INSTRUMENTS, normaliseProviderReading, previousCloseFromSeries } from "./market-tiles";
 
 test("the live session is not used as its own previous close", () => {
   // The last bar is the session in progress. Comparing the price against it reports no move at all.
@@ -74,4 +74,16 @@ test("every tile declares a currency and unit, so no price renders bare", () => 
   assert.equal(MARKET_TILE_INSTRUMENTS.find((tile) => tile.key === "uranium")?.currency, "CAD");
   assert.equal(MARKET_TILE_INSTRUMENTS.find((tile) => tile.key === "oil")?.providerSymbol, "CL=F");
   assert.equal(MARKET_TILE_INSTRUMENTS.find((tile) => tile.key === "oil")?.unit, "bbl");
+  assert.equal(MARKET_TILE_INSTRUMENTS.find((tile) => tile.key === "usdaud")?.currency, "AUD");
+  assert.equal(MARKET_TILE_INSTRUMENTS.find((tile) => tile.key === "usdaud")?.providerSymbol, "AUDUSD=X");
+  assert.equal(MARKET_TILE_INSTRUMENTS.find((tile) => tile.key === "usdaud")?.invertFromProvider, true);
+});
+
+test("USD/AUD inverts Yahoo's AUD/USD quote and previous close", () => {
+  const instrument = MARKET_TILE_INSTRUMENTS.find((tile) => tile.key === "usdaud");
+  assert.ok(instrument);
+
+  const reading = normaliseProviderReading(instrument, 0.6500, 0.6400);
+  assert.equal(reading.price, 1 / 0.6500);
+  assert.equal(reading.previousClose, 1 / 0.6400);
 });

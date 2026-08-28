@@ -7,6 +7,15 @@ import {
 } from "./market-data";
 
 export type MarketTileUnit = "oz" | "lb" | "bbl" | "index" | "unit";
+type MarketTileInstrument = {
+  key: string;
+  label: string;
+  providerSymbol: string;
+  currency: string;
+  unit: MarketTileUnit;
+  /** Yahoo's AUDUSD feed is USD per AUD; invert it for a USD/AUD pane. */
+  invertFromProvider?: boolean;
+};
 
 /**
  * The reference markets on the State of play tiles. Gold, silver and platinum keep their live
@@ -15,6 +24,7 @@ export type MarketTileUnit = "oz" | "lb" | "bbl" | "index" | "unit";
  *
  * Every provider symbol was fetched and confirmed to return a quote before being listed here.
  * Sprott (U-UN.TO) prices in CAD, which is why the tiles show a currency rather than assuming USD.
+ * Yahoo supplies AUD/USD, so the USD/AUD pane is inverted from AUDUSD=X.
  */
 export const MARKET_TILE_INSTRUMENTS = [
   { key: "gold", label: "Gold", providerSymbol: "GC=F", currency: "USD", unit: "oz" },
@@ -23,14 +33,9 @@ export const MARKET_TILE_INSTRUMENTS = [
   { key: "copper", label: "Copper", providerSymbol: "HG=F", currency: "USD", unit: "lb" },
   { key: "oil", label: "Oil", providerSymbol: "CL=F", currency: "USD", unit: "bbl" },
   { key: "uranium", label: "Uranium", providerSymbol: "U-UN.TO", currency: "CAD", unit: "unit" },
+  { key: "usdaud", label: "USD/AUD", providerSymbol: "AUDUSD=X", currency: "AUD", unit: "unit", invertFromProvider: true },
   { key: "spx", label: "SPX", providerSymbol: "^GSPC", currency: "USD", unit: "index" },
-] as const satisfies ReadonlyArray<{
-  key: string;
-  label: string;
-  providerSymbol: string;
-  currency: string;
-  unit: MarketTileUnit;
-}>;
+] as const satisfies ReadonlyArray<MarketTileInstrument>;
 
 export type MarketTileKey = typeof MARKET_TILE_INSTRUMENTS[number]["key"];
 
@@ -96,6 +101,28 @@ function lastClose(bars: MarketTileBar[]): number | null {
   return null;
 }
 
+function inverted(value: number | null) {
+  return value && Number.isFinite(value) && value > 0 ? 1 / value : null;
+}
+
+function isInvertedInstrument(instrument: typeof MARKET_TILE_INSTRUMENTS[number]) {
+  return "invertFromProvider" in instrument && instrument.invertFromProvider === true;
+}
+
+export function normaliseProviderReading(
+  instrument: typeof MARKET_TILE_INSTRUMENTS[number],
+  price: number,
+  previousClose: number | null,
+) {
+  if (!isInvertedInstrument(instrument)) return { price, previousClose };
+  const invertedPrice = inverted(price);
+  if (!invertedPrice) throw new Error("cannot invert provider price");
+  return {
+    price: invertedPrice,
+    previousClose: inverted(previousClose),
+  };
+}
+
 async function fetchMarketTileQuote(
   instrument: typeof MARKET_TILE_INSTRUMENTS[number],
 ): Promise<MarketTileQuote> {
@@ -108,16 +135,17 @@ async function fetchMarketTileQuote(
   if (!result) throw new Error("no quote returned");
 
   const bars = barsFromChart(result);
-  const price = numberValue(result.meta?.regularMarketPrice) ?? lastClose(bars);
-  if (!price) throw new Error("no price returned");
+  const providerPrice = numberValue(result.meta?.regularMarketPrice) ?? lastClose(bars);
+  if (!providerPrice) throw new Error("no price returned");
+  const normalised = normaliseProviderReading(instrument, providerPrice, previousCloseFromSeries(bars));
   const priceDate = bars[bars.length - 1]?.date ?? "";
 
   return {
     key: instrument.key,
     label: instrument.label,
-    price,
-    previousClose: previousCloseFromSeries(bars),
-    currency: result.meta?.currency ?? instrument.currency,
+    price: normalised.price,
+    previousClose: normalised.previousClose,
+    currency: isInvertedInstrument(instrument) ? instrument.currency : result.meta?.currency ?? instrument.currency,
     unit: instrument.unit,
     priceDate,
     source: "Yahoo Finance delayed chart",

@@ -721,8 +721,8 @@ body.southernstar .nsMetalsHeader {
 body.southernstar .nsMetalsGrid {
   display:grid;
   /*
-   * Eight reference tiles should stay in one market row on desktop. The lower floor lets the added
-   * oil tile fit without creating a stranded second line, while tablet and mobile still wrap.
+   * Nine reference tiles should stay in one market row on desktop. The lower floor lets the added
+   * FX tile fit without creating a stranded second line, while tablet and mobile still wrap.
    */
   grid-template-columns:repeat(auto-fit, minmax(118px, 1fr));
   gap:10px;

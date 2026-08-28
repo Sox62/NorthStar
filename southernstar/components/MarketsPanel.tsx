@@ -50,6 +50,7 @@ const TILES: Tile[] = [
   { key: "copper", label: "Copper", tradingViewSymbol: "CAPITALCOM:COPPER", color: SECTOR_COLORS.Oil },
   { key: "oil", label: "Oil", tradingViewSymbol: "NYMEX:CL1!", color: SECTOR_COLORS.Oil },
   { key: "uranium", label: "Uranium", tradingViewSymbol: "TSX:U.UN", color: SECTOR_COLORS["Uranium miners"], note: "Sprott" },
+  { key: "usdaud", label: "USD/AUD", tradingViewSymbol: "FX_IDC:USDAUD", color: SECTOR_COLORS.Technology, note: "AUD per USD" },
   { key: "spx", label: "SPX", tradingViewSymbol: "SP:SPX", color: SECTOR_COLORS["Broad equities"] },
 ];
 
