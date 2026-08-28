@@ -1,15 +1,14 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import TradingViewWidget from "@/components/TradingViewWidget";
 import { RatioChart, RelativePeriodCell, type RatioMode } from "@/components/relative/RatioChart";
 import { RelativeStrengthStack } from "@/components/relative/RelativeStrengthStack";
-import { AllocationReadPanel, EntryScorePanel, OpportunityMatrix, RelativeScorePanel, velocityLabel, type OpportunityRow, type OpportunitySortKey, type RelativeEngineScore, type RelativeLayer } from "@/components/relative/ScorePanels";
+import { AllocationReadPanel, EntryScorePanel, OpportunityMatrix, RelativeScorePanel, type OpportunityRow, type OpportunitySortKey, type RelativeEngineScore, type RelativeLayer } from "@/components/relative/ScorePanels";
 import { allocationRead } from "@/components/fundamentals/detail-model";
 import type { DashboardData, DashboardHolding, MinerFundamentals, OwnerType, Scope, StoredDailyPrice, StoredFxRate, StructuralLevel } from "@/lib/storage";
-import { Card, Notice, SummaryGrid } from "@/southernstar/components";
+import { Card, Notice } from "@/southernstar/components";
 import { RESEARCH_BENCHMARKS, resolveBenchmarkTree, type BenchmarkNode } from "@/southernstar/lib/benchmark-tree";
 import { scoreEntryCondition } from "@/southernstar/lib/entry-score";
 import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, ratioReturnForBasis, relativeReturnWindows, scoreRatioTrend, scoreRatioTrendVelocity, RATIO_RANGES, type RatioBasis, type RatioMovingAverageConfig, type RatioPoint, type RatioRangeKey, type RelativeScoreComponent } from "@/southernstar/lib/ratio-engine";
@@ -27,7 +26,8 @@ type PriceBookResponse = {
 type StructuralLevelsResponse = { levels?: StructuralLevel[]; error?: string };
 type FundamentalsResponse = { fundamentals?: MinerFundamentals[]; error?: string };
 type IdeaGroup = { label: string; nodes: BenchmarkNode[] };
-type SummaryEntry = [string, ReactNode] | [string, ReactNode, "positive" | "negative"];
+type SummaryEntry = [string, string] | [string, string, "positive" | "negative"];
+type PrimaryChartMode = "ratio" | "price";
 type StructuralLevelForm = {
   id: string;
   symbol: string;
@@ -261,13 +261,6 @@ function groupSavedIdeaNodes(nodes: BenchmarkNode[]): IdeaGroup[] {
   return order
     .map((label) => ({ label, nodes: (groups.get(label) ?? []).sort((a, b) => (a.symbol ?? a.label).localeCompare(b.symbol ?? b.label)) }))
     .filter((group) => group.nodes.length);
-}
-
-function strengthTone(score: number | null) {
-  if (score == null) return undefined;
-  if (score >= 60) return "positive";
-  if (score < 45) return "negative";
-  return undefined;
 }
 
 /** Three-valued: true is winning, false is losing, null is not yet knowable from stored history. */
@@ -512,6 +505,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   const [rightBenchmarkId, setRightBenchmarkId] = useState("");
   const [ratioBasis, setRatioBasis] = useState<RatioBasis>("fx_normalised");
   const [stackMovingAverage, setStackMovingAverage] = useState<RatioMovingAverageConfig>({ type: "sma", period: 36 });
+  const [primaryChartMode, setPrimaryChartMode] = useState<PrimaryChartMode>("ratio");
   const [mode, setMode] = useState<RatioMode>("ratio");
   const [range, setRange] = useState<RangeKey>("all");
   const [loading, setLoading] = useState(true);
@@ -648,7 +642,17 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   const ratioChange = ratioBasis === "raw_market" ? rawRatioChange : normalisedRatioChange;
   const leftChange = assetReturnForBasis(first, last, ratioBasis, "left");
   const rightChange = assetReturnForBasis(first, last, ratioBasis, "right");
+  const leftSymbol = left?.symbol ?? "First asset";
+  const rightSymbol = right?.symbol ?? "Second asset";
+  const returnEntries: SummaryEntry[] = [
+    percentSummary("Relative strength", ratioChange),
+    percentSummary("FX contribution", fxContribution),
+    percentSummary("Underlying relative", rawRatioChange),
+    percentSummary(`${leftSymbol} move`, leftChange),
+    percentSummary(`${rightSymbol} move`, rightChange),
+  ];
   const basisLabel = ratioBasisLabel(ratioBasis);
+  const rangeLabel = ranges.find((item) => item.key === range)?.label ?? "All";
   const leftTvSymbol = left ? tradingViewSymbolForInstrument(left) : "";
   const rightTvSymbol = selectedBenchmark?.tradingViewSymbol ?? (right ? tradingViewSymbolForInstrument(right) : "");
   const leftTv = leftTvSymbol ? tradingViewChartUrl(leftTvSymbol) : "";
@@ -657,13 +661,6 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   const ratioTv = ratioTvExpression ? tradingViewRatioChartUrl(leftTvSymbol, rightTvSymbol) : "";
   const currentPairSymbols = [left?.symbol, right?.symbol].filter(Boolean) as string[];
   const pairStructuralLevels = structuralLevels.filter((level) => currentPairSymbols.includes(level.symbol) || currentPairSymbols.includes(level.comparisonSymbol));
-  const relativeScoreValue = relativeEngine?.score ?? null;
-  const strengthToneValue = strengthTone(relativeScoreValue);
-  const strengthEntry: [string, ReactNode] | [string, ReactNode, "positive" | "negative"] = strengthToneValue
-    ? ["Relative Score", relativeScoreValue == null ? "n/a" : Math.round(relativeScoreValue), strengthToneValue]
-    : ["Relative Score", relativeScoreValue == null ? "n/a" : Math.round(relativeScoreValue)];
-  const velocityEntry: [string, ReactNode] = ["Velocity", relativeEngine ? velocityLabel(relativeEngine.velocity) : "n/a"];
-
   useEffect(() => {
     let cancelled = false;
     async function loadLevelsForPair() {
@@ -885,150 +882,174 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
       ) : error ? (
         <Notice tone="error" title="Unable to load comparison">{error}</Notice>
       ) : left && right ? (
-        <Card className="relativeWorkbench">
-          <div className="panelHeader relativeHeader">
+        <Card className="relativeWorkbench relativeAnalysisShell">
+          <div className="panelHeader relativeHeader relativeAnalysisHeader">
             <div>
-              <p className="eyebrow">Comparison chart</p>
+              <p className="eyebrow">Analysis</p>
               <h2 className="cardTitle">{left.symbol} / {right.symbol}</h2>
               <p className="cardIntro">{basisLabel} · {series.length} shared close{series.length === 1 ? "" : "s"} · {series.length ? `${dateLabel(series[0].date)} to ${dateLabel(series.at(-1)!.date)}` : "No overlapping price history yet"}</p>
             </div>
             <div className="relativeActions">
+              <div className="scopeSwitch" role="tablist" aria-label="Comparison scope">
+                {scopes.map((item) => (
+                  <button key={item.key} type="button" className={scope === item.key ? "isActive" : ""} onClick={() => setScope(item.key)}>
+                    {item.label}
+                  </button>
+                ))}
+              </div>
               <button className="button" type="button" onClick={backfillSelected} disabled={backfillBusy}>{backfillBusy ? "Backfilling..." : "Backfill history"}</button>
-              {ratioTvExpression ? <button className="button" type="button" onClick={() => void copyRatioExpression()} title={ratioTvExpression}>{copiedRatio ? "Copied" : "Copy raw formula"}</button> : null}
-              {ratioTv ? <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={`TradingView formula attempt: ${ratioTvExpression}`}>Try raw in TV</a> : null}
-              {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>{left.symbol} TV</a> : null}
-              {rightTv ? <a className="button" href={rightTv} target="_blank" rel="noreferrer" title={rightTvSymbol}>{right.symbol} TV</a> : null}
+              <details className="relativeTvMenu">
+                <summary>Open in TradingView</summary>
+                <div>
+                  {ratioTvExpression ? <button type="button" onClick={() => void copyRatioExpression()} title={ratioTvExpression}>{copiedRatio ? "Copied raw formula" : "Copy raw ratio formula"}</button> : null}
+                  {ratioTv ? <a href={ratioTv} target="_blank" rel="noreferrer" title={`TradingView formula attempt: ${ratioTvExpression}`}>{left.symbol}/{right.symbol} raw ratio</a> : null}
+                  {leftTv ? <a href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>{left.symbol} price</a> : null}
+                  {rightTv ? <a href={rightTv} target="_blank" rel="noreferrer" title={rightTvSymbol}>{right.symbol} price</a> : null}
+                </div>
+              </details>
             </div>
           </div>
 
           {operationMessage ? <p className="relativeMessage">{operationMessage}</p> : null}
-          <div className="relativeControls">
-            <div className="scopeSwitch" role="tablist" aria-label="Comparison scope">
-              {scopes.map((item) => (
-                <button key={item.key} type="button" className={scope === item.key ? "isActive" : ""} onClick={() => setScope(item.key)}>
-                  {item.label}
-                </button>
-              ))}
-            </div>
-            <label className="relativeSelect">
-              <span>First asset</span>
-              <select
-                value={leftBenchmarkId ? selectionValue("benchmark", leftBenchmarkId) : selectionValue("holding", leftHolding?.id ?? "")}
-                onChange={(event) => {
-                  const selection = parseSelectionValue(event.target.value);
-                  if (!selection) return;
-                  if (selection.kind === "benchmark") { setLeftBenchmarkId(selection.id); setLeftId(""); }
-                  else { setLeftBenchmarkId(""); setLeftId(selection.id); }
-                }}
-              >
-                <option value="" disabled>Choose first asset</option>
-                <ComparisonOptionGroups permanent={permanentBenchmarkNodes} custom={customNodes} savedGroups={savedIdeaGroups} side="left" />
-                <optgroup label="Holdings">
-                  {holdings.map((holding) => (
-                    <option key={holding.id} value={selectionValue("holding", holding.id)}>{holding.symbol} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
-                  ))}
-                </optgroup>
-              </select>
-              <form
-                className="relativeCustomSymbol"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  addCustomTicker("left", customLeftInput);
-                }}
-              >
-                <input
-                  value={customLeftInput}
-                  onChange={(event) => setCustomLeftInput(event.target.value)}
-                  placeholder="Add ticker"
-                  aria-label="Ticker to use as first asset"
-                />
-                <button className="button" type="submit">Add left</button>
-              </form>
-            </label>
-            <label className="relativeSelect">
-              <span>Second asset</span>
-              <select
-                value={rightBenchmarkId ? selectionValue("benchmark", rightBenchmarkId) : selectionValue("holding", rightHolding?.id ?? "")}
-                onChange={(event) => {
-                  const selection = parseSelectionValue(event.target.value);
-                  if (!selection) return;
-                  if (selection.kind === "benchmark") { setRightBenchmarkId(selection.id); setRightId(""); }
-                  else { setRightBenchmarkId(""); setRightId(selection.id); }
-                }}
-              >
-                <option value="" disabled>Choose second asset</option>
-                <ComparisonOptionGroups permanent={permanentBenchmarkNodes} custom={customNodes} savedGroups={savedIdeaGroups} side="right" />
-                <optgroup label="Holdings">
-                  {holdings.map((holding) => (
-                    <option key={holding.id} value={selectionValue("holding", holding.id)}>{holding.symbol} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
-                  ))}
-                </optgroup>
-              </select>
-              <form
-                className="relativeCustomSymbol"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  addCustomTicker("right", customRightInput);
-                }}
-              >
-                <input
-                  value={customRightInput}
-                  onChange={(event) => setCustomRightInput(event.target.value)}
-                  placeholder="Add ticker"
-                  aria-label="Ticker to use as second asset"
-                />
-                <button className="button" type="submit">Add right</button>
-              </form>
-            </label>
+          <div className="relativeStage">
+            <span>1 · Set Up</span>
           </div>
-          {customError ? <p className="relativeCustomError">{customError}</p> : null}
-          <div className="relativeBasisBar">
-            <div>
-              <p className="eyebrow">Ratio basis</p>
-              <strong>{basisLabel}</strong>
+          <section className="relativeSetupCard" aria-label="Relative comparison setup">
+            <div className="relativeSetupSummary">
+              <strong>{left.symbol}/{right.symbol}</strong>
+              <span>{left.name} divided by {right.name} · {scope.toUpperCase()} scope</span>
             </div>
-            <div className="scopeSwitch" role="tablist" aria-label="Ratio basis">
-              <button type="button" className={ratioBasis === "fx_normalised" ? "isActive" : ""} onClick={() => setRatioBasis("fx_normalised")}>FX Normalised</button>
-              <button type="button" className={ratioBasis === "raw_market" ? "isActive" : ""} onClick={() => setRatioBasis("raw_market")}>Raw Market Ratio</button>
+            <div className="relativePairGrid">
+              <label className="relativeSelect">
+                <span>First asset · numerator</span>
+                <select
+                  value={leftBenchmarkId ? selectionValue("benchmark", leftBenchmarkId) : selectionValue("holding", leftHolding?.id ?? "")}
+                  onChange={(event) => {
+                    const selection = parseSelectionValue(event.target.value);
+                    if (!selection) return;
+                    if (selection.kind === "benchmark") { setLeftBenchmarkId(selection.id); setLeftId(""); }
+                    else { setLeftBenchmarkId(""); setLeftId(selection.id); }
+                  }}
+                >
+                  <option value="" disabled>Choose first asset</option>
+                  <ComparisonOptionGroups permanent={permanentBenchmarkNodes} custom={customNodes} savedGroups={savedIdeaGroups} side="left" />
+                  <optgroup label="Holdings">
+                    {holdings.map((holding) => (
+                      <option key={holding.id} value={selectionValue("holding", holding.id)}>{holding.symbol} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
+                    ))}
+                  </optgroup>
+                </select>
+                <form
+                  className="relativeCustomSymbol"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    addCustomTicker("left", customLeftInput);
+                  }}
+                >
+                  <input
+                    value={customLeftInput}
+                    onChange={(event) => setCustomLeftInput(event.target.value)}
+                    placeholder="Add ticker"
+                    aria-label="Ticker to use as first asset"
+                  />
+                  <button className="button" type="submit">Add left</button>
+                </form>
+              </label>
+              <div className="relativePairDivider" aria-hidden="true">÷</div>
+              <label className="relativeSelect">
+                <span>Second asset · denominator</span>
+                <select
+                  value={rightBenchmarkId ? selectionValue("benchmark", rightBenchmarkId) : selectionValue("holding", rightHolding?.id ?? "")}
+                  onChange={(event) => {
+                    const selection = parseSelectionValue(event.target.value);
+                    if (!selection) return;
+                    if (selection.kind === "benchmark") { setRightBenchmarkId(selection.id); setRightId(""); }
+                    else { setRightBenchmarkId(""); setRightId(selection.id); }
+                  }}
+                >
+                  <option value="" disabled>Choose second asset</option>
+                  <ComparisonOptionGroups permanent={permanentBenchmarkNodes} custom={customNodes} savedGroups={savedIdeaGroups} side="right" />
+                  <optgroup label="Holdings">
+                    {holdings.map((holding) => (
+                      <option key={holding.id} value={selectionValue("holding", holding.id)}>{holding.symbol} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
+                    ))}
+                  </optgroup>
+                </select>
+                <form
+                  className="relativeCustomSymbol"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    addCustomTicker("right", customRightInput);
+                  }}
+                >
+                  <input
+                    value={customRightInput}
+                    onChange={(event) => setCustomRightInput(event.target.value)}
+                    placeholder="Add ticker"
+                    aria-label="Ticker to use as second asset"
+                  />
+                  <button className="button" type="submit">Add right</button>
+                </form>
+              </label>
             </div>
-          </div>
-          <div className="relativeRangeBar">
-            <div>
-              <p className="eyebrow">Time range</p>
-              <strong>{ranges.find((item) => item.key === range)?.label ?? "All"}</strong>
-            </div>
-            <div className="scopeSwitch" role="tablist" aria-label="Comparison range">
-              {ranges.map((item) => (
-                <button key={item.key} type="button" className={range === item.key ? "isActive" : ""} onClick={() => setRange(item.key)}>
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <SummaryGrid
-            entries={[
-              percentSummary("Relative strength", ratioChange),
-              percentSummary("FX contribution", fxContribution),
-              percentSummary("Underlying relative", rawRatioChange),
-              percentSummary(`${left.symbol} move`, leftChange),
-              percentSummary(`${right.symbol} move`, rightChange),
-              strengthEntry,
-              velocityEntry,
-            ]}
-          />
-
-          {leftTvSymbol ? (
-            <div className="relativeTvPanel isPrice">
-              <div className="relativeTvHeader">
+            {customError ? <p className="relativeCustomError">{customError}</p> : null}
+            <div className="relativeSetupFooter">
+              <div className="relativeBasisBar">
                 <div>
-                  <p className="eyebrow">Price chart</p>
-                  <h3>{left.symbol} - {left.name}</h3>
-                  <span>{leftTvSymbol}</span>
+                  <p className="eyebrow">Basis · changes the numbers</p>
+                  <strong>{basisLabel}</strong>
                 </div>
-                <div className="relativeActions">
-                  {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>Open in TV</a> : null}
+                <div className="scopeSwitch" role="tablist" aria-label="Ratio basis">
+                  <button type="button" className={ratioBasis === "fx_normalised" ? "isActive" : ""} onClick={() => setRatioBasis("fx_normalised")}>FX Normalised</button>
+                  <button type="button" className={ratioBasis === "raw_market" ? "isActive" : ""} onClick={() => setRatioBasis("raw_market")}>Raw Market Ratio</button>
                 </div>
               </div>
+              <div className="relativeRangeBar">
+                <div>
+                  <p className="eyebrow">Window</p>
+                  <strong>{rangeLabel}</strong>
+                </div>
+                <div className="scopeSwitch" role="tablist" aria-label="Comparison range">
+                  {ranges.map((item) => (
+                    <button key={item.key} type="button" className={range === item.key ? "isActive" : ""} onClick={() => setRange(item.key)}>
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div className="relativeStage">
+            <span>2 · Read</span>
+          </div>
+          <AllocationReadPanel read={allocationReadout} />
+
+          <div className="relativeStage">
+            <span>3 · Evidence</span>
+          </div>
+          <section className="relativeEvidenceChart">
+            <div className="relativeTvHeader">
+              <div>
+                <p className="eyebrow">Chart</p>
+                <h3>{primaryChartMode === "ratio" ? `${left.symbol}/${right.symbol} ratio` : `${left.symbol} price`}</h3>
+                <span>{primaryChartMode === "ratio" ? `${basisLabel} · ${rangeLabel}` : leftTvSymbol}</span>
+              </div>
+              <div className="scopeSwitch" role="tablist" aria-label="Primary chart mode">
+                <button type="button" className={primaryChartMode === "ratio" ? "isActive" : ""} onClick={() => setPrimaryChartMode("ratio")}>Ratio</button>
+                <button type="button" className={primaryChartMode === "price" ? "isActive" : ""} onClick={() => setPrimaryChartMode("price")}>Price</button>
+              </div>
+            </div>
+            {primaryChartMode === "ratio" ? (
+              series.length >= 2 ? (
+                <RatioChart series={series} mode="ratio" basis={ratioBasis} movingAverage={stackMovingAverage} left={left} right={right} />
+              ) : (
+                <div className="relativeEmpty">
+                  <strong>No overlapping stored closes</strong>
+                  <span>SouthernStar has fewer than two usable comparison dates. Use Backfill history or choose another pair.</span>
+                </div>
+              )
+            ) : leftTvSymbol ? (
               <TradingViewWidget
                 symbol={leftTvSymbol}
                 className="tradingview-widget-container stockChartWidget relativeTvWidget"
@@ -1039,8 +1060,45 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                 heightRatio={0.58}
                 compactHeightRatio={0.48}
               />
+            ) : (
+              <div className="relativeEmpty">
+                <strong>No TradingView symbol</strong>
+                <span>Choose a listed instrument or typed benchmark with a venue.</span>
+              </div>
+            )}
+            <p className="relativeTvNote">{primaryChartMode === "ratio" ? "The ratio chart uses stored closes and the selected currency basis. The moving average is evidence only." : "The price view is mounted separately so the page only carries one primary chart at a time."}</p>
+          </section>
+
+          <div className="relativeReturnPanel">
+            <div className="relativePeriodHeader">
+              <p className="eyebrow">Pair returns · per cent, {basisLabel}</p>
+              <span>{rangeLabel} window</span>
             </div>
-          ) : null}
+            <div className="relativeReturnGrid">
+              {returnEntries.map(([label, value, tone]) => (
+                <div className="relativeReturnTile" key={label}>
+                  <span>{label}</span>
+                  <strong className={tone}>{value}</strong>
+                </div>
+              ))}
+            </div>
+            <div className="relativePeriodEvidence" aria-label="Relative return evidence by period">
+              <div className="relativePeriodHeader">
+                <p className="eyebrow">SouthernStar period matrix</p>
+                <span>Positive means {left.symbol} outperformed {right.symbol}. 3M pair trend: {periodPercent(pairThreeMonth)}</span>
+              </div>
+              <div className="relativePeriodGrid">
+                {evidenceWindows.map((window) => (
+                  <RelativePeriodCell key={window.key} window={window} left={left.symbol} right={right.symbol} basis={ratioBasis} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="relativeDetailGrid">
+            <EntryScorePanel score={entryScore} />
+            {relativeEngine ? <RelativeScorePanel score={relativeEngine} /> : null}
+          </div>
 
           <RelativeStrengthStack
             items={relativeStack}
@@ -1052,51 +1110,36 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
             backfillBusy={stackBackfillBusy}
           />
 
-          <AllocationReadPanel read={allocationReadout} />
-
-          <EntryScorePanel score={entryScore} />
-
-          {relativeEngine ? <RelativeScorePanel score={relativeEngine} /> : null}
-
           {ratioTvExpression ? (
-            <div className="relativeTvPanel isPrimary">
-              <div className="relativeTvHeader">
-                <div>
-                  <p className="eyebrow">TradingView workbench</p>
-                  <h3>{left.symbol}/{right.symbol} raw ratio</h3>
-                  <span>{ratioTvExpression}</span>
+            <details className="relativeAuditPanel">
+              <summary>TradingView workbench</summary>
+              <div className="relativeTvPanel isPrimary">
+                <div className="relativeTvHeader">
+                  <div>
+                    <p className="eyebrow">Quoted-market ratio</p>
+                    <h3>{left.symbol}/{right.symbol} raw ratio</h3>
+                    <span>{ratioTvExpression}</span>
+                  </div>
+                  <div className="relativeActions">
+                    <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={ratioTvExpression}>Open raw ratio</a>
+                    {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>{left.symbol}</a> : null}
+                    {rightTv ? <a className="button" href={rightTv} target="_blank" rel="noreferrer" title={rightTvSymbol}>{right.symbol}</a> : null}
+                  </div>
                 </div>
-                <div className="relativeActions">
-                  <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={ratioTvExpression}>Open raw ratio</a>
-                  {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>{left.symbol}</a> : null}
-                  {rightTv ? <a className="button" href={rightTv} target="_blank" rel="noreferrer" title={rightTvSymbol}>{right.symbol}</a> : null}
-                </div>
+                <TradingViewWidget
+                  symbol={ratioTvExpression}
+                  className="tradingview-widget-container stockChartWidget relativeTvWidget"
+                  minHeight={560}
+                  maxHeight={760}
+                  compactMinHeight={380}
+                  compactMaxHeight={520}
+                  heightRatio={0.76}
+                  compactHeightRatio={0.62}
+                />
+                <p className="relativeTvNote">TradingView formulas use quoted market prices; SouthernStar stored-close comparisons are AUD-normalised by default.</p>
               </div>
-              <TradingViewWidget
-                symbol={ratioTvExpression}
-                className="tradingview-widget-container stockChartWidget relativeTvWidget"
-                minHeight={560}
-                maxHeight={760}
-                compactMinHeight={380}
-                compactMaxHeight={520}
-                heightRatio={0.76}
-                compactHeightRatio={0.62}
-              />
-              <p className="relativeTvNote">TradingView formulas use quoted market prices; SouthernStar stored-close comparisons are AUD-normalised by default.</p>
-            </div>
+            </details>
           ) : null}
-
-          <div className="relativePeriodEvidence" aria-label="Relative return evidence by period">
-            <div className="relativePeriodHeader">
-              <p className="eyebrow">SouthernStar evidence</p>
-              <span>{basisLabel} stored closes. Positive means {left.symbol} outperformed {right.symbol}. 3M pair trend: {periodPercent(pairThreeMonth)}</span>
-            </div>
-            <div className="relativePeriodGrid">
-              {evidenceWindows.map((window) => (
-                <RelativePeriodCell key={window.key} window={window} left={left.symbol} right={right.symbol} basis={ratioBasis} />
-              ))}
-            </div>
-          </div>
 
           <details className="relativeAuditPanel">
             <summary>Stored-close audit chart</summary>
@@ -1115,7 +1158,8 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
               </div>
             )}
           </details>
-          <div className="relativeStructurePanel">
+          <details className="relativeAuditPanel relativeStructurePanel">
+            <summary>Structural memory</summary>
             <div className="relativeStructureHeader">
               <div>
                 <p className="eyebrow">Structural memory</p>
@@ -1159,7 +1203,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                 {structuralForm.id ? <button type="button" onClick={() => setStructuralForm(structuralBlank)}>Cancel</button> : null}
               </div>
             </form>
-          </div>
+          </details>
         </Card>
       ) : (
         <Card><p className="empty">No chartable holdings are available.</p></Card>
