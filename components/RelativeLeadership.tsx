@@ -871,12 +871,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   }
 
   return (
-    <main className="shell">
-      <PageHeader
-        title="Relative leadership"
-        description="Compare one holding against another on an AUD-normalised basis by default, with raw market ratio available for audit."
-      />
-
+    <main className="shell relativeShell">
       {loading ? (
         <Card><p className="empty">Loading comparison chart...</p></Card>
       ) : error ? (
@@ -886,7 +881,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
           <div className="panelHeader relativeHeader relativeAnalysisHeader">
             <div>
               <p className="eyebrow">Analysis</p>
-              <h2 className="cardTitle">{left.symbol} / {right.symbol}</h2>
+              <h1 className="cardTitle">{left.symbol} ÷ {right.symbol}</h1>
               <p className="cardIntro">{basisLabel} · {series.length} shared close{series.length === 1 ? "" : "s"} · {series.length ? `${dateLabel(series[0].date)} to ${dateLabel(series.at(-1)!.date)}` : "No overlapping price history yet"}</p>
             </div>
             <div className="relativeActions">
@@ -915,10 +910,6 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
             <span>1 · Set Up</span>
           </div>
           <section className="relativeSetupCard" aria-label="Relative comparison setup">
-            <div className="relativeSetupSummary">
-              <strong>{left.symbol}/{right.symbol}</strong>
-              <span>{left.name} divided by {right.name} · {scope.toUpperCase()} scope</span>
-            </div>
             <div className="relativePairGrid">
               <label className="relativeSelect">
                 <span>First asset · numerator</span>
@@ -939,21 +930,24 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                     ))}
                   </optgroup>
                 </select>
-                <form
-                  className="relativeCustomSymbol"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    addCustomTicker("left", customLeftInput);
-                  }}
-                >
-                  <input
-                    value={customLeftInput}
-                    onChange={(event) => setCustomLeftInput(event.target.value)}
-                    placeholder="Add ticker"
-                    aria-label="Ticker to use as first asset"
-                  />
-                  <button className="button" type="submit">Add left</button>
-                </form>
+                <details className="relativeCustomDisclosure">
+                  <summary>Add typed ticker</summary>
+                  <form
+                    className="relativeCustomSymbol"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      addCustomTicker("left", customLeftInput);
+                    }}
+                  >
+                    <input
+                      value={customLeftInput}
+                      onChange={(event) => setCustomLeftInput(event.target.value)}
+                      placeholder="ASX:SLX or CCJ"
+                      aria-label="Ticker to use as first asset"
+                    />
+                    <button className="button" type="submit">Add</button>
+                  </form>
+                </details>
               </label>
               <div className="relativePairDivider" aria-hidden="true">÷</div>
               <label className="relativeSelect">
@@ -975,21 +969,24 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                     ))}
                   </optgroup>
                 </select>
-                <form
-                  className="relativeCustomSymbol"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    addCustomTicker("right", customRightInput);
-                  }}
-                >
-                  <input
-                    value={customRightInput}
-                    onChange={(event) => setCustomRightInput(event.target.value)}
-                    placeholder="Add ticker"
-                    aria-label="Ticker to use as second asset"
-                  />
-                  <button className="button" type="submit">Add right</button>
-                </form>
+                <details className="relativeCustomDisclosure">
+                  <summary>Add typed ticker</summary>
+                  <form
+                    className="relativeCustomSymbol"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      addCustomTicker("right", customRightInput);
+                    }}
+                  >
+                    <input
+                      value={customRightInput}
+                      onChange={(event) => setCustomRightInput(event.target.value)}
+                      placeholder="URA or TSX:CCO"
+                      aria-label="Ticker to use as second asset"
+                    />
+                    <button className="button" type="submit">Add</button>
+                  </form>
+                </details>
               </label>
             </div>
             {customError ? <p className="relativeCustomError">{customError}</p> : null}
@@ -1000,8 +997,8 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                   <strong>{basisLabel}</strong>
                 </div>
                 <div className="scopeSwitch" role="tablist" aria-label="Ratio basis">
-                  <button type="button" className={ratioBasis === "fx_normalised" ? "isActive" : ""} onClick={() => setRatioBasis("fx_normalised")}>FX Normalised</button>
-                  <button type="button" className={ratioBasis === "raw_market" ? "isActive" : ""} onClick={() => setRatioBasis("raw_market")}>Raw Market Ratio</button>
+                  <button type="button" className={ratioBasis === "fx_normalised" ? "isActive" : ""} onClick={() => setRatioBasis("fx_normalised")}>FX normalised (AUD)</button>
+                  <button type="button" className={ratioBasis === "raw_market" ? "isActive" : ""} onClick={() => setRatioBasis("raw_market")}>Raw market</button>
                 </div>
               </div>
               <div className="relativeRangeBar">

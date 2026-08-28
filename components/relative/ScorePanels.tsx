@@ -68,12 +68,16 @@ function HistoricalEconomicsNote({ economics }: { economics: HistoricalEconomics
 }
 
 export function AllocationReadPanel({ read }: { read: SouthernStarAllocationRead }) {
+  const verdictTone = read.allocationScore == null ? "isPending" : read.allocationScore >= 60 ? "isPositive" : read.allocationScore < 45 ? "isNegative" : "isNeutral";
   return (
     <div className="allocationReadPanel">
       <div className="allocationReadHeader">
         <div>
           <p className="eyebrow">SouthernStar allocation read</p>
-          <h3>{read.allocationScore == null ? "Allocation pending" : "Allocation " + read.allocationScore} <span>{read.label}</span></h3>
+          <div className={"allocationVerdict " + verdictTone}>
+            <strong>{read.allocationScore == null ? "-" : read.allocationScore}</strong>
+            <span>{read.label}</span>
+          </div>
           <p>{read.note}</p>
         </div>
       </div>
