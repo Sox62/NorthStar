@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Card, Notice, SummaryGrid } from "@/southernstar/components";
 import { calculateRelativeRelationship, type RelativeCalculatorInput } from "@/southernstar/lib/relative-calculator";
+import type { RatioBasis } from "@/southernstar/lib/ratio-engine";
 
 const initialInput: RelativeCalculatorInput = {
   leftLabel: "Asset",
@@ -42,6 +43,7 @@ const rightFields: FieldSpec[] = [
 
 export default function RelativeCalculator() {
   const [input, setInput] = useState<RelativeCalculatorInput>(initialInput);
+  const [basis, setBasis] = useState<RatioBasis>("fx_normalised");
   const result = useMemo(() => {
     try {
       return { value: calculateRelativeRelationship(input), error: "" };
@@ -52,6 +54,20 @@ export default function RelativeCalculator() {
 
   const setText = (key: "leftLabel" | "rightLabel", value: string) => setInput((current) => ({ ...current, [key]: value }));
   const setNumber = (key: NumericKey, value: string) => setInput((current) => ({ ...current, [key]: Number(value) }));
+  const basisLabel = basis === "raw_market" ? "Raw Market Ratio" : "FX Normalised (AUD)";
+  const ratioReturn = result.value ? basis === "raw_market" ? result.value.rawRatioReturnPercent : result.value.ratioReturnPercent : 0;
+  const ratioStart = result.value ? basis === "raw_market" ? result.value.rawRatioStart : result.value.ratioStart : 0;
+  const ratioEnd = result.value ? basis === "raw_market" ? result.value.rawRatioEnd : result.value.ratioEnd : 0;
+  const selectedWinner = result.value
+    ? Math.abs(ratioReturn) < 0.000001 ? "flat" : ratioReturn > 0 ? "left" : "right"
+    : "flat";
+  const interpretation = result.value
+    ? selectedWinner === "flat"
+      ? `${result.value.leftLabel} and ${result.value.rightLabel} were flat relative to each other on a ${basisLabel} basis.`
+      : selectedWinner === "left"
+        ? `${result.value.leftLabel} outperformed ${result.value.rightLabel} by ${percent(ratioReturn)} on a ${basisLabel} basis.`
+        : `${result.value.leftLabel} underperformed ${result.value.rightLabel} by ${percent(Math.abs(ratioReturn))} on a ${basisLabel} basis.`
+    : "";
 
   return (
     <main className="shell">
@@ -79,25 +95,39 @@ export default function RelativeCalculator() {
           <AssetInputPanel title="Benchmark / comparison" labelKey="rightLabel" labelValue={input.rightLabel} fields={rightFields} input={input} onText={setText} onNumber={setNumber} />
         </div>
 
+        <div className="relativeBasisBar">
+          <div>
+            <p className="eyebrow">Ratio basis</p>
+            <strong>{basisLabel}</strong>
+          </div>
+          <div className="scopeSwitch" role="tablist" aria-label="Ratio basis">
+            <button type="button" className={basis === "fx_normalised" ? "isActive" : ""} onClick={() => setBasis("fx_normalised")}>FX Normalised</button>
+            <button type="button" className={basis === "raw_market" ? "isActive" : ""} onClick={() => setBasis("raw_market")}>Raw Market Ratio</button>
+          </div>
+        </div>
+
         {result.error ? <Notice tone="error" title="Calculator input issue">{result.error}</Notice> : null}
 
         {result.value ? (
           <>
             <SummaryGrid
               entries={[
-                [`${result.value.leftLabel} AUD`, percent(result.value.leftAudReturnPercent), result.value.leftAudReturnPercent >= 0 ? "positive" : "negative"],
-                [`${result.value.rightLabel} AUD`, percent(result.value.rightAudReturnPercent), result.value.rightAudReturnPercent >= 0 ? "positive" : "negative"],
-                ["Ratio move", percent(result.value.ratioReturnPercent), result.value.ratioReturnPercent >= 0 ? "positive" : "negative"],
-                ["Winner", result.value.winner === "flat" ? "Flat" : result.value.winner === "left" ? result.value.leftLabel : result.value.rightLabel],
+                ["Relative strength", percent(ratioReturn), ratioReturn >= 0 ? "positive" : "negative"],
+                ["FX contribution", percent(result.value.fxContributionPercent), result.value.fxContributionPercent >= 0 ? "positive" : "negative"],
+                ["Underlying relative", percent(result.value.rawRatioReturnPercent), result.value.rawRatioReturnPercent >= 0 ? "positive" : "negative"],
+                ["Winner", selectedWinner === "flat" ? "Flat" : selectedWinner === "left" ? result.value.leftLabel : result.value.rightLabel],
               ]}
             />
             <div className="relativeCalcResult">
-              <strong>{result.value.interpretation}</strong>
+              <strong>{interpretation}</strong>
               <dl>
                 <div><dt>{result.value.leftLabel} start/end AUD</dt><dd>{aud(result.value.leftStartAud)} <span aria-hidden="true">to</span> {aud(result.value.leftEndAud)}</dd></div>
                 <div><dt>{result.value.rightLabel} start/end AUD</dt><dd>{aud(result.value.rightStartAud)} <span aria-hidden="true">to</span> {aud(result.value.rightEndAud)}</dd></div>
-                <div><dt>Ratio start/end</dt><dd>{number(result.value.ratioStart)} <span aria-hidden="true">to</span> {number(result.value.ratioEnd)}</dd></div>
-                <div><dt>Local returns</dt><dd>{result.value.leftLabel} {percent(result.value.leftLocalReturnPercent)} · {result.value.rightLabel} {percent(result.value.rightLocalReturnPercent)}</dd></div>
+                <div><dt>{basisLabel} start/end</dt><dd>{number(ratioStart)} <span aria-hidden="true">to</span> {number(ratioEnd)}</dd></div>
+                <div><dt>Raw market ratio</dt><dd>{number(result.value.rawRatioStart)} <span aria-hidden="true">to</span> {number(result.value.rawRatioEnd)} · {percent(result.value.rawRatioReturnPercent)}</dd></div>
+                <div><dt>FX ratio</dt><dd>{number(result.value.fxRatioStart)} <span aria-hidden="true">to</span> {number(result.value.fxRatioEnd)} · {percent(result.value.fxRatioReturnPercent)}</dd></div>
+                <div><dt>AUD translated returns</dt><dd>{result.value.leftLabel} {percent(result.value.leftAudReturnPercent)} · {result.value.rightLabel} {percent(result.value.rightAudReturnPercent)}</dd></div>
+                <div><dt>Quoted-price returns</dt><dd>{result.value.leftLabel} {percent(result.value.leftLocalReturnPercent)} · {result.value.rightLabel} {percent(result.value.rightLocalReturnPercent)}</dd></div>
               </dl>
             </div>
           </>

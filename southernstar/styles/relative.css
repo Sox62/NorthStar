@@ -48,6 +48,24 @@
   flex-wrap: wrap;
   margin-top: 14px;
 }
+.relativeBasisBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(106,130,153,.18);
+  border-radius: 14px;
+  background: rgba(4,12,20,.28);
+}
+.relativeBasisBar .eyebrow {
+  margin-bottom: 4px;
+}
+.relativeBasisBar strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
 .relativePeriodEvidence {
   display: grid;
   gap: 10px;
@@ -256,6 +274,9 @@
   .relativeModeBar {
     align-items: stretch;
   }
+  .relativeBasisBar {
+    display: grid;
+  }
   .relativePeriodHeader {
     display: grid;
   }
@@ -263,6 +284,9 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .relativeModeBar .scopeSwitch {
+    width: 100%;
+  }
+  .relativeBasisBar .scopeSwitch {
     width: 100%;
   }
 }

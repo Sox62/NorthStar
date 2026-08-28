@@ -1,7 +1,7 @@
 import type { PointerEvent } from "react";
 import { useRef, useState } from "react";
 import type { DashboardHolding } from "@/lib/storage";
-import type { RatioPoint, RelativeReturnWindow } from "@/southernstar/lib/ratio-engine";
+import { leftReturnForBasis, ratioReturnForBasis, ratioValueForBasis, rightReturnForBasis, type RatioBasis, type RatioPoint, type RelativeReturnWindow } from "@/southernstar/lib/ratio-engine";
 
 export type RatioMode = "ratio" | "indexed";
 
@@ -30,7 +30,20 @@ function formatAxisTick(value: number, mode: RatioMode) {
   return value.toFixed(3);
 }
 
-export function RatioChart({ series, mode, left, right }: { series: RatioPoint[]; mode: RatioMode; left: DashboardHolding; right: DashboardHolding }) {
+const basisText = (basis: RatioBasis) => basis === "raw_market" ? "raw ratio" : "FX normalised ratio";
+
+function indexedValueFor(point: RatioPoint, first: RatioPoint | undefined, basis: RatioBasis, side: "left" | "right") {
+  if (!first) return 100;
+  const start = side === "left"
+    ? basis === "raw_market" ? first.left : first.leftAud
+    : basis === "raw_market" ? first.right : first.rightAud;
+  const value = side === "left"
+    ? basis === "raw_market" ? point.left : point.leftAud
+    : basis === "raw_market" ? point.right : point.rightAud;
+  return start ? value / start * 100 : 100;
+}
+
+export function RatioChart({ series, mode, basis = "fx_normalised", left, right }: { series: RatioPoint[]; mode: RatioMode; basis?: RatioBasis; left: DashboardHolding; right: DashboardHolding }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const chartRef = useRef<SVGSVGElement | null>(null);
   const width = 920;
@@ -40,9 +53,10 @@ export function RatioChart({ series, mode, left, right }: { series: RatioPoint[]
   const padBottom = 42;
   const chartWidth = width - padX * 2;
   const chartHeight = height - padTop - padBottom;
+  const first = series[0];
   const values = mode === "ratio"
-    ? series.map((point) => point.ratio)
-    : series.flatMap((point) => [point.leftIndexed, point.rightIndexed]);
+    ? series.map((point) => ratioValueForBasis(point, basis))
+    : series.flatMap((point) => [indexedValueFor(point, first, basis, "left"), indexedValueFor(point, first, basis, "right")]);
   const rawMax = values.length ? Math.max(...values) : 1;
   const rawMin = values.length ? Math.min(...values) : 0;
   const rawRange = Math.max(0.000001, rawMax - rawMin);
@@ -50,9 +64,14 @@ export function RatioChart({ series, mode, left, right }: { series: RatioPoint[]
   const max = mode === "ratio" ? rawMax + padding : Math.max(rawMax, 100);
   const min = mode === "ratio" ? Math.max(0, rawMin - padding) : Math.min(rawMin, 100);
   const range = Math.max(0.000001, max - min);
+  const valueFor = (point: RatioPoint, key: "ratio" | "leftIndexed" | "rightIndexed") => {
+    if (key === "ratio") return ratioValueForBasis(point, basis);
+    if (key === "leftIndexed") return indexedValueFor(point, first, basis, "left");
+    return indexedValueFor(point, first, basis, "right");
+  };
   const xy = (point: RatioPoint, index: number, key: "ratio" | "leftIndexed" | "rightIndexed") => ({
     x: padX + (series.length === 1 ? chartWidth : index / Math.max(1, series.length - 1) * chartWidth),
-    y: padTop + (max - point[key]) / range * chartHeight,
+    y: padTop + (max - valueFor(point, key)) / range * chartHeight,
   });
   const pathFor = (key: "ratio" | "leftIndexed" | "rightIndexed") =>
     series.map((point, index) => {
@@ -109,23 +128,28 @@ export function RatioChart({ series, mode, left, right }: { series: RatioPoint[]
       {active && activeXY ? (
         <div className={`relativeTooltip ${activeXY.x > width * 0.66 ? "isLeft" : ""}`} style={{ left: `${activeXY.x / width * 100}%`, top: `${Math.max(10, Math.min(74, activeXY.y / height * 100))}%` }}>
           <span>{dateLabel(active.date)}</span>
-          {mode === "ratio" ? <strong>{active.ratio.toFixed(2)} ratio</strong> : <strong>{left.symbol} {active.leftIndexed.toFixed(1)} · {right.symbol} {active.rightIndexed.toFixed(1)}</strong>}
-          <em>{localPrice(active.left, left.currency)} / {localPrice(active.right, right.currency)}</em>
+          {mode === "ratio"
+            ? <strong>{ratioValueForBasis(active, basis).toFixed(2)} {basisText(basis)}</strong>
+            : <strong>{left.symbol} {indexedValueFor(active, first, basis, "left").toFixed(1)} · {right.symbol} {indexedValueFor(active, first, basis, "right").toFixed(1)}</strong>}
+          <em>{localPrice(active.left, left.currency)} / {localPrice(active.right, right.currency)} · FX {active.leftFxToAud.toFixed(4)} / {active.rightFxToAud.toFixed(4)}</em>
         </div>
       ) : null}
     </div>
   );
 }
 
-export function RelativePeriodCell({ window, left, right }: { window: RelativeReturnWindow; left: string; right: string }) {
-  const enoughData = window.points >= 2 && window.ratioReturnPercent != null;
+export function RelativePeriodCell({ window, left, right, basis = "fx_normalised" }: { window: RelativeReturnWindow; left: string; right: string; basis?: RatioBasis }) {
+  const ratioReturn = ratioReturnForBasis(window, basis);
+  const leftReturn = leftReturnForBasis(window, basis);
+  const rightReturn = rightReturnForBasis(window, basis);
+  const enoughData = window.points >= 2 && ratioReturn != null;
   const detail = enoughData
-    ? window.points + " closes · " + left + " " + periodPercent(window.leftReturnPercent) + " / " + right + " " + periodPercent(window.rightReturnPercent)
+    ? window.points + " closes · " + left + " " + periodPercent(leftReturn) + " / " + right + " " + periodPercent(rightReturn) + (basis === "fx_normalised" ? " · FX " + periodPercent(window.fxContributionPercent) : "")
     : "Not enough overlap";
   return (
     <div className="relativePeriodCell">
       <span>{window.label}</span>
-      <strong className={periodTone(window.ratioReturnPercent)}>{periodPercent(window.ratioReturnPercent)}</strong>
+      <strong className={periodTone(ratioReturn)}>{periodPercent(ratioReturn)}</strong>
       <em>{detail}</em>
     </div>
   );

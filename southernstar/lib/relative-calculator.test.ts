@@ -46,6 +46,25 @@ test("calculateRelativeRelationship separates local and FX-adjusted AUD returns"
   assert.equal(result.winner, "right");
 });
 
+test("calculateRelativeRelationship decomposes cross-currency relative strength", () => {
+  const result = calculateRelativeRelationship({
+    leftLabel: "LEU",
+    rightLabel: "SLX",
+    leftStartPrice: 100,
+    leftEndPrice: 124.6,
+    leftStartFxToAud: 1.55,
+    leftEndFxToAud: 1.4728731942215088,
+    rightStartPrice: 10,
+    rightEndPrice: 10,
+    rightStartFxToAud: 1,
+    rightEndFxToAud: 1,
+  });
+  closeTo(result.rawRatioReturnPercent, 24.6);
+  closeTo(result.ratioReturnPercent, 18.4);
+  closeTo(result.fxContributionPercent, -6.2);
+  closeTo(result.fxRatioReturnPercent, -4.9759229535);
+});
+
 test("calculateRelativeRelationship rejects zero inputs", () => {
   assert.throws(() => calculateRelativeRelationship({
     leftLabel: "A",

@@ -1,6 +1,7 @@
 import type { StoredDailyPrice, StoredFxRate } from "@/lib/storage";
 
 export type RatioRangeKey = "all" | "5y" | "3y" | "12m" | "6m" | "3m" | "1m";
+export type RatioBasis = "fx_normalised" | "raw_market";
 
 export type RatioInstrument = {
   id?: string;
@@ -26,10 +27,16 @@ export type RatioPoint = {
   date: string;
   left: number;
   right: number;
+  leftFxToAud: number;
+  rightFxToAud: number;
   leftAud: number;
   rightAud: number;
   leftIndexed: number;
   rightIndexed: number;
+  leftRawIndexed: number;
+  rightRawIndexed: number;
+  rawRatio: number;
+  fxRatio: number;
   ratio: number;
 };
 
@@ -40,8 +47,13 @@ export type RelativeReturnWindow = {
   startDate: string | null;
   endDate: string | null;
   ratioReturnPercent: number | null;
+  rawRatioReturnPercent: number | null;
+  fxRatioReturnPercent: number | null;
+  fxContributionPercent: number | null;
   leftReturnPercent: number | null;
   rightReturnPercent: number | null;
+  leftLocalReturnPercent: number | null;
+  rightLocalReturnPercent: number | null;
   points: number;
 };
 
@@ -147,10 +159,16 @@ export function buildRatioSeries(leftHistory: RatioHistoryPoint[], rightHistory:
     date: row.date,
     left: row.left.close,
     right: row.right.close,
+    leftFxToAud: row.left.fxRateToAud,
+    rightFxToAud: row.right.fxRateToAud,
     leftAud: row.left.valueAud,
     rightAud: row.right.valueAud,
     leftIndexed: first.left.valueAud ? row.left.valueAud / first.left.valueAud * 100 : 100,
     rightIndexed: first.right.valueAud ? row.right.valueAud / first.right.valueAud * 100 : 100,
+    leftRawIndexed: first.left.close ? row.left.close / first.left.close * 100 : 100,
+    rightRawIndexed: first.right.close ? row.right.close / first.right.close * 100 : 100,
+    rawRatio: row.right.close ? row.left.close / row.right.close * 100 : 0,
+    fxRatio: row.right.fxRateToAud ? row.left.fxRateToAud / row.right.fxRateToAud : 0,
     ratio: row.right.valueAud ? row.left.valueAud / row.right.valueAud * 100 : 0,
   }));
 }
@@ -171,16 +189,39 @@ export function relativeReturnWindows(series: RatioPoint[], ranges = RATIO_RANGE
     const windowSeries = applyRatioRange(series, range.key);
     const first = windowSeries[0];
     const last = windowSeries.at(-1);
+    const ratioReturnPercent = first && last && first.ratio ? last.ratio / first.ratio * 100 - 100 : null;
+    const rawRatioReturnPercent = first && last && first.rawRatio ? last.rawRatio / first.rawRatio * 100 - 100 : null;
     return {
       ...range,
       startDate: first?.date ?? null,
       endDate: last?.date ?? null,
-      ratioReturnPercent: first && last && first.ratio ? last.ratio / first.ratio * 100 - 100 : null,
+      ratioReturnPercent,
+      rawRatioReturnPercent,
+      fxRatioReturnPercent: first && last && first.fxRatio ? last.fxRatio / first.fxRatio * 100 - 100 : null,
+      fxContributionPercent: ratioReturnPercent != null && rawRatioReturnPercent != null ? ratioReturnPercent - rawRatioReturnPercent : null,
       leftReturnPercent: first && last && first.leftAud ? last.leftAud / first.leftAud * 100 - 100 : null,
       rightReturnPercent: first && last && first.rightAud ? last.rightAud / first.rightAud * 100 - 100 : null,
+      leftLocalReturnPercent: first && last && first.left ? last.left / first.left * 100 - 100 : null,
+      rightLocalReturnPercent: first && last && first.right ? last.right / first.right * 100 - 100 : null,
       points: windowSeries.length,
     };
   });
+}
+
+export function ratioValueForBasis(point: RatioPoint, basis: RatioBasis) {
+  return basis === "raw_market" ? point.rawRatio : point.ratio;
+}
+
+export function ratioReturnForBasis(window: RelativeReturnWindow, basis: RatioBasis) {
+  return basis === "raw_market" ? window.rawRatioReturnPercent : window.ratioReturnPercent;
+}
+
+export function leftReturnForBasis(window: RelativeReturnWindow, basis: RatioBasis) {
+  return basis === "raw_market" ? window.leftLocalReturnPercent : window.leftReturnPercent;
+}
+
+export function rightReturnForBasis(window: RelativeReturnWindow, basis: RatioBasis) {
+  return basis === "raw_market" ? window.rightLocalReturnPercent : window.rightReturnPercent;
 }
 
 export function relativeStrengthScore(windows: RelativeReturnWindow[]) {

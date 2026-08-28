@@ -25,6 +25,13 @@ export type RelativeCalculatorResult = {
   ratioStart: number;
   ratioEnd: number;
   ratioReturnPercent: number;
+  rawRatioStart: number;
+  rawRatioEnd: number;
+  rawRatioReturnPercent: number;
+  fxRatioStart: number;
+  fxRatioEnd: number;
+  fxRatioReturnPercent: number;
+  fxContributionPercent: number;
   winner: "left" | "right" | "flat";
   interpretation: string;
 };
@@ -42,12 +49,19 @@ export function calculateRelativeRelationship(input: RelativeCalculatorInput): R
   const ratioStart = leftStartAud / rightStartAud;
   const ratioEnd = leftEndAud / rightEndAud;
   const ratioReturnPercent = pctReturn(ratioStart, ratioEnd);
+  const rawRatioStart = cleaned.leftStartPrice / cleaned.rightStartPrice;
+  const rawRatioEnd = cleaned.leftEndPrice / cleaned.rightEndPrice;
+  const rawRatioReturnPercent = pctReturn(rawRatioStart, rawRatioEnd);
+  const fxRatioStart = cleaned.leftStartFxToAud / cleaned.rightStartFxToAud;
+  const fxRatioEnd = cleaned.leftEndFxToAud / cleaned.rightEndFxToAud;
+  const fxRatioReturnPercent = pctReturn(fxRatioStart, fxRatioEnd);
+  const fxContributionPercent = ratioReturnPercent - rawRatioReturnPercent;
   const winner = Math.abs(ratioReturnPercent) < 0.000001 ? "flat" : ratioReturnPercent > 0 ? "left" : "right";
   const interpretation = winner === "flat"
-    ? `${cleaned.leftLabel} and ${cleaned.rightLabel} were flat relative to each other on an AUD basis.`
+    ? `${cleaned.leftLabel} and ${cleaned.rightLabel} were flat relative to each other on an AUD-normalised basis.`
     : winner === "left"
-      ? `${cleaned.leftLabel} outperformed ${cleaned.rightLabel} by ${formatPercent(ratioReturnPercent)} on an AUD ratio basis.`
-      : `${cleaned.leftLabel} underperformed ${cleaned.rightLabel} by ${formatPercent(Math.abs(ratioReturnPercent))} on an AUD ratio basis.`;
+      ? `${cleaned.leftLabel} outperformed ${cleaned.rightLabel} by ${formatPercent(ratioReturnPercent)} on an AUD-normalised ratio basis.`
+      : `${cleaned.leftLabel} underperformed ${cleaned.rightLabel} by ${formatPercent(Math.abs(ratioReturnPercent))} on an AUD-normalised ratio basis.`;
   return {
     leftLabel: cleaned.leftLabel,
     rightLabel: cleaned.rightLabel,
@@ -62,6 +76,13 @@ export function calculateRelativeRelationship(input: RelativeCalculatorInput): R
     ratioStart,
     ratioEnd,
     ratioReturnPercent,
+    rawRatioStart,
+    rawRatioEnd,
+    rawRatioReturnPercent,
+    fxRatioStart,
+    fxRatioEnd,
+    fxRatioReturnPercent,
+    fxContributionPercent,
     winner,
     interpretation,
   };

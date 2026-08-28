@@ -70,6 +70,26 @@ test("buildRatioSeries captures price-only relative moves", () => {
   closeTo(series.at(-1)?.ratio, 2.2);
 });
 
+test("buildRatioSeries decomposes raw relative moves and FX contribution", () => {
+  const left = buildInstrumentHistory(
+    [price("LEU", "NYSE", "USD", 100, "2026-08-01"), price("LEU", "NYSE", "USD", 124.6, "2026-08-02")],
+    [fx("USD", 1.55, "2026-08-01"), fx("USD", 1.4728731942215088, "2026-08-02")],
+    { symbol: "LEU", exchange: "NYSE", currency: "USD" },
+  );
+  const right = buildInstrumentHistory(
+    [price("SLX", "ASX", "AUD", 10, "2026-08-01"), price("SLX", "ASX", "AUD", 10, "2026-08-02")],
+    [],
+    { symbol: "SLX", exchange: "ASX", currency: "AUD" },
+  );
+  const series = buildRatioSeries(left, right);
+  const window = relativeReturnWindows(series).find((item) => item.key === "all")!;
+
+  closeTo(window.rawRatioReturnPercent, 24.6);
+  closeTo(window.ratioReturnPercent, 18.4);
+  closeTo(window.fxContributionPercent, -6.2);
+  closeTo(window.fxRatioReturnPercent, -4.9759229535);
+});
+
 test("buildRatioSeries carries forward latest known closes for mismatched market dates", () => {
   const left = buildInstrumentHistory(
     [price("PDN", "ASX", "AUD", 10, "2026-08-01"), price("PDN", "ASX", "AUD", 12, "2026-08-03")],
@@ -131,25 +151,52 @@ test("buildInstrumentHistory can use stored FX rates as a currency benchmark", (
 
 test("relativeStrengthScore weights recent ratio leadership", () => {
   const score = relativeStrengthScore([
-    { key: "1m", label: "1M", days: 31, startDate: "2026-07-01", endDate: "2026-08-01", ratioReturnPercent: 20, leftReturnPercent: 30, rightReturnPercent: 8, points: 20 },
-    { key: "3m", label: "3M", days: 92, startDate: "2026-05-01", endDate: "2026-08-01", ratioReturnPercent: 10, leftReturnPercent: 18, rightReturnPercent: 7, points: 60 },
-    { key: "6m", label: "6M", days: 183, startDate: "2026-02-01", endDate: "2026-08-01", ratioReturnPercent: 0, leftReturnPercent: 5, rightReturnPercent: 5, points: 120 },
-    { key: "12m", label: "12M", days: 366, startDate: "2025-08-01", endDate: "2026-08-01", ratioReturnPercent: -10, leftReturnPercent: 0, rightReturnPercent: 11, points: 240 },
+    returnWindow({ key: "1m", label: "1M", days: 31, startDate: "2026-07-01", endDate: "2026-08-01", ratioReturnPercent: 20, leftReturnPercent: 30, rightReturnPercent: 8, points: 20 }),
+    returnWindow({ key: "3m", label: "3M", days: 92, startDate: "2026-05-01", endDate: "2026-08-01", ratioReturnPercent: 10, leftReturnPercent: 18, rightReturnPercent: 7, points: 60 }),
+    returnWindow({ key: "6m", label: "6M", days: 183, startDate: "2026-02-01", endDate: "2026-08-01", ratioReturnPercent: 0, leftReturnPercent: 5, rightReturnPercent: 5, points: 120 }),
+    returnWindow({ key: "12m", label: "12M", days: 366, startDate: "2025-08-01", endDate: "2026-08-01", ratioReturnPercent: -10, leftReturnPercent: 0, rightReturnPercent: 11, points: 240 }),
   ]);
 
   closeTo(score, 60.625);
-  assert.equal(relativeStrengthScore([{ key: "1m", label: "1M", days: 31, startDate: null, endDate: null, ratioReturnPercent: null, leftReturnPercent: null, rightReturnPercent: null, points: 0 }]), null);
+  assert.equal(relativeStrengthScore([returnWindow({ key: "1m", label: "1M", days: 31, startDate: null, endDate: null, ratioReturnPercent: null, leftReturnPercent: null, rightReturnPercent: null, points: 0 })]), null);
 });
+
+function returnWindow(input: {
+  key: "all" | "5y" | "3y" | "12m" | "6m" | "3m" | "1m";
+  label: string;
+  days: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  ratioReturnPercent: number | null;
+  leftReturnPercent: number | null;
+  rightReturnPercent: number | null;
+  points: number;
+}) {
+  return {
+    ...input,
+    rawRatioReturnPercent: input.ratioReturnPercent,
+    fxRatioReturnPercent: 0,
+    fxContributionPercent: 0,
+    leftLocalReturnPercent: input.leftReturnPercent,
+    rightLocalReturnPercent: input.rightReturnPercent,
+  };
+}
 
 function ratioSeries(values: number[]) {
   return values.map((ratio, index) => ({
     date: new Date(Date.UTC(2026, 0, index + 1)).toISOString().slice(0, 10),
     left: ratio,
     right: 1,
+    leftFxToAud: 1,
+    rightFxToAud: 1,
     leftAud: ratio,
     rightAud: 1,
     leftIndexed: ratio,
     rightIndexed: 100,
+    leftRawIndexed: ratio,
+    rightRawIndexed: 100,
+    rawRatio: ratio,
+    fxRatio: 1,
     ratio,
   }));
 }

@@ -115,6 +115,16 @@ MARKETDATA_YAHOO_SYMBOL_OVERRIDES=SVM:TSX/TSXV=SVM.TO
 
 `MARKETDATA_SYMBOL_OVERRIDES` remains supported as the legacy EODHD override variable.
 
+## Relative strength currency basis
+
+Relative strength comparisons are calculated in the portfolio base currency, not in each security's quoted currency. For the current AUD base, SouthernStar compares:
+
+```text
+RS(A,B) = (Price A × FX[A→AUD]) / (Price B × FX[B→AUD])
+```
+
+The stored-close relative engine uses this FX-normalised AUD basis by default. Raw quoted-market ratios remain available as an audit view, and the app reports the FX contribution separately from the underlying quoted-price relative move.
+
 ## Passkey login
 
 SouthernStar uses passkeys for normal sign-in. Open `/login`, enter the existing `NORTH_STAR_USERNAME` and `NORTH_STAR_PASSWORD` once, then create a passkey with Face ID, Touch ID, Windows Hello or a hardware security key.

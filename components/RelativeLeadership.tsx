@@ -11,7 +11,7 @@ import type { DashboardData, DashboardHolding, MinerFundamentals, OwnerType, Sco
 import { Card, Notice, SummaryGrid } from "@/southernstar/components";
 import { RESEARCH_BENCHMARKS, resolveBenchmarkTree, type BenchmarkNode } from "@/southernstar/lib/benchmark-tree";
 import { scoreEntryCondition } from "@/southernstar/lib/entry-score";
-import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, relativeReturnWindows, scoreRatioTrend, scoreRatioTrendVelocity, RATIO_RANGES, type RatioPoint, type RatioRangeKey, type RelativeScoreComponent } from "@/southernstar/lib/ratio-engine";
+import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, ratioReturnForBasis, relativeReturnWindows, scoreRatioTrend, scoreRatioTrendVelocity, RATIO_RANGES, type RatioBasis, type RatioPoint, type RatioRangeKey, type RelativeScoreComponent } from "@/southernstar/lib/ratio-engine";
 import { sectorForInstrument } from "@/southernstar/lib/sector-map";
 import { customBenchmarkNode, parseSelectionValue, selectionValue } from "@/southernstar/lib/selection";
 import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/southernstar/lib/tradingview";
@@ -25,6 +25,7 @@ type PriceBookResponse = {
 type StructuralLevelsResponse = { levels?: StructuralLevel[]; error?: string };
 type FundamentalsResponse = { fundamentals?: MinerFundamentals[]; error?: string };
 type IdeaGroup = { label: string; nodes: BenchmarkNode[] };
+type SummaryEntry = [string, ReactNode] | [string, ReactNode, "positive" | "negative"];
 type StructuralLevelForm = {
   id: string;
   symbol: string;
@@ -71,6 +72,21 @@ const percent = (value: number) =>
   `${value >= 0 ? "+" : ""}${value.toLocaleString("en-AU", { maximumFractionDigits: 1 })}%`;
 
 const periodPercent = (value: number | null) => value == null ? "n/a" : percent(value);
+const ratioBasisLabel = (basis: RatioBasis) => basis === "raw_market" ? "Raw Market Ratio" : "FX Normalised (AUD)";
+const percentSummary = (label: string, value: number | null): SummaryEntry => {
+  if (value == null) return [label, "n/a"];
+  return [label, percent(value), value >= 0 ? "positive" : "negative"];
+};
+function assetReturnForBasis(first: RatioPoint | undefined, last: RatioPoint | undefined, basis: RatioBasis, side: "left" | "right") {
+  if (!first || !last) return null;
+  const start = side === "left"
+    ? basis === "raw_market" ? first.left : first.leftAud
+    : basis === "raw_market" ? first.right : first.rightAud;
+  const end = side === "left"
+    ? basis === "raw_market" ? last.left : last.leftAud
+    : basis === "raw_market" ? last.right : last.rightAud;
+  return start ? end / start * 100 - 100 : null;
+}
 const dateLabel = (value: string) => {
   const date = new Date(`${value}T12:00:00Z`);
   if (Number.isNaN(date.getTime())) return value;
@@ -492,6 +508,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   const [rightId, setRightId] = useState("");
   const [leftBenchmarkId, setLeftBenchmarkId] = useState("");
   const [rightBenchmarkId, setRightBenchmarkId] = useState("");
+  const [ratioBasis, setRatioBasis] = useState<RatioBasis>("fx_normalised");
   const [mode, setMode] = useState<RatioMode>("ratio");
   const [range, setRange] = useState<RangeKey>("all");
   const [loading, setLoading] = useState(true);
@@ -597,7 +614,8 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   const fullSeries = left && right ? buildRatioSeries(leftHistory, rightHistory) : [];
   const series = applyRatioRange(fullSeries, range);
   const evidenceWindows = useMemo(() => relativeReturnWindows(fullSeries, evidenceRanges), [fullSeries]);
-  const pairThreeMonth = evidenceWindows.find((item) => item.key === "3m")?.ratioReturnPercent ?? null;
+  const pairThreeMonthWindow = evidenceWindows.find((item) => item.key === "3m") ?? null;
+  const pairThreeMonth = pairThreeMonthWindow ? ratioReturnForBasis(pairThreeMonthWindow, ratioBasis) : null;
   const relativeEngine = useMemo(() => left ? buildRelativeEngineScore({ asset: left, prices, fxRates, holdings, savedIdeaNodes, benchmarkNodes }) : null, [left, prices, fxRates, holdings, savedIdeaNodes, benchmarkNodes]);
   const relativeIntegrityHealthy = relativeEngine ? relativeIntegrity(relativeEngine) : null;
   const entryScore = useMemo(() => scoreEntryCondition(leftHistory, { relativeIntegrityHealthy }), [leftHistory, relativeIntegrityHealthy]);
@@ -610,9 +628,13 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   };
   const first = series[0];
   const last = series.at(-1);
-  const ratioChange = first && last ? last.ratio / first.ratio * 100 - 100 : 0;
-  const leftChange = first && last ? last.leftIndexed - 100 : 0;
-  const rightChange = first && last ? last.rightIndexed - 100 : 0;
+  const normalisedRatioChange = first && last && first.ratio ? last.ratio / first.ratio * 100 - 100 : null;
+  const rawRatioChange = first && last && first.rawRatio ? last.rawRatio / first.rawRatio * 100 - 100 : null;
+  const fxContribution = normalisedRatioChange != null && rawRatioChange != null ? normalisedRatioChange - rawRatioChange : null;
+  const ratioChange = ratioBasis === "raw_market" ? rawRatioChange : normalisedRatioChange;
+  const leftChange = assetReturnForBasis(first, last, ratioBasis, "left");
+  const rightChange = assetReturnForBasis(first, last, ratioBasis, "right");
+  const basisLabel = ratioBasisLabel(ratioBasis);
   const leftTvSymbol = left ? tradingViewSymbolForInstrument(left) : "";
   const rightTvSymbol = selectedBenchmark?.tradingViewSymbol ?? (right ? tradingViewSymbolForInstrument(right) : "");
   const leftTv = leftTvSymbol ? tradingViewChartUrl(leftTvSymbol) : "";
@@ -819,7 +841,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
     <main className="shell">
       <PageHeader
         title="Relative leadership"
-        description="Compare one holding against another using stored closes, indexed return and the direct price ratio."
+        description="Compare one holding against another on an AUD-normalised basis by default, with raw market ratio available for audit."
       />
 
       {loading ? (
@@ -831,13 +853,13 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
           <div className="panelHeader relativeHeader">
             <div>
               <p className="eyebrow">Comparison chart</p>
-              <h2 className="cardTitle">{left.symbol} vs {right.symbol}</h2>
-              <p className="cardIntro">{series.length} shared close{series.length === 1 ? "" : "s"} · {series.length ? `${dateLabel(series[0].date)} to ${dateLabel(series.at(-1)!.date)}` : "No overlapping price history yet"}</p>
+              <h2 className="cardTitle">{left.symbol} / {right.symbol}</h2>
+              <p className="cardIntro">{basisLabel} · {series.length} shared close{series.length === 1 ? "" : "s"} · {series.length ? `${dateLabel(series[0].date)} to ${dateLabel(series.at(-1)!.date)}` : "No overlapping price history yet"}</p>
             </div>
             <div className="relativeActions">
               <button className="button" type="button" onClick={backfillSelected} disabled={backfillBusy}>{backfillBusy ? "Backfilling..." : "Backfill history"}</button>
-              {ratioTvExpression ? <button className="button" type="button" onClick={() => void copyRatioExpression()} title={ratioTvExpression}>{copiedRatio ? "Copied" : "Copy formula"}</button> : null}
-              {ratioTv ? <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={`TradingView formula attempt: ${ratioTvExpression}`}>Try ratio in TV</a> : null}
+              {ratioTvExpression ? <button className="button" type="button" onClick={() => void copyRatioExpression()} title={ratioTvExpression}>{copiedRatio ? "Copied" : "Copy raw formula"}</button> : null}
+              {ratioTv ? <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={`TradingView formula attempt: ${ratioTvExpression}`}>Try raw in TV</a> : null}
               {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>{left.symbol} TV</a> : null}
               {rightTv ? <a className="button" href={rightTv} target="_blank" rel="noreferrer" title={rightTvSymbol}>{right.symbol} TV</a> : null}
             </div>
@@ -924,11 +946,23 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
             </label>
           </div>
           {customError ? <p className="relativeCustomError">{customError}</p> : null}
+          <div className="relativeBasisBar">
+            <div>
+              <p className="eyebrow">Ratio basis</p>
+              <strong>{basisLabel}</strong>
+            </div>
+            <div className="scopeSwitch" role="tablist" aria-label="Ratio basis">
+              <button type="button" className={ratioBasis === "fx_normalised" ? "isActive" : ""} onClick={() => setRatioBasis("fx_normalised")}>FX Normalised</button>
+              <button type="button" className={ratioBasis === "raw_market" ? "isActive" : ""} onClick={() => setRatioBasis("raw_market")}>Raw Market Ratio</button>
+            </div>
+          </div>
           <SummaryGrid
             entries={[
-              ["Ratio move", percent(ratioChange), ratioChange >= 0 ? "positive" : "negative"],
-              [`${left.symbol} move`, percent(leftChange), leftChange >= 0 ? "positive" : "negative"],
-              [`${right.symbol} move`, percent(rightChange), rightChange >= 0 ? "positive" : "negative"],
+              percentSummary("Relative strength", ratioChange),
+              percentSummary("FX contribution", fxContribution),
+              percentSummary("Underlying relative", rawRatioChange),
+              percentSummary(`${left.symbol} move`, leftChange),
+              percentSummary(`${right.symbol} move`, rightChange),
               strengthEntry,
               velocityEntry,
             ]}
@@ -945,11 +979,11 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
               <div className="relativeTvHeader">
                 <div>
                   <p className="eyebrow">TradingView workbench</p>
-                  <h3>{left.symbol}/{right.symbol}</h3>
+                  <h3>{left.symbol}/{right.symbol} raw ratio</h3>
                   <span>{ratioTvExpression}</span>
                 </div>
                 <div className="relativeActions">
-                  <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={ratioTvExpression}>Open ratio</a>
+                  <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={ratioTvExpression}>Open raw ratio</a>
                   {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>{left.symbol}</a> : null}
                   {rightTv ? <a className="button" href={rightTv} target="_blank" rel="noreferrer" title={rightTvSymbol}>{right.symbol}</a> : null}
                 </div>
@@ -964,18 +998,18 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                 heightRatio={0.76}
                 compactHeightRatio={0.62}
               />
-              <p className="relativeTvNote">If TradingView opens search or an unknown symbol for this formula, use the individual asset buttons above.</p>
+              <p className="relativeTvNote">TradingView formulas use quoted market prices; SouthernStar stored-close comparisons are AUD-normalised by default.</p>
             </div>
           ) : null}
 
           <div className="relativePeriodEvidence" aria-label="Relative return evidence by period">
             <div className="relativePeriodHeader">
               <p className="eyebrow">SouthernStar evidence</p>
-              <span>AUD-adjusted stored closes. Positive means {left.symbol} outperformed {right.symbol}. 3M pair trend: {periodPercent(pairThreeMonth)}</span>
+              <span>{basisLabel} stored closes. Positive means {left.symbol} outperformed {right.symbol}. 3M pair trend: {periodPercent(pairThreeMonth)}</span>
             </div>
             <div className="relativePeriodGrid">
               {evidenceWindows.map((window) => (
-                <RelativePeriodCell key={window.key} window={window} left={left.symbol} right={right.symbol} />
+                <RelativePeriodCell key={window.key} window={window} left={left.symbol} right={right.symbol} basis={ratioBasis} />
               ))}
             </div>
           </div>
@@ -996,7 +1030,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
               </div>
             </div>
             {series.length >= 2 ? (
-              <RatioChart series={series} mode={mode} left={left} right={right} />
+              <RatioChart series={series} mode={mode} basis={ratioBasis} left={left} right={right} />
             ) : (
               <div className="relativeEmpty">
                 <strong>No overlapping stored closes</strong>
