@@ -23,6 +23,7 @@ export type AllocationTarget = {
 };
 
 export const defaultTargetAllocation: Record<Sector, number> = {
+  "Gold bullion": 0,
   "Silver miners": 30,
   "Gold miners": 20,
   "Uranium miners": 20,

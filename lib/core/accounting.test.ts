@@ -304,6 +304,7 @@ test("buildDashboardModel reclassifies stale stored asset classes before allocat
     positions: [
       position({ id: "asl", symbol: "ASL", name: "ASL", assetClass: "Broad equities", marketValueAud: 45_000 }),
       position({ id: "dba", symbol: "DBA", name: "Invesco DB Agriculture Fund", assetClass: "Gold miners", marketValueAud: 10_000 }),
+      position({ id: "pmgold", symbol: "PMGOLD", name: "Perth Mint Gold", assetClass: "Gold miners", marketValueAud: 5_000 }),
     ],
     manualAssets: [],
     cashAccounts: [],
@@ -316,5 +317,6 @@ test("buildDashboardModel reclassifies stale stored asset classes before allocat
 
   assert.equal(dashboard.holdings.find((holding) => holding.symbol === "ASL")?.assetClass, "Silver miners");
   assert.equal(dashboard.holdings.find((holding) => holding.symbol === "DBA")?.assetClass, "Soft commodities");
-  assert.deepEqual(dashboard.allocations.map((item) => item.name), ["Silver miners", "Soft commodities"]);
+  assert.equal(dashboard.holdings.find((holding) => holding.symbol === "PMGOLD")?.assetClass, "Gold bullion");
+  assert.deepEqual(dashboard.allocations.map((item) => item.name), ["Silver miners", "Soft commodities", "Gold bullion"]);
 });

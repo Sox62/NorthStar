@@ -9,6 +9,7 @@ export type PortfolioScope = "overall" | "personal" | "smsf";
 
 /** Asset-class / sector bucket used for breakdowns and tag colours. */
 export type Sector =
+  | "Gold bullion"
   | "Silver miners"
   | "Gold miners"
   | "Uranium miners"
@@ -56,6 +57,7 @@ export interface Holding {
 
 /** Sector colour palette — keep tags, donut and value bars consistent. */
 export const SECTOR_COLORS: Record<Sector, string> = {
+  "Gold bullion": "#d7b56d",
   "Silver miners": "#b9c4d0",
   "Gold miners": "#d7b56d",
   "Uranium miners": "#8dc6a0",
@@ -73,6 +75,7 @@ export const SECTOR_COLORS: Record<Sector, string> = {
 };
 
 export const COMPOSITION_OF: Record<Sector, CompositionGroup> = {
+  "Gold bullion": "metals",
   "Silver miners": "miners",
   "Gold miners": "miners",
   "Uranium miners": "miners",

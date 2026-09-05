@@ -17,9 +17,11 @@ const SYMBOL_SECTORS: Record<string, Sector> = {
   B: "Gold miners",
   GGP: "Gold miners",
   GDX: "Gold miners",
+  GOLD: "Gold bullion",
   NEM: "Gold miners",
   HSTR: "Gold miners",
   NST: "Gold miners",
+  PMGOLD: "Gold bullion",
   RRL: "Gold miners",
   VAU: "Gold miners",
   WRN: "Gold miners",
@@ -79,6 +81,7 @@ export function classifyAsset(symbol: string, name: string, overrides?: Record<s
   if (/CASH/.test(text)) return "Cash";
   if (/PLATINUM|PHYSICAL PLAT/.test(text)) return "Platinum bullion";
   if (/RHODIUM|XRH/.test(text)) return "Rhodium metal";
+  if (/GOLD BULLION|PHYSICAL GOLD|PERTH MINT GOLD|PMGOLD/.test(text)) return "Gold bullion";
   if (/SILVER BULLION|SILVER PHYSICAL|ETPMAG|BULLION/.test(text)) return "Silver bullion";
   if (/VELO|VELOCITY|TECH|SOFTWARE|DIGITAL|SEMICONDUCTOR/.test(text)) return "Technology";
   if (/LARAMIDE|U3O8|U308|URANIUM EXPLOR/.test(text)) return "Uranium explorers";

@@ -82,6 +82,10 @@ export const RESEARCH_BENCHMARKS: BenchmarkNode[] = [
 ];
 
 const TEMPLATES: Record<Sector, BenchmarkTemplate> = {
+  "Gold bullion": {
+    path: [],
+    notes: ["Gold proxy holdings are compared directly against the gold reserve benchmark, not gold miners."],
+  },
   "Silver miners": {
     path: [
       commodity("silver", "Silver", "SILVER", "TVC:SILVER"),
@@ -243,7 +247,7 @@ function candidateNode(input: BenchmarkTreeInput, sector: Sector): BenchmarkNode
     symbol,
     tradingViewSymbol: tradingViewSymbolForInstrument({ symbol, exchange }),
     basisCurrency: currency,
-    instrumentType: sector === "Cash" ? "cash" : "equity",
+    instrumentType: sector === "Cash" ? "cash" : sector === "Gold bullion" ? "commodity" : "equity",
     note: sector === "Cash" ? "Cash holding" : undefined,
   };
 }

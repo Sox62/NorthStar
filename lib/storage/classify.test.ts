@@ -23,3 +23,11 @@ test("classifyAsset maps known SouthernStar resource holdings and unknown broad 
   assert.equal(classifyAsset("EU", "enCore Energy Corp"), "Uranium miners");
   assert.equal(classifyAsset("EU", "Encore Energy"), "Uranium miners");
 });
+
+test("classifyAsset treats PMGOLD as a gold proxy, not a miner", () => {
+  assert.equal(classifyAsset("PMGOLD", "Perth Mint Gold"), "Gold bullion");
+  assert.equal(sectorForInstrument({ symbol: "PMGOLD", name: "Perth Mint Gold", assetClass: "Gold" }), "Gold bullion");
+  assert.equal(classifyAsset("GOLD", "Physical gold"), "Gold bullion");
+  assert.equal(classifyAsset("ZZZ", "Physical gold bullion"), "Gold bullion");
+  assert.equal(classifyAsset("ZZZ", "Barrick Gold"), "Gold miners");
+});

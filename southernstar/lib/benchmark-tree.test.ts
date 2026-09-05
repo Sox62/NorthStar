@@ -42,6 +42,13 @@ test("physical platinum is labelled as a metal holding under gold and platinum",
   assert.match(tree.notes.join(" "), /strategic metal holding|physical platinum/);
 });
 
+test("PMGOLD resolves as a gold proxy rather than a gold miner", () => {
+  const tree = rolesFor("PMGOLD", "Perth Mint Gold", undefined, "ASX");
+  assert.equal(tree.sector, "Gold bullion");
+  assert.deepEqual(tree.path.map((node) => node.symbol), ["GOLD", "PMGOLD"]);
+  assert.equal(tree.path.at(-1)?.instrumentType, "commodity");
+});
+
 test("ETPMAG keeps the Global X historical-data caveat", () => {
   const tree = rolesFor("ETPMAG", "Global X Physical Silver", "Silver bullion", "ASX");
   assert.deepEqual(tree.path.map((node) => node.symbol), ["GOLD", "SILVER", "ETPMAG"]);
