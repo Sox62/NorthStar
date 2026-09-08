@@ -475,6 +475,24 @@
   gap: 14px;
   flex-wrap: wrap;
 }
+.relativeChartControls,
+.relativeChartExternalLinks {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.relativeChartControls {
+  min-width: min(100%, 520px);
+}
+.relativeChartExternalLinks .button {
+  min-height: 34px;
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
 .relativeTvHeader h3 {
   margin: 0;
   font-family: var(--font-display);
@@ -715,6 +733,15 @@
   .relativeStackHeader,
   .relativeStackItemHeader {
     display: grid;
+  }
+  .relativeChartControls,
+  .relativeChartExternalLinks {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .relativeChartExternalLinks .button {
+    flex: 1 1 170px;
+    justify-content: center;
   }
   .relativeRangeBar .scopeSwitch,
   .relativeStackControls,

@@ -27,7 +27,7 @@ type StructuralLevelsResponse = { levels?: StructuralLevel[]; error?: string };
 type FundamentalsResponse = { fundamentals?: MinerFundamentals[]; error?: string };
 type IdeaGroup = { label: string; nodes: BenchmarkNode[] };
 type SummaryEntry = [string, string] | [string, string, "positive" | "negative"];
-type PrimaryChartMode = "ratio" | "price";
+type PrimaryChartMode = "stored_ratio" | "tv_ratio" | "price";
 type StructuralLevelForm = {
   id: string;
   symbol: string;
@@ -505,7 +505,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   const [rightBenchmarkId, setRightBenchmarkId] = useState("");
   const [ratioBasis, setRatioBasis] = useState<RatioBasis>("fx_normalised");
   const [stackMovingAverage, setStackMovingAverage] = useState<RatioMovingAverageConfig>({ type: "sma", period: 36 });
-  const [primaryChartMode, setPrimaryChartMode] = useState<PrimaryChartMode>("ratio");
+  const [primaryChartMode, setPrimaryChartMode] = useState<PrimaryChartMode>("stored_ratio");
   const [mode, setMode] = useState<RatioMode>("ratio");
   const [range, setRange] = useState<RangeKey>("all");
   const [loading, setLoading] = useState(true);
@@ -659,6 +659,21 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   const rightTv = rightTvSymbol ? tradingViewChartUrl(rightTvSymbol) : "";
   const ratioTvExpression = leftTvSymbol && rightTvSymbol ? tradingViewRatioExpression(leftTvSymbol, rightTvSymbol) : "";
   const ratioTv = ratioTvExpression ? tradingViewRatioChartUrl(leftTvSymbol, rightTvSymbol) : "";
+  const primaryChartTitle = primaryChartMode === "price"
+    ? `${leftSymbol} price`
+    : primaryChartMode === "tv_ratio"
+      ? `${leftSymbol}/${rightSymbol} TradingView ratio`
+      : `${leftSymbol}/${rightSymbol} stored ratio`;
+  const primaryChartSubtitle = primaryChartMode === "price"
+    ? leftTvSymbol
+    : primaryChartMode === "tv_ratio"
+      ? ratioTvExpression || "No TradingView ratio formula"
+      : `${basisLabel} · ${rangeLabel}`;
+  const primaryChartNote = primaryChartMode === "price"
+    ? "Price view is mounted through TradingView so you can inspect the selected instrument in your own chart layout."
+    : primaryChartMode === "tv_ratio"
+      ? "TradingView ratio uses quoted market prices. Use it as a visual audit beside SouthernStar's AUD-normalised stored-close ratio."
+      : "SouthernStar's ratio chart uses stored closes and the selected currency basis. The moving average is evidence only.";
   const currentPairSymbols = [left?.symbol, right?.symbol].filter(Boolean) as string[];
   const pairStructuralLevels = structuralLevels.filter((level) => currentPairSymbols.includes(level.symbol) || currentPairSymbols.includes(level.comparisonSymbol));
   useEffect(() => {
@@ -1029,21 +1044,46 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
             <div className="relativeTvHeader">
               <div>
                 <p className="eyebrow">Chart</p>
-                <h3>{primaryChartMode === "ratio" ? `${left.symbol}/${right.symbol} ratio` : `${left.symbol} price`}</h3>
-                <span>{primaryChartMode === "ratio" ? `${basisLabel} · ${rangeLabel}` : leftTvSymbol}</span>
+                <h3>{primaryChartTitle}</h3>
+                <span>{primaryChartSubtitle}</span>
               </div>
-              <div className="scopeSwitch" role="tablist" aria-label="Primary chart mode">
-                <button type="button" className={primaryChartMode === "ratio" ? "isActive" : ""} onClick={() => setPrimaryChartMode("ratio")}>Ratio</button>
-                <button type="button" className={primaryChartMode === "price" ? "isActive" : ""} onClick={() => setPrimaryChartMode("price")}>Price</button>
+              <div className="relativeChartControls">
+                <div className="scopeSwitch" role="tablist" aria-label="Primary chart mode">
+                  <button type="button" className={primaryChartMode === "stored_ratio" ? "isActive" : ""} onClick={() => setPrimaryChartMode("stored_ratio")}>SS ratio</button>
+                  <button type="button" className={primaryChartMode === "tv_ratio" ? "isActive" : ""} onClick={() => setPrimaryChartMode("tv_ratio")}>TV ratio</button>
+                  <button type="button" className={primaryChartMode === "price" ? "isActive" : ""} onClick={() => setPrimaryChartMode("price")}>Price</button>
+                </div>
+                <div className="relativeChartExternalLinks">
+                  {ratioTv ? <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={ratioTvExpression}>Open ratio in TradingView</a> : null}
+                  {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>Open price in TradingView</a> : null}
+                </div>
               </div>
             </div>
-            {primaryChartMode === "ratio" ? (
+            {primaryChartMode === "stored_ratio" ? (
               series.length >= 2 ? (
                 <RatioChart series={series} mode="ratio" basis={ratioBasis} movingAverage={stackMovingAverage} left={left} right={right} />
               ) : (
                 <div className="relativeEmpty">
                   <strong>No overlapping stored closes</strong>
                   <span>SouthernStar has fewer than two usable comparison dates. Use Backfill history or choose another pair.</span>
+                </div>
+              )
+            ) : primaryChartMode === "tv_ratio" ? (
+              ratioTvExpression ? (
+                <TradingViewWidget
+                  symbol={ratioTvExpression}
+                  className="tradingview-widget-container stockChartWidget relativeTvWidget"
+                  minHeight={440}
+                  maxHeight={620}
+                  compactMinHeight={300}
+                  compactMaxHeight={420}
+                  heightRatio={0.58}
+                  compactHeightRatio={0.48}
+                />
+              ) : (
+                <div className="relativeEmpty">
+                  <strong>No TradingView ratio formula</strong>
+                  <span>Choose two listed instruments or benchmarks with TradingView symbols.</span>
                 </div>
               )
             ) : leftTvSymbol ? (
@@ -1063,7 +1103,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                 <span>Choose a listed instrument or typed benchmark with a venue.</span>
               </div>
             )}
-            <p className="relativeTvNote">{primaryChartMode === "ratio" ? "The ratio chart uses stored closes and the selected currency basis. The moving average is evidence only." : "The price view is mounted separately so the page only carries one primary chart at a time."}</p>
+            <p className="relativeTvNote">{primaryChartNote}</p>
           </section>
 
           <div className="relativeReturnPanel">
