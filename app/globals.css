@@ -343,7 +343,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .rariBandStrong { fill: #8dc6a0; }
 .rariBandTransition { fill: #d7b56d; }
 .rariLine,
-.rariSpxLine {
+.rariSpxLine,
+.rariGoldPriceLine {
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -356,6 +357,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   stroke: #77a9d8;
   stroke-width: 2;
   opacity: .72;
+}
+.rariGoldPriceLine {
+  stroke: #f1c45f;
+  stroke-width: 2;
+  stroke-dasharray: 7 6;
+  opacity: .78;
 }
 .rariAxisLabel {
   fill: var(--text-muted);
@@ -379,8 +386,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   height: 3px;
   border-radius: 99px;
 }
-.rariLegendGold { background: var(--accent); }
+.rariLegendRari { background: var(--accent); }
 .rariLegendBlue { background: #77a9d8; }
+.rariLegendGold { background: #f1c45f; }
 .rariChartLegend strong {
   margin-left: auto;
   color: var(--text-primary);

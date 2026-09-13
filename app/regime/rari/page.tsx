@@ -65,6 +65,7 @@ type HistoryPayload = {
   range: RariRange;
   points: RariPoint[];
   spx: Array<{ date: string; close: number; indexed: number | null }>;
+  gold: Array<{ date: string; close: number; indexed: number | null }>;
   error?: string;
 };
 
@@ -220,7 +221,7 @@ export default function RariPage() {
           <div className="rariCardTopline">
             <div>
               <p className="eyebrow">Historical RARI</p>
-              <h2>RARI vs SPY overlay</h2>
+              <h2>RARI with SPY and gold context</h2>
             </div>
             <div className="nsRangeTabs" aria-label="RARI chart range">
               {ranges.map((item) => (
@@ -228,7 +229,7 @@ export default function RariPage() {
               ))}
             </div>
           </div>
-          <RariChart points={history?.points ?? []} spx={history?.spx ?? []} />
+          <RariChart points={history?.points ?? []} spx={history?.spx ?? []} gold={history?.gold ?? []} />
         </Card>
       </section>
 
@@ -337,30 +338,51 @@ export default function RariPage() {
   );
 }
 
-function RariChart({ points, spx }: { points: RariPoint[]; spx: Array<{ date: string; indexed: number | null }> }) {
+function RariChart({ points, spx, gold }: {
+  points: RariPoint[];
+  spx: Array<{ date: string; indexed: number | null }>;
+  gold: Array<{ date: string; indexed: number | null }>;
+}) {
   const valid = points.filter((point) => point.score != null);
   const width = 760;
   const height = 260;
   const pad = { top: 18, right: 34, bottom: 28, left: 34 };
   const chartWidth = width - pad.left - pad.right;
   const chartHeight = height - pad.top - pad.bottom;
+  const spxRows = spx.filter((point) => point.indexed != null);
+  const goldRows = gold.filter((point) => point.indexed != null);
+  const timeline = [...new Set([
+    ...valid.map((point) => point.date),
+    ...spxRows.map((point) => point.date),
+    ...goldRows.map((point) => point.date),
+  ])].sort();
+  const dateToX = new Map(timeline.map((date, index) => [
+    date,
+    pad.left + (timeline.length <= 1 ? chartWidth : index / (timeline.length - 1) * chartWidth),
+  ]));
   const rariLine = linePath(valid.map((point, index) => ({
-    x: pad.left + (valid.length <= 1 ? chartWidth : index / (valid.length - 1) * chartWidth),
+    x: dateToX.get(point.date) ?? (pad.left + (valid.length <= 1 ? chartWidth : index / (valid.length - 1) * chartWidth)),
     y: pad.top + chartHeight - ((point.score ?? 0) / 100) * chartHeight,
   })));
-  const spxRows = spx.filter((point) => point.indexed != null);
-  const spxMin = Math.min(...spxRows.map((point) => point.indexed ?? 100), 100);
-  const spxMax = Math.max(...spxRows.map((point) => point.indexed ?? 100), 100);
-  const spxRange = Math.max(1, spxMax - spxMin);
-  const spxLine = linePath(spxRows.map((point, index) => ({
-    x: pad.left + (spxRows.length <= 1 ? chartWidth : index / (spxRows.length - 1) * chartWidth),
-    y: pad.top + chartHeight - (((point.indexed ?? 100) - spxMin) / spxRange) * chartHeight,
-  })));
+  const overlayValues = [...spxRows, ...goldRows].map((point) => point.indexed ?? 100);
+  const overlayMin = overlayValues.length ? Math.min(...overlayValues, 100) : 0;
+  const overlayMax = overlayValues.length ? Math.max(...overlayValues, 100) : 100;
+  const overlayRange = Math.max(1, overlayMax - overlayMin);
+  const overlayLine = (rows: Array<{ date: string; indexed: number | null }>) => linePath(rows.flatMap((point) => {
+    const x = dateToX.get(point.date);
+    if (x == null || point.indexed == null) return [];
+    return [{
+      x,
+      y: pad.top + chartHeight - ((point.indexed - overlayMin) / overlayRange) * chartHeight,
+    }];
+  }));
+  const spxLine = overlayLine(spxRows);
+  const goldLine = overlayLine(goldRows);
   const latest = valid.at(-1);
 
   return (
     <div className="rariChartWrap">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="RARI historical chart">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="RARI historical chart with SPY and gold overlays">
         {[25, 45, 60, 75].map((level) => {
           const y = pad.top + chartHeight - level / 100 * chartHeight;
           return <line key={level} className="rariGridLine" x1={pad.left} x2={width - pad.right} y1={y} y2={y} />;
@@ -368,6 +390,7 @@ function RariChart({ points, spx }: { points: RariPoint[]; spx: Array<{ date: st
         <rect className="rariBand rariBandStrong" x={pad.left} y={pad.top} width={chartWidth} height={chartHeight * 0.25} />
         <rect className="rariBand rariBandTransition" x={pad.left} y={pad.top + chartHeight * 0.4} width={chartWidth} height={chartHeight * 0.15} />
         <path className="rariSpxLine" d={spxLine} />
+        <path className="rariGoldPriceLine" d={goldLine} />
         <path className="rariLine" d={rariLine} />
         {[0, 25, 50, 75, 100].map((level) => {
           const y = pad.top + chartHeight - level / 100 * chartHeight;
@@ -375,8 +398,9 @@ function RariChart({ points, spx }: { points: RariPoint[]; spx: Array<{ date: st
         })}
       </svg>
       <div className="rariChartLegend">
-        <span><i className="rariLegendGold" />RARI</span>
+        <span><i className="rariLegendRari" />RARI score</span>
         <span><i className="rariLegendBlue" />SPY indexed</span>
+        <span><i className="rariLegendGold" />Gold indexed</span>
         <strong>{latest ? `${dateLabel(latest.date)} · ${latest.score?.toFixed(0)}` : "No scored history"}</strong>
       </div>
     </div>

@@ -19,7 +19,8 @@ export async function GET(request: Request) {
     return NextResponse.json({
       range,
       points,
-      spx: spxOverlay(book.prices, points.map((point) => point.date)),
+      spx: indexedOverlay(book.prices, points.map((point) => point.date), "SPY", "AMEX"),
+      gold: indexedOverlay(book.prices, points.map((point) => point.date), "GOLD", "TVC"),
       current: rariSnapshot(results, RARI_DEFAULT_DEFINITION).current,
     });
   } catch (error) {
@@ -27,11 +28,11 @@ export async function GET(request: Request) {
   }
 }
 
-function spxOverlay(prices: StoredDailyPrice[], dates: string[]) {
+function indexedOverlay(prices: StoredDailyPrice[], dates: string[], symbol: string, exchange: string) {
   const wanted = new Set(dates);
   const byDate = new Map<string, StoredDailyPrice>();
   for (const price of prices) {
-    if (price.symbol.toUpperCase() !== "SPY" || price.exchange.toUpperCase() !== "AMEX" || !wanted.has(price.priceDate)) continue;
+    if (price.symbol.toUpperCase() !== symbol || price.exchange.toUpperCase() !== exchange || !wanted.has(price.priceDate)) continue;
     const current = byDate.get(price.priceDate);
     if (!current || current.retrievedAt < price.retrievedAt) byDate.set(price.priceDate, price);
   }
