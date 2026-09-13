@@ -1,7 +1,7 @@
 import type { PoolClient } from "pg";
 import { getPool } from "@/lib/db/client";
 import { classifyAsset } from "../classify";
-import type { DailyPriceInput, FxRateInput, PlatinumPrice, PriceBook, PriceImportResult } from "../types";
+import type { DailyPriceInput, FxRateInput, PlatinumPrice, PriceBook, PriceImportOptions, PriceImportResult } from "../types";
 
 const numberValue = (value: unknown) => Number(value ?? 0);
 const normaliseCurrency = (value: string) => value.trim().toUpperCase();
@@ -163,7 +163,9 @@ export async function listPriceBookPostgres(limit = 80): Promise<PriceBook> {
   };
 }
 
-export async function recordDailyPricesPostgres(prices: DailyPriceInput[], fxRates: FxRateInput[] = []): Promise<PriceImportResult> {
+export async function recordDailyPricesPostgres(prices: DailyPriceInput[], fxRates: FxRateInput[] = [], options: PriceImportOptions = {}): Promise<PriceImportResult> {
+  const updatePositions = options.updatePositions !== false;
+  const updateCashAccounts = options.updateCashAccounts !== false;
   const result: PriceImportResult = {
     imported: 0,
     matchedInstruments: 0,
@@ -198,14 +200,16 @@ export async function recordDailyPricesPostgres(prices: DailyPriceInput[], fxRat
         DO UPDATE SET rate_to_aud=EXCLUDED.rate_to_aud,retrieved_at=NOW()
       `, [currency, input.rateToAud, input.rateDate, input.source.trim() || "Manual"]);
       result.fxRates += 1;
-      const cashRows = await client.query<{ portfolio_id: string }>(`
-        UPDATE cash_accounts
-        SET fx_rate_to_aud=$1,balance_aud=ROUND((balance*$1)::numeric,2),as_of_date=$2,updated_at=NOW()
-        WHERE currency=$3 AND is_active=true
-        RETURNING portfolio_id
-      `, [input.rateToAud, input.rateDate, currency]);
-      result.updatedCashAccounts += cashRows.rowCount ?? 0;
-      for (const row of cashRows.rows) touchedPortfolios.add(row.portfolio_id);
+      if (updateCashAccounts) {
+        const cashRows = await client.query<{ portfolio_id: string }>(`
+          UPDATE cash_accounts
+          SET fx_rate_to_aud=$1,balance_aud=ROUND((balance*$1)::numeric,2),as_of_date=$2,updated_at=NOW()
+          WHERE currency=$3 AND is_active=true
+          RETURNING portfolio_id
+        `, [input.rateToAud, input.rateDate, currency]);
+        result.updatedCashAccounts += cashRows.rowCount ?? 0;
+        for (const row of cashRows.rows) touchedPortfolios.add(row.portfolio_id);
+      }
     }
 
     for (const input of prices) {
@@ -225,7 +229,7 @@ export async function recordDailyPricesPostgres(prices: DailyPriceInput[], fxRat
         continue;
       }
       result.matchedInstruments += instruments.rows.length;
-      const rateToAud = currency === "AUD" ? 1 : input.fxRateToAud ?? await latestFxRate(client, currency, input.priceDate);
+      const rateToAud = currency === "AUD" ? 1 : updatePositions ? input.fxRateToAud ?? await latestFxRate(client, currency, input.priceDate) : null;
 
       for (const instrument of instruments.rows) {
         if (normaliseCurrency(instrument.currency) !== currency) {
@@ -250,30 +254,32 @@ export async function recordDailyPricesPostgres(prices: DailyPriceInput[], fxRat
         `, [instrument.id, input.priceDate, input.close, currency, input.source.trim() || "Manual"]);
         result.imported += 1;
 
-        if (!rateToAud) {
+        if (updatePositions && !rateToAud) {
           result.skipped += 1;
           result.errors.push(`${instrument.ticker}:${instrument.exchange} was stored but not applied because ${currency}/AUD FX is missing.`);
           continue;
         }
 
-        const updated = await client.query<{ portfolio_id: string }>(`
-          UPDATE current_positions
-          SET last_price=$2,
-            market_value_aud=ROUND((quantity*$2*$3)::numeric,2),
-            day_gain_aud=CASE
-              WHEN $5::numeric IS NULL THEN ROUND(((quantity*$2*$3)-market_value_aud)::numeric,2)
-              ELSE ROUND(((quantity*$2*$3)-(quantity*$5::numeric*$6::numeric))::numeric,2)
-            END,
-            pnl_aud=ROUND(((quantity*$2*$3)-cost_aud)::numeric,2),
-            pnl_percent=CASE WHEN cost_aud <> 0 THEN (((quantity*$2*$3)-cost_aud)/cost_aud*100) ELSE 0 END,
-            valuation_basis='market',
-            as_of_date=$4,
-            updated_at=NOW()
-          WHERE instrument_id=$1
-          RETURNING portfolio_id
-        `, [instrument.id, input.close, rateToAud, input.priceDate, previousClose, previousFxRateToAud ?? rateToAud]);
-        result.updatedPositions += updated.rowCount ?? 0;
-        for (const row of updated.rows) touchedPortfolios.add(row.portfolio_id);
+        if (updatePositions) {
+          const updated = await client.query<{ portfolio_id: string }>(`
+            UPDATE current_positions
+            SET last_price=$2,
+              market_value_aud=ROUND((quantity*$2*$3)::numeric,2),
+              day_gain_aud=CASE
+                WHEN $5::numeric IS NULL THEN ROUND(((quantity*$2*$3)-market_value_aud)::numeric,2)
+                ELSE ROUND(((quantity*$2*$3)-(quantity*$5::numeric*$6::numeric))::numeric,2)
+              END,
+              pnl_aud=ROUND(((quantity*$2*$3)-cost_aud)::numeric,2),
+              pnl_percent=CASE WHEN cost_aud <> 0 THEN (((quantity*$2*$3)-cost_aud)/cost_aud*100) ELSE 0 END,
+              valuation_basis='market',
+              as_of_date=$4,
+              updated_at=NOW()
+            WHERE instrument_id=$1
+            RETURNING portfolio_id
+          `, [instrument.id, input.close, rateToAud, input.priceDate, previousClose, previousFxRateToAud ?? rateToAud]);
+          result.updatedPositions += updated.rowCount ?? 0;
+          for (const row of updated.rows) touchedPortfolios.add(row.portfolio_id);
+        }
       }
     }
 

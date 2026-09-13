@@ -6,7 +6,7 @@ import type { Sector } from "@/southernstar/types";
 import { classifyAsset } from "./classify";
 import { PASTED_ORDER_SOURCE } from "./local";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
-import type { AllocationTarget, CashAccount, CompositeIndexResult, CompositeIndexResultQuery, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, PastedOpenOrder, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
+import type { AllocationTarget, CashAccount, CompositeIndexResult, CompositeIndexResultQuery, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportOptions, PriceImportResult, PastedOpenOrder, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 import {
   captureSnapshot,
@@ -369,8 +369,8 @@ export class PostgresStorageAdapter implements StorageAdapter {
     return listPriceBookPostgres(limit);
   }
 
-  async recordDailyPrices(prices: DailyPriceInput[], fxRates: FxRateInput[] = []): Promise<PriceImportResult> {
-    return recordDailyPricesPostgres(prices, fxRates);
+  async recordDailyPrices(prices: DailyPriceInput[], fxRates: FxRateInput[] = [], options: PriceImportOptions = {}): Promise<PriceImportResult> {
+    return recordDailyPricesPostgres(prices, fxRates, options);
   }
 
   async listCompositeIndexResults(definitionId: string, options: CompositeIndexResultQuery = {}): Promise<CompositeIndexResult[]> {

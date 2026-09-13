@@ -38,6 +38,7 @@ import type {
   FxRateInput,
   PriceBook,
   PriceImportResult,
+  PriceImportOptions,
   PlatinumPrice,
   Scope,
   Snapshot,
@@ -567,8 +568,10 @@ export class LocalStorageAdapter implements StorageAdapter {
     return priceBookFromStore(await readStore(), limit);
   }
 
-  async recordDailyPrices(prices: DailyPriceInput[], fxRates: FxRateInput[] = []): Promise<PriceImportResult> {
+  async recordDailyPrices(prices: DailyPriceInput[], fxRates: FxRateInput[] = [], options: PriceImportOptions = {}): Promise<PriceImportResult> {
     const store = await readStore();
+    const updatePositions = options.updatePositions !== false;
+    const updateCashAccounts = options.updateCashAccounts !== false;
     const result: PriceImportResult = {
       imported: 0,
       matchedInstruments: 0,
@@ -605,13 +608,15 @@ export class LocalStorageAdapter implements StorageAdapter {
       const existing = store.fxRates.find((item) => item.currency === rate.currency && item.rateDate === rate.rateDate && item.source === rate.source);
       if (existing) Object.assign(existing, rate, { id: existing.id }); else store.fxRates.push(rate);
       result.fxRates += 1;
-      for (const account of store.cashAccounts.filter((account) => normaliseCurrency(account.currency) === currency)) {
-        account.fxRateToAud = rate.rateToAud;
-        account.balanceAud = account.balance * rate.rateToAud;
-        account.asOfDate = rate.rateDate;
-        account.updatedAt = now;
-        owners.add(account.ownerType);
-        result.updatedCashAccounts += 1;
+      if (updateCashAccounts) {
+        for (const account of store.cashAccounts.filter((account) => normaliseCurrency(account.currency) === currency)) {
+          account.fxRateToAud = rate.rateToAud;
+          account.balanceAud = account.balance * rate.rateToAud;
+          account.asOfDate = rate.rateDate;
+          account.updatedAt = now;
+          owners.add(account.ownerType);
+          result.updatedCashAccounts += 1;
+        }
       }
     }
 
@@ -652,7 +657,7 @@ export class LocalStorageAdapter implements StorageAdapter {
         continue;
       }
       result.matchedInstruments += 1;
-      const rateToAud = currency === "AUD" ? 1 : input.fxRateToAud ?? latestFxRate(store, currency, input.priceDate);
+      const rateToAud = currency === "AUD" ? 1 : updatePositions ? input.fxRateToAud ?? latestFxRate(store, currency, input.priceDate) : null;
       const priceRecord: StoredDailyPrice = {
         id: randomUUID(),
         instrumentId: null,
@@ -680,6 +685,7 @@ export class LocalStorageAdapter implements StorageAdapter {
       );
       if (existing) Object.assign(existing, priceRecord, { id: existing.id }); else store.dailyPrices.push(priceRecord);
       result.imported += 1;
+      if (!updatePositions) continue;
       if (!rateToAud) {
         result.skipped += validMatches.length;
         result.errors.push(`${symbol}${exchange ? `:${exchange}` : ""} was stored but not applied because ${currency}/AUD FX is missing.`);

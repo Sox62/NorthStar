@@ -123,7 +123,7 @@ export async function POST(request: Request) {
       await ensureBenchmarkPriceInstrumentsPostgres(benchmarkInstruments.filter((instrument) => returned.has(normaliseKey(instrument.symbol) + ":" + normaliseKey(instrument.exchange))));
     }
     const stored = history.prices.length || history.fxRates.length
-      ? await storage.recordDailyPrices(history.prices, history.fxRates)
+      ? await storage.recordDailyPrices(history.prices, history.fxRates, { updatePositions: false, updateCashAccounts: false })
       : { imported: 0, matchedInstruments: 0, updatedPositions: 0, updatedCashAccounts: 0, fxRates: 0, skipped: 0, errors: [], storageMode: "postgresql" as const };
     const errors = [...history.failures.map((failure) => `${failure.symbol}:${failure.exchange} ${failure.message}`), ...stored.errors];
     const status = history.prices.length && errors.length ? "partial" : history.prices.length ? "success" : "failed";

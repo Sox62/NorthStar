@@ -303,6 +303,11 @@ export type PriceImportResult = {
   storageMode: "local-file" | "postgresql";
 };
 
+export type PriceImportOptions = {
+  updatePositions?: boolean;
+  updateCashAccounts?: boolean;
+};
+
 export type PlatinumPrice = {
   provider: "ABC Bullion";
   productKey: "abc-platinum-1kg-minted-tablet";
@@ -575,7 +580,7 @@ export interface StorageAdapter {
   upsertManualAsset(input: Omit<ManualAsset, "id" | "updatedAt" | "marketValueAud" | "pnlAud" | "pnlPercent" | "costAudPerKg" | "dealerSpreadAudPerKg" | "dealerSpreadPercent"> & { id?: string }): Promise<ManualAsset>;
   deleteManualAsset(id: string, ownerType: OwnerType): Promise<void>;
   listPriceBook(limit?: number): Promise<PriceBook>;
-  recordDailyPrices(prices: DailyPriceInput[], fxRates?: FxRateInput[]): Promise<PriceImportResult>;
+  recordDailyPrices(prices: DailyPriceInput[], fxRates?: FxRateInput[], options?: PriceImportOptions): Promise<PriceImportResult>;
   listCompositeIndexResults(definitionId: string, options?: CompositeIndexResultQuery): Promise<CompositeIndexResult[]>;
   recordCompositeIndexResults(results: CompositeIndexResult[]): Promise<number>;
   getLatestPlatinumPrice(): Promise<PlatinumPrice | null>;
