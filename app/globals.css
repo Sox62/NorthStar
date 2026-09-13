@@ -323,7 +323,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   margin-top: 18px;
 }
 .rariChartWrap {
-  min-height: 382px;
+  min-height: 422px;
 }
 .rariChartWrap svg {
   width: 100%;
@@ -332,8 +332,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   display: block;
 }
 .rariChartWrap .rariContextChart {
-  min-height: 92px;
-  margin-top: -8px;
+  min-height: 132px;
+  margin-top: -4px;
 }
 .rariGridLine {
   stroke: rgba(139, 161, 184, .22);

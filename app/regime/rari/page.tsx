@@ -340,25 +340,19 @@ export default function RariPage() {
 
 function RariChart({ points, spx, gold }: {
   points: RariPoint[];
-  spx: Array<{ date: string; indexed: number | null }>;
-  gold: Array<{ date: string; indexed: number | null }>;
+  spx: Array<{ date: string; close: number; indexed: number | null }>;
+  gold: Array<{ date: string; close: number; indexed: number | null }>;
 }) {
   const valid = points.filter((point) => point.score != null);
   const width = 760;
   const height = 260;
   const pad = { top: 18, right: 34, bottom: 28, left: 34 };
-  const contextHeight = 92;
-  const contextPad = { top: 10, right: 34, bottom: 24, left: 34 };
+  const contextHeight = 132;
+  const contextPad = { top: 16, right: 34, bottom: 30, left: 34 };
   const chartWidth = width - pad.left - pad.right;
   const chartHeight = height - pad.top - pad.bottom;
   const contextChartHeight = contextHeight - contextPad.top - contextPad.bottom;
-  const spxRows = spx.filter((point) => point.indexed != null);
-  const goldRows = gold.filter((point) => point.indexed != null);
-  const timeline = [...new Set([
-    ...valid.map((point) => point.date),
-    ...spxRows.map((point) => point.date),
-    ...goldRows.map((point) => point.date),
-  ])].sort();
+  const timeline = valid.map((point) => point.date);
   const dateToX = new Map(timeline.map((date, index) => [
     date,
     pad.left + (timeline.length <= 1 ? chartWidth : index / (timeline.length - 1) * chartWidth),
@@ -367,9 +361,14 @@ function RariChart({ points, spx, gold }: {
     x: dateToX.get(point.date) ?? (pad.left + (valid.length <= 1 ? chartWidth : index / (valid.length - 1) * chartWidth)),
     y: pad.top + chartHeight - ((point.score ?? 0) / 100) * chartHeight,
   })));
+  const spxRows = reindexContextRows(spx, dateToX);
+  const goldRows = reindexContextRows(gold, dateToX);
   const overlayValues = [...spxRows, ...goldRows].map((point) => point.indexed ?? 100);
-  const overlayMin = overlayValues.length ? Math.min(...overlayValues, 100) : 0;
-  const overlayMax = overlayValues.length ? Math.max(...overlayValues, 100) : 100;
+  const rawOverlayMin = overlayValues.length ? Math.min(...overlayValues, 100) : 95;
+  const rawOverlayMax = overlayValues.length ? Math.max(...overlayValues, 100) : 105;
+  const overlayPad = Math.max(4, (rawOverlayMax - rawOverlayMin) * 0.08);
+  const overlayMin = rawOverlayMin - overlayPad;
+  const overlayMax = rawOverlayMax + overlayPad;
   const overlayRange = Math.max(1, overlayMax - overlayMin);
   const overlayLine = (rows: Array<{ date: string; indexed: number | null }>) => linePath(rows.flatMap((point) => {
     const x = dateToX.get(point.date);
@@ -403,8 +402,10 @@ function RariChart({ points, spx, gold }: {
         <line className="rariContextBaseline" x1={contextPad.left} x2={width - contextPad.right} y1={overlayBaselineY} y2={overlayBaselineY} />
         <path className="rariSpxLine" d={spxLine} />
         <path className="rariGoldPriceLine" d={goldLine} />
-        <text className="rariAxisLabel" x={width - 4} y={Math.max(contextPad.top + 8, Math.min(contextHeight - contextPad.bottom, overlayBaselineY + 4))} textAnchor="end">100</text>
-        <text className="rariContextLabel" x={contextPad.left} y={contextHeight - 6}>SPY and gold indexed to 100</text>
+        <text className="rariAxisLabel" x={width - 4} y={contextPad.top + 4} textAnchor="end">{Math.round(overlayMax)}</text>
+        <text className="rariAxisLabel" x={width - 4} y={Math.max(contextPad.top + 10, Math.min(contextHeight - contextPad.bottom, overlayBaselineY + 4))} textAnchor="end">100</text>
+        <text className="rariAxisLabel" x={width - 4} y={contextPad.top + contextChartHeight + 4} textAnchor="end">{Math.round(overlayMin)}</text>
+        <text className="rariContextLabel" x={contextPad.left} y={contextHeight - 8}>SPY and gold re-indexed from first scored RARI date</text>
       </svg>
       <div className="rariChartLegend">
         <span><i className="rariLegendRari" />RARI score</span>
@@ -414,6 +415,18 @@ function RariChart({ points, spx, gold }: {
       </div>
     </div>
   );
+}
+
+function reindexContextRows(rows: Array<{ date: string; close: number; indexed: number | null }>, dateToX: Map<string, number>) {
+  const visibleRows = rows
+    .filter((point) => dateToX.has(point.date) && Number.isFinite(point.close) && point.close > 0)
+    .sort((left, right) => left.date.localeCompare(right.date));
+  const firstClose = visibleRows[0]?.close ?? null;
+  if (!firstClose) return [];
+  return visibleRows.map((point) => ({
+    date: point.date,
+    indexed: point.close / firstClose * 100,
+  }));
 }
 
 function linePath(points: Array<{ x: number; y: number }>) {
