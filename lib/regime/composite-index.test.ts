@@ -106,6 +106,15 @@ test("composite engine scores positive and inverse leadership from transparent t
   assert.equal(latest?.components.every((component) => component.status === "valid"), true);
 });
 
+test("raw-market scoring does not require FX history", () => {
+  const book = trendingBook();
+  book.fxRates = [];
+  const latest = calculateCompositeIndex(definition(), book).at(-1);
+
+  assert.equal(latest?.status, "valid");
+  assert.ok((latest?.score ?? 0) > 90);
+});
+
 test("composite engine refuses a normal score when required component data is missing", () => {
   const book = trendingBook();
   book.prices = book.prices.filter((row) => row.symbol !== "DDD");

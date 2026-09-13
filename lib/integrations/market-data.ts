@@ -762,10 +762,12 @@ export async function refreshMarketQuotes(instruments: PriceableInstrument[], pr
   };
 }
 
-export async function fetchHistoricalMarketPrices(instruments: PriceableInstrument[], range = "max"): Promise<HistoricalPriceResult> {
+export async function fetchHistoricalMarketPrices(instruments: PriceableInstrument[], range = "max", options: { includeFx?: boolean } = {}): Promise<HistoricalPriceResult> {
   const prices: DailyPriceInput[] = [];
   const fxRates = new Map<string, FxRateInput>();
   const failures: QuoteFailure[] = [];
+  const includeFx = options.includeFx !== false;
+  const requestedFxMonths = new Set<string>();
 
   for (const instrument of instruments) {
     try {
@@ -773,11 +775,14 @@ export async function fetchHistoricalMarketPrices(instruments: PriceableInstrume
         ? await fetchFredHistory(instrument, range)
         : await fetchYahooHistory(instrument, range);
       prices.push(...rows);
-      if (instrument.currency.toUpperCase() !== "AUD") {
+      if (includeFx && instrument.currency.toUpperCase() !== "AUD") {
         const months = [...new Set(rows.map((row) => row.priceDate.slice(0, 7)))];
         for (const month of months) {
           const rateDate = rows.find((row) => row.priceDate.startsWith(month))?.priceDate;
           if (!rateDate) continue;
+          const monthKey = `${instrument.currency.toUpperCase()}:${month}`;
+          if (requestedFxMonths.has(monthKey)) continue;
+          requestedFxMonths.add(monthKey);
           const rate = await fetchFrankfurterFx(instrument.currency, rateDate).catch(() => null);
           if (rate) fxRates.set(`${rate.currency}:${rate.rateDate}:${rate.source}`, rate);
         }

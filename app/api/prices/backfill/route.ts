@@ -10,6 +10,7 @@ export const maxDuration = 60;
 const bodySchema = z.object({
   symbols: z.array(z.string().trim().min(1)).optional(),
   range: z.enum(["1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "max"]).default("max"),
+  includeFx: z.boolean().default(true),
 });
 
 function normaliseKey(value: string) {
@@ -116,7 +117,7 @@ export async function POST(request: Request) {
 
     if (!instruments.length) throw new Error("No current instruments or supported benchmark symbols are available for historical price backfill.");
 
-    const history = await fetchHistoricalMarketPrices(instruments, input.range);
+    const history = await fetchHistoricalMarketPrices(instruments, input.range, { includeFx: input.includeFx });
     if (process.env.DATABASE_URL && benchmarkInstruments.length && history.prices.length) {
       const returned = new Set(history.prices.map((price) => normaliseKey(price.symbol) + ":" + normaliseKey(price.exchange ?? "")));
       await ensureBenchmarkPriceInstrumentsPostgres(benchmarkInstruments.filter((instrument) => returned.has(normaliseKey(instrument.symbol) + ":" + normaliseKey(instrument.exchange))));

@@ -238,7 +238,8 @@ function calculateCompositePoint(definition: CompositeIndexDefinition, component
 }
 
 function buildComponentSeries(component: CompositeComponent, prices: StoredDailyPrice[], fxRates: StoredFxRate[]): CompositeSeriesPoint[] {
-  const numerator = buildInstrumentHistory(prices, fxRates, component.numerator);
+  const history = component.scoringConfig.basis === "raw_market" ? buildRawInstrumentHistory : buildInstrumentHistory;
+  const numerator = history(prices, fxRates, component.numerator);
   if (!component.denominator) {
     return numerator.map((point) => ({
       date: point.date,
@@ -253,7 +254,7 @@ function buildComponentSeries(component: CompositeComponent, prices: StoredDaily
     }));
   }
 
-  const denominator = buildInstrumentHistory(prices, fxRates, component.denominator);
+  const denominator = history(prices, fxRates, component.denominator);
   return buildRatioJoinSeries(
     numerator,
     denominator,
@@ -261,6 +262,41 @@ function buildComponentSeries(component: CompositeComponent, prices: StoredDaily
     component.scoringConfig.maxCarryForwardDays,
     component.scoringConfig.denominatorMaxCarryForwardDays ?? component.scoringConfig.maxCarryForwardDays,
   );
+}
+
+function buildRawInstrumentHistory(prices: StoredDailyPrice[], _fxRates: StoredFxRate[], instrument: CompositeInstrumentRef): RatioHistoryPoint[] {
+  const byDate = new Map<string, StoredDailyPrice>();
+  for (const row of prices) {
+    if (!priceMatchesInstrument(row, instrument)) continue;
+    const current = byDate.get(row.priceDate);
+    if (!current || current.retrievedAt < row.retrievedAt) byDate.set(row.priceDate, row);
+  }
+  return [...byDate.values()]
+    .sort((left, right) => left.priceDate.localeCompare(right.priceDate) || left.retrievedAt.localeCompare(right.retrievedAt))
+    .flatMap((row): RatioHistoryPoint[] => {
+      if (!Number.isFinite(row.close) || row.close <= 0) return [];
+      return [{
+        date: row.priceDate,
+        close: row.close,
+        currency: row.currency.trim().toUpperCase(),
+        fxRateToAud: 1,
+        valueAud: row.close,
+        source: row.source,
+      }];
+    });
+}
+
+function priceMatchesInstrument(row: StoredDailyPrice, instrument: CompositeInstrumentRef) {
+  return row.symbol.trim().toUpperCase() === instrument.symbol.trim().toUpperCase()
+    && (!instrument.exchange || canonicalMarket(row.exchange) === canonicalMarket(instrument.exchange));
+}
+
+function canonicalMarket(value: string | null | undefined) {
+  const exchange = (value ?? "").trim().toUpperCase();
+  if (["CA", "CANADA", "TSX", "TSXV", "TSE", "CVE", "TSX/TSXV"].includes(exchange)) return "CA";
+  if (["AU", "ASX", "CHIXAU"].includes(exchange)) return "ASX";
+  if (["US", "USA", "NYSE", "NASDAQ", "AMEX", "ARCA", "NYSEARCA"].includes(exchange)) return "US";
+  return exchange;
 }
 
 function buildRatioJoinSeries(

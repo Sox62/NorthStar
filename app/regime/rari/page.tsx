@@ -132,7 +132,7 @@ export default function RariPage() {
       const response = await fetch("/api/prices/backfill", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ range: "max", symbols }),
+        body: JSON.stringify({ range: "max", symbols, includeFx: false }),
       });
       const payload = await response.json();
       if (!response.ok || payload.error) throw new Error(payload.error || "Backfill failed.");
