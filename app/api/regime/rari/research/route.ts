@@ -20,8 +20,8 @@ const bodySchema = z.object({
     roc6mDays: z.number().int().min(60).max(260).optional(),
     roc12mDays: z.number().int().min(120).max(520).optional(),
   }).optional(),
-  range: z.enum(["1Y", "3Y", "5Y", "10Y", "MAX"]).default("3Y"),
-}).default({ range: "3Y" });
+  range: z.enum(["3M", "6M", "1Y", "3Y", "5Y", "10Y", "MAX"]).default("1Y"),
+}).default({ range: "1Y" });
 
 export async function POST(request: Request) {
   try {

@@ -150,7 +150,9 @@ export function rariSnapshot(results: CompositeIndexResult[], definition: Compos
   };
 }
 
-export function rariRange(results: CompositeIndexResult[], range: "1Y" | "3Y" | "5Y" | "10Y" | "MAX") {
+export type RariRange = "3M" | "6M" | "1Y" | "3Y" | "5Y" | "10Y" | "MAX";
+
+export function rariRange(results: CompositeIndexResult[], range: RariRange) {
   return filterCompositeRange([...results].sort((left, right) => left.date.localeCompare(right.date)), range);
 }
 

@@ -175,12 +175,17 @@ export function compositeScoreChanges(points: Array<{ date: string; score: numbe
   };
 }
 
-export function filterCompositeRange<T extends { date: string }>(points: T[], range: "1Y" | "3Y" | "5Y" | "10Y" | "MAX") {
+export function filterCompositeRange<T extends { date: string }>(points: T[], range: "3M" | "6M" | "1Y" | "3Y" | "5Y" | "10Y" | "MAX") {
   if (range === "MAX" || points.length < 2) return points;
   const latest = points.at(-1);
   if (!latest) return points;
-  const years = range === "1Y" ? 1 : range === "3Y" ? 3 : range === "5Y" ? 5 : 10;
-  const cutoff = dateTime(latest.date) - years * 365.25 * DAY_MS;
+  const days = range === "3M" ? 92
+    : range === "6M" ? 183
+      : range === "1Y" ? 365.25
+        : range === "3Y" ? 3 * 365.25
+          : range === "5Y" ? 5 * 365.25
+            : 10 * 365.25;
+  const cutoff = dateTime(latest.date) - days * DAY_MS;
   const filtered = points.filter((point) => dateTime(point.date) >= cutoff);
   return filtered.length >= 2 ? filtered : points;
 }

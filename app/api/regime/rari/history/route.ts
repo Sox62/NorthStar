@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { RARI_DEFAULT_DEFINITION, rariRange, rariSnapshot } from "@/lib/regime/rari";
+import { RARI_DEFAULT_DEFINITION, rariRange, rariSnapshot, type RariRange } from "@/lib/regime/rari";
 import { loadRariResults } from "@/lib/regime/rari-service";
 import { getStorage, type StoredDailyPrice } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const ranges = new Set(["1Y", "3Y", "5Y", "10Y", "MAX"]);
+const ranges = new Set(["3M", "6M", "1Y", "3Y", "5Y", "10Y", "MAX"]);
 
 export async function GET(request: Request) {
   try {
     const storage = getStorage();
-    const rangeParam = new URL(request.url).searchParams.get("range")?.toUpperCase() ?? "3Y";
-    const range = ranges.has(rangeParam) ? rangeParam as "1Y" | "3Y" | "5Y" | "10Y" | "MAX" : "3Y";
+    const rangeParam = new URL(request.url).searchParams.get("range")?.toUpperCase() ?? "1Y";
+    const range = ranges.has(rangeParam) ? rangeParam as RariRange : "1Y";
     const results = await loadRariResults(storage);
     const points = rariRange(results, range);
     const book = await storage.listPriceBook(20000);

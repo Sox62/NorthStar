@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { Card, Notice, StatusBadge } from "@/southernstar/components";
 
-type RariRange = "1Y" | "3Y" | "5Y" | "10Y" | "MAX";
+type RariRange = "3M" | "6M" | "1Y" | "3Y" | "MAX";
 type ComponentStatus = "valid" | "missing" | "stale" | "insufficient_data";
 
 type RariComponent = {
@@ -69,7 +69,7 @@ type HistoryPayload = {
   error?: string;
 };
 
-const ranges: RariRange[] = ["1Y", "3Y", "5Y", "10Y", "MAX"];
+const ranges: RariRange[] = ["3M", "6M", "1Y", "3Y", "MAX"];
 
 const number = (value: number | null | undefined, maximumFractionDigits = 1) =>
   value == null ? "n/a" : value.toLocaleString("en-AU", { maximumFractionDigits });
@@ -85,7 +85,7 @@ const dateLabel = (value: string | null | undefined) => {
 };
 
 export default function RariPage() {
-  const [range, setRange] = useState<RariRange>("3Y");
+  const [range, setRange] = useState<RariRange>("1Y");
   const [current, setCurrent] = useState<CurrentPayload | null>(null);
   const [history, setHistory] = useState<HistoryPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -382,6 +382,8 @@ function RariChart({ points, spx, gold }: {
   const goldLine = overlayLine(goldRows);
   const overlayBaselineY = contextPad.top + contextChartHeight - ((100 - overlayMin) / overlayRange) * contextChartHeight;
   const latest = valid.at(-1);
+  const first = valid[0];
+  const windowLabel = first && latest ? `${dateLabel(first.date)} - ${dateLabel(latest.date)}` : "No scored history";
 
   return (
     <div className="rariChartWrap">
@@ -411,7 +413,7 @@ function RariChart({ points, spx, gold }: {
         <span><i className="rariLegendRari" />RARI score</span>
         <span><i className="rariLegendBlue" />SPY indexed</span>
         <span><i className="rariLegendGold" />Gold indexed</span>
-        <strong>{latest ? `${dateLabel(latest.date)} · ${latest.score?.toFixed(0)}` : "No scored history"}</strong>
+        <strong>{latest ? `${windowLabel} · ${latest.score?.toFixed(0)}` : windowLabel}</strong>
       </div>
     </div>
   );
