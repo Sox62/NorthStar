@@ -36,6 +36,7 @@ const sections: Array<{ label: string; items: RailItem[] }> = [
     label: "Analysis",
     items: [
       { key: "opportunities", label: "Opportunities", href: "/opportunities", icon: "targets" },
+      { key: "rari-regime", label: "RARI regime", href: "/regime/rari", icon: "prices" },
       { key: "relative-leadership", label: "Relative leadership", href: "/relative", icon: "prices" },
       { key: "prices", label: "Chart workbench", href: "/prices", icon: "prices" },
       { key: "relative-calculator", label: "Relative calculator", href: "/relative/calculator", icon: "targets" },

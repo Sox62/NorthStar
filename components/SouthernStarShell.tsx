@@ -13,6 +13,7 @@ function activeForPath(pathname: string) {
   if (pathname.startsWith("/sectors")) return "sectors";
   if (pathname.startsWith("/sizer")) return "position-sizer";
   if (pathname.startsWith("/opportunities")) return "opportunities";
+  if (pathname.startsWith("/regime/rari")) return "rari-regime";
   if (pathname.startsWith("/targets")) return "targets";
   if (pathname.startsWith("/relative/calculator")) return "relative-calculator";
   if (pathname.startsWith("/relative")) return "relative-leadership";
