@@ -490,6 +490,7 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], accountBre
   const [scope, setScope] = useState<PortfolioScope>("overall");
   const [syncingAll, setSyncingAll] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
+  const [syncIssues, setSyncIssues] = useState<string[]>([]);
   const [syncMessageTone, setSyncMessageTone] = useState<"good" | "warning" | "bad">("good");
   const [showIntentInfo, setShowIntentInfo] = useState(false);
   const view = byScope(holdings, scope);
@@ -514,22 +515,26 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], accountBre
   const syncEverything = async () => {
     setSyncingAll(true);
     setSyncMessage("Sync running...");
+    setSyncIssues([]);
     setSyncMessageTone("warning");
     try {
       const response = await fetch("/api/sync/all", { method: "POST" });
       const payload = await response.json();
-      const errors = Array.isArray(payload.errors) ? payload.errors.filter(Boolean) : [];
+      const errors = Array.isArray(payload.errors) ? payload.errors.filter(Boolean).map(String) : [];
       if (!response.ok && !errors.length) throw new Error(payload.error || "Sync failed.");
       if (errors.length) {
         setSyncMessage(`Sync finished with ${errors.length} issue${errors.length === 1 ? "" : "s"}.`);
+        setSyncIssues(errors);
         setSyncMessageTone("warning");
       } else {
         setSyncMessage("Sync complete.");
+        setSyncIssues([]);
         setSyncMessageTone("good");
       }
       await onRefresh?.();
     } catch (error) {
       setSyncMessage(error instanceof Error ? error.message : "Sync failed.");
+      setSyncIssues([]);
       setSyncMessageTone("bad");
     } finally {
       setSyncingAll(false);
@@ -546,6 +551,15 @@ export function OverviewScreen({ holdings, logoSrc, performance = [], accountBre
             <ScopeTabs value={scope} onChange={setScope} />
             <p><span className={`nsStatusPip is-${health.tone}`} />{health.label} · Valuations · {fmtLongDate(selectedUpdatedAt)}</p>
             {syncMessage ? <p><span className={`nsStatusPip is-${syncMessageTone}`} />{syncMessage}</p> : null}
+            {syncIssues.length ? (
+              <details className="nsSyncIssues">
+                <summary>View sync issues</summary>
+                <ul>
+                  {syncIssues.slice(0, 3).map((issue, index) => <li key={`${index}-${issue}`}>{issue}</li>)}
+                  {syncIssues.length > 3 ? <li>{syncIssues.length - 3} more issue{syncIssues.length - 3 === 1 ? "" : "s"} on the sync page.</li> : null}
+                </ul>
+              </details>
+            ) : null}
             <div className="nsReportLinks">
               <button className="nsReportButton" type="button" onClick={() => void syncEverything()} disabled={syncingAll}>
                 {syncingAll ? "Syncing..." : "Sync everything"}

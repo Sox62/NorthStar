@@ -234,6 +234,30 @@ body.southernstar .nsStatusPip.is-bad {
   box-shadow:0 0 0 3px rgba(255,112,112,0.13);
 }
 
+body.southernstar .nsSyncIssues {
+  max-width:640px;
+  color:var(--muted-dim);
+  font-size:12px;
+  text-align:left;
+}
+
+body.southernstar .nsSyncIssues summary {
+  cursor:pointer;
+  color:var(--gold);
+  text-align:right;
+}
+
+body.southernstar .nsSyncIssues ul {
+  margin:8px 0 0;
+  padding-left:18px;
+}
+
+body.southernstar .nsSyncIssues li {
+  margin:6px 0;
+  line-height:1.45;
+  overflow-wrap:anywhere;
+}
+
 body.southernstar .nsReportLink {
   color:var(--gold);
   font-size:12px;
