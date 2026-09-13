@@ -323,7 +323,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   margin-top: 18px;
 }
 .rariChartWrap {
-  min-height: 310px;
+  min-height: 382px;
 }
 .rariChartWrap svg {
   width: 100%;
@@ -331,10 +331,23 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   min-height: 260px;
   display: block;
 }
+.rariChartWrap .rariContextChart {
+  min-height: 92px;
+  margin-top: -8px;
+}
 .rariGridLine {
   stroke: rgba(139, 161, 184, .22);
   stroke-width: 1;
   stroke-dasharray: 5 7;
+}
+.rariContextBaseline {
+  stroke: rgba(139, 161, 184, .28);
+  stroke-width: 1;
+  stroke-dasharray: 4 6;
+}
+.rariContextLabel {
+  fill: var(--text-muted);
+  font-size: 11px;
 }
 .rariBand {
   pointer-events: none;
@@ -361,8 +374,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .rariGoldPriceLine {
   stroke: #f1c45f;
   stroke-width: 2;
-  stroke-dasharray: 7 6;
-  opacity: .78;
+  opacity: .76;
 }
 .rariAxisLabel {
   fill: var(--text-muted);

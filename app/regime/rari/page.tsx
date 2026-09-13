@@ -347,8 +347,11 @@ function RariChart({ points, spx, gold }: {
   const width = 760;
   const height = 260;
   const pad = { top: 18, right: 34, bottom: 28, left: 34 };
+  const contextHeight = 92;
+  const contextPad = { top: 10, right: 34, bottom: 24, left: 34 };
   const chartWidth = width - pad.left - pad.right;
   const chartHeight = height - pad.top - pad.bottom;
+  const contextChartHeight = contextHeight - contextPad.top - contextPad.bottom;
   const spxRows = spx.filter((point) => point.indexed != null);
   const goldRows = gold.filter((point) => point.indexed != null);
   const timeline = [...new Set([
@@ -373,29 +376,35 @@ function RariChart({ points, spx, gold }: {
     if (x == null || point.indexed == null) return [];
     return [{
       x,
-      y: pad.top + chartHeight - ((point.indexed - overlayMin) / overlayRange) * chartHeight,
+      y: contextPad.top + contextChartHeight - ((point.indexed - overlayMin) / overlayRange) * contextChartHeight,
     }];
   }));
   const spxLine = overlayLine(spxRows);
   const goldLine = overlayLine(goldRows);
+  const overlayBaselineY = contextPad.top + contextChartHeight - ((100 - overlayMin) / overlayRange) * contextChartHeight;
   const latest = valid.at(-1);
 
   return (
     <div className="rariChartWrap">
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="RARI historical chart with SPY and gold overlays">
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="RARI historical score chart">
         {[25, 45, 60, 75].map((level) => {
           const y = pad.top + chartHeight - level / 100 * chartHeight;
           return <line key={level} className="rariGridLine" x1={pad.left} x2={width - pad.right} y1={y} y2={y} />;
         })}
         <rect className="rariBand rariBandStrong" x={pad.left} y={pad.top} width={chartWidth} height={chartHeight * 0.25} />
         <rect className="rariBand rariBandTransition" x={pad.left} y={pad.top + chartHeight * 0.4} width={chartWidth} height={chartHeight * 0.15} />
-        <path className="rariSpxLine" d={spxLine} />
-        <path className="rariGoldPriceLine" d={goldLine} />
         <path className="rariLine" d={rariLine} />
         {[0, 25, 50, 75, 100].map((level) => {
           const y = pad.top + chartHeight - level / 100 * chartHeight;
           return <text key={level} className="rariAxisLabel" x={width - 4} y={y + 4} textAnchor="end">{level}</text>;
         })}
+      </svg>
+      <svg className="rariContextChart" viewBox={`0 0 ${width} ${contextHeight}`} role="img" aria-label="SPY and gold indexed price context">
+        <line className="rariContextBaseline" x1={contextPad.left} x2={width - contextPad.right} y1={overlayBaselineY} y2={overlayBaselineY} />
+        <path className="rariSpxLine" d={spxLine} />
+        <path className="rariGoldPriceLine" d={goldLine} />
+        <text className="rariAxisLabel" x={width - 4} y={Math.max(contextPad.top + 8, Math.min(contextHeight - contextPad.bottom, overlayBaselineY + 4))} textAnchor="end">100</text>
+        <text className="rariContextLabel" x={contextPad.left} y={contextHeight - 6}>SPY and gold indexed to 100</text>
       </svg>
       <div className="rariChartLegend">
         <span><i className="rariLegendRari" />RARI score</span>
