@@ -118,7 +118,7 @@ test("syncMarketData auto refreshes through Yahoo without EODHD", async () => {
         prices: [],
         fxRates: [],
       },
-    }), "scheduled", "auto");
+    }), "scheduled", "auto", 200, false);
 
     assert.equal(result.status, "success");
     assert.equal(result.configured, true);
@@ -177,7 +177,7 @@ test("syncMarketData refreshes quotes and records success when EODHD is configur
         assert.equal(fxRates.length, 1);
         assert.equal(fxRates[0].source, "EODHD FX");
       },
-    }), "scheduled");
+    }), "scheduled", "auto", 200, false);
 
     assert.equal(result.status, "success");
     assert.equal(result.quotes, 1);

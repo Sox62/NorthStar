@@ -378,3 +378,23 @@ export const fxRates = pgTable("fx_rates", {
   uniqueIndex("fx_rate_currency_date_source_uq").on(table.currency, table.rateDate, table.source),
   index("fx_rate_currency_date_idx").on(table.currency, table.rateDate),
 ]);
+
+export const compositeIndexResults = pgTable("composite_index_results", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  definitionId: text("definition_id").notNull(),
+  resultDate: date("result_date").notNull(),
+  score: numeric("score", { precision: 8, scale: 4 }),
+  status: text("status").notNull(),
+  regimeId: text("regime_id"),
+  regimeLabel: text("regime_label"),
+  calculationVersion: text("calculation_version").notNull(),
+  asOfDate: date("as_of_date"),
+  availableWeight: numeric("available_weight", { precision: 8, scale: 4 }).notNull().default("0"),
+  missingWeight: numeric("missing_weight", { precision: 8, scale: 4 }).notNull().default("0"),
+  components: jsonb("components").notNull(),
+  inputs: jsonb("inputs"),
+  calculatedAt: timestamp("calculated_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  uniqueIndex("composite_index_definition_date_version_uq").on(table.definitionId, table.resultDate, table.calculationVersion),
+  index("composite_index_definition_date_idx").on(table.definitionId, table.resultDate),
+]);

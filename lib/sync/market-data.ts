@@ -1,5 +1,8 @@
 import { refreshMarketQuotes, type QuoteProvider } from "@/lib/integrations/market-data";
+import { RARI_PRICE_INSTRUMENTS } from "@/lib/regime/rari";
+import { syncRariCompositeIndex } from "@/lib/regime/rari-service";
 import type { PriceImportResult, StorageAdapter, SyncStatus, SyncTrigger } from "@/lib/storage/types";
+import { ensureBenchmarkPriceInstrumentsPostgres } from "@/lib/storage/postgres/pricing";
 
 export type MarketDataSyncResult = {
   configured: boolean;
@@ -9,6 +12,7 @@ export type MarketDataSyncResult = {
   quotes: number;
   fxRates: number;
   updatedPositions: number;
+  rari?: unknown;
   errors: string[];
   message: string;
   storageMode?: PriceImportResult["storageMode"];
@@ -32,6 +36,7 @@ export async function syncMarketData(
   trigger: SyncTrigger,
   provider: QuoteProvider = "auto",
   limit = 200,
+  includeRegimeInputs = true,
 ): Promise<MarketDataSyncResult> {
   const startedAt = new Date().toISOString();
   if (!autoPriceRefreshEnabled(trigger)) {
@@ -48,13 +53,15 @@ export async function syncMarketData(
   }
 
   const book = await storage.listPriceBook(limit);
-  if (!book.instruments.length) {
+  const instruments = uniqueInstruments([...book.instruments, ...(includeRegimeInputs ? RARI_PRICE_INSTRUMENTS : [])]);
+  if (!instruments.length) {
     const message = "No current instruments are available for quote refresh.";
     await storage.recordSyncRun({ source: "Market Data", trigger, status: "skipped", startedAt, message });
     return { configured, provider, status: "skipped", instruments: 0, quotes: 0, fxRates: 0, updatedPositions: 0, errors: [], message };
   }
+  if (process.env.DATABASE_URL && includeRegimeInputs) await ensureBenchmarkPriceInstrumentsPostgres(RARI_PRICE_INSTRUMENTS);
 
-  const quotes = await refreshMarketQuotes(book.instruments, provider);
+  const quotes = await refreshMarketQuotes(instruments, provider);
   const stored = quotes.prices.length || quotes.fxRates.length
     ? await storage.recordDailyPrices(quotes.prices, quotes.fxRates)
     : { imported: 0, matchedInstruments: 0, updatedPositions: 0, updatedCashAccounts: 0, fxRates: 0, skipped: 0, errors: [], storageMode: "postgresql" as const };
@@ -75,16 +82,36 @@ export async function syncMarketData(
     error: status === "failed" ? message : null,
   });
 
+  let rari: unknown;
+  if (includeRegimeInputs) {
+    try {
+      rari = await syncRariCompositeIndex(storage, trigger);
+    } catch (error) {
+      errors.push(`RARI: ${error instanceof Error ? error.message : "calculation failed"}`);
+    }
+  }
+
   return {
     configured: quotes.providerConfigured,
     provider,
     status,
-    instruments: book.instruments.length,
+    instruments: instruments.length,
     quotes: quotes.prices.length,
     fxRates: quotes.fxRates.length,
     updatedPositions: stored.updatedPositions,
+    rari,
     errors,
     message,
     storageMode: stored.storageMode,
   };
+}
+
+function uniqueInstruments<T extends { symbol: string; exchange: string }>(instruments: T[]) {
+  const seen = new Set<string>();
+  return instruments.filter((instrument) => {
+    const key = `${instrument.symbol.trim().toUpperCase()}:${instrument.exchange.trim().toUpperCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

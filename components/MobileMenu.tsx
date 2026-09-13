@@ -11,6 +11,7 @@ const navItems = [
   { href: "/prices", label: "Pricing", detail: "Market closes" },
   { href: "/sectors", label: "Sectors", detail: "Exposure breakdown" },
   { href: "/targets", label: "Targets", detail: "Allocation drift" },
+  { href: "/regime/rari", label: "Regime", detail: "RARI" },
   { href: "/relative", label: "Relative", detail: "Ratio charts" },
   { href: "/relative/calculator", label: "Calculator", detail: "Manual ratios" },
   { href: "/fundamentals", label: "Fundamentals", detail: "Miner risk queue" },

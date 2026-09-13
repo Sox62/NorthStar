@@ -1,3 +1,4 @@
+import { parse } from "csv-parse/sync";
 import type { DailyPriceInput, FxRateInput, PriceableInstrument } from "@/lib/storage";
 
 export type MarketQuote = DailyPriceInput & {
@@ -91,6 +92,7 @@ const MARKETDATA_TIMEOUT_MS = 12_000;
 const EODHD_BASE_URL = "https://eodhd.com/api/real-time";
 const FRANKFURTER_BASE_URL = "https://api.frankfurter.dev/v2/rate";
 const STOOQ_DAILY_URL = "https://stooq.com/q/d/l/";
+const FRED_CSV_BASE_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv";
 export const YAHOO_CHART_BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
 const SWISSQUOTE_BBO_BASE_URL = "https://forex-data-feed.swissquote.com/public-quotes/bboquotes/instrument";
 const GLOBAL_X_FUNDS_BASE_URL = "https://www.globalxetfs.com.au/funds";
@@ -226,6 +228,10 @@ const BENCHMARK_YAHOO_SYMBOLS: Record<string, string> = {
   SILVER: "SI=F",
   PLATINUM: "PL=F",
   USOIL: "CL=F",
+};
+
+const FRED_SERIES_NAMES: Record<string, string> = {
+  CPIAUCSL: "US Consumer Price Index",
 };
 
 function eodhdDate(response: EodhdResponse) {
@@ -515,6 +521,59 @@ async function fetchYahooHistory(instrument: PriceableInstrument, range = "max")
   throw new Error(`Yahoo Finance ${errors.join("; ")}`);
 }
 
+function isFredInstrument(instrument: PriceableInstrument) {
+  return normaliseExchange(instrument.exchange) === "FRED" || Boolean(FRED_SERIES_NAMES[normaliseSymbol(instrument.symbol)]);
+}
+
+function rangeCutoffDate(range: string) {
+  const days = range === "1mo" ? 31
+    : range === "3mo" ? 92
+      : range === "6mo" ? 183
+        : range === "1y" ? 366
+          : range === "2y" ? 366 * 2
+            : range === "5y" ? 366 * 5
+              : range === "10y" ? 366 * 10
+                : null;
+  if (!days) return null;
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+async function fetchFredHistory(instrument: PriceableInstrument, range = "max"): Promise<DailyPriceInput[]> {
+  const series = normaliseSymbol(instrument.symbol);
+  if (!FRED_SERIES_NAMES[series]) throw new Error(`FRED series ${series} is not configured.`);
+  const url = `${FRED_CSV_BASE_URL}?id=${encodeURIComponent(series)}`;
+  const text = await fetchText(url);
+  const cutoff = rangeCutoffDate(range);
+  const rows = parse(text, { columns: true, skip_empty_lines: true, trim: true }) as Array<Record<string, string>>;
+  const prices = rows.flatMap((row): DailyPriceInput[] => {
+    const priceDate = row.observation_date ?? row.DATE ?? row.date;
+    const close = numberValue(row[series]);
+    if (!priceDate || !/^\d{4}-\d{2}-\d{2}$/.test(priceDate) || !close) return [];
+    if (cutoff && priceDate < cutoff) return [];
+    return [{
+      symbol: instrument.symbol,
+      exchange: instrument.exchange,
+      close,
+      currency: instrument.currency,
+      priceDate,
+      source: `FRED ${series}`,
+    }];
+  });
+  if (!prices.length) throw new Error(`FRED ${series} returned no observations.`);
+  return prices.sort((left, right) => left.priceDate.localeCompare(right.priceDate));
+}
+
+async function fetchFredQuote(instrument: PriceableInstrument): Promise<MarketQuote | null> {
+  const rows = await fetchFredHistory(instrument, "5y");
+  const latest = rows.at(-1);
+  if (!latest) return null;
+  return {
+    ...latest,
+    providerSymbol: normaliseSymbol(instrument.symbol),
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
 async function fetchGlobalXQuote(instrument: PriceableInstrument): Promise<MarketQuote | null> {
   const fund = GLOBAL_X_FUNDS[normaliseSymbol(instrument.symbol)];
   if (!fund) return null;
@@ -640,20 +699,28 @@ export async function refreshMarketQuotes(instruments: PriceableInstrument[], pr
   for (const instrument of instruments) {
     const providerErrors: string[] = [];
     let quote: MarketQuote | null = null;
-    for (const quoteProvider of quoteProviders) {
+    if (isFredInstrument(instrument)) {
       try {
-        if (quoteProvider === "eodhd" && !token) {
-          providerErrors.push("EODHD token is not configured.");
-          continue;
-        }
-        if (quoteProvider === "eodhd") quote = await fetchEodhdQuote(instrument, token);
-        if (quoteProvider === "globalx") quote = await fetchGlobalXQuote(instrument);
-        if (quoteProvider === "yahoo") quote = await fetchYahooQuote(instrument);
-        if (quoteProvider === "stooq") quote = await fetchStooqQuote(instrument);
-        if (quote) break;
-        providerErrors.push(`${quoteProvider.toUpperCase()} returned no price.`);
+        quote = await fetchFredQuote(instrument);
       } catch (error) {
-        providerErrors.push(error instanceof Error ? error.message : `${quoteProvider.toUpperCase()} failed.`);
+        providerErrors.push(error instanceof Error ? error.message : "FRED failed.");
+      }
+    } else {
+      for (const quoteProvider of quoteProviders) {
+        try {
+          if (quoteProvider === "eodhd" && !token) {
+            providerErrors.push("EODHD token is not configured.");
+            continue;
+          }
+          if (quoteProvider === "eodhd") quote = await fetchEodhdQuote(instrument, token);
+          if (quoteProvider === "globalx") quote = await fetchGlobalXQuote(instrument);
+          if (quoteProvider === "yahoo") quote = await fetchYahooQuote(instrument);
+          if (quoteProvider === "stooq") quote = await fetchStooqQuote(instrument);
+          if (quote) break;
+          providerErrors.push(`${quoteProvider.toUpperCase()} returned no price.`);
+        } catch (error) {
+          providerErrors.push(error instanceof Error ? error.message : `${quoteProvider.toUpperCase()} failed.`);
+        }
       }
     }
 
@@ -702,7 +769,9 @@ export async function fetchHistoricalMarketPrices(instruments: PriceableInstrume
 
   for (const instrument of instruments) {
     try {
-      const rows = await fetchYahooHistory(instrument, range);
+      const rows = isFredInstrument(instrument)
+        ? await fetchFredHistory(instrument, range)
+        : await fetchYahooHistory(instrument, range);
       prices.push(...rows);
       if (instrument.currency.toUpperCase() !== "AUD") {
         const months = [...new Set(rows.map((row) => row.priceDate.slice(0, 7)))];

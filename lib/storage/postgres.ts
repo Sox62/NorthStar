@@ -6,7 +6,7 @@ import type { Sector } from "@/southernstar/types";
 import { classifyAsset } from "./classify";
 import { PASTED_ORDER_SOURCE } from "./local";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
-import type { AllocationTarget, CashAccount, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, PastedOpenOrder, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
+import type { AllocationTarget, CashAccount, CompositeIndexResult, CompositeIndexResultQuery, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportResult, PastedOpenOrder, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 import {
   captureSnapshot,
@@ -26,6 +26,28 @@ import {
   transactionInstrumentCurrency,
   upsertIbkrCash,
 } from "./postgres/helpers";
+
+function nullableNumber(value: unknown) {
+  return value == null ? null : numberValue(value);
+}
+
+function compositeIndexResultFromRow(row: Record<string, unknown>): CompositeIndexResult {
+  return {
+    definitionId: String(row.definition_id),
+    date: String(row.result_date),
+    score: nullableNumber(row.score),
+    status: row.status as CompositeIndexResult["status"],
+    regimeId: row.regime_id == null ? null : String(row.regime_id),
+    regimeLabel: row.regime_label == null ? null : String(row.regime_label),
+    calculationVersion: String(row.calculation_version),
+    asOfDate: row.as_of_date == null ? null : String(row.as_of_date),
+    calculatedAt: new Date(String(row.calculated_at)).toISOString(),
+    availableWeight: numberValue(row.available_weight),
+    missingWeight: numberValue(row.missing_weight),
+    components: Array.isArray(row.components) ? row.components as CompositeIndexResult["components"] : [],
+    inputs: row.inputs && typeof row.inputs === "object" ? row.inputs as Record<string, unknown> : null,
+  };
+}
 
 export class PostgresStorageAdapter implements StorageAdapter {
   async importIbkr(report: IbkrFlexReport, ownerType: OwnerType): Promise<ImportResult> {
@@ -349,6 +371,80 @@ export class PostgresStorageAdapter implements StorageAdapter {
 
   async recordDailyPrices(prices: DailyPriceInput[], fxRates: FxRateInput[] = []): Promise<PriceImportResult> {
     return recordDailyPricesPostgres(prices, fxRates);
+  }
+
+  async listCompositeIndexResults(definitionId: string, options: CompositeIndexResultQuery = {}): Promise<CompositeIndexResult[]> {
+    const values: unknown[] = [definitionId];
+    const clauses = [`definition_id=$1`];
+    if (options.calculationVersion) {
+      values.push(options.calculationVersion);
+      clauses.push(`calculation_version=$${values.length}`);
+    }
+    if (options.from) {
+      values.push(options.from);
+      clauses.push(`result_date >= $${values.length}`);
+    }
+    if (options.to) {
+      values.push(options.to);
+      clauses.push(`result_date <= $${values.length}`);
+    }
+    const safeLimit = options.limit ? Math.max(1, Math.min(20000, options.limit)) : null;
+    const limitClause = safeLimit ? `LIMIT ${safeLimit}` : "";
+    const result = await getPool().query(`
+      SELECT definition_id,result_date::text,score::text,status,regime_id,regime_label,calculation_version,
+        as_of_date::text,available_weight::text,missing_weight::text,components,inputs,calculated_at::text
+      FROM (
+        SELECT *
+        FROM composite_index_results
+        WHERE ${clauses.join(" AND ")}
+        ORDER BY result_date DESC, calculated_at DESC
+        ${limitClause}
+      ) rows
+      ORDER BY result_date ASC, calculated_at ASC
+    `, values);
+    return result.rows.map(compositeIndexResultFromRow);
+  }
+
+  async recordCompositeIndexResults(results: CompositeIndexResult[]): Promise<number> {
+    if (!results.length) return 0;
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      for (const result of results) {
+        await client.query(`
+          INSERT INTO composite_index_results (
+            definition_id,result_date,score,status,regime_id,regime_label,calculation_version,as_of_date,
+            available_weight,missing_weight,components,inputs,calculated_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          ON CONFLICT (definition_id,result_date,calculation_version)
+          DO UPDATE SET score=EXCLUDED.score,status=EXCLUDED.status,regime_id=EXCLUDED.regime_id,
+            regime_label=EXCLUDED.regime_label,as_of_date=EXCLUDED.as_of_date,
+            available_weight=EXCLUDED.available_weight,missing_weight=EXCLUDED.missing_weight,
+            components=EXCLUDED.components,inputs=EXCLUDED.inputs,calculated_at=EXCLUDED.calculated_at
+        `, [
+          result.definitionId,
+          result.date,
+          result.score,
+          result.status,
+          result.regimeId,
+          result.regimeLabel,
+          result.calculationVersion,
+          result.asOfDate,
+          result.availableWeight,
+          result.missingWeight,
+          JSON.stringify(result.components),
+          result.inputs ? JSON.stringify(result.inputs) : null,
+          result.calculatedAt,
+        ]);
+      }
+      await client.query("COMMIT");
+      return results.length;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getLatestPlatinumPrice(): Promise<PlatinumPrice | null> {

@@ -242,6 +242,56 @@ export type PriceBook = {
   fxRates: StoredFxRate[];
 };
 
+export type CompositeIndexStatus = "valid" | "partial" | "stale" | "insufficient_data";
+export type CompositeIndexComponentStatus = "valid" | "missing" | "stale" | "insufficient_data";
+export type CompositeIndexComponent = {
+  id: string;
+  name: string;
+  description: string;
+  weight: number;
+  direction: "positive" | "inverse";
+  status: CompositeIndexComponentStatus;
+  score: number | null;
+  value: number | null;
+  numeratorValue: number | null;
+  denominatorValue: number | null;
+  weightedContribution: number | null;
+  trendDirection: "up" | "down" | "flat" | "unknown";
+  sixMonthRoc: number | null;
+  twelveMonthRoc: number | null;
+  movingAverage: number | null;
+  movingAverageRelationship: "above" | "below" | "at" | "unavailable";
+  movingAverageSlope: number | null;
+  evidenceWeight: number;
+  evidenceDetail: Array<Record<string, unknown>>;
+  asOfDate: string | null;
+  stale: boolean;
+  messages: string[];
+};
+
+export type CompositeIndexResult = {
+  definitionId: string;
+  date: string;
+  score: number | null;
+  status: CompositeIndexStatus;
+  regimeId: string | null;
+  regimeLabel: string | null;
+  calculationVersion: string;
+  asOfDate: string | null;
+  calculatedAt: string;
+  availableWeight: number;
+  missingWeight: number;
+  components: CompositeIndexComponent[];
+  inputs?: Record<string, unknown> | null;
+};
+
+export type CompositeIndexResultQuery = {
+  from?: string;
+  to?: string;
+  limit?: number;
+  calculationVersion?: string;
+};
+
 export type PriceImportResult = {
   imported: number;
   matchedInstruments: number;
@@ -442,7 +492,7 @@ export type StructuralLevel = {
 export type StructuralLevelInput = Omit<StructuralLevel, "id" | "updatedAt"> & { id?: string };
 
 export type LocalStore = {
-  version: 6;
+  version: 7;
   transactions: StoredTransaction[];
   positions: StoredPosition[];
   openOrders: StoredOpenOrder[];
@@ -458,6 +508,7 @@ export type LocalStore = {
   minerFundamentals: MinerFundamentals[];
   fundamentalResearchDrafts: FundamentalResearchDraft[];
   structuralLevels: StructuralLevel[];
+  compositeIndexResults: CompositeIndexResult[];
   imports: Array<{
     id: string;
     source: string;
@@ -525,6 +576,8 @@ export interface StorageAdapter {
   deleteManualAsset(id: string, ownerType: OwnerType): Promise<void>;
   listPriceBook(limit?: number): Promise<PriceBook>;
   recordDailyPrices(prices: DailyPriceInput[], fxRates?: FxRateInput[]): Promise<PriceImportResult>;
+  listCompositeIndexResults(definitionId: string, options?: CompositeIndexResultQuery): Promise<CompositeIndexResult[]>;
+  recordCompositeIndexResults(results: CompositeIndexResult[]): Promise<number>;
   getLatestPlatinumPrice(): Promise<PlatinumPrice | null>;
   recordPlatinumPrice(price: PlatinumPrice): Promise<PlatinumPrice>;
   recordSyncRun(input: NewSyncRun): Promise<SyncRun>;

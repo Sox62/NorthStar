@@ -17,6 +17,8 @@ import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import type {
   CashAccount,
   AllocationTarget,
+  CompositeIndexResult,
+  CompositeIndexResultQuery,
   FundamentalResearchDraft,
   FundamentalResearchDraftInput,
   FundamentalResearchDraftStatus,
@@ -51,7 +53,7 @@ const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), "
 const LEGACY_DATA_FILE = path.join(process.cwd(), ".north-star", "data.json");
 export const PASTED_ORDER_SOURCE = "IBKR paste";
 
-const EMPTY: LocalStore = { version: 6, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], imports: [] };
+const EMPTY: LocalStore = { version: 7, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [], imports: [] };
 
 function normalisePhysicalMetalType(value: unknown) {
   return value === "GOLD" || value === "SILVER" || value === "PLATINUM" || value === "PALLADIUM" ? value : "PLATINUM";
@@ -59,7 +61,7 @@ function normalisePhysicalMetalType(value: unknown) {
 
 async function parseStoreFile(file: string): Promise<LocalStore> {
   const parsed = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
-    if (parsed.version === 6) {
+    if (parsed.version === 7) {
       return {
         ...(parsed as unknown as LocalStore),
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
@@ -72,12 +74,30 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
         minerFundamentals: (parsed.minerFundamentals as MinerFundamentals[] | undefined) ?? [],
         fundamentalResearchDrafts: (parsed.fundamentalResearchDrafts as FundamentalResearchDraft[] | undefined) ?? [],
         structuralLevels: (parsed.structuralLevels as StructuralLevel[] | undefined) ?? [],
+        compositeIndexResults: (parsed.compositeIndexResults as CompositeIndexResult[] | undefined) ?? [],
+      };
+    }
+    if (parsed.version === 6) {
+      return {
+        ...(parsed as unknown as Omit<LocalStore, "version" | "compositeIndexResults">),
+        version: 7,
+        platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
+        openOrders: (parsed.openOrders as StoredOpenOrder[] | undefined) ?? [],
+        dailyPrices: (parsed.dailyPrices as StoredDailyPrice[] | undefined) ?? [],
+        fxRates: (parsed.fxRates as StoredFxRate[] | undefined) ?? [],
+        syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
+        allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
+        sectorOverrides: (parsed.sectorOverrides as SectorOverride[] | undefined) ?? [],
+        minerFundamentals: (parsed.minerFundamentals as MinerFundamentals[] | undefined) ?? [],
+        fundamentalResearchDrafts: (parsed.fundamentalResearchDrafts as FundamentalResearchDraft[] | undefined) ?? [],
+        structuralLevels: (parsed.structuralLevels as StructuralLevel[] | undefined) ?? [],
+        compositeIndexResults: [],
       };
     }
     if (parsed.version === 5) {
       return {
         ...(parsed as unknown as Omit<LocalStore, "version" | "dailyPrices" | "fxRates">),
-        version: 6,
+        version: 7,
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
         openOrders: (parsed.openOrders as StoredOpenOrder[] | undefined) ?? [],
         dailyPrices: [],
@@ -87,12 +107,13 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
         minerFundamentals: (parsed.minerFundamentals as MinerFundamentals[] | undefined) ?? [],
         fundamentalResearchDrafts: (parsed.fundamentalResearchDrafts as FundamentalResearchDraft[] | undefined) ?? [],
         structuralLevels: (parsed.structuralLevels as StructuralLevel[] | undefined) ?? [],
+        compositeIndexResults: [],
       };
     }
     if (parsed.version === 4) {
       return {
         ...(parsed as unknown as Omit<LocalStore, "version" | "syncRuns">),
-        version: 6,
+        version: 7,
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
         openOrders: [],
         dailyPrices: [],
@@ -102,6 +123,7 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
         minerFundamentals: [],
         fundamentalResearchDrafts: [],
         structuralLevels: [],
+        compositeIndexResults: [],
       };
     }
     if (parsed.version === 3) {
@@ -123,10 +145,10 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
           priceRetrievedAt: String(asset.updatedAt ?? new Date().toISOString()), updatedAt: String(asset.updatedAt ?? new Date().toISOString()),
         };
       });
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets, platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets" | "compositeIndexResults">), version: 7, manualAssets, platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [] };
     }
     if (parsed.version === 2) {
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets">), version: 6, manualAssets: [], platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets" | "compositeIndexResults">), version: 7, manualAssets: [], platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [] };
     }
     return structuredClone(EMPTY);
 }
@@ -601,8 +623,26 @@ export class LocalStorageAdapter implements StorageAdapter {
         normaliseSymbol(position.symbol) === symbol && (!exchange || position.exchange.trim().toUpperCase() === exchange)
       );
       if (!matching.length) {
-        result.skipped += 1;
-        result.errors.push(`${symbol}${exchange ? `:${exchange}` : ""} has no current position to price.`);
+        const priceRecord: StoredDailyPrice = {
+          id: randomUUID(),
+          instrumentId: null,
+          symbol,
+          exchange,
+          name: symbol,
+          currency,
+          close: input.close,
+          priceDate: input.priceDate,
+          source: input.source.trim() || "Manual",
+          retrievedAt: now,
+        };
+        const existing = store.dailyPrices.find((item) =>
+          normaliseSymbol(item.symbol) === symbol
+          && item.exchange.trim().toUpperCase() === priceRecord.exchange.trim().toUpperCase()
+          && item.priceDate === priceRecord.priceDate
+          && item.source === priceRecord.source
+        );
+        if (existing) Object.assign(existing, priceRecord, { id: existing.id }); else store.dailyPrices.push(priceRecord);
+        result.imported += 1;
         continue;
       }
       const validMatches = matching.filter((position) => normaliseCurrency(position.currency) === currency);
@@ -673,6 +713,31 @@ export class LocalStorageAdapter implements StorageAdapter {
     for (const owner of owners) captureSnapshot(store, owner);
     await writeStore(store);
     return result;
+  }
+
+  async listCompositeIndexResults(definitionId: string, options: CompositeIndexResultQuery = {}): Promise<CompositeIndexResult[]> {
+    const store = await readStore();
+    const rows = store.compositeIndexResults
+      .filter((row) => row.definitionId === definitionId)
+      .filter((row) => !options.calculationVersion || row.calculationVersion === options.calculationVersion)
+      .filter((row) => !options.from || row.date >= options.from)
+      .filter((row) => !options.to || row.date <= options.to)
+      .sort((left, right) => left.date.localeCompare(right.date) || left.calculatedAt.localeCompare(right.calculatedAt));
+    return options.limit ? rows.slice(-Math.max(1, options.limit)) : rows;
+  }
+
+  async recordCompositeIndexResults(results: CompositeIndexResult[]): Promise<number> {
+    if (!results.length) return 0;
+    const store = await readStore();
+    const byKey = new Map(store.compositeIndexResults.map((row) => [`${row.definitionId}:${row.date}:${row.calculationVersion}`, row]));
+    for (const result of results) {
+      byKey.set(`${result.definitionId}:${result.date}:${result.calculationVersion}`, result);
+    }
+    store.compositeIndexResults = [...byKey.values()]
+      .sort((left, right) => left.definitionId.localeCompare(right.definitionId) || left.date.localeCompare(right.date))
+      .slice(-10000);
+    await writeStore(store);
+    return results.length;
   }
 
   async getLatestPlatinumPrice(): Promise<PlatinumPrice | null> {
