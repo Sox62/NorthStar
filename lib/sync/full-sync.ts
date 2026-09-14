@@ -1,6 +1,7 @@
 import { fetchAbcPlatinumPrice } from "@/lib/integrations/abc-bullion";
 import type { QuoteProvider } from "@/lib/integrations/market-data";
-import { getStorage, type SyncTrigger } from "@/lib/storage";
+import { recordStopsRiskSnapshot } from "@/lib/risk/stops";
+import { getStorage, type StorageAdapter, type SyncTrigger } from "@/lib/storage";
 import { configuredIbkrFlexSyncs, ibkrFlexNotConfiguredMessage, legacyIbkrFlexOwner, syncIbkrFlexConfig, waitForIbkrFlexSlot } from "@/lib/sync/ibkr-flex";
 import { syncDirectsharesDividends } from "@/lib/sync/directshares-dividends";
 import { syncDirectsharesEmail } from "@/lib/sync/directshares-email";
@@ -29,7 +30,17 @@ export type FullSyncResult = {
   marketData?: unknown;
   fundamentals?: unknown;
   platinum?: unknown;
+  risk?: unknown;
 };
+
+async function recordRiskOutput(storage: StorageAdapter, output: FullSyncResult, errors: string[]) {
+  try {
+    output.risk = await recordStopsRiskSnapshot(storage, "overall");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown portfolio risk snapshot error";
+    errors.push(`Portfolio Risk: ${message}`);
+  }
+}
 
 export async function runMarketDataOnlySync(trigger: SyncTrigger, provider: QuoteProvider = "auto"): Promise<FullSyncResult> {
   const storage = getStorage();
@@ -46,6 +57,8 @@ export async function runMarketDataOnlySync(trigger: SyncTrigger, provider: Quot
     const message = error instanceof Error ? error.message : "Unknown market data sync error";
     errors.push(`Market Data: ${message}`);
   }
+
+  await recordRiskOutput(storage, output, errors);
 
   output.ok = errors.length === 0;
   return output;
@@ -168,6 +181,8 @@ export async function runFullSync(trigger: SyncTrigger, provider: QuoteProvider 
       }).catch(() => {});
     }
   }
+
+  await recordRiskOutput(storage, output, errors);
 
   output.ok = errors.length === 0;
   return output;

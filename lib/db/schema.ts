@@ -127,6 +127,58 @@ export const ibkrOpenOrders = pgTable("ibkr_open_orders", {
   index("ibkr_open_order_portfolio_idx").on(table.portfolioId),
 ]);
 
+export const positionRiskPlans = pgTable("position_risk_plans", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  portfolioId: uuid("portfolio_id").references(() => portfolios.id).notNull(),
+  accountId: uuid("account_id").references(() => brokerAccounts.id).notNull(),
+  instrumentId: uuid("instrument_id").references(() => instruments.id).notNull(),
+  stopType: text("stop_type").notNull().default("MANUAL_REVIEW"),
+  plannedStopPrice: numeric("planned_stop_price", { precision: 28, scale: 10 }),
+  plannedTargetPrice: numeric("planned_target_price", { precision: 28, scale: 10 }),
+  rationale: text("rationale"),
+  invalidationNotes: text("invalidation_notes"),
+  sectorBenchmarkSymbol: text("sector_benchmark_symbol"),
+  reviewStatus: text("review_status"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  uniqueIndex("position_risk_plan_position_uq").on(table.portfolioId, table.accountId, table.instrumentId),
+  index("position_risk_plan_portfolio_idx").on(table.portfolioId),
+]);
+
+export const brokerOrderEvents = pgTable("broker_order_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  portfolioId: uuid("portfolio_id").references(() => portfolios.id).notNull(),
+  accountId: uuid("account_id").references(() => brokerAccounts.id).notNull(),
+  orderId: text("order_id").notNull(),
+  source: text("source").notNull(),
+  status: text("status").notNull(),
+  eventType: text("event_type").notNull(),
+  raw: jsonb("raw"),
+  observedAt: timestamp("observed_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [
+  index("broker_order_events_order_idx").on(table.accountId, table.orderId, table.observedAt),
+]);
+
+export const portfolioRiskSnapshots = pgTable("portfolio_risk_snapshots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  scope: text("scope").notNull(),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).defaultNow().notNull(),
+  navAud: numeric("nav_aud", { precision: 28, scale: 2 }).notNull(),
+  investedCapitalAud: numeric("invested_capital_aud", { precision: 28, scale: 2 }).notNull(),
+  deployableCashAud: numeric("deployable_cash_aud", { precision: 28, scale: 2 }).notNull(),
+  pendingOrderCapitalAud: numeric("pending_order_capital_aud", { precision: 28, scale: 2 }).notNull(),
+  totalStopRiskAud: numeric("total_stop_risk_aud", { precision: 28, scale: 2 }).notNull(),
+  totalStopRiskPercentNav: numeric("total_stop_risk_percent_nav", { precision: 18, scale: 6 }).notNull(),
+  positionsWithStops: integer("positions_with_stops").notNull(),
+  positionsWithoutStops: integer("positions_without_stops").notNull(),
+  largestSinglePositionRiskAud: numeric("largest_single_position_risk_aud", { precision: 28, scale: 2 }).notNull(),
+  largestSectorRiskAud: numeric("largest_sector_risk_aud", { precision: 28, scale: 2 }).notNull(),
+  calculationVersion: text("calculation_version").notNull(),
+}, table => [
+  index("portfolio_risk_snapshots_scope_captured_idx").on(table.scope, table.capturedAt),
+]);
+
 export const cashAccounts = pgTable("cash_accounts", {
   id: uuid("id").defaultRandom().primaryKey(),
   portfolioId: uuid("portfolio_id").references(() => portfolios.id).notNull(),

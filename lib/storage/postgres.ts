@@ -6,7 +6,7 @@ import type { Sector } from "@/southernstar/types";
 import { classifyAsset } from "./classify";
 import { PASTED_ORDER_SOURCE } from "./local";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
-import type { AllocationTarget, CashAccount, CompositeIndexResult, CompositeIndexResultQuery, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportOptions, PriceImportResult, PastedOpenOrder, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
+import type { AllocationTarget, CashAccount, CompositeIndexResult, CompositeIndexResultQuery, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportOptions, PriceImportResult, PastedOpenOrder, PositionRiskPlan, PositionRiskPlanInput, RiskSnapshot, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 import {
   captureSnapshot,
@@ -29,6 +29,49 @@ import {
 
 function nullableNumber(value: unknown) {
   return value == null ? null : numberValue(value);
+}
+
+function positionRiskPlanFromRow(row: Record<string, unknown>): PositionRiskPlan {
+  return {
+    id: String(row.id),
+    ownerType: row.legal_owner_type as OwnerType,
+    broker: String(row.broker),
+    accountKey: String(row.external_account_id),
+    positionId: row.position_id == null ? null : String(row.position_id),
+    instrumentKey: String(row.external_key),
+    symbol: String(row.ticker),
+    name: String(row.name),
+    exchange: String(row.exchange),
+    currency: String(row.currency),
+    stopType: row.stop_type as PositionRiskPlan["stopType"],
+    plannedStopPrice: nullableNumber(row.planned_stop_price),
+    plannedTargetPrice: nullableNumber(row.planned_target_price),
+    rationale: row.rationale == null ? null : String(row.rationale),
+    invalidationNotes: row.invalidation_notes == null ? null : String(row.invalidation_notes),
+    sectorBenchmarkSymbol: row.sector_benchmark_symbol == null ? null : String(row.sector_benchmark_symbol),
+    reviewStatus: row.review_status == null ? null : String(row.review_status),
+    createdAt: new Date(String(row.created_at)).toISOString(),
+    updatedAt: new Date(String(row.updated_at)).toISOString(),
+  };
+}
+
+function riskSnapshotFromRow(row: Record<string, unknown>): RiskSnapshot {
+  return {
+    id: String(row.id),
+    scope: row.scope as Scope,
+    capturedAt: new Date(String(row.captured_at)).toISOString(),
+    navAud: numberValue(row.nav_aud),
+    investedCapitalAud: numberValue(row.invested_capital_aud),
+    deployableCashAud: numberValue(row.deployable_cash_aud),
+    pendingOrderCapitalAud: numberValue(row.pending_order_capital_aud),
+    totalStopRiskAud: numberValue(row.total_stop_risk_aud),
+    totalStopRiskPercentNav: numberValue(row.total_stop_risk_percent_nav),
+    positionsWithStops: numberValue(row.positions_with_stops),
+    positionsWithoutStops: numberValue(row.positions_without_stops),
+    largestSinglePositionRiskAud: numberValue(row.largest_single_position_risk_aud),
+    largestSectorRiskAud: numberValue(row.largest_sector_risk_aud),
+    calculationVersion: String(row.calculation_version),
+  };
 }
 
 function compositeIndexResultFromRow(row: Record<string, unknown>): CompositeIndexResult {
@@ -556,6 +599,140 @@ export class PostgresStorageAdapter implements StorageAdapter {
       description: row.description, source: row.source, raw: row.raw ?? undefined, asOfDate: row.as_of_date,
       createdAt: row.created_at ? new Date(row.created_at).toISOString() : null, updatedAt: new Date(row.updated_at).toISOString(),
     }));
+  }
+
+  async listPositionRiskPlans(ownerType?: OwnerType): Promise<PositionRiskPlan[]> {
+    const values: unknown[] = [];
+    const ownerFilter = ownerType ? "WHERE p.legal_owner_type=$1" : "";
+    if (ownerType) values.push(ownerType);
+    const result = await getPool().query(`
+      SELECT rp.id, p.legal_owner_type, ba.broker, ba.external_account_id, cp.id AS position_id,
+        i.external_key, i.ticker, i.name, i.exchange, i.currency,
+        rp.stop_type, rp.planned_stop_price::text, rp.planned_target_price::text,
+        rp.rationale, rp.invalidation_notes, rp.sector_benchmark_symbol, rp.review_status,
+        rp.created_at::text, rp.updated_at::text
+      FROM position_risk_plans rp
+      JOIN portfolios p ON p.id=rp.portfolio_id
+      JOIN broker_accounts ba ON ba.id=rp.account_id
+      JOIN instruments i ON i.id=rp.instrument_id
+      LEFT JOIN LATERAL (
+        SELECT id FROM current_positions
+        WHERE portfolio_id=rp.portfolio_id AND account_id=rp.account_id AND instrument_id=rp.instrument_id
+        ORDER BY updated_at DESC LIMIT 1
+      ) cp ON true
+      ${ownerFilter}
+      ORDER BY i.ticker ASC, ba.external_account_id ASC
+    `, values).catch((error: unknown) => {
+      if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "42P01") return null;
+      throw error;
+    });
+    if (!result) return [];
+    return result.rows.map(positionRiskPlanFromRow);
+  }
+
+  async upsertPositionRiskPlan(input: PositionRiskPlanInput): Promise<PositionRiskPlan> {
+    const values: unknown[] = [];
+    let locator = "";
+    if (input.positionId) {
+      locator = "cp.id=$1";
+      values.push(input.positionId);
+    } else {
+      if (!input.ownerType || !input.broker || !input.accountKey || !input.symbol) throw new Error("Position identity is required for risk plan.");
+      locator = "p.legal_owner_type=$1 AND ba.broker=$2 AND ba.external_account_id=$3 AND UPPER(i.ticker)=UPPER($4) AND ($5='' OR UPPER(i.exchange)=UPPER($5))";
+      values.push(input.ownerType, input.broker, input.accountKey, input.symbol, input.exchange ?? "");
+    }
+    const target = await getPool().query(`
+      SELECT cp.portfolio_id, cp.account_id, cp.instrument_id
+      FROM current_positions cp
+      JOIN portfolios p ON p.id=cp.portfolio_id
+      JOIN broker_accounts ba ON ba.id=cp.account_id
+      JOIN instruments i ON i.id=cp.instrument_id
+      WHERE ${locator}
+      ORDER BY cp.updated_at DESC
+      LIMIT 1
+    `, values);
+    const row = target.rows[0];
+    if (!row) throw new Error("Position not found for risk plan.");
+
+    const saved = await getPool().query(`
+      INSERT INTO position_risk_plans (
+        portfolio_id,account_id,instrument_id,stop_type,planned_stop_price,planned_target_price,
+        rationale,invalidation_notes,sector_benchmark_symbol,review_status,updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+      ON CONFLICT (portfolio_id,account_id,instrument_id) DO UPDATE SET
+        stop_type=EXCLUDED.stop_type,
+        planned_stop_price=EXCLUDED.planned_stop_price,
+        planned_target_price=EXCLUDED.planned_target_price,
+        rationale=EXCLUDED.rationale,
+        invalidation_notes=EXCLUDED.invalidation_notes,
+        sector_benchmark_symbol=EXCLUDED.sector_benchmark_symbol,
+        review_status=EXCLUDED.review_status,
+        updated_at=NOW()
+      RETURNING id
+    `, [
+      row.portfolio_id,
+      row.account_id,
+      row.instrument_id,
+      input.stopType,
+      input.plannedStopPrice ?? null,
+      input.plannedTargetPrice ?? null,
+      input.rationale?.trim() || null,
+      input.invalidationNotes?.trim() || null,
+      input.sectorBenchmarkSymbol?.trim().toUpperCase() || null,
+      input.reviewStatus?.trim() || null,
+    ]);
+    const plan = (await this.listPositionRiskPlans()).find((item) => item.id === saved.rows[0].id);
+    if (!plan) throw new Error("Risk plan was saved but could not be reloaded.");
+    return plan;
+  }
+
+  async listRiskSnapshots(scope?: Scope, limit = 120): Promise<RiskSnapshot[]> {
+    const values: unknown[] = [Math.max(1, Math.min(500, limit))];
+    const scopeFilter = scope ? "WHERE scope=$2" : "";
+    if (scope) values.push(scope);
+    const result = await getPool().query(`
+      SELECT id,scope,captured_at::text,nav_aud::text,invested_capital_aud::text,deployable_cash_aud::text,
+        pending_order_capital_aud::text,total_stop_risk_aud::text,total_stop_risk_percent_nav::text,
+        positions_with_stops,positions_without_stops,largest_single_position_risk_aud::text,
+        largest_sector_risk_aud::text,calculation_version
+      FROM portfolio_risk_snapshots
+      ${scopeFilter}
+      ORDER BY captured_at DESC
+      LIMIT $1
+    `, values).catch((error: unknown) => {
+      if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "42P01") return null;
+      throw error;
+    });
+    return result ? result.rows.map(riskSnapshotFromRow) : [];
+  }
+
+  async recordRiskSnapshot(input: Omit<RiskSnapshot, "id" | "capturedAt"> & { capturedAt?: string }): Promise<RiskSnapshot> {
+    const result = await getPool().query(`
+      INSERT INTO portfolio_risk_snapshots (
+        scope,captured_at,nav_aud,invested_capital_aud,deployable_cash_aud,pending_order_capital_aud,
+        total_stop_risk_aud,total_stop_risk_percent_nav,positions_with_stops,positions_without_stops,
+        largest_single_position_risk_aud,largest_sector_risk_aud,calculation_version
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      RETURNING id,scope,captured_at::text,nav_aud::text,invested_capital_aud::text,deployable_cash_aud::text,
+        pending_order_capital_aud::text,total_stop_risk_aud::text,total_stop_risk_percent_nav::text,
+        positions_with_stops,positions_without_stops,largest_single_position_risk_aud::text,
+        largest_sector_risk_aud::text,calculation_version
+    `, [
+      input.scope,
+      input.capturedAt ?? new Date().toISOString(),
+      input.navAud,
+      input.investedCapitalAud,
+      input.deployableCashAud,
+      input.pendingOrderCapitalAud,
+      input.totalStopRiskAud,
+      input.totalStopRiskPercentNav,
+      input.positionsWithStops,
+      input.positionsWithoutStops,
+      input.largestSinglePositionRiskAud,
+      input.largestSectorRiskAud,
+      input.calculationVersion,
+    ]);
+    return riskSnapshotFromRow(result.rows[0]);
   }
 
   async listSyncRuns(limit = 20, ownerType?: OwnerType): Promise<SyncRun[]> {

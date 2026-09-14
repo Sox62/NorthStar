@@ -10,6 +10,7 @@ const navItems = [
   { href: "/accounts", label: "Accounts & mandates", detail: "Legal books" },
   { href: "/prices", label: "Pricing", detail: "Market closes" },
   { href: "/sectors", label: "Sectors", detail: "Exposure breakdown" },
+  { href: "/risk", label: "Stops & orders", detail: "Portfolio risk" },
   { href: "/targets", label: "Targets", detail: "Allocation drift" },
   { href: "/regime/rari", label: "Regime", detail: "RARI" },
   { href: "/relative", label: "Relative", detail: "Ratio charts" },

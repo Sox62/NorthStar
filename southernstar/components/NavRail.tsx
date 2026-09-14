@@ -29,6 +29,7 @@ const sections: Array<{ label: string; items: RailItem[] }> = [
     items: [
       { key: "sectors", label: "Positions & strategy", href: "/sectors", icon: "sectors" },
       { key: "position-sizer", label: "Position sizer", href: "/sizer", icon: "targets" },
+      { key: "stops-orders", label: "Stops & orders", href: "/risk", icon: "security" },
       { key: "reports", label: "Harvest plan", href: "/reports", icon: "reports" },
     ],
   },

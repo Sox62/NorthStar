@@ -170,6 +170,74 @@ export type StoredOpenOrder = {
   raw?: Record<string, unknown>;
 };
 
+export type StopType = "STRUCTURAL" | "TACTICAL" | "TRAILING" | "VOLATILITY" | "MANUAL_REVIEW";
+export type OrderPurpose = "PROTECTIVE_STOP" | "PROFIT_TARGET" | "ENTRY" | "MANUAL_INVALIDATION";
+export type RiskExceptionCode =
+  | "NO_STOP_RECORDED"
+  | "BROKER_ORDER_MISMATCH"
+  | "STOP_QUANTITY_LT_POSITION"
+  | "STOP_QUANTITY_GT_POSITION"
+  | "BROKER_ORDER_DATA_STALE"
+  | "PRICE_BELOW_RECORDED_STOP"
+  | "STOCK_UNDERPERFORMING_SECTOR_ETF"
+  | "UNCLASSIFIED_BROKER_ORDER";
+
+export type PositionRiskPlan = {
+  id: string;
+  ownerType: OwnerType;
+  broker: string;
+  accountKey: string;
+  positionId: string | null;
+  instrumentKey: string;
+  symbol: string;
+  name: string;
+  exchange: string;
+  currency: string;
+  stopType: StopType;
+  plannedStopPrice: number | null;
+  plannedTargetPrice: number | null;
+  rationale: string | null;
+  invalidationNotes: string | null;
+  sectorBenchmarkSymbol: string | null;
+  reviewStatus: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PositionRiskPlanInput = {
+  id?: string;
+  positionId?: string;
+  ownerType?: OwnerType;
+  broker?: string;
+  accountKey?: string;
+  symbol?: string;
+  exchange?: string;
+  stopType: StopType;
+  plannedStopPrice?: number | null;
+  plannedTargetPrice?: number | null;
+  rationale?: string | null;
+  invalidationNotes?: string | null;
+  sectorBenchmarkSymbol?: string | null;
+  reviewStatus?: string | null;
+};
+
+export type RiskSnapshot = {
+  id: string;
+  scope: Scope;
+  capturedAt: string;
+  navAud: number;
+  investedCapitalAud: number;
+  deployableCashAud: number;
+  pendingOrderCapitalAud: number;
+  totalStopRiskAud: number;
+  totalStopRiskPercentNav: number;
+  positionsWithStops: number;
+  positionsWithoutStops: number;
+  largestSinglePositionRiskAud: number;
+  largestSectorRiskAud: number;
+  calculationVersion: string;
+};
+
 export type CashAccount = {
   id: string;
   ownerType: OwnerType;
@@ -501,6 +569,8 @@ export type LocalStore = {
   transactions: StoredTransaction[];
   positions: StoredPosition[];
   openOrders: StoredOpenOrder[];
+  riskPlans: PositionRiskPlan[];
+  riskSnapshots: RiskSnapshot[];
   cashAccounts: CashAccount[];
   manualAssets: ManualAsset[];
   platinumPrices: PlatinumPrice[];
@@ -572,6 +642,10 @@ export interface StorageAdapter {
   importDirectsharesTransactions(transactions: ImportedTransaction[], ownerType: OwnerType, importSource?: string): Promise<ImportResult>;
   listTransactions(ownerType?: OwnerType): Promise<StoredTransaction[]>;
   listOpenOrders(ownerType?: OwnerType): Promise<StoredOpenOrder[]>;
+  listPositionRiskPlans(ownerType?: OwnerType): Promise<PositionRiskPlan[]>;
+  upsertPositionRiskPlan(input: PositionRiskPlanInput): Promise<PositionRiskPlan>;
+  listRiskSnapshots(scope?: Scope, limit?: number): Promise<RiskSnapshot[]>;
+  recordRiskSnapshot(input: Omit<RiskSnapshot, "id" | "capturedAt"> & { capturedAt?: string }): Promise<RiskSnapshot>;
   /** Replaces the pasted order set for one owner. Kept separate from the Flex-sourced rows. */
   replacePastedOpenOrders(ownerType: OwnerType, orders: PastedOpenOrder[]): Promise<number>;
   listCashAccounts(ownerType?: OwnerType, options?: CashAccountListOptions): Promise<CashAccount[]>;

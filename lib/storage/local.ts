@@ -28,6 +28,9 @@ import type {
   ManualAsset,
   MinerFundamentals,
   PastedOpenOrder,
+  PositionRiskPlan,
+  PositionRiskPlanInput,
+  RiskSnapshot,
   SectorOverride,
   MinerFundamentalsInput,
   StructuralLevel,
@@ -54,7 +57,7 @@ const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), "
 const LEGACY_DATA_FILE = path.join(process.cwd(), ".north-star", "data.json");
 export const PASTED_ORDER_SOURCE = "IBKR paste";
 
-const EMPTY: LocalStore = { version: 7, transactions: [], positions: [], openOrders: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [], imports: [] };
+const EMPTY: LocalStore = { version: 7, transactions: [], positions: [], openOrders: [], riskPlans: [], riskSnapshots: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [], imports: [] };
 
 function normalisePhysicalMetalType(value: unknown) {
   return value === "GOLD" || value === "SILVER" || value === "PLATINUM" || value === "PALLADIUM" ? value : "PLATINUM";
@@ -67,6 +70,8 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
         ...(parsed as unknown as LocalStore),
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
         openOrders: (parsed.openOrders as StoredOpenOrder[] | undefined) ?? [],
+        riskPlans: (parsed.riskPlans as PositionRiskPlan[] | undefined) ?? [],
+        riskSnapshots: (parsed.riskSnapshots as RiskSnapshot[] | undefined) ?? [],
         dailyPrices: (parsed.dailyPrices as StoredDailyPrice[] | undefined) ?? [],
         fxRates: (parsed.fxRates as StoredFxRate[] | undefined) ?? [],
         syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
@@ -84,6 +89,8 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
         version: 7,
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
         openOrders: (parsed.openOrders as StoredOpenOrder[] | undefined) ?? [],
+        riskPlans: (parsed.riskPlans as PositionRiskPlan[] | undefined) ?? [],
+        riskSnapshots: (parsed.riskSnapshots as RiskSnapshot[] | undefined) ?? [],
         dailyPrices: (parsed.dailyPrices as StoredDailyPrice[] | undefined) ?? [],
         fxRates: (parsed.fxRates as StoredFxRate[] | undefined) ?? [],
         syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
@@ -101,6 +108,8 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
         version: 7,
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
         openOrders: (parsed.openOrders as StoredOpenOrder[] | undefined) ?? [],
+        riskPlans: (parsed.riskPlans as PositionRiskPlan[] | undefined) ?? [],
+        riskSnapshots: (parsed.riskSnapshots as RiskSnapshot[] | undefined) ?? [],
         dailyPrices: [],
         fxRates: [],
         syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
@@ -117,6 +126,8 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
         version: 7,
         platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
         openOrders: [],
+        riskPlans: [],
+        riskSnapshots: [],
         dailyPrices: [],
         fxRates: [],
         syncRuns: [],
@@ -146,10 +157,10 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
           priceRetrievedAt: String(asset.updatedAt ?? new Date().toISOString()), updatedAt: String(asset.updatedAt ?? new Date().toISOString()),
         };
       });
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets" | "compositeIndexResults">), version: 7, manualAssets, platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets" | "compositeIndexResults">), version: 7, manualAssets, platinumPrices: [], openOrders: [], riskPlans: [], riskSnapshots: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [] };
     }
     if (parsed.version === 2) {
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets" | "compositeIndexResults">), version: 7, manualAssets: [], platinumPrices: [], openOrders: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [] };
+      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets" | "compositeIndexResults">), version: 7, manualAssets: [], platinumPrices: [], openOrders: [], riskPlans: [], riskSnapshots: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [] };
     }
     return structuredClone(EMPTY);
 }
@@ -818,6 +829,82 @@ export class LocalStorageAdapter implements StorageAdapter {
     return store.openOrders
       .filter(order => !ownerType || order.ownerType === ownerType)
       .sort((a, b) => (b.updatedAt ?? b.createdAt ?? b.asOfDate).localeCompare(a.updatedAt ?? a.createdAt ?? a.asOfDate));
+  }
+
+  async listPositionRiskPlans(ownerType?: OwnerType): Promise<PositionRiskPlan[]> {
+    const store = await readStore();
+    return [...(store.riskPlans ?? [])]
+      .filter(plan => !ownerType || plan.ownerType === ownerType)
+      .sort((left, right) => left.symbol.localeCompare(right.symbol) || left.accountKey.localeCompare(right.accountKey));
+  }
+
+  async upsertPositionRiskPlan(input: PositionRiskPlanInput): Promise<PositionRiskPlan> {
+    const store = await readStore();
+    const position = input.positionId
+      ? store.positions.find((item) => item.id === input.positionId)
+      : store.positions.find((item) =>
+        (!input.ownerType || item.ownerType === input.ownerType)
+        && (!input.broker || item.broker === input.broker)
+        && (!input.accountKey || item.accountKey === input.accountKey)
+        && normaliseSymbol(item.symbol) === normaliseSymbol(input.symbol ?? "")
+        && item.exchange.trim().toUpperCase() === (input.exchange ?? item.exchange).trim().toUpperCase()
+      );
+    if (!position) throw new Error("Position not found for risk plan.");
+
+    const now = new Date().toISOString();
+    const existingIndex = (store.riskPlans ?? []).findIndex((plan) =>
+      (input.id && plan.id === input.id)
+      || (
+        plan.ownerType === position.ownerType
+        && plan.broker === position.broker
+        && plan.accountKey === position.accountKey
+        && plan.instrumentKey === position.instrumentKey
+      )
+    );
+    const existing = existingIndex >= 0 ? store.riskPlans[existingIndex] : null;
+    const record: PositionRiskPlan = {
+      id: existing?.id ?? input.id ?? randomUUID(),
+      ownerType: position.ownerType,
+      broker: position.broker,
+      accountKey: position.accountKey,
+      positionId: position.id,
+      instrumentKey: position.instrumentKey,
+      symbol: position.symbol,
+      name: position.name,
+      exchange: position.exchange,
+      currency: position.currency,
+      stopType: input.stopType,
+      plannedStopPrice: input.plannedStopPrice ?? null,
+      plannedTargetPrice: input.plannedTargetPrice ?? null,
+      rationale: input.rationale?.trim() || null,
+      invalidationNotes: input.invalidationNotes?.trim() || null,
+      sectorBenchmarkSymbol: input.sectorBenchmarkSymbol?.trim().toUpperCase() || null,
+      reviewStatus: input.reviewStatus?.trim() || null,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    if (existingIndex >= 0) store.riskPlans[existingIndex] = record;
+    else store.riskPlans = [...(store.riskPlans ?? []), record];
+    await writeStore(store);
+    return record;
+  }
+
+  async listRiskSnapshots(scope?: Scope, limit = 120): Promise<RiskSnapshot[]> {
+    const store = await readStore();
+    return [...(store.riskSnapshots ?? [])]
+      .filter(snapshot => !scope || snapshot.scope === scope)
+      .sort((left, right) => right.capturedAt.localeCompare(left.capturedAt))
+      .slice(0, Math.max(1, Math.min(500, limit)));
+  }
+
+  async recordRiskSnapshot(input: Omit<RiskSnapshot, "id" | "capturedAt"> & { capturedAt?: string }): Promise<RiskSnapshot> {
+    const store = await readStore();
+    const snapshot: RiskSnapshot = { ...input, id: randomUUID(), capturedAt: input.capturedAt ?? new Date().toISOString() };
+    store.riskSnapshots = [...(store.riskSnapshots ?? []), snapshot]
+      .sort((left, right) => left.capturedAt.localeCompare(right.capturedAt))
+      .slice(-1000);
+    await writeStore(store);
+    return snapshot;
   }
 
   async listSyncRuns(limit = 20, ownerType?: OwnerType): Promise<SyncRun[]> {
