@@ -656,6 +656,7 @@ export class LocalStorageAdapter implements StorageAdapter {
         result.errors.push(`${symbol}${exchange ? `:${exchange}` : ""} expects ${matching.map((position) => position.currency).join("/")}, not ${currency}.`);
         continue;
       }
+      result.skipped += matching.length - validMatches.length;
       result.matchedInstruments += 1;
       const rateToAud = currency === "AUD" ? 1 : updatePositions ? input.fxRateToAud ?? latestFxRate(store, currency, input.priceDate) : null;
       const priceRecord: StoredDailyPrice = {

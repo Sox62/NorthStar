@@ -228,15 +228,18 @@ export async function recordDailyPricesPostgres(prices: DailyPriceInput[], fxRat
         result.errors.push(`${symbol}${exchange ? `:${exchange}` : ""} has no known instrument to price.`);
         continue;
       }
-      result.matchedInstruments += instruments.rows.length;
+      const compatibleInstruments = instruments.rows.filter((instrument) => normaliseCurrency(instrument.currency) === currency);
+      if (!compatibleInstruments.length) {
+        const expected = [...new Set(instruments.rows.map((instrument) => normaliseCurrency(instrument.currency)))].join("/");
+        result.skipped += instruments.rows.length;
+        result.errors.push(`${symbol}${exchange ? `:${exchange}` : ""} expects ${expected}, not ${currency}.`);
+        continue;
+      }
+      result.matchedInstruments += compatibleInstruments.length;
+      result.skipped += instruments.rows.length - compatibleInstruments.length;
       const rateToAud = currency === "AUD" ? 1 : updatePositions ? input.fxRateToAud ?? await latestFxRate(client, currency, input.priceDate) : null;
 
-      for (const instrument of instruments.rows) {
-        if (normaliseCurrency(instrument.currency) !== currency) {
-          result.skipped += 1;
-          result.errors.push(`${instrument.ticker}:${instrument.exchange} expects ${instrument.currency}, not ${currency}.`);
-          continue;
-        }
+      for (const instrument of compatibleInstruments) {
         const previousPrice = await client.query<{ close: string; price_date: string }>(`
           SELECT close::text,price_date::text
           FROM daily_prices

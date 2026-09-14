@@ -7,6 +7,20 @@ import type { FundamentalResearchDraft, MinerFundamentals, OwnerType, Structural
 
 export const optionalNumber = (value: unknown) => value == null ? undefined : Number(value);
 
+const USD_LISTING_EXCHANGES = new Set(["US", "NYSE", "NASDAQ", "AMEX", "ARCA", "NYSEARCA", "NYSEAMERICAN", "NYSEMKT", "BATS"]);
+const CAD_LISTING_EXCHANGES = new Set(["TSX", "TSE", "TSXV", "TSX/TSXV", "CVE", "V", "TO", "CA", "CN"]);
+const GBP_LISTING_EXCHANGES = new Set(["LSE", "LON", "LN", "GB", "UK"]);
+
+export function instrumentQuoteCurrency(exchange: string, currency: string) {
+  const rawCurrency = currency.trim().toUpperCase();
+  const rawExchange = exchange.trim().toUpperCase();
+  if (rawCurrency && rawCurrency !== "AUD") return rawCurrency;
+  if (USD_LISTING_EXCHANGES.has(rawExchange)) return "USD";
+  if (CAD_LISTING_EXCHANGES.has(rawExchange)) return "CAD";
+  if (GBP_LISTING_EXCHANGES.has(rawExchange)) return "GBP";
+  return rawCurrency || "AUD";
+}
+
 export async function ensurePortfolio(client: PoolClient, ownerType: OwnerType) {
   // Preserve existing installations while correcting the displayed product name.
   const previousProductName = ["North", "Star"].join(" ");
@@ -61,7 +75,17 @@ export async function ensureInstrument(client: PoolClient, input: {
     DO UPDATE SET name=EXCLUDED.name, ticker=EXCLUDED.ticker, exchange=EXCLUDED.exchange,
       currency=EXCLUDED.currency, asset_class=EXCLUDED.asset_class, conid=EXCLUDED.conid, isin=EXCLUDED.isin
     RETURNING id
-  `, [input.source, input.externalKey, input.name, input.ticker, input.exchange, input.currency, input.assetClass, input.conid ?? null, input.isin ?? null]);
+  `, [
+    input.source,
+    input.externalKey,
+    input.name,
+    input.ticker,
+    input.exchange,
+    instrumentQuoteCurrency(input.exchange, input.currency),
+    input.assetClass,
+    input.conid ?? null,
+    input.isin ?? null,
+  ]);
   return result.rows[0].id;
 }
 

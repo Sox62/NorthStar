@@ -169,6 +169,13 @@
       "when": 1788048000000,
       "tag": "0023_us_listing_currency_repair",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788134400000,
+      "tag": "0024_foreign_listing_currency_guardrails",
+      "breakpoints": true
     }
   ]
 }
