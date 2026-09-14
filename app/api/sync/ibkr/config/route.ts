@@ -11,6 +11,11 @@ function tail(value?: string) {
   return value.length <= 4 ? value : value.slice(-4);
 }
 
+function preview(value?: string) {
+  if (!value) return null;
+  return value.length <= 4 ? value : `${value.slice(0, 3)}...${tail(value)}`;
+}
+
 function fingerprint(value?: string) {
   if (!value) return null;
   return createHash("sha256").update(value).digest("hex").slice(0, 12);
@@ -27,6 +32,7 @@ export async function GET(request: Request) {
     activity: config ? {
       envKey: config.queryEnvKey,
       queryIdTail: tail(config.queryId),
+      queryIdPreview: preview(config.queryId),
       token: config.token ? "configured" : "missing",
       tokenEnvKey: config.tokenEnvKey ?? null,
       tokenFingerprint: fingerprint(config.token),
@@ -34,6 +40,7 @@ export async function GET(request: Request) {
     tradeConfirmation: config?.tradeConfirmQueryId ? {
       envKey: config.tradeConfirmQueryEnvKey,
       queryIdTail: tail(config.tradeConfirmQueryId),
+      queryIdPreview: preview(config.tradeConfirmQueryId),
     } : null,
   });
 }

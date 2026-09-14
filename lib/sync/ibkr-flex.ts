@@ -39,8 +39,12 @@ function queryIdTail(queryId: string) {
   return queryId.length <= 4 ? queryId : queryId.slice(-4);
 }
 
+function queryIdPreview(queryId: string) {
+  return queryId.length <= 4 ? queryId : `${queryId.slice(0, 3)}...${queryIdTail(queryId)}`;
+}
+
 function selectedQueryLabel(config: IbkrFlexSyncConfig) {
-  return `${config.queryEnvKey} ending ${queryIdTail(config.queryId)}`;
+  return `${config.queryEnvKey} ${queryIdPreview(config.queryId)}`;
 }
 
 export function ibkrFlexRequestDelayMs() {
