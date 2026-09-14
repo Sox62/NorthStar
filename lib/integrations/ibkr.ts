@@ -525,6 +525,9 @@ export function parseIbkrFlexXml(xml: string, options: { allowTradeConfirmOnly?:
     const shape = flexReportShape(root);
     const response = root.FlexQueryResponse as Record<string, unknown> | undefined;
     if (String(response?.type ?? "").toUpperCase() === "TCF") {
+      if (options.allowTradeConfirmOnly) {
+        return { accountId, fromDate, toDate, whenGenerated, transactions, openPositions, openOrders, navSnapshots, cash, cashBalances };
+      }
       throw new Error(`This is a Trade Confirmation Flex report, not an Activity Flex report.${shape ? ` Detected ${shape}.` : ""} Put this query ID in IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID / IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID, and use an Activity Flex Query ID for IBKR_SMSF_FLEX_QUERY_ID / IBKR_PERSONAL_FLEX_QUERY_ID.`);
     }
     throw new Error(`No IBKR trades, Open Positions, open orders, NAV history or Cash Report were found in this Flex report.${shape ? ` Detected ${shape}.` : ""} Check that IBKR_SMSF_FLEX_QUERY_ID / IBKR_PERSONAL_FLEX_QUERY_ID points to an Activity Statement Flex query with Open Positions, Trades, Cash Report, Forex Balances, Conversion Rates and NAV sections. Trade Confirmation query IDs must be set only in IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID / IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID.`);

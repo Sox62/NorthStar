@@ -168,6 +168,20 @@ test("parseIbkrFlexXml can parse Trade Confirmation reports when explicitly allo
   assert.equal(report.transactions[0]?.price, 3.39);
 });
 
+test("parseIbkrFlexXml allows empty Trade Confirmation reports when explicitly allowed", () => {
+  const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="IBKR SMSF trade confirmations" type="TCF">
+    <FlexStatements count="1">
+      <FlexStatement accountId="U24473088" fromDate="20260914" toDate="20260914" />
+    </FlexStatements>
+  </FlexQueryResponse>`, { allowTradeConfirmOnly: true });
+
+  assert.equal(report.accountId, "U24473088");
+  assert.equal(report.fromDate, "2026-09-14");
+  assert.equal(report.toDate, "2026-09-14");
+  assert.equal(report.transactions.length, 0);
+  assert.equal(report.openPositions.length, 0);
+});
+
 
 test("parseIbkrFlexXml does not treat USD-base trade confirmation FX of 1 as AUD conversion", () => {
   const report = parseIbkrFlexXml(`<FlexQueryResponse queryName="IBKR personal trade confirmations" type="TCF">
