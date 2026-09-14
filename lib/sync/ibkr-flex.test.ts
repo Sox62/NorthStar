@@ -44,6 +44,7 @@ test("configuredIbkrFlexSyncs keeps the legacy single-query SMSF setup working",
   assert.ok(config);
   assert.equal(config.ownerType, "SMSF");
   assert.equal(config.token, "shared-token");
+  assert.equal(config.tokenEnvKey, "IBKR_FLEX_TOKEN");
   assert.equal(config.queryId, "legacy-query");
   assert.equal(config.queryEnvKey, "IBKR_FLEX_QUERY_ID");
   assert.equal(config.source, "legacy");
@@ -62,6 +63,7 @@ test("configuredIbkrFlexSyncs supports legacy SMSF plus Personal query", () => {
   assert.equal(ibkrFlexConfigForOwner("PERSONAL")?.queryId, "personal-query");
   assert.equal(ibkrFlexConfigForOwner("PERSONAL")?.queryEnvKey, "IBKR_PERSONAL_FLEX_QUERY_ID");
   assert.equal(ibkrFlexConfigForOwner("PERSONAL")?.token, "shared-token");
+  assert.equal(ibkrFlexConfigForOwner("PERSONAL")?.tokenEnvKey, "IBKR_FLEX_TOKEN");
 });
 
 test("owner-specific IBKR Flex token overrides the shared token", () => {
@@ -72,6 +74,7 @@ test("owner-specific IBKR Flex token overrides the shared token", () => {
   const config = ibkrFlexConfigForOwner("PERSONAL");
 
   assert.equal(config?.token, "personal-token");
+  assert.equal(config?.tokenEnvKey, "IBKR_PERSONAL_FLEX_TOKEN");
   assert.equal(config?.queryId, "personal-query");
 });
 

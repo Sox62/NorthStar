@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { ibkrFlexConfigForOwner } from "@/lib/sync/ibkr-flex";
 import type { OwnerType } from "@/lib/storage";
@@ -8,6 +9,11 @@ export const runtime = "nodejs";
 function tail(value?: string) {
   if (!value) return null;
   return value.length <= 4 ? value : value.slice(-4);
+}
+
+function fingerprint(value?: string) {
+  if (!value) return null;
+  return createHash("sha256").update(value).digest("hex").slice(0, 12);
 }
 
 export async function GET(request: Request) {
@@ -22,6 +28,8 @@ export async function GET(request: Request) {
       envKey: config.queryEnvKey,
       queryIdTail: tail(config.queryId),
       token: config.token ? "configured" : "missing",
+      tokenEnvKey: config.tokenEnvKey ?? null,
+      tokenFingerprint: fingerprint(config.token),
     } : null,
     tradeConfirmation: config?.tradeConfirmQueryId ? {
       envKey: config.tradeConfirmQueryEnvKey,

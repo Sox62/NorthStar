@@ -4,6 +4,7 @@ import type { ImportResult, OwnerType, StorageAdapter, SyncTrigger } from "@/lib
 export type IbkrFlexSyncConfig = {
   ownerType: OwnerType;
   token: string;
+  tokenEnvKey?: string;
   queryId: string;
   queryEnvKey: string;
   tradeConfirmQueryId?: string;
@@ -70,14 +71,22 @@ function pushConfig(configs: IbkrFlexSyncConfig[], config: IbkrFlexSyncConfig) {
   if (!duplicate) configs.push(config);
 }
 
+function selectedToken(ownerSpecificToken: string, ownerSpecificEnvKey: string, sharedToken: string) {
+  if (ownerSpecificToken) return { token: ownerSpecificToken, tokenEnvKey: ownerSpecificEnvKey };
+  return { token: sharedToken, tokenEnvKey: sharedToken ? "IBKR_FLEX_TOKEN" : undefined };
+}
+
 export function configuredIbkrFlexSyncs(): IbkrFlexSyncConfig[] {
   const configs: IbkrFlexSyncConfig[] = [];
   const sharedToken = clean(process.env.IBKR_FLEX_TOKEN);
   const legacyQueryId = clean(process.env.IBKR_FLEX_QUERY_ID);
+  const personalToken = selectedToken(clean(process.env.IBKR_PERSONAL_FLEX_TOKEN), "IBKR_PERSONAL_FLEX_TOKEN", sharedToken);
+  const smsfToken = selectedToken(clean(process.env.IBKR_SMSF_FLEX_TOKEN), "IBKR_SMSF_FLEX_TOKEN", sharedToken);
 
   pushConfig(configs, {
     ownerType: "PERSONAL",
-    token: clean(process.env.IBKR_PERSONAL_FLEX_TOKEN) || sharedToken,
+    token: personalToken.token,
+    tokenEnvKey: personalToken.tokenEnvKey,
     queryId: clean(process.env.IBKR_PERSONAL_FLEX_QUERY_ID),
     queryEnvKey: "IBKR_PERSONAL_FLEX_QUERY_ID",
     tradeConfirmQueryId: clean(process.env.IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID),
@@ -88,7 +97,8 @@ export function configuredIbkrFlexSyncs(): IbkrFlexSyncConfig[] {
 
   pushConfig(configs, {
     ownerType: "SMSF",
-    token: clean(process.env.IBKR_SMSF_FLEX_TOKEN) || sharedToken,
+    token: smsfToken.token,
+    tokenEnvKey: smsfToken.tokenEnvKey,
     queryId: clean(process.env.IBKR_SMSF_FLEX_QUERY_ID),
     queryEnvKey: "IBKR_SMSF_FLEX_QUERY_ID",
     tradeConfirmQueryId: clean(process.env.IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID),
@@ -102,6 +112,7 @@ export function configuredIbkrFlexSyncs(): IbkrFlexSyncConfig[] {
     pushConfig(configs, {
       ownerType: legacyOwner,
       token: sharedToken,
+      tokenEnvKey: sharedToken ? "IBKR_FLEX_TOKEN" : undefined,
       queryId: legacyQueryId,
       queryEnvKey: "IBKR_FLEX_QUERY_ID",
       tradeConfirmQueryId: clean(process.env.IBKR_TRADE_CONFIRM_FLEX_QUERY_ID),
