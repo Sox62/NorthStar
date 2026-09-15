@@ -15,8 +15,7 @@ import type {
   StoredOpenOrder,
   StoredPosition,
 } from "@/lib/storage";
-import { recordedSectorForInstrument } from "@/southernstar/lib/sector-map";
-import type { Sector } from "@/southernstar/types";
+import { SECTOR_COLORS, type Sector } from "@/southernstar/types";
 
 export const RISK_CALCULATION_VERSION = "stops-orders-v1";
 
@@ -35,6 +34,13 @@ const sectorBenchmarkDefaults: Partial<Record<Sector, string>> = {
   Technology: "QQQ",
   "Broad equities": "SPY",
 };
+
+const sectorNames = new Set<string>(Object.keys(SECTOR_COLORS));
+
+function recordedSectorForPosition(position: Pick<StoredPosition, "assetClass">): Sector {
+  const recorded = position.assetClass.trim();
+  return sectorNames.has(recorded) ? recorded as Sector : "Broad equities";
+}
 
 export type BrokerOrderPurpose = OrderPurpose | "UNCLASSIFIED";
 export type RelativeStrengthStatus = "OUTPERFORMING" | "IMPROVING" | "NEUTRAL" | "UNDERPERFORMING" | "NO_BENCHMARK";
@@ -557,7 +563,7 @@ export async function buildStopsRiskDashboard(storage: StorageAdapter, scope: Sc
     const rewardRiskRatio = targetRewardAud != null && riskFromCurrentAud != null && riskFromCurrentAud > 0
       ? targetRewardAud / riskFromCurrentAud
       : null;
-    const sector = recordedSectorForInstrument(position);
+    const sector = recordedSectorForPosition(position);
     const sectorRelativeStrength = relativeStrength(position, plan, sector, pricesBySymbol);
     const stopOrders = matchStopsForPosition(position, activeOrders);
     const brokerStop = brokerStopState(position, plan, stopOrders, capturedAt);
