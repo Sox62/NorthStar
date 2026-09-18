@@ -58,8 +58,8 @@ type PgPasskeyRow = {
   transports: AuthenticatorTransportFuture[] | null;
 };
 
-const AUTH_FILE = process.env.NORTH_STAR_AUTH_FILE || path.join(process.cwd(), ".southern-star", "auth.json");
-const LEGACY_AUTH_FILE = path.join(process.cwd(), ".north-star", "auth.json");
+const AUTH_FILE = process.env.NORTH_STAR_AUTH_FILE || path.join(/*turbopackIgnore: true*/ process.cwd(), ".southern-star", "auth.json");
+const LEGACY_AUTH_FILE = path.join(/*turbopackIgnore: true*/ process.cwd(), ".north-star", "auth.json");
 const EMPTY: AuthLocalStore = { version: 1, users: [], passkeys: [], challenges: [] };
 
 function isExpired(challenge: AuthChallenge) {
@@ -68,12 +68,12 @@ function isExpired(challenge: AuthChallenge) {
 
 async function readLocalStore(): Promise<AuthLocalStore> {
   try {
-    const store = JSON.parse(await readFile(AUTH_FILE, "utf8")) as AuthLocalStore;
+    const store = JSON.parse(await readFile(/*turbopackIgnore: true*/ AUTH_FILE, "utf8")) as AuthLocalStore;
     return { ...EMPTY, ...store, challenges: (store.challenges ?? []).filter((challenge) => !isExpired(challenge)) };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT" && AUTH_FILE !== LEGACY_AUTH_FILE) {
       try {
-        const store = JSON.parse(await readFile(LEGACY_AUTH_FILE, "utf8")) as AuthLocalStore;
+        const store = JSON.parse(await readFile(/*turbopackIgnore: true*/ LEGACY_AUTH_FILE, "utf8")) as AuthLocalStore;
         return { ...EMPTY, ...store, challenges: (store.challenges ?? []).filter((challenge) => !isExpired(challenge)) };
       } catch (legacyError) {
         if ((legacyError as NodeJS.ErrnoException).code === "ENOENT") return structuredClone(EMPTY);
@@ -86,10 +86,10 @@ async function readLocalStore(): Promise<AuthLocalStore> {
 }
 
 async function writeLocalStore(store: AuthLocalStore) {
-  await mkdir(path.dirname(AUTH_FILE), { recursive: true });
+  await mkdir(path.dirname(/*turbopackIgnore: true*/ AUTH_FILE), { recursive: true });
   const temp = `${AUTH_FILE}.tmp`;
-  await writeFile(temp, JSON.stringify(store, null, 2));
-  await rename(temp, AUTH_FILE);
+  await writeFile(/*turbopackIgnore: true*/ temp, JSON.stringify(store, null, 2));
+  await rename(/*turbopackIgnore: true*/ temp, /*turbopackIgnore: true*/ AUTH_FILE);
 }
 
 export class AuthStore {

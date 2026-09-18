@@ -3,6 +3,9 @@ import { describe, it } from "node:test";
 import { buildStopsRiskDashboard } from "./stops";
 import type { DashboardData, PositionRiskPlan, PriceBook, Scope, StorageAdapter, StoredOpenOrder, StoredPosition } from "@/lib/storage";
 
+const freshBrokerOrderDate = new Date().toISOString().slice(0, 10);
+const freshBrokerOrderTimestamp = `${freshBrokerOrderDate}T00:00:00.000Z`;
+
 const basePosition: StoredPosition = {
   id: "pos-cde",
   ownerType: "PERSONAL",
@@ -116,8 +119,8 @@ function stopOrder(stopPrice = 8, quantity = 100): StoredOpenOrder {
     averagePrice: null,
     description: "",
     createdAt: null,
-    updatedAt: "2026-09-14T00:00:00.000Z",
-    asOfDate: "2026-09-14",
+    updatedAt: freshBrokerOrderTimestamp,
+    asOfDate: freshBrokerOrderDate,
     source: "test",
   };
 }
