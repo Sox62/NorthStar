@@ -1,19 +1,17 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
 import {
-  buildDashboardModel,
   buildManualAssetValuation,
   buildPositionPriceValuation,
   manualAssetPosition,
   maskAccount,
-  ownerForScope,
 } from "@/lib/core/accounting";
-import { defaultAllocationTargets, normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
+import { normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
 import type { Sector } from "@/southernstar/types";
 import { resolveIbkrCurrentPositions } from "./ibkr-positions";
+import { dashboardFromStore, latestFxRate, normaliseCurrency, normaliseSymbol, priceBookFromStore } from "./local-analytics";
+import { readStore, writeStore } from "./local-store";
 import type {
   CashAccount,
   AllocationTarget,
@@ -49,145 +47,10 @@ import type {
   StoredFxRate,
   StorageAdapter,
   SyncRun,
-  StoredPosition,
   StoredOpenOrder,
 } from "./types";
 
-const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(process.cwd(), ".southern-star", "data.json");
-const LEGACY_DATA_FILE = path.join(process.cwd(), ".north-star", "data.json");
 export const PASTED_ORDER_SOURCE = "IBKR paste";
-
-const EMPTY: LocalStore = { version: 7, transactions: [], positions: [], openOrders: [], riskPlans: [], riskSnapshots: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [], imports: [] };
-
-function normalisePhysicalMetalType(value: unknown) {
-  return value === "GOLD" || value === "SILVER" || value === "PLATINUM" || value === "PALLADIUM" ? value : "PLATINUM";
-}
-
-async function parseStoreFile(file: string): Promise<LocalStore> {
-  const parsed = JSON.parse(await readFile(file, "utf8")) as Record<string, unknown>;
-    if (parsed.version === 7) {
-      return {
-        ...(parsed as unknown as LocalStore),
-        platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
-        openOrders: (parsed.openOrders as StoredOpenOrder[] | undefined) ?? [],
-        riskPlans: (parsed.riskPlans as PositionRiskPlan[] | undefined) ?? [],
-        riskSnapshots: (parsed.riskSnapshots as RiskSnapshot[] | undefined) ?? [],
-        dailyPrices: (parsed.dailyPrices as StoredDailyPrice[] | undefined) ?? [],
-        fxRates: (parsed.fxRates as StoredFxRate[] | undefined) ?? [],
-        syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
-        allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
-        sectorOverrides: (parsed.sectorOverrides as SectorOverride[] | undefined) ?? [],
-        minerFundamentals: (parsed.minerFundamentals as MinerFundamentals[] | undefined) ?? [],
-        fundamentalResearchDrafts: (parsed.fundamentalResearchDrafts as FundamentalResearchDraft[] | undefined) ?? [],
-        structuralLevels: (parsed.structuralLevels as StructuralLevel[] | undefined) ?? [],
-        compositeIndexResults: (parsed.compositeIndexResults as CompositeIndexResult[] | undefined) ?? [],
-      };
-    }
-    if (parsed.version === 6) {
-      return {
-        ...(parsed as unknown as Omit<LocalStore, "version" | "compositeIndexResults">),
-        version: 7,
-        platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
-        openOrders: (parsed.openOrders as StoredOpenOrder[] | undefined) ?? [],
-        riskPlans: (parsed.riskPlans as PositionRiskPlan[] | undefined) ?? [],
-        riskSnapshots: (parsed.riskSnapshots as RiskSnapshot[] | undefined) ?? [],
-        dailyPrices: (parsed.dailyPrices as StoredDailyPrice[] | undefined) ?? [],
-        fxRates: (parsed.fxRates as StoredFxRate[] | undefined) ?? [],
-        syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
-        allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
-        sectorOverrides: (parsed.sectorOverrides as SectorOverride[] | undefined) ?? [],
-        minerFundamentals: (parsed.minerFundamentals as MinerFundamentals[] | undefined) ?? [],
-        fundamentalResearchDrafts: (parsed.fundamentalResearchDrafts as FundamentalResearchDraft[] | undefined) ?? [],
-        structuralLevels: (parsed.structuralLevels as StructuralLevel[] | undefined) ?? [],
-        compositeIndexResults: [],
-      };
-    }
-    if (parsed.version === 5) {
-      return {
-        ...(parsed as unknown as Omit<LocalStore, "version" | "dailyPrices" | "fxRates">),
-        version: 7,
-        platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
-        openOrders: (parsed.openOrders as StoredOpenOrder[] | undefined) ?? [],
-        riskPlans: (parsed.riskPlans as PositionRiskPlan[] | undefined) ?? [],
-        riskSnapshots: (parsed.riskSnapshots as RiskSnapshot[] | undefined) ?? [],
-        dailyPrices: [],
-        fxRates: [],
-        syncRuns: (parsed.syncRuns as SyncRun[] | undefined) ?? [],
-        allocationTargets: normaliseAllocationTargets((parsed.allocationTargets as AllocationTarget[] | undefined) ?? []),
-        minerFundamentals: (parsed.minerFundamentals as MinerFundamentals[] | undefined) ?? [],
-        fundamentalResearchDrafts: (parsed.fundamentalResearchDrafts as FundamentalResearchDraft[] | undefined) ?? [],
-        structuralLevels: (parsed.structuralLevels as StructuralLevel[] | undefined) ?? [],
-        compositeIndexResults: [],
-      };
-    }
-    if (parsed.version === 4) {
-      return {
-        ...(parsed as unknown as Omit<LocalStore, "version" | "syncRuns">),
-        version: 7,
-        platinumPrices: (parsed.platinumPrices as PlatinumPrice[] | undefined) ?? [],
-        openOrders: [],
-        riskPlans: [],
-        riskSnapshots: [],
-        dailyPrices: [],
-        fxRates: [],
-        syncRuns: [],
-        allocationTargets: defaultAllocationTargets(),
-        minerFundamentals: [],
-        fundamentalResearchDrafts: [],
-        structuralLevels: [],
-        compositeIndexResults: [],
-      };
-    }
-    if (parsed.version === 3) {
-      const legacyAssets = (parsed.manualAssets as Array<Record<string, unknown>> | undefined) ?? [];
-      const manualAssets: ManualAsset[] = legacyAssets.map(asset => {
-        const quantityTroyOz = Number(asset.quantityTroyOz ?? 0);
-        const quantityKg = quantityTroyOz / 32.1507465686;
-        const totalCostAud = Number(asset.totalCostAud ?? 0);
-        const buybackAudPerKg = Number(asset.currentPriceAudPerOz ?? 0) * 32.1507465686;
-        const marketValueAud = quantityKg * buybackAudPerKg;
-        const pnlAud = marketValueAud - totalCostAud;
-        return {
-          id: String(asset.id), ownerType: asset.ownerType as OwnerType, assetType: normalisePhysicalMetalType(asset.assetType), name: String(asset.name ?? "Physical platinum"),
-          quantityKg, totalCostAud, costAudPerKg: quantityKg ? totalCostAud / quantityKg : 0,
-          buybackAudPerKg, retailAudPerKg: buybackAudPerKg, marketValueAud, pnlAud,
-          pnlPercent: totalCostAud ? pnlAud / totalCostAud * 100 : 0,
-          dealerSpreadAudPerKg: 0, dealerSpreadPercent: 0, priceProvider: "Legacy manual price",
-          priceSourceUrl: "", purchaseDate: String(asset.purchaseDate), asOfDate: String(asset.asOfDate),
-          priceRetrievedAt: String(asset.updatedAt ?? new Date().toISOString()), updatedAt: String(asset.updatedAt ?? new Date().toISOString()),
-        };
-      });
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets" | "compositeIndexResults">), version: 7, manualAssets, platinumPrices: [], openOrders: [], riskPlans: [], riskSnapshots: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [] };
-    }
-    if (parsed.version === 2) {
-      return { ...(parsed as unknown as Omit<LocalStore, "version" | "manualAssets" | "platinumPrices" | "dailyPrices" | "fxRates" | "syncRuns" | "allocationTargets" | "compositeIndexResults">), version: 7, manualAssets: [], platinumPrices: [], openOrders: [], riskPlans: [], riskSnapshots: [], dailyPrices: [], fxRates: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [] };
-    }
-    return structuredClone(EMPTY);
-}
-
-async function readStore(): Promise<LocalStore> {
-  try {
-    return await parseStoreFile(DATA_FILE);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT" && DATA_FILE !== LEGACY_DATA_FILE) {
-      try {
-        return await parseStoreFile(LEGACY_DATA_FILE);
-      } catch (legacyError) {
-        if ((legacyError as NodeJS.ErrnoException).code === "ENOENT") return structuredClone(EMPTY);
-        throw legacyError;
-      }
-    }
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return structuredClone(EMPTY);
-    throw error;
-  }
-}
-
-async function writeStore(store: LocalStore) {
-  await mkdir(path.dirname(DATA_FILE), { recursive: true });
-  const temporary = `${DATA_FILE}.${process.pid}.tmp`;
-  await writeFile(temporary, JSON.stringify(store, null, 2), "utf8");
-  await rename(temporary, DATA_FILE);
-}
 
 function replaceIbkrOpenPositions(store: LocalStore, report: IbkrFlexReport, ownerType: OwnerType, accountKey: string) {
   store.positions = store.positions.filter(position => !(position.ownerType === ownerType && position.broker === "IBKR" && position.accountKey === accountKey));
@@ -324,103 +187,6 @@ function buildSyncRun(input: NewSyncRun): SyncRun {
     message: input.message ?? null,
     error: input.error ?? null,
   };
-}
-
-function normaliseCurrency(value: string) {
-  return value.trim().toUpperCase();
-}
-
-function normaliseSymbol(value: string) {
-  return value.trim().toUpperCase();
-}
-
-function isPriceablePosition(position: StoredPosition) {
-  const symbol = normaliseSymbol(position.symbol);
-  const exchange = position.exchange.trim().toUpperCase();
-  if (exchange === "IDEALFX" || exchange.includes("FOREX")) return false;
-  if (/^[A-Z]{3}[./][A-Z]{3}$/.test(symbol)) return false;
-  return true;
-}
-
-function latestFxRate(store: LocalStore, currency: string, date: string) {
-  if (normaliseCurrency(currency) === "AUD") return 1;
-  const rates = store.fxRates
-    .filter((rate) => normaliseCurrency(rate.currency) === normaliseCurrency(currency) && rate.rateDate <= date)
-    .sort((a, b) => b.rateDate.localeCompare(a.rateDate) || b.retrievedAt.localeCompare(a.retrievedAt));
-  return rates[0]?.rateToAud ?? null;
-}
-
-function priceBookFromStore(store: LocalStore, limit = 80): PriceBook {
-  const instrumentMap = new Map<string, PriceBook["instruments"][number]>();
-  for (const position of store.positions) {
-    if (!isPriceablePosition(position)) continue;
-    const key = `${normaliseSymbol(position.symbol)}:${position.exchange.trim().toUpperCase()}`;
-    const current = instrumentMap.get(key);
-    if (current) {
-      current.positionCount += 1;
-      current.quantity += position.quantity;
-      current.marketValueAud += position.marketValueAud;
-      if (!current.asOfDate || current.asOfDate < position.asOfDate) {
-        current.asOfDate = position.asOfDate;
-        current.lastPrice = position.lastPrice;
-      }
-    } else {
-      instrumentMap.set(key, {
-        symbol: position.symbol,
-        exchange: position.exchange,
-        name: position.name,
-        currency: position.currency,
-        assetClass: classifyAsset(position.symbol, `${position.name} ${position.assetClass}`),
-        positionCount: 1,
-        quantity: position.quantity,
-        marketValueAud: position.marketValueAud,
-        lastPrice: position.lastPrice,
-        asOfDate: position.asOfDate,
-      });
-    }
-  }
-  return {
-    instruments: [...instrumentMap.values()].sort((a, b) => b.marketValueAud - a.marketValueAud),
-    prices: [
-      ...store.dailyPrices,
-      ...store.platinumPrices.map((price) => ({
-        id: `platinum-${price.priceDate}`,
-        instrumentId: null,
-        symbol: "PLATINUM",
-        exchange: "PHYSICAL",
-        name: "Physical platinum",
-        currency: "AUD",
-        close: price.buybackAudPerKg,
-        priceDate: price.priceDate,
-        source: `${price.provider} buyback`,
-        retrievedAt: price.retrievedAt,
-      } satisfies StoredDailyPrice)),
-    ].sort((a, b) => b.priceDate.localeCompare(a.priceDate) || b.retrievedAt.localeCompare(a.retrievedAt)).slice(0, limit),
-    fxRates: [...store.fxRates].sort((a, b) => b.rateDate.localeCompare(a.rateDate) || b.retrievedAt.localeCompare(a.retrievedAt)).slice(0, limit),
-  };
-}
-
-function dashboardFromStore(store: LocalStore, scope: Scope): DashboardData {
-  const ownerType = ownerForScope(scope);
-  const importedPositions = store.positions.filter(position => !ownerType || position.ownerType === ownerType);
-  const manualAssets = store.manualAssets.filter(asset => !ownerType || asset.ownerType === ownerType);
-  const cashAccounts = store.cashAccounts.filter(account => !ownerType || account.ownerType === ownerType);
-  const transactions = store.transactions.filter(transaction => !ownerType || transaction.ownerType === ownerType);
-  const imports = store.imports.filter(record => !ownerType || record.ownerType === ownerType);
-
-  return buildDashboardModel({
-    sectorOverrides: store.sectorOverrides,
-    scope,
-    storageMode: "local-file",
-    positions: importedPositions,
-    manualAssets,
-    cashAccounts,
-    transactions,
-    imports,
-    snapshots: store.snapshots.filter(snapshot => !ownerType || snapshot.ownerType === ownerType),
-    syncRuns: store.syncRuns,
-    allocationTargets: store.allocationTargets,
-  });
 }
 
 export class LocalStorageAdapter implements StorageAdapter {
