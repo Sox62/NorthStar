@@ -41,7 +41,7 @@ const SYMBOL_SECTORS: Record<string, Sector> = {
   URNM: "Uranium miners",
   UUUU: "Uranium miners",
 
-  LAM: "Uranium explorers",
+  LAM: "Uranium miners",
   LEU: "Uranium miners",
   SLX: "Uranium miners",
 
@@ -82,7 +82,8 @@ export function classifyAsset(symbol: string, name: string, overrides?: Record<s
   if (/RHODIUM|XRH/.test(text)) return "Rhodium metal";
   if (/GOLD BULLION|PHYSICAL GOLD|PERTH MINT GOLD|PMGOLD/.test(text)) return "Gold bullion";
   if (/SILVER BULLION|SILVER PHYSICAL|ETPMAG|BULLION/.test(text)) return "Silver bullion";
-  if (/LARAMIDE|U3O8|U308|URANIUM EXPLOR/.test(text)) return "Uranium explorers";
+  if (/U3O8|U308|URANIUM EXPLOR/.test(text)) return "Uranium explorers";
+  if (/LARAMIDE/.test(text)) return "Uranium miners";
   if (/URANIUM|NUCLEAR|NUSCALE|PALADIN|BANNERMAN|ENCORE/.test(text)) return "Uranium miners";
   if (/SILVER|COEUR|HECLA/.test(text)) return "Silver miners";
   if (/GOLD|BARRICK|VAULT|WESTERN COPPER/.test(text)) return "Gold miners";

@@ -5,12 +5,12 @@ import { recordedSectorForInstrument, sectorForInstrument } from "@/southernstar
 
 test("classifyAsset preserves known SouthernStar exceptions", () => {
   assert.equal(classifyAsset("VELO", "Velocity Composites"), "Technology");
-  assert.equal(classifyAsset("LAM", "Laramide Resources"), "Uranium explorers");
+  assert.equal(classifyAsset("LAM", "Laramide Resources"), "Uranium miners");
 });
 
 test("sectorForInstrument maps live exceptions to the intended dashboard sectors", () => {
   assert.equal(sectorForInstrument({ symbol: "VELO", name: "Velocity Composites", assetClass: "Technology" }), "Technology");
-  assert.equal(sectorForInstrument({ symbol: "LAM", name: "Laramide Resources", assetClass: "Broad equities" }), "Uranium explorers");
+  assert.equal(sectorForInstrument({ symbol: "LAM", name: "Laramide Resources", assetClass: "Broad equities" }), "Uranium miners");
 });
 
 test("recordedSectorForInstrument trusts dashboard-applied sector overrides", () => {
