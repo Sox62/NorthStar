@@ -1,0 +1,57 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { dashboardToSouthernStarHoldings } from "./southernstar-adapter";
+import type { DashboardData } from "@/lib/storage";
+
+test("dashboardToSouthernStarHoldings preserves recorded sector overrides for Sectors", () => {
+  const data: DashboardData = {
+    scope: "personal",
+    storageMode: "postgresql",
+    totalValue: 10_000,
+    investedValue: 10_000,
+    cashValue: 0,
+    dailyMovement: 0,
+    totalReturn: 0,
+    totalReturnPercent: 0,
+    holdings: [{
+      id: "smr-stanmore",
+      ownerType: "PERSONAL",
+      broker: "Directshares",
+      accountKey: "personal",
+      instrumentKey: "Directshares:SMR:ASX",
+      symbol: "SMR",
+      name: "Stanmore Resources",
+      exchange: "ASX",
+      currency: "AUD",
+      assetClass: "Coal",
+      quantity: 100,
+      lastPrice: 10,
+      averageCostAud: 8,
+      costAud: 800,
+      marketValueAud: 1000,
+      dayGainAud: 0,
+      pnlAud: 200,
+      pnlPercent: 25,
+      valuationBasis: "market",
+      asOfDate: "2026-09-18",
+      source: "test",
+      weight: 10,
+    }],
+    cashAccounts: [],
+    allocations: [],
+    performance: [],
+    periodReturns: [],
+    xirr: { valuePercent: null, startDate: null, endDate: null, cashFlowCount: 0, fallbackPositionCount: 0, terminalValue: 0, note: "" },
+    income: { periodStart: "", periodEnd: "", dividendCount: 0, netCashAud: 0, taxWithheldAud: 0, frankingCreditsAud: 0, grossIncomeAud: 0, grossedUpYieldPercent: null, symbols: [], note: "" },
+    allocationTargets: [],
+    currencyExposure: [],
+    accounts: [],
+    syncRuns: [],
+    freshness: [],
+    provisionalValue: 0,
+    currentValue: 10_000,
+    lastUpdated: null,
+  };
+
+  assert.equal(dashboardToSouthernStarHoldings(data)[0]?.sector, "Coal");
+});

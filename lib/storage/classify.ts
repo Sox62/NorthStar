@@ -35,7 +35,6 @@ const SYMBOL_SECTORS: Record<string, Sector> = {
   NXG: "Uranium miners",
   NUKZ: "Uranium miners",
   PDN: "Uranium miners",
-  SMR: "Uranium miners",
   U: "Uranium miners",
   "U.UN": "Uranium miners",
   URA: "Uranium miners",
@@ -83,14 +82,14 @@ export function classifyAsset(symbol: string, name: string, overrides?: Record<s
   if (/RHODIUM|XRH/.test(text)) return "Rhodium metal";
   if (/GOLD BULLION|PHYSICAL GOLD|PERTH MINT GOLD|PMGOLD/.test(text)) return "Gold bullion";
   if (/SILVER BULLION|SILVER PHYSICAL|ETPMAG|BULLION/.test(text)) return "Silver bullion";
-  if (/VELO|VELOCITY|TECH|SOFTWARE|DIGITAL|SEMICONDUCTOR/.test(text)) return "Technology";
   if (/LARAMIDE|U3O8|U308|URANIUM EXPLOR/.test(text)) return "Uranium explorers";
-  if (/URANIUM|NUCLEAR|PALADIN|BANNERMAN|ENCORE/.test(text)) return "Uranium miners";
+  if (/URANIUM|NUCLEAR|NUSCALE|PALADIN|BANNERMAN|ENCORE/.test(text)) return "Uranium miners";
   if (/SILVER|COEUR|HECLA/.test(text)) return "Silver miners";
   if (/GOLD|BARRICK|VAULT|WESTERN COPPER/.test(text)) return "Gold miners";
   if (/COPPER|CUPRIC/.test(text)) return "Copper miners";
-  if (/\bCOAL\b|COKING|THERMAL COAL|WHITEHAVEN|PEABODY/.test(text)) return "Coal";
+  if (/\bCOAL\b|COKING|THERMAL COAL|STANMORE|WHITEHAVEN|PEABODY/.test(text)) return "Coal";
   if (/AGRICULTUR|WHEAT|CORN|SOYBEAN|SUGAR|COTTON|COFFEE|LIVESTOCK/.test(text)) return "Soft commodities";
   if (/OIL|ENERGY|EXXON|ECOPETROL|PETROL/.test(text)) return "Oil";
+  if (/VELO|VELOCITY|TECH|SOFTWARE|DIGITAL|SEMICONDUCTOR/.test(text)) return "Technology";
   return "Broad equities";
 }

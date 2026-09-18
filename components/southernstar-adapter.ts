@@ -1,5 +1,5 @@
 import type { DashboardData, Scope } from "@/lib/storage";
-import { sectorForInstrument } from "@/southernstar/lib/sector-map";
+import { recordedSectorForInstrument } from "@/southernstar/lib/sector-map";
 import type { Holding } from "@/southernstar/types";
 
 export type AccountSummary = {
@@ -23,7 +23,7 @@ export function dashboardToSouthernStarHoldings(data: DashboardData): Holding[] 
     symbol: position.symbol,
     name: position.name,
     ownerType: position.ownerType,
-    sector: sectorForInstrument(position),
+    sector: recordedSectorForInstrument(position),
     units: position.quantity,
     costAud: position.costAud,
     marketValueAud: position.marketValueAud,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { classifyAsset } from "./classify";
-import { sectorForInstrument } from "@/southernstar/lib/sector-map";
+import { recordedSectorForInstrument, sectorForInstrument } from "@/southernstar/lib/sector-map";
 
 test("classifyAsset preserves known SouthernStar exceptions", () => {
   assert.equal(classifyAsset("VELO", "Velocity Composites"), "Technology");
@@ -11,6 +11,12 @@ test("classifyAsset preserves known SouthernStar exceptions", () => {
 test("sectorForInstrument maps live exceptions to the intended dashboard sectors", () => {
   assert.equal(sectorForInstrument({ symbol: "VELO", name: "Velocity Composites", assetClass: "Technology" }), "Technology");
   assert.equal(sectorForInstrument({ symbol: "LAM", name: "Laramide Resources", assetClass: "Broad equities" }), "Uranium explorers");
+});
+
+test("recordedSectorForInstrument trusts dashboard-applied sector overrides", () => {
+  assert.equal(classifyAsset("SMR", "Stanmore Resources"), "Coal");
+  assert.equal(classifyAsset("SMR", "NuScale Power"), "Uranium miners");
+  assert.equal(recordedSectorForInstrument({ symbol: "SMR", name: "Stanmore Resources", assetClass: "Coal" }), "Coal");
 });
 
 test("classifyAsset maps known SouthernStar resource holdings and unknown broad assets", () => {
