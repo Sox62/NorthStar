@@ -190,6 +190,13 @@
       "when": 1788307200000,
       "tag": "0026_barrick_name_repair",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1788393600000,
+      "tag": "0027_silver_miner_name_repair",
+      "breakpoints": true
     }
   ]
 }

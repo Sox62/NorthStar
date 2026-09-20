@@ -8,6 +8,13 @@ test("canonicalInstrumentName names Barrick's B listing", () => {
   assert.equal(canonicalInstrumentName("B", "Barrick Gold Corporation"), "Barrick Mining Corporation");
 });
 
+test("canonicalInstrumentName names key silver miners", () => {
+  assert.equal(canonicalInstrumentName("EDR", "EDR"), "Endeavour Silver Corp");
+  assert.equal(canonicalInstrumentName("edr", "Endeavour Silver Corp."), "Endeavour Silver Corp");
+  assert.equal(canonicalInstrumentName("HL", "Hecla Mining Company"), "Hecla");
+  assert.equal(canonicalInstrumentName("hl", undefined), "Hecla");
+});
+
 test("canonicalInstrumentName leaves unlisted instruments alone", () => {
   assert.equal(canonicalInstrumentName("CDE", "Coeur Mining"), "Coeur Mining");
   assert.equal(canonicalInstrumentName("ASL", undefined), "ASL");

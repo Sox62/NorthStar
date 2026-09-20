@@ -1,5 +1,7 @@
 const CANONICAL_INSTRUMENT_NAMES: Record<string, string> = {
   B: "Barrick Mining Corporation",
+  EDR: "Endeavour Silver Corp",
+  HL: "Hecla",
 };
 
 function normaliseSymbol(value: string) {
