@@ -15,6 +15,11 @@ test("canonicalInstrumentName names key silver miners", () => {
   assert.equal(canonicalInstrumentName("hl", undefined), "Hecla");
 });
 
+test("canonicalInstrumentName names Deep Yellow's DYL listing", () => {
+  assert.equal(canonicalInstrumentName("DYL", "DYL"), "Deep Yellow");
+  assert.equal(canonicalInstrumentName("dyl", "Deep Yellow Limited"), "Deep Yellow");
+});
+
 test("canonicalInstrumentName leaves unlisted instruments alone", () => {
   assert.equal(canonicalInstrumentName("CDE", "Coeur Mining"), "Coeur Mining");
   assert.equal(canonicalInstrumentName("ASL", undefined), "ASL");

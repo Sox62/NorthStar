@@ -1,5 +1,6 @@
 const CANONICAL_INSTRUMENT_NAMES: Record<string, string> = {
   B: "Barrick Mining Corporation",
+  DYL: "Deep Yellow",
   EDR: "Endeavour Silver Corp",
   HL: "Hecla",
 };
