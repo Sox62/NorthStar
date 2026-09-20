@@ -4,6 +4,7 @@ import { buildDashboardModel, buildManualAssetValuation, maskAccount, numberValu
 import { defaultAllocationTargets, normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
 import type { Sector } from "@/southernstar/types";
 import { classifyAsset } from "./classify";
+import { canonicalInstrumentName } from "./instrument-names";
 import { PASTED_ORDER_SOURCE } from "./local";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
 import type { AllocationTarget, CashAccount, CompositeIndexResult, CompositeIndexResultQuery, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportOptions, PriceImportResult, PastedOpenOrder, PositionRiskPlan, PositionRiskPlanInput, RiskSnapshot, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
@@ -105,10 +106,11 @@ export class PostgresStorageAdapter implements StorageAdapter {
 
       for (const transaction of report.transactions) {
         let instrumentId: string | null = null;
+        const name = canonicalInstrumentName(transaction.symbol, transaction.description);
         if (transaction.type !== "FX") instrumentId = await ensureInstrument(client, {
           source: "IBKR", externalKey: transaction.instrumentKey || `${transaction.symbol}:${transaction.exchange}`,
-          name: transaction.description || transaction.symbol, ticker: transaction.symbol, exchange: transaction.exchange,
-          currency: transaction.currency, assetClass: classifyAsset(transaction.symbol, transaction.description || ""),
+          name, ticker: transaction.symbol, exchange: transaction.exchange,
+          currency: transaction.currency, assetClass: classifyAsset(transaction.symbol, name),
           conid: transaction.conid, isin: transaction.isin,
         });
         const inserted = await client.query(`
@@ -155,7 +157,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const asOfDate = new Date().toISOString().slice(0, 10);
 
       for (const position of positions) {
-        const name = position.name || position.symbol;
+        const name = canonicalInstrumentName(position.symbol, position.name);
         const instrumentId = await ensureInstrument(client, {
           source: "Directshares", externalKey: `${position.symbol}:${position.exchange}`, name,
           ticker: position.symbol, exchange: position.exchange, currency: position.currency,
@@ -191,14 +193,15 @@ export class PostgresStorageAdapter implements StorageAdapter {
       let duplicates = 0;
 
       for (const transaction of transactions) {
+        const name = canonicalInstrumentName(transaction.symbol, transaction.description);
         const instrumentId = await ensureInstrument(client, {
           source: "Directshares",
           externalKey: transaction.instrumentKey || `${transaction.symbol}:${transaction.exchange}`,
-          name: transaction.description || transaction.symbol,
+          name,
           ticker: transaction.symbol,
           exchange: transaction.exchange,
           currency: transactionInstrumentCurrency(transaction),
-          assetClass: classifyAsset(transaction.symbol, transaction.description || ""),
+          assetClass: classifyAsset(transaction.symbol, name),
           isin: transaction.isin,
         });
         const inserted = await client.query(`

@@ -8,6 +8,7 @@ import {
 } from "@/lib/core/accounting";
 import { normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
+import { canonicalInstrumentName } from "./instrument-names";
 import type { Sector } from "@/southernstar/types";
 import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import { dashboardFromStore, latestFxRate, normaliseCurrency, normaliseSymbol, priceBookFromStore } from "./local-analytics";
@@ -55,11 +56,12 @@ export const PASTED_ORDER_SOURCE = "IBKR paste";
 function replaceIbkrOpenPositions(store: LocalStore, report: IbkrFlexReport, ownerType: OwnerType, accountKey: string) {
   store.positions = store.positions.filter(position => !(position.ownerType === ownerType && position.broker === "IBKR" && position.accountKey === accountKey));
   for (const position of resolveIbkrCurrentPositions(report)) {
+    const name = canonicalInstrumentName(position.symbol, position.description);
     store.positions.push({
       id: randomUUID(), ownerType, broker: "IBKR", accountKey,
-      instrumentKey: position.instrumentKey, symbol: position.symbol, name: position.description,
+      instrumentKey: position.instrumentKey, symbol: position.symbol, name,
       exchange: position.exchange, currency: position.currency,
-      assetClass: classifyAsset(position.symbol, position.description), quantity: position.quantity,
+      assetClass: classifyAsset(position.symbol, name), quantity: position.quantity,
       lastPrice: position.lastPrice, averageCostAud: position.averageCostAud,
       costAud: position.costAud, marketValueAud: position.marketValueAud,
       dayGainAud: 0, pnlAud: position.pnlAud, pnlPercent: position.pnlPercent,
@@ -73,9 +75,10 @@ function replaceIbkrOpenOrders(store: LocalStore, report: IbkrFlexReport, ownerT
   store.openOrders = store.openOrders.filter(order => !(order.ownerType === ownerType && order.broker === "IBKR" && order.accountKey === accountKey && order.source === "IBKR Flex"));
   const asOfDate = report.toDate || new Date().toISOString().slice(0, 10);
   for (const order of report.openOrders) {
+    const name = canonicalInstrumentName(order.symbol, order.description);
     store.openOrders.push({
       id: randomUUID(), ownerType, broker: "IBKR", accountKey, orderId: order.orderId, conid: order.conid ?? "",
-      symbol: order.symbol, name: order.description || order.symbol, exchange: order.exchange, currency: order.currency,
+      symbol: order.symbol, name, exchange: order.exchange, currency: order.currency,
       side: order.side, status: order.status, orderType: order.orderType, timeInForce: order.timeInForce,
       totalQuantity: order.totalQuantity, filledQuantity: order.filledQuantity, remainingQuantity: order.remainingQuantity,
       limitPrice: order.limitPrice, stopPrice: order.stopPrice, averagePrice: order.averagePrice,
@@ -202,7 +205,14 @@ export class LocalStorageAdapter implements StorageAdapter {
       if (existing.has(key)) { duplicates += 1; continue; }
       existing.add(key);
       const { raw: _raw, ...persisted } = transaction;
-      store.transactions.push({ ...persisted, id: randomUUID(), ownerType, broker: "IBKR", accountKey });
+      store.transactions.push({
+        ...persisted,
+        description: canonicalInstrumentName(transaction.symbol, transaction.description),
+        id: randomUUID(),
+        ownerType,
+        broker: "IBKR",
+        accountKey,
+      });
       imported += 1;
     }
 
@@ -239,7 +249,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     store.positions = store.positions.filter(position => !(position.ownerType === ownerType && position.broker === "Directshares" && position.accountKey === accountKey));
     const asOfDate = new Date().toISOString().slice(0, 10);
     for (const position of positions) {
-      const name = position.name || position.symbol;
+      const name = canonicalInstrumentName(position.symbol, position.name);
       store.positions.push({
         id: randomUUID(), ownerType, broker: "Directshares", accountKey,
         instrumentKey: `Directshares:${position.symbol}:${position.exchange}`, symbol: position.symbol, name,
@@ -271,7 +281,14 @@ export class LocalStorageAdapter implements StorageAdapter {
       const key = `${ownerType}:Directshares:${accountKey}:${transaction.externalId}`;
       if (existing.has(key)) { duplicates += 1; continue; }
       existing.add(key);
-      store.transactions.push({ ...transaction, id: randomUUID(), ownerType, broker: "Directshares", accountKey });
+      store.transactions.push({
+        ...transaction,
+        description: canonicalInstrumentName(transaction.symbol, transaction.description),
+        id: randomUUID(),
+        ownerType,
+        broker: "Directshares",
+        accountKey,
+      });
       imported += 1;
     }
 

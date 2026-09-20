@@ -2,6 +2,7 @@ import type { PoolClient } from "pg";
 import type { IbkrFlexReport, ImportedTransaction } from "@/lib/integrations/types";
 import { maskAccount, numberValue } from "@/lib/core/accounting";
 import { classifyAsset } from "../classify";
+import { canonicalInstrumentName } from "../instrument-names";
 import { resolveIbkrCurrentPositions } from "../ibkr-positions";
 import type { FundamentalResearchDraft, MinerFundamentals, OwnerType, StructuralLevel, SyncRun } from "../types";
 
@@ -68,6 +69,7 @@ export async function ensureInstrument(client: PoolClient, input: {
   conid?: string;
   isin?: string;
 }) {
+  const name = canonicalInstrumentName(input.ticker, input.name);
   const result = await client.query<{ id: string }>(`
     INSERT INTO instruments (source, external_key, name, ticker, exchange, currency, asset_class, conid, isin)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
@@ -78,7 +80,7 @@ export async function ensureInstrument(client: PoolClient, input: {
   `, [
     input.source,
     input.externalKey,
-    input.name,
+    name,
     input.ticker,
     input.exchange,
     instrumentQuoteCurrency(input.exchange, input.currency),
@@ -159,10 +161,11 @@ export async function replaceIbkrOpenPositions(client: PoolClient, report: IbkrF
   await client.query(`DELETE FROM current_positions WHERE account_id=$1`, [accountId]);
   const positions = resolveIbkrCurrentPositions(report);
   for (const position of positions) {
+    const name = canonicalInstrumentName(position.symbol, position.description);
     const instrumentId = await ensureInstrument(client, {
-      source: "IBKR", externalKey: position.instrumentKey, name: position.description,
+      source: "IBKR", externalKey: position.instrumentKey, name,
       ticker: position.symbol, exchange: position.exchange, currency: position.currency,
-      assetClass: classifyAsset(position.symbol, position.description), conid: position.conid, isin: position.isin,
+      assetClass: classifyAsset(position.symbol, name), conid: position.conid, isin: position.isin,
     });
     await client.query(`
       INSERT INTO current_positions (
@@ -180,6 +183,7 @@ export async function replaceIbkrOpenOrders(client: PoolClient, report: IbkrFlex
   await client.query(`DELETE FROM ibkr_open_orders WHERE account_id=$1 AND source='IBKR Flex'`, [accountId]);
   const asOfDate = report.toDate || new Date().toISOString().slice(0, 10);
   for (const order of report.openOrders) {
+    const name = canonicalInstrumentName(order.symbol, order.description);
     await client.query(`
       INSERT INTO ibkr_open_orders (
         portfolio_id,account_id,order_id,conid,symbol,name,exchange,currency,side,status,order_type,time_in_force,
@@ -191,7 +195,7 @@ export async function replaceIbkrOpenOrders(client: PoolClient, report: IbkrFlex
         total_quantity=EXCLUDED.total_quantity,filled_quantity=EXCLUDED.filled_quantity,remaining_quantity=EXCLUDED.remaining_quantity,
         limit_price=EXCLUDED.limit_price,stop_price=EXCLUDED.stop_price,average_price=EXCLUDED.average_price,description=EXCLUDED.description,
         raw=EXCLUDED.raw,as_of_date=EXCLUDED.as_of_date,created_at=EXCLUDED.created_at,updated_at=NOW()
-    `, [portfolioId, accountId, order.orderId, order.conid ?? null, order.symbol, order.description || order.symbol, order.exchange, order.currency,
+    `, [portfolioId, accountId, order.orderId, order.conid ?? null, order.symbol, name, order.exchange, order.currency,
       order.side, order.status, order.orderType, order.timeInForce, order.totalQuantity, order.filledQuantity, order.remainingQuantity,
       order.limitPrice, order.stopPrice, order.averagePrice, order.description, order.raw ? JSON.stringify(order.raw) : null, asOfDate, order.createdAt]);
   }
