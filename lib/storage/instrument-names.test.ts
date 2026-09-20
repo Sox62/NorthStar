@@ -20,6 +20,11 @@ test("canonicalInstrumentName names Deep Yellow's DYL listing", () => {
   assert.equal(canonicalInstrumentName("dyl", "Deep Yellow Limited"), "Deep Yellow");
 });
 
+test("canonicalInstrumentName names Laramide's LAM listing", () => {
+  assert.equal(canonicalInstrumentName("LAM", "LAM"), "Laramide");
+  assert.equal(canonicalInstrumentName("lam", "Laramide Resources Ltd."), "Laramide");
+});
+
 test("canonicalInstrumentName leaves unlisted instruments alone", () => {
   assert.equal(canonicalInstrumentName("CDE", "Coeur Mining"), "Coeur Mining");
   assert.equal(canonicalInstrumentName("ASL", undefined), "ASL");

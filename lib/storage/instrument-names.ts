@@ -3,6 +3,7 @@ const CANONICAL_INSTRUMENT_NAMES: Record<string, string> = {
   DYL: "Deep Yellow",
   EDR: "Endeavour Silver Corp",
   HL: "Hecla",
+  LAM: "Laramide",
 };
 
 function normaliseSymbol(value: string) {
