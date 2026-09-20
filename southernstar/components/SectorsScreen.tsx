@@ -4,7 +4,7 @@ import TradingViewWidget from "@/components/TradingViewWidget";
 import { ChartOverlay } from "./HistoryChart";
 import { SplitBar } from "./SplitBar";
 import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "../lib/tradingview";
-import { byScope, totals, bySector, byComposition, fmtAud } from "../lib/portfolio-metrics";
+import { byScope, totals, bySector, byComposition, fmtAud, rollupHoldingsByTicker } from "../lib/portfolio-metrics";
 import { SECTOR_COLORS, COMPOSITION_OF, type Holding, type CompositionGroup, type Sector } from "../types";
 
 const glass: React.CSSProperties = { background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 18, backdropFilter: "blur(8px)" };
@@ -26,7 +26,7 @@ export function SectorsScreen({ holdings, logoSrc }: { holdings: Holding[]; logo
 
   const groups: CompositionGroup[] = ["miners", "metals", "other"];
   const sectorsIn = (g: CompositionGroup) => sectors.filter((s) => COMPOSITION_OF[s.sector] === g);
-  const holdingsIn = (sec: Sector) => all.filter((h) => h.sector === sec).sort((a, b) => b.marketValueAud - a.marketValueAud);
+  const holdingsIn = (sec: Sector) => rollupHoldingsByTicker(all.filter((h) => h.sector === sec));
 
   return (
     <main className="nsScreenMain">
@@ -67,10 +67,10 @@ export function SectorsScreen({ holdings, logoSrc }: { holdings: Holding[]; logo
                         <span style={{ display: "block", height: "100%", borderRadius: 999, width: `${(s.value / smax) * 100}%`, background: SECTOR_COLORS[s.sector] }} />
                       </div>
                       <div style={{ marginTop: 12, borderTop: "1px solid var(--line)" }}>
-                        {rows.map((h) => (
-                          <div key={h.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
-                            <div><div style={{ fontWeight: 600 }}>{h.symbol}<span style={{ fontWeight: 400, fontSize: 10, marginLeft: 6, color: "var(--muted-dim)" }}>{h.ownerType === "SMSF" ? "SMSF" : "Personal"}</span><button type="button" className="nsHoldingChartCue" aria-label={`Chart ${h.symbol} on TradingView`} onClick={() => setChartHolding(h)} style={{ marginLeft: 8, marginTop: 0 }}>TV</button></div><div style={{ fontSize: 11.5, color: "var(--muted-dim)" }}>{h.name}</div></div>
-                            <div style={{ textAlign: "right", fontFamily: serif }}>{fmtAud(h.marketValueAud)}<div style={{ fontFamily: "var(--ns-sans)", fontSize: 11.5, marginTop: 2, color: h.pnlPercent >= 0 ? "var(--pos)" : "var(--neg)" }}>{h.pnlPercent >= 0 ? "+" : ""}{h.pnlPercent.toFixed(1)}%</div></div>
+                        {rows.map((row) => (
+                          <div key={row.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--line)", fontSize: 13 }}>
+                            <div><div style={{ fontWeight: 600 }}>{row.symbol}<span style={{ fontWeight: 400, fontSize: 10, marginLeft: 6, color: "var(--muted-dim)" }}>{row.ownerLabel}{row.positionCount > 1 ? ` · ${row.positionCount} positions` : ""}</span><button type="button" className="nsHoldingChartCue" aria-label={`Chart ${row.symbol} on TradingView`} onClick={() => setChartHolding(row.chartHolding)} style={{ marginLeft: 8, marginTop: 0 }}>TV</button></div><div style={{ fontSize: 11.5, color: "var(--muted-dim)" }}>{row.name}</div></div>
+                            <div style={{ textAlign: "right", fontFamily: serif }}>{fmtAud(row.marketValueAud)}<div style={{ fontFamily: "var(--ns-sans)", fontSize: 11.5, marginTop: 2, color: row.pnlPercent >= 0 ? "var(--pos)" : "var(--neg)" }}>{row.pnlPercent >= 0 ? "+" : ""}{row.pnlPercent.toFixed(1)}%</div></div>
                           </div>
                         ))}
                         {rows.length === 0 && <div style={{ padding: "9px 0", fontSize: 13, color: "var(--muted)" }}>Single holding</div>}
