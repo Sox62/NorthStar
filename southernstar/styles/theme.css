@@ -2904,7 +2904,7 @@ body.southernstar .nsShellContent > .shell {
 }
 
 body.southernstar .nsShellContent > .shell.holdingsShell {
-  max-width:none;
+  max-width:none !important;
 }
 
 body.southernstar .nsShellContent > .nsScreenMain {

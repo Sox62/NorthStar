@@ -316,7 +316,31 @@ test("buildDashboardModel reclassifies stale stored asset classes before allocat
   });
 
   assert.equal(dashboard.holdings.find((holding) => holding.symbol === "ASL")?.assetClass, "Silver miners");
+  assert.equal(dashboard.holdings.find((holding) => holding.symbol === "ASL")?.name, "Andean Silver Limited");
   assert.equal(dashboard.holdings.find((holding) => holding.symbol === "DBA")?.assetClass, "Soft commodities");
   assert.equal(dashboard.holdings.find((holding) => holding.symbol === "PMGOLD")?.assetClass, "Gold bullion");
   assert.deepEqual(dashboard.allocations.map((item) => item.name), ["Silver miners", "Soft commodities", "Gold bullion"]);
+});
+
+test("buildDashboardModel returns canonical instrument names for stale dashboard rows", () => {
+  const dashboard = buildDashboardModel({
+    scope: "personal",
+    storageMode: "local-file",
+    positions: [
+      position({ id: "b", symbol: "B", name: "B", assetClass: "Gold miners", marketValueAud: 36_000 }),
+      position({ id: "cde", symbol: "CDE", name: "COEUR MINING INC", assetClass: "Silver miners", marketValueAud: 66_000 }),
+      position({ id: "xop", symbol: "XOP", name: "SS SPDR S&P OG EXP & PROD", assetClass: "Oil", marketValueAud: 53_000 }),
+    ],
+    manualAssets: [],
+    cashAccounts: [],
+    transactions: [],
+    imports: [],
+    snapshots: [],
+    syncRuns: [],
+    allocationTargets: [],
+  });
+
+  assert.equal(dashboard.holdings.find((holding) => holding.symbol === "B")?.name, "Barrick Mining Corporation");
+  assert.equal(dashboard.holdings.find((holding) => holding.symbol === "CDE")?.name, "Coeur Mining Inc.");
+  assert.equal(dashboard.holdings.find((holding) => holding.symbol === "XOP")?.name, "SPDR S&P Oil & Gas Exploration & Production ETF");
 });

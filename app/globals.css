@@ -1280,9 +1280,13 @@ button:disabled { opacity: .55; cursor: wait; }
   overflow-x: auto;
 }
 
+body.southernstar .nsShellContent > .shell.holdingsShell {
+  max-width: none !important;
+}
+
 .holdingsTable {
   width: 100%;
-  min-width: 1260px;
+  min-width: min(1260px, 100%);
   border-collapse: collapse;
 }
 .holdingsTable th {

@@ -4,6 +4,7 @@ import "./globals.css";
 import "@/southernstar/styles/theme.css";
 import "@/southernstar/styles/relative.css";
 import SouthernStarShell from "@/components/SouthernStarShell";
+import PwaRegistration from "@/components/PwaRegistration";
 
 export const metadata: Metadata = {
   title: "SouthernStar",
@@ -34,5 +35,5 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body className="southernstar"><SouthernStarShell>{children}</SouthernStarShell></body></html>;
+  return <html lang="en"><body className="southernstar"><PwaRegistration /><SouthernStarShell>{children}</SouthernStarShell></body></html>;
 }

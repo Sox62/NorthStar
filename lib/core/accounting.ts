@@ -5,6 +5,7 @@ import { buildIncomeSummary } from "@/lib/storage/income";
 import { buildPeriodReturns, type NavPoint } from "@/lib/storage/returns";
 import { buildXirrSummary } from "@/lib/storage/xirr";
 import { classifyAsset } from "@/lib/storage/classify";
+import { canonicalInstrumentName } from "@/lib/storage/instrument-names";
 import type { Sector } from "@/southernstar/types";
 import type {
   AllocationTarget,
@@ -184,8 +185,9 @@ function navSeriesForScope(performance: DashboardData["performance"], ownerType:
 }
 
 function normalisePositionClassification(position: StoredPosition, overrides?: Record<string, Sector>): StoredPosition {
-  const assetClass = classifyAsset(position.symbol, `${position.name} ${position.assetClass}`, overrides);
-  return assetClass === position.assetClass ? position : { ...position, assetClass };
+  const name = canonicalInstrumentName(position.symbol, position.name);
+  const assetClass = classifyAsset(position.symbol, `${name} ${position.assetClass}`, overrides);
+  return assetClass === position.assetClass && name === position.name ? position : { ...position, name, assetClass };
 }
 
 /** Overrides are keyed by uppercase symbol so lookup matches however the broker cased it. */
