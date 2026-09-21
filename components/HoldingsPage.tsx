@@ -263,7 +263,7 @@ export default function HoldingsPage() {
   }, [rows, chartHolding]);
 
   return (
-    <main className="shell">
+    <main className="shell holdingsShell">
       <PageHeader
         title="Capital"
         description="Legal books, broker share allocation and the full live position book by owner, valuation basis and return."
