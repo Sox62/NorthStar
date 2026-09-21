@@ -2903,6 +2903,10 @@ body.southernstar .nsShellContent > .shell {
   max-width:1342px;
 }
 
+body.southernstar .nsShellContent > .shell.holdingsShell {
+  max-width:none;
+}
+
 body.southernstar .nsShellContent > .nsScreenMain {
   min-height:100vh;
 }

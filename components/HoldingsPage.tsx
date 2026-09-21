@@ -8,8 +8,9 @@ import { CompanyNewsList, NewsBadge } from "@/components/CompanyNews";
 import { acquisitionsByHolding, heldLabel, ownerSymbolKey, type Acquisition, type OpenLotRow } from "@/components/holdings/acquisition";
 import type { CompanyNewsItem } from "@/lib/integrations/company-news/types";
 import type { DashboardData, DashboardHolding, Scope } from "@/lib/storage";
+import { canonicalInstrumentName } from "@/lib/storage/instrument-names";
 import { Card, Notice, SummaryGrid } from "@/southernstar/components";
-import { sectorForInstrument } from "@/southernstar/lib/sector-map";
+import { recordedSectorForInstrument } from "@/southernstar/lib/sector-map";
 import { compareNumber, compareText, nextSort, sortIndicator, type SortState } from "@/southernstar/lib/sort";
 import { tradingViewChartUrl, tradingViewSymbolForInstrument } from "@/southernstar/lib/tradingview";
 
@@ -89,6 +90,10 @@ function dailyPercent(holding: DashboardHolding) {
   return previousValue ? holding.dayGainAud / previousValue * 100 : null;
 }
 
+function displayName(holding: Pick<DashboardHolding, "symbol" | "name">) {
+  return canonicalInstrumentName(holding.symbol, holding.name);
+}
+
 async function loadDashboard(scope: Scope): Promise<DashboardData> {
   const response = await fetch(`/api/dashboard?scope=${scope}`, { cache: "no-store" });
   const payload = await response.json();
@@ -111,7 +116,7 @@ async function loadAcquisitions(): Promise<{ byId: Map<string, Acquisition>; byO
 async function loadCompanyNews(holdings: DashboardHolding[]): Promise<Record<string, CompanyNewsItem[]>> {
   const instruments = holdings
     .filter((holding) => !isCashHolding(holding))
-    .map((holding) => `${holding.symbol}:${holding.exchange}:${holding.name.replace(/,/g, " ")}`);
+    .map((holding) => `${holding.symbol}:${holding.exchange}:${displayName(holding).replace(/,/g, " ")}`);
   if (!instruments.length) return {};
   const response = await fetch(`/api/news?instruments=${encodeURIComponent(instruments.join(","))}`, { cache: "no-store" });
   const payload = await response.json() as { bySymbol?: Record<string, CompanyNewsItem[]>; errors?: string[] };
@@ -120,7 +125,7 @@ async function loadCompanyNews(holdings: DashboardHolding[]): Promise<Record<str
 }
 
 function includesQuery(holding: DashboardHolding, query: string) {
-  const text = `${holding.symbol} ${holding.name} ${holding.ownerType} ${holding.exchange} ${holding.currency} ${holding.assetClass}`.toLowerCase();
+  const text = `${holding.symbol} ${displayName(holding)} ${holding.ownerType} ${holding.exchange} ${holding.currency} ${holding.assetClass}`.toLowerCase();
   return text.includes(query.toLowerCase());
 }
 
@@ -129,7 +134,7 @@ function pnlTone(value: number) {
 }
 
 function isCashHolding(holding: DashboardHolding) {
-  return holding.symbol === "CASH" || holding.exchange === "CASH" || sectorForInstrument(holding) === "Cash";
+  return holding.symbol === "CASH" || holding.exchange === "CASH" || recordedSectorForInstrument(holding) === "Cash";
 }
 
 function tradingViewSymbol(holding: DashboardHolding) {
@@ -152,7 +157,7 @@ function sortHoldings(rows: DashboardHolding[], sort: HoldingsSortState, acquire
     }
 
     if (sort.key === "holding") {
-      const result = compareText(left.symbol, right.symbol) || compareText(left.name, right.name);
+      const result = compareText(left.symbol, right.symbol) || compareText(displayName(left), displayName(right));
       return sort.direction === "desc" ? -result : result;
     }
     if (sort.key === "owner") {
@@ -160,7 +165,7 @@ function sortHoldings(rows: DashboardHolding[], sort: HoldingsSortState, acquire
       return sort.direction === "desc" ? -result : result;
     }
     if (sort.key === "sector") {
-      const sectorResult = compareText(sectorForInstrument(left), sectorForInstrument(right));
+      const sectorResult = compareText(recordedSectorForInstrument(left), recordedSectorForInstrument(right));
       if (sectorResult) return sort.direction === "desc" ? -sectorResult : sectorResult;
       return compareNumber(left.marketValueAud, right.marketValueAud, "desc");
     }
@@ -356,11 +361,11 @@ export default function HoldingsPage() {
                     >
                       <td>
                         <strong>{holding.symbol}<NewsBadge items={news[holding.symbol.toUpperCase()] ?? []} /></strong>
-                        <span>{holding.name}</span>
+                        <span>{displayName(holding)}</span>
                         <small>{holding.exchange} · {holding.currency} · {holding.valuationBasis === "market" ? "Market" : "Cost basis"}</small>
                       </td>
                       <td>{holding.ownerType === "SMSF" ? "SMSF" : "Personal"}</td>
-                      <td>{sectorForInstrument(holding)}</td>
+                      <td>{recordedSectorForInstrument(holding)}</td>
                       <td className="numeric">{number(holding.quantity)}</td>
                       <td className="numeric">
                         {holding.averageCostAud ? price(holding.averageCostAud, "AUD") : "n/a"}
@@ -421,7 +426,7 @@ function TradingViewPanel({ holding, news, newsLoading }: { holding: DashboardHo
       <div className="panelHeader">
         <div>
           <p className="eyebrow">Stock chart</p>
-          <h2 className="cardTitle">{holding.symbol} · {holding.name}</h2>
+          <h2 className="cardTitle">{holding.symbol} · {displayName(holding)}</h2>
           <p className="cardIntro">{tvSymbol} · {holding.exchange} · {holding.currency}</p>
         </div>
         <a className="button" href={tradingViewUrl(holding)} target="_blank" rel="noreferrer">Open in TradingView</a>
