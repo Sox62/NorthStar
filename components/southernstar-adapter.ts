@@ -1,4 +1,5 @@
 import type { DashboardData, Scope } from "@/lib/storage";
+import { canonicalInstrumentName } from "@/lib/storage/instrument-names";
 import { recordedSectorForInstrument } from "@/southernstar/lib/sector-map";
 import type { Holding } from "@/southernstar/types";
 
@@ -21,7 +22,7 @@ export function dashboardToSouthernStarHoldings(data: DashboardData): Holding[] 
   const holdings = data.holdings.map((position): Holding => ({
     id: position.id,
     symbol: position.symbol,
-    name: position.name,
+    name: canonicalInstrumentName(position.symbol, position.name),
     ownerType: position.ownerType,
     sector: recordedSectorForInstrument(position),
     units: position.quantity,

@@ -55,3 +55,56 @@ test("dashboardToSouthernStarHoldings preserves recorded sector overrides for Se
 
   assert.equal(dashboardToSouthernStarHoldings(data)[0]?.sector, "Coal");
 });
+
+test("dashboardToSouthernStarHoldings normalizes stale imported ticker names", () => {
+  const data: DashboardData = {
+    scope: "personal",
+    storageMode: "postgresql",
+    totalValue: 10_000,
+    investedValue: 10_000,
+    cashValue: 0,
+    dailyMovement: 0,
+    totalReturn: 0,
+    totalReturnPercent: 0,
+    holdings: [{
+      id: "personal-barrick",
+      ownerType: "PERSONAL",
+      broker: "IBKR",
+      accountKey: "personal",
+      instrumentKey: "IBKR:B:US",
+      symbol: "B",
+      name: "B",
+      exchange: "US",
+      currency: "USD",
+      assetClass: "Equity",
+      quantity: 10,
+      lastPrice: 20,
+      averageCostAud: 18,
+      costAud: 180,
+      marketValueAud: 200,
+      dayGainAud: 0,
+      pnlAud: 20,
+      pnlPercent: 11.1,
+      valuationBasis: "market",
+      asOfDate: "2026-09-18",
+      source: "test",
+      weight: 2,
+    }],
+    cashAccounts: [],
+    allocations: [],
+    performance: [],
+    periodReturns: [],
+    xirr: { valuePercent: null, startDate: null, endDate: null, cashFlowCount: 0, fallbackPositionCount: 0, terminalValue: 0, note: "" },
+    income: { periodStart: "", periodEnd: "", dividendCount: 0, netCashAud: 0, taxWithheldAud: 0, frankingCreditsAud: 0, grossIncomeAud: 0, grossedUpYieldPercent: null, symbols: [], note: "" },
+    allocationTargets: [],
+    currencyExposure: [],
+    accounts: [],
+    syncRuns: [],
+    freshness: [],
+    provisionalValue: 0,
+    currentValue: 10_000,
+    lastUpdated: null,
+  };
+
+  assert.equal(dashboardToSouthernStarHoldings(data)[0]?.name, "Barrick Mining Corporation");
+});

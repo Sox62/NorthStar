@@ -225,6 +225,13 @@
       "when": 1788739200000,
       "tag": "0031_full_instrument_names",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1788825600000,
+      "tag": "0032_extra_instrument_name_repair",
+      "breakpoints": true
     }
   ]
 }

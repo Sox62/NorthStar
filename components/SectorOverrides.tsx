@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { canonicalInstrumentName } from "@/lib/storage/instrument-names";
 import { Card, Notice, StatusBadge } from "@/southernstar/components";
 import { SECTOR_COLORS, type Holding, type Sector } from "@/southernstar/types";
 import styles from "./SectorOverrides.module.css";
@@ -43,7 +44,7 @@ export function SectorOverrides({ holdings, onChanged }: { holdings: Holding[]; 
       const key = holding.symbol.toUpperCase();
       const current = bySymbol.get(key);
       if (current) current.value += holding.marketValueAud;
-      else bySymbol.set(key, { symbol: key, name: holding.name, sector: holding.sector, value: holding.marketValueAud });
+      else bySymbol.set(key, { symbol: key, name: canonicalInstrumentName(holding.symbol, holding.name), sector: holding.sector, value: holding.marketValueAud });
     }
     return [...bySymbol.values()].sort((left, right) => right.value - left.value);
   }, [holdings]);

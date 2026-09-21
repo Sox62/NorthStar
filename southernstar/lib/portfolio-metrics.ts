@@ -1,6 +1,7 @@
 // Pure helpers to derive dashboard figures from a live holdings array.
 // Holdings change on every sync — always compute, never store these.
 
+import { canonicalInstrumentName } from "@/lib/storage/instrument-names";
 import type { Holding, OwnerType, PortfolioScope, Sector, CompositionGroup } from "../types";
 import { COMPOSITION_OF } from "../types";
 
@@ -83,7 +84,7 @@ export function rollupHoldingsByTicker(holdings: Holding[]): HoldingTickerRollup
       rows.set(key, {
         id: key,
         symbol,
-        name: holding.name,
+        name: canonicalInstrumentName(symbol, holding.name),
         sector: holding.sector,
         ownerLabel: holding.ownerType === "SMSF" ? "SMSF" : "Personal",
         owners: new Set([holding.ownerType]),
@@ -109,7 +110,7 @@ export function rollupHoldingsByTicker(holdings: Holding[]): HoldingTickerRollup
     current.pnlPercent = current.costAud ? current.pnlAud / current.costAud * 100 : 0;
     current.ownerLabel = ownerLabel(current.owners);
     if (holding.marketValueAud > current.chartHolding.marketValueAud) {
-      current.name = holding.name;
+      current.name = canonicalInstrumentName(symbol, holding.name);
       current.chartHolding = holding;
     }
   }

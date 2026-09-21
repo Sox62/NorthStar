@@ -43,3 +43,11 @@ test("rollupHoldingsByTicker keeps the same ticker separate when the sector diff
   assert.equal(rows.length, 2);
   assert.deepEqual(rows.map((row) => row.sector).sort(), ["Coal", "Uranium miners"]);
 });
+
+test("rollupHoldingsByTicker uses canonical names for stale imported labels", () => {
+  const rows = rollupHoldingsByTicker([
+    holding({ id: "hl", symbol: "HL", name: "HL", sector: "Silver miners", costAud: 1000, marketValueAud: 1200, pnlAud: 200 }),
+  ]);
+
+  assert.equal(rows[0]?.name, "Hecla Mining Company");
+});
