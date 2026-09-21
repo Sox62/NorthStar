@@ -1281,7 +1281,15 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 
 body.southernstar .nsShellContent > .shell.holdingsShell {
+  width: 100% !important;
   max-width: none !important;
+}
+
+body.southernstar .holdingsShell,
+body.southernstar .holdingsShell .pageMasthead,
+body.southernstar .holdingsShell .holdingsBook {
+  width: 100%;
+  max-width: none;
 }
 
 .holdingsTable {
