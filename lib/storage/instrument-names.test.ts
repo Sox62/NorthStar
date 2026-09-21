@@ -9,51 +9,55 @@ test("canonicalInstrumentName names Barrick's B listing", () => {
 });
 
 test("canonicalInstrumentName names key silver miners", () => {
-  assert.equal(canonicalInstrumentName("EDR", "EDR"), "Endeavour Silver Corp");
-  assert.equal(canonicalInstrumentName("edr", "Endeavour Silver Corp."), "Endeavour Silver Corp");
-  assert.equal(canonicalInstrumentName("HL", "Hecla Mining Company"), "Hecla");
-  assert.equal(canonicalInstrumentName("hl", undefined), "Hecla");
+  assert.equal(canonicalInstrumentName("EDR", "EDR"), "Endeavour Silver Corp.");
+  assert.equal(canonicalInstrumentName("edr", "Endeavour Silver Corp"), "Endeavour Silver Corp.");
+  assert.equal(canonicalInstrumentName("HL", "Hecla"), "Hecla Mining Company");
+  assert.equal(canonicalInstrumentName("hl", undefined), "Hecla Mining Company");
 });
 
 test("canonicalInstrumentName names Deep Yellow's DYL listing", () => {
-  assert.equal(canonicalInstrumentName("DYL", "DYL"), "Deep Yellow");
-  assert.equal(canonicalInstrumentName("dyl", "Deep Yellow Limited"), "Deep Yellow");
+  assert.equal(canonicalInstrumentName("DYL", "DYL"), "Deep Yellow Limited");
+  assert.equal(canonicalInstrumentName("dyl", "Deep Yellow"), "Deep Yellow Limited");
 });
 
 test("canonicalInstrumentName names Laramide's LAM listing", () => {
-  assert.equal(canonicalInstrumentName("LAM", "LAM"), "Laramide");
-  assert.equal(canonicalInstrumentName("lam", "Laramide Resources Ltd."), "Laramide");
+  assert.equal(canonicalInstrumentName("LAM", "LAM"), "Laramide Resources Ltd.");
+  assert.equal(canonicalInstrumentName("lam", "Laramide"), "Laramide Resources Ltd.");
 });
 
 test("canonicalInstrumentName names the known SouthernStar miner and ETF universe", () => {
   const cases = [
-    ["AG", "First Majestic Silver Corp.", "First Majestic Silver"],
-    ["ASL", "Andean Silver Limited", "Andean Silver"],
-    ["ASM", "Avino Silver & Gold Mines Ltd.", "Avino Silver & Gold Mines"],
-    ["AYA", "Aya Gold & Silver Inc.", "Aya Gold & Silver"],
-    ["BMN", "Bannerman Energy Ltd.", "Bannerman Energy"],
-    ["CCJ", "Cameco Corp.", "Cameco"],
-    ["CDE", "Coeur Mining Inc.", "Coeur Mining"],
-    ["DML", "Denison Mines Corp.", "Denison Mines"],
+    ["AG", "First Majestic Silver", "First Majestic Silver Corp."],
+    ["ASL", "Andean Silver", "Andean Silver Limited"],
+    ["ASM", "Avino Silver & Gold Mines", "Avino Silver & Gold Mines Ltd."],
+    ["AYA", "Aya Gold & Silver", "Aya Gold & Silver Inc."],
+    ["BMN", "Bannerman Energy", "Bannerman Energy Ltd."],
+    ["CCJ", "Cameco", "Cameco Corp."],
+    ["CDE", "Coeur Mining", "Coeur Mining Inc."],
+    ["DML", "Denison Mines", "Denison Mines Corp."],
     ["ETPMAG", "Global X Physical Silver Structured", "Global X Physical Silver"],
-    ["EU", "enCore Energy Corp.", "enCore Energy"],
-    ["GGP", "Greatland Resources Limited", "Greatland Resources"],
-    ["HSTR", "Heliostar Metals Ltd.", "Heliostar Metals"],
-    ["KGC", "Kinross Gold Corporation", "Kinross Gold"],
-    ["MAG", "MAG Silver Corp.", "MAG Silver"],
-    ["NEM", "Newmont Corporation", "Newmont"],
-    ["NST", "Northern Star Resources Ltd.", "Northern Star Resources"],
-    ["NXG", "NexGen Energy Ltd.", "NexGen Energy"],
-    ["PAAS", "Pan American Silver Corp.", "Pan American Silver"],
-    ["PDN", "Paladin Energy Ltd.", "Paladin Energy"],
-    ["RRL", "Regis Resources Limited", "Regis Resources"],
-    ["SCZ", "Santacruz Silver Mining Ltd.", "Santacruz Silver Mining"],
-    ["SVM", "Silvercorp Metals Inc.", "Silvercorp Metals"],
-    ["UUUU", "Energy Fuels Inc.", "Energy Fuels"],
-    ["VAU", "Vault Minerals Limited", "Vault Minerals"],
-    ["WRN", "Western Copper and Gold Corporation", "Western Copper & Gold"],
+    ["EU", "enCore Energy", "enCore Energy Corp."],
+    ["GGP", "Greatland Resources", "Greatland Resources Limited"],
+    ["HSTR", "Heliostar Metals", "Heliostar Metals Ltd."],
+    ["KGC", "Kinross Gold", "Kinross Gold Corporation"],
+    ["MAG", "MAG Silver", "MAG Silver Corp."],
+    ["NEM", "Newmont", "Newmont Corporation"],
+    ["NST", "Northern Star Resources", "Northern Star Resources Ltd."],
+    ["NXG", "NexGen Energy", "NexGen Energy Ltd."],
+    ["PAAS", "Pan American Silver", "Pan American Silver Corp."],
+    ["PDN", "Paladin Energy", "Paladin Energy Ltd."],
+    ["RRL", "Regis Resources", "Regis Resources Limited"],
+    ["SCZ", "Santacruz Silver Mining", "Santacruz Silver Mining Ltd."],
+    ["SVM", "Silvercorp Metals", "Silvercorp Metals Inc."],
+    ["UUUU", "Energy Fuels", "Energy Fuels Inc."],
+    ["VAU", "Vault Minerals", "Vault Minerals Limited"],
+    ["WRN", "Western Copper & Gold", "Western Copper and Gold Corporation"],
     ["URNM", "BetaShares Global Uranium ETF", "BetaShares Global Uranium ETF"],
     ["U.UN", "Sprott Physical Uranium Trust", "Sprott Physical Uranium Trust"],
+    ["CMM", "Capricorn Metals", "Capricorn Metals Ltd."],
+    ["LEU", "Centrus Energy", "Centrus Energy Corp."],
+    ["SLX", "Silex Systems", "Silex Systems Limited"],
+    ["XOM", "Exxon Mobil", "Exxon Mobil Corporation"],
   ] as const;
 
   for (const [symbol, rawName, expected] of cases) {
