@@ -140,55 +140,6 @@ WITH canonical_names(symbol, name) AS (
     ('VAU', 'Vault Minerals'),
     ('WRN', 'Western Copper & Gold')
 )
-UPDATE position_risk_plans rp
-SET name = cn.name
-FROM canonical_names cn
-WHERE UPPER(rp.symbol) = cn.symbol;
-
-WITH canonical_names(symbol, name) AS (
-  VALUES
-    ('AG', 'First Majestic Silver'),
-    ('ASL', 'Andean Silver'),
-    ('ASM', 'Avino Silver & Gold Mines'),
-    ('ATOM', 'Global X Uranium ETF'),
-    ('AYA', 'Aya Gold & Silver'),
-    ('B', 'Barrick Mining Corporation'),
-    ('BMN', 'Bannerman Energy'),
-    ('CCJ', 'Cameco'),
-    ('CDE', 'Coeur Mining'),
-    ('DML', 'Denison Mines'),
-    ('DYL', 'Deep Yellow'),
-    ('EDR', 'Endeavour Silver Corp'),
-    ('ETPMAG', 'Global X Physical Silver'),
-    ('EU', 'enCore Energy'),
-    ('GDX', 'VanEck Gold Miners ETF'),
-    ('GGP', 'Greatland Resources'),
-    ('HL', 'Hecla'),
-    ('HSTR', 'Heliostar Metals'),
-    ('KGC', 'Kinross Gold'),
-    ('LAM', 'Laramide'),
-    ('MAG', 'MAG Silver'),
-    ('NEM', 'Newmont'),
-    ('NST', 'Northern Star Resources'),
-    ('NUKZ', 'Range Nuclear Renaissance Index ETF'),
-    ('NXG', 'NexGen Energy'),
-    ('PAAS', 'Pan American Silver'),
-    ('PDN', 'Paladin Energy'),
-    ('PMGOLD', 'Perth Mint Gold'),
-    ('RRL', 'Regis Resources'),
-    ('SCZ', 'Santacruz Silver Mining'),
-    ('SIL', 'Global X Silver Miners ETF'),
-    ('SILJ', 'Amplify Junior Silver Miners ETF'),
-    ('SLVM', 'Global X Silver Miners ETF'),
-    ('SVM', 'Silvercorp Metals'),
-    ('U', 'Sprott Physical Uranium Trust'),
-    ('U.UN', 'Sprott Physical Uranium Trust'),
-    ('URA', 'Global X Uranium ETF'),
-    ('URNM', 'BetaShares Global Uranium ETF'),
-    ('UUUU', 'Energy Fuels'),
-    ('VAU', 'Vault Minerals'),
-    ('WRN', 'Western Copper & Gold')
-)
 UPDATE miner_fundamentals mf
 SET name = cn.name
 FROM canonical_names cn

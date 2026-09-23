@@ -182,69 +182,6 @@ WITH canonical_names(symbol, name) AS (
     ('XOP', 'SPDR S&P Oil & Gas Exploration & Production ETF'),
     ('XRH0', 'Xtrackers Physical Rhodium ETC')
 )
-UPDATE position_risk_plans rp
-SET name = cn.name
-FROM canonical_names cn
-WHERE UPPER(rp.symbol) = cn.symbol;
---> statement-breakpoint
-WITH canonical_names(symbol, name) AS (
-  VALUES
-    ('AG', 'First Majestic Silver Corp.'),
-    ('ASL', 'Andean Silver Limited'),
-    ('ASM', 'Avino Silver & Gold Mines Ltd.'),
-    ('ATOM', 'Global X Uranium ETF'),
-    ('AYA', 'Aya Gold & Silver Inc.'),
-    ('B', 'Barrick Mining Corporation'),
-    ('BMN', 'Bannerman Energy Ltd.'),
-    ('CCJ', 'Cameco Corp.'),
-    ('CDE', 'Coeur Mining Inc.'),
-    ('CMM', 'Capricorn Metals Ltd.'),
-    ('COP', 'ConocoPhillips'),
-    ('CORN', 'Teucrium Corn Fund'),
-    ('DBA', 'Invesco DB Agriculture Fund'),
-    ('DML', 'Denison Mines Corp.'),
-    ('DYL', 'Deep Yellow Limited'),
-    ('EC', 'Ecopetrol S.A.'),
-    ('EDR', 'Endeavour Silver Corp.'),
-    ('ETPMAG', 'Global X Physical Silver'),
-    ('EU', 'enCore Energy Corp.'),
-    ('GDX', 'VanEck Gold Miners ETF'),
-    ('GGP', 'Greatland Resources Limited'),
-    ('HL', 'Hecla Mining Company'),
-    ('HSTR', 'Heliostar Metals Ltd.'),
-    ('KGC', 'Kinross Gold Corporation'),
-    ('LAM', 'Laramide Resources Ltd.'),
-    ('LEU', 'Centrus Energy Corp.'),
-    ('MAG', 'MAG Silver Corp.'),
-    ('MGY', 'Magnolia Oil & Gas Corp.'),
-    ('NEM', 'Newmont Corporation'),
-    ('NST', 'Northern Star Resources Ltd.'),
-    ('NUKZ', 'Range Nuclear Renaissance Index ETF'),
-    ('NXG', 'NexGen Energy Ltd.'),
-    ('PAAS', 'Pan American Silver Corp.'),
-    ('PDN', 'Paladin Energy Ltd.'),
-    ('PMGOLD', 'Perth Mint Gold'),
-    ('RRL', 'Regis Resources Limited'),
-    ('SCZ', 'Santacruz Silver Mining Ltd.'),
-    ('SIL', 'Global X Silver Miners ETF'),
-    ('SILJ', 'Amplify Junior Silver Miners ETF'),
-    ('SLX', 'Silex Systems Limited'),
-    ('SLVM', 'Global X Silver Miners ETF'),
-    ('STNG', 'Scorpio Tankers Inc.'),
-    ('SVM', 'Silvercorp Metals Inc.'),
-    ('U', 'Sprott Physical Uranium Trust'),
-    ('U.UN', 'Sprott Physical Uranium Trust'),
-    ('URA', 'Global X Uranium ETF'),
-    ('URNM', 'BetaShares Global Uranium ETF'),
-    ('UUUU', 'Energy Fuels Inc.'),
-    ('VAU', 'Vault Minerals Limited'),
-    ('VELO', 'Velocity Composites plc'),
-    ('WGX', 'Westgold Resources Limited'),
-    ('WRN', 'Western Copper and Gold Corporation'),
-    ('XOM', 'Exxon Mobil Corporation'),
-    ('XOP', 'SPDR S&P Oil & Gas Exploration & Production ETF'),
-    ('XRH0', 'Xtrackers Physical Rhodium ETC')
-)
 UPDATE miner_fundamentals mf
 SET name = cn.name
 FROM canonical_names cn

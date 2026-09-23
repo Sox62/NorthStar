@@ -32,19 +32,6 @@ WITH canonical_names(symbol, name) AS (
     ('STNG', 'Scorpio Tankers Inc.'),
     ('WGX', 'Westgold Resources Limited')
 )
-UPDATE position_risk_plans rp
-SET name = cn.name
-FROM canonical_names cn
-WHERE UPPER(rp.symbol) = cn.symbol;
-
-WITH canonical_names(symbol, name) AS (
-  VALUES
-    ('COP', 'ConocoPhillips'),
-    ('CORN', 'Teucrium Corn Fund'),
-    ('MGY', 'Magnolia Oil & Gas Corp.'),
-    ('STNG', 'Scorpio Tankers Inc.'),
-    ('WGX', 'Westgold Resources Limited')
-)
 UPDATE miner_fundamentals mf
 SET name = cn.name
 FROM canonical_names cn

@@ -6,10 +6,6 @@ UPDATE ibkr_open_orders
 SET name = 'Deep Yellow'
 WHERE UPPER(symbol) = 'DYL';
 
-UPDATE position_risk_plans
-SET name = 'Deep Yellow'
-WHERE UPPER(symbol) = 'DYL';
-
 UPDATE miner_fundamentals
 SET name = 'Deep Yellow'
 WHERE UPPER(symbol) = 'DYL';
