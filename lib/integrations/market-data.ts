@@ -444,9 +444,24 @@ async function fetchYahooQuote(instrument: PriceableInstrument): Promise<MarketQ
     if (payload.chart?.error) throw new Error(payload.chart.error.description ?? payload.chart.error.code ?? "Yahoo chart error");
     const result = payload.chart?.result?.[0];
     if (!result) return null;
+    const timezone = result.meta?.exchangeTimezoneName;
+    const latestQuote = numberValue(result.meta?.regularMarketPrice);
+    const latestQuoteTime = result.meta?.regularMarketTime;
+    if (latestQuote && latestQuoteTime) {
+      const adjusted = yahooCurrencyAndClose(latestQuote, result.meta?.currency, instrument.currency);
+      return {
+        symbol: instrument.symbol,
+        exchange: instrument.exchange,
+        close: adjusted.close,
+        currency: adjusted.currency,
+        priceDate: dateFromUnixSeconds(latestQuoteTime, timezone),
+        source: "Yahoo Finance delayed quote",
+        providerSymbol,
+        fetchedAt: new Date().toISOString(),
+      };
+    }
     const closes = result.indicators?.quote?.[0]?.close ?? [];
     const timestamps = result.timestamp ?? [];
-    const timezone = result.meta?.exchangeTimezoneName;
     for (let index = closes.length - 1; index >= 0; index -= 1) {
       const close = numberValue(closes[index]);
       const timestamp = timestamps[index] ?? result.meta?.regularMarketTime;
@@ -463,7 +478,7 @@ async function fetchYahooQuote(instrument: PriceableInstrument): Promise<MarketQ
         fetchedAt: new Date().toISOString(),
       };
     }
-    const fallbackClose = numberValue(result.meta?.regularMarketPrice) ?? numberValue(result.meta?.previousClose) ?? numberValue(result.meta?.chartPreviousClose);
+    const fallbackClose = numberValue(result.meta?.previousClose) ?? numberValue(result.meta?.chartPreviousClose);
     const fallbackTime = result.meta?.regularMarketTime;
     if (!fallbackClose || !fallbackTime) return null;
     const adjusted = yahooCurrencyAndClose(fallbackClose, result.meta?.currency, instrument.currency);

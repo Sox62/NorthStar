@@ -158,6 +158,49 @@ test("refreshMarketQuotes fetches ASX closes from Yahoo without a token", async 
   }
 });
 
+test("refreshMarketQuotes prefers Yahoo regular market price over stale daily close", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.EODHD_API_TOKEN;
+  const originalAltToken = process.env.MARKETDATA_EODHD_API_TOKEN;
+  delete process.env.EODHD_API_TOKEN;
+  delete process.env.MARKETDATA_EODHD_API_TOKEN;
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/HL?")) {
+      return jsonResponse({
+        chart: {
+          result: [{
+            meta: {
+              currency: "USD",
+              exchangeTimezoneName: "America/New_York",
+              regularMarketPrice: 19.03,
+              regularMarketTime: Date.parse("2026-09-22T20:00:00Z") / 1000,
+            },
+            timestamp: [Date.parse("2026-09-21T20:00:00Z") / 1000],
+            indicators: { quote: [{ close: [18.35] }] },
+          }],
+          error: null,
+        },
+      });
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  try {
+    const result = await refreshMarketQuotes([instrument({ symbol: "HL", exchange: "US", currency: "USD" })], "yahoo");
+    assert.equal(result.prices.length, 1);
+    assert.equal(result.quotes[0].close, 19.03);
+    assert.equal(result.quotes[0].priceDate, "2026-09-22");
+    assert.equal(result.quotes[0].source, "Yahoo Finance delayed quote");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken == null) delete process.env.EODHD_API_TOKEN;
+    else process.env.EODHD_API_TOKEN = originalToken;
+    if (originalAltToken == null) delete process.env.MARKETDATA_EODHD_API_TOKEN;
+    else process.env.MARKETDATA_EODHD_API_TOKEN = originalAltToken;
+  }
+});
+
 test("refreshMarketQuotes fetches ETPMAG NAV from Global X", async () => {
   const originalFetch = globalThis.fetch;
   const requestedUrls: string[] = [];
