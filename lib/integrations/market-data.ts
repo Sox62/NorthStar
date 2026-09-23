@@ -422,7 +422,7 @@ async function fetchEodhdQuote(instrument: PriceableInstrument, token: string): 
     const url = `${EODHD_BASE_URL}/${encodeURIComponent(providerSymbol)}?api_token=${encodeURIComponent(token)}&fmt=json`;
     const payload = await fetchJson(url);
     if (payload.error || payload.message) throw new Error(payload.error ?? payload.message ?? "EODHD quote error");
-    const close = numberValue(payload.close) ?? numberValue(payload.price) ?? numberValue(payload.previousClose);
+    const close = numberValue(payload.price) ?? numberValue(payload.close) ?? numberValue(payload.previousClose);
     if (!close) return null;
     return {
       symbol: instrument.symbol,

@@ -116,6 +116,38 @@ test("refreshMarketQuotes falls back to Frankfurter FX before inferred position 
   }
 });
 
+test("refreshMarketQuotes prefers EODHD price over stale close", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalToken = process.env.EODHD_API_TOKEN;
+  process.env.EODHD_API_TOKEN = "test-token";
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (url.includes("/HL.US?")) {
+      return jsonResponse({
+        close: 18.35,
+        price: 19.03,
+        previousClose: 18.35,
+        timestamp: Date.parse("2026-09-22T20:00:00Z") / 1000,
+        gmtoffset: 0,
+      });
+    }
+    if (url.includes("/USDAUD.FOREX?")) return jsonResponse({ close: 1.52, timestamp: Date.parse("2026-09-22T00:00:00Z") / 1000, gmtoffset: 0 });
+    throw new Error(`Unexpected URL ${url}`);
+  };
+
+  try {
+    const result = await refreshMarketQuotes([instrument({ symbol: "HL", exchange: "US", currency: "USD" })], "eodhd");
+    assert.equal(result.prices.length, 1);
+    assert.equal(result.quotes[0].close, 19.03);
+    assert.equal(result.quotes[0].priceDate, "2026-09-22");
+    assert.equal(result.quotes[0].source, "EODHD delayed quote");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalToken == null) delete process.env.EODHD_API_TOKEN;
+    else process.env.EODHD_API_TOKEN = originalToken;
+  }
+});
+
 test("refreshMarketQuotes fetches ASX closes from Yahoo without a token", async () => {
   const originalFetch = globalThis.fetch;
   const originalToken = process.env.EODHD_API_TOKEN;
