@@ -1277,7 +1277,7 @@ button:disabled { opacity: .55; cursor: wait; }
 .holdingsTableWrap {
   margin-top: 18px;
   max-width: 100%;
-  overflow-x: auto;
+  overflow: visible;
 }
 
 body.southernstar .nsShellContent > .shell.holdingsShell {
@@ -1295,17 +1295,27 @@ body.southernstar .holdingsShell .holdingsBook {
 .holdingsTable {
   width: 100%;
   min-width: min(1260px, 100%);
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 .holdingsTable th {
   padding: 0 12px 12px;
   border-bottom: 1px solid rgba(106,130,153,.22);
+  background: rgba(12,25,38,.96);
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: .14em;
   text-align: left;
   text-transform: uppercase;
+}
+
+body.southernstar .holdingsShell .holdingsTable th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 1px 0 rgba(106,130,153,.18), 0 12px 28px rgba(0,0,0,.18);
 }
 
 .holdingsTable th button {
@@ -1967,6 +1977,7 @@ body.southernstar .holdingsShell .holdingsBook {
 /* Status and notices supplied by design package */
 
 @media (max-width: 1180px) {
+  .holdingsTableWrap { overflow-x: auto; }
   .portfolioHero { grid-template-columns: 1fr; }
   .dashboardGridTop, .dashboardGridBottom { grid-template-columns: 1fr; }
   .heroKpis { grid-template-columns: repeat(4, minmax(0,1fr)); }
