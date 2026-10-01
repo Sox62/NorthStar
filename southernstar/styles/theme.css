@@ -2750,6 +2750,16 @@ body.southernstar .nsOverview > .nsPositionsPanel .nsTableNote {
   text-align:right;
 }
 
+body.southernstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader {
+  position:sticky;
+  top:0;
+  z-index:4;
+  padding:10px 0 12px;
+  background:rgba(12,25,38,0.96);
+  backdrop-filter:blur(14px);
+  box-shadow:0 1px 0 rgba(122,149,178,0.18), 0 12px 28px rgba(0,0,0,0.18);
+}
+
 body.southernstar .nsOverview > .nsPositionsPanel .nsHoldingsHeader,
 body.southernstar .nsOverview > .nsPositionsPanel .nsHoldingRow {
   grid-template-columns:minmax(150px, 1fr) minmax(150px, 0.9fr) minmax(72px, 0.42fr) minmax(126px, 0.72fr) minmax(96px, 0.54fr) minmax(132px, 0.72fr);
