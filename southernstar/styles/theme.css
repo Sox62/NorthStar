@@ -2918,6 +2918,11 @@ body.southernstar .nsShellContent > .shell.holdingsShell {
   max-width:none !important;
 }
 
+body.southernstar .nsShellContent > .shell.riskShell {
+  width:100% !important;
+  max-width:none !important;
+}
+
 body.southernstar .holdingsShell,
 body.southernstar .holdingsShell .pageMasthead,
 body.southernstar .holdingsShell .holdingsBook {

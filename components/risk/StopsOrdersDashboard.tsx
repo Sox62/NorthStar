@@ -264,7 +264,7 @@ export default function StopsOrdersDashboard() {
   const summary = data?.summary;
 
   return (
-    <main className="shell">
+    <main className="shell riskShell">
       <PageHeader
         title="Stops & Orders"
         description="SouthernStar’s own invalidation levels, broker stop reconciliation, pending entry capital and portfolio risk if protective stops are hit."
