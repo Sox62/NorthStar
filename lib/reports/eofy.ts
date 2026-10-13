@@ -91,6 +91,8 @@ export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, tran
     historicalCost,
     valuationAsOf: dashboard.lastUpdated,
     unappliedActions: allTaxLots.unappliedActions,
+    duplicates: allTaxLots.duplicates,
+    nearDuplicates: allTaxLots.near,
   };
 
   return {

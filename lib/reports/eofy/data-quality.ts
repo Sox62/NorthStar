@@ -1,4 +1,4 @@
-import type { RealisedTaxLot, UnappliedCorporateAction } from "@/lib/tax-lots";
+import type { DuplicateTradeWarning, RealisedTaxLot, UnappliedCorporateAction } from "@/lib/tax-lots";
 import type { EofyHistoricalCostRow, EofyHoldingReference, EofyIncomePayment } from "./types";
 
 export function dataQualityNotes(report: {
@@ -8,6 +8,8 @@ export function dataQualityNotes(report: {
   historicalCost: EofyHistoricalCostRow[];
   valuationAsOf: string | null;
   unappliedActions?: UnappliedCorporateAction[];
+  duplicates?: DuplicateTradeWarning[];
+  nearDuplicates?: DuplicateTradeWarning[];
 }) {
   const notes = [
     "Prepared from imported SouthernStar broker transactions and dividend notifications. Accountant should verify against broker statements.",
@@ -44,6 +46,27 @@ export function dataQualityNotes(report: {
    * says so nowhere else. This is the note that would have caught VAU's consolidation at the time
    * rather than a year later during a reconciliation.
    */
+  const duplicates = report.duplicates ?? [];
+  if (duplicates.length) {
+    const symbols = [...new Set(duplicates.map((row) => row.symbol))].sort();
+    notes.push(
+      `${duplicates.length} trade${duplicates.length === 1 ? "" : "s"} appeared in more than one export and `
+      + `${duplicates.length === 1 ? "was" : "were"} counted once rather than twice (${symbols.join(", ")}). `
+      + "Brokers stamp a different id in each export, so these cannot be de-duplicated on import.",
+    );
+  }
+
+  /*
+   * Reported rather than merged. A pair differing only by a day is indistinguishable from two
+   * genuine trades, and merging on a guess would delete a real disposal.
+   */
+  for (const row of report.nearDuplicates ?? []) {
+    notes.push(
+      `${row.symbol} ${row.type} of ${row.quantity} on ${row.tradeDate} may be one trade recorded twice: ${row.reason}. `
+      + "Both have been kept; check the contract note before relying on this holding's cost base.",
+    );
+  }
+
   for (const action of report.unappliedActions ?? []) {
     notes.push(
       `${action.symbol} ${action.description} on ${action.tradeDate} could not be applied (${action.reason}); `

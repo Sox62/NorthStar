@@ -379,3 +379,83 @@ test("a sell reaches parcels imported under a different account key", () => {
   // FIFO still means oldest first: the 2024 parcel is consumed before the 2025 one.
   assert.equal(realised[realised.length - 1].acquisitionDate, "2024-04-15");
 });
+
+/** Two exports carrying the same fill, each with the broker's own id for it. */
+function duplicatedPair() {
+  const row = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "IBKR", accountKey: "U27043306", symbol: "XLE", exchange: "ARCA",
+    instrumentKey: "XLE:ARCA", currency: "USD", fxRateToBase: 1.5, fees: 0, ...over,
+  });
+  return [
+    row({ id: "a", externalId: "179046673", tradeDate: "2026-08-11", type: "BUY", quantity: 300, cost: 20000, source: "IBKR Trade Confirmation Flex" }),
+    row({ id: "b", externalId: "921469695", tradeDate: "2026-08-11", type: "BUY", quantity: 300, cost: 20000, source: "IBKR Flex" }),
+  ];
+}
+
+const emptyDashboard = () => ({
+  scope: "personal", storageMode: "postgresql", totalValue: 0, investedValue: 0, cashValue: 0,
+  dailyMovement: 0, totalReturn: 0, totalReturnPercent: 0, holdings: [], cashAccounts: [],
+  allocations: [], performance: [], periodReturns: [], xirr: {}, income: {}, allocationTargets: [],
+  currencyExposure: [], accounts: [], lastUpdated: "2026-10-14T00:00:00.000Z",
+}) as unknown as Parameters<typeof buildTaxLots>[0];
+
+test("a fill carried by two exports is counted once", () => {
+  // IBKR's Activity Flex and Trade Confirmation Flex return the same fills with different ids, so
+  // id-based de-duplication cannot see them. Thirteen holdings sat at exactly twice their quantity.
+  const sell = { ...duplicatedPair()[0], id: "s", externalId: "sell", tradeDate: "2026-09-01", type: "SELL", quantity: 300, cost: 24000, netCash: 24000, source: "IBKR Flex" };
+  const result = buildTaxLots(emptyDashboard(), [...duplicatedPair(), sell] as never, new Date("2026-10-14T00:00:00.000Z"));
+  assert.equal(result.duplicates.length, 1);
+  assert.equal(result.duplicates[0].symbol, "XLE");
+  assert.equal(result.realisedLots.length, 1, "the sale matches one parcel, not two");
+  assert.equal(result.realisedLots[0].quantity, 300);
+  assert.equal(result.realisedLots[0].acquisitionDate, "2026-08-11");
+});
+
+test("a pair differing only by a day is flagged, never merged", () => {
+  // CDE's contract note is dated 1 June and the All Trades export 2 June — trade date against
+  // settlement. Merging on a guess would delete a real disposal, so both are kept and reported.
+  const pair = duplicatedPair().map((row, index) => ({
+    ...row, symbol: "CDE", exchange: "US", instrumentKey: "CDE:US", type: "SELL", quantity: 1000,
+    cost: 20000, netCash: 20000, tradeDate: index === 0 ? "2026-06-01" : "2026-06-02",
+  }));
+  const result = buildTaxLots(emptyDashboard(), pair as never, new Date("2026-10-14T00:00:00.000Z"));
+  assert.equal(result.duplicates.length, 0, "different dates are not an exact match");
+  assert.equal(result.near.length, 1, "but the pair is reported");
+  assert.match(result.near[0].reason, /1 day apart/);
+});
+
+/** A sale large enough to need both fills, so a lost fill shows up as an unmatched disposal. */
+const sellSixHundred = {
+  ...duplicatedPair()[0], id: "s", externalId: "sell", tradeDate: "2026-09-01", type: "SELL",
+  quantity: 600, cost: 48000, netCash: 48000, source: "IBKR Flex",
+};
+
+test("two genuine fills of the same size on the same day are both kept", () => {
+  // One export legitimately carries several fills of one order, as CORN's five did. Identical rows
+  // from a single source are therefore trades, not a repeat.
+  const fills = duplicatedPair().map((row, index) => ({
+    ...row, id: `f${index}`, externalId: `fill-${index}`, source: "IBKR Flex",
+  }));
+  const result = buildTaxLots(emptyDashboard(), [...fills, sellSixHundred] as never, new Date("2026-10-14T00:00:00.000Z"));
+  assert.equal(result.duplicates.length, 0, "one export's repeats are fills, not duplicates");
+  assert.equal(result.realisedLots.reduce((sum, lot) => sum + lot.quantity, 0), 600);
+  assert.equal(result.realisedLots.filter((lot) => lot.acquisitionDate == null).length, 0);
+});
+
+test("repeated fills of the same size survive de-duplication", () => {
+  // XLE filled twice at 300 units and both IBKR queries carry both fills. The true count is the
+  // most either export reported — two — so collapsing the four rows to one would delete 300 real
+  // units just as surely as keeping all four would invent 300.
+  const fill = (source: string, index: number) => ({
+    ...duplicatedPair()[0], id: `${source}-${index}`, externalId: `${source}-${index}`, source,
+  });
+  const rows = [
+    fill("IBKR Trade Confirmation Flex", 1), fill("IBKR Trade Confirmation Flex", 2),
+    fill("IBKR Flex", 1), fill("IBKR Flex", 2), sellSixHundred,
+  ];
+  const result = buildTaxLots(emptyDashboard(), rows as never, new Date("2026-10-14T00:00:00.000Z"));
+  assert.equal(result.duplicates.length, 1);
+  assert.match(result.duplicates[0].reason, /4 records of 2 trades/);
+  assert.equal(result.realisedLots.reduce((sum, lot) => sum + lot.quantity, 0), 600, "both genuine fills remain");
+  assert.equal(result.realisedLots.filter((lot) => lot.acquisitionDate == null).length, 0);
+});

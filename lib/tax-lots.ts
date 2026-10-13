@@ -52,6 +52,10 @@ export type TaxLotsResponse = {
   generatedAt: string;
   /** Corporate actions the engine could not apply. Never empty silently: see dataQualityNotes. */
   unappliedActions: UnappliedCorporateAction[];
+  /** Trades recorded twice by two exports and merged back to one. */
+  duplicates: DuplicateTradeWarning[];
+  /** Probable duplicates differing only by a day or two; reported, never merged. */
+  near: DuplicateTradeWarning[];
   summary: {
     openLots: number;
     realisedLots: number;
@@ -261,14 +265,125 @@ export type UnappliedCorporateAction = {
   reason: string;
 };
 
+export type DuplicateTradeWarning = {
+  symbol: string;
+  tradeDate: string;
+  type: string;
+  quantity: number;
+  sources: string[];
+  reason: string;
+};
+
+/** Economic identity of a trade, independent of which export carried it or what id it stamped. */
+function tradeIdentity(transaction: StoredTransaction) {
+  return [
+    transaction.ownerType,
+    transaction.symbol.toUpperCase(),
+    transaction.exchange.toUpperCase(),
+    transaction.type,
+    Math.abs(transaction.quantity ?? 0).toFixed(6),
+    transaction.tradeDate,
+  ].join("|");
+}
+
+/**
+ * Removes trades recorded twice because two exports both carry them.
+ *
+ * Brokers stamp their own id on each export, so de-duplication by external id cannot tell that
+ * IBKR's Activity Flex and Trade Confirmation Flex queries describe the same fill, nor that a
+ * Directshares sale appears in both the All Trades Report and a contract note. Thirteen IBKR
+ * holdings sat at exactly twice their real quantity, and four Directshares sales became phantom
+ * disposals with no parcels left to match.
+ *
+ * Only an exact economic match is merged: same owner, security, side, quantity and trade date. A
+ * pair that agrees on everything but the date — a contract note dated to the trade against an
+ * export dated to settlement, as CDE's 1 June against 2 June — is reported rather than merged,
+ * because at that point it is indistinguishable from two genuine trades and guessing would destroy
+ * a real disposal.
+ *
+ * Within one identity the count that survives is the *most* any single export reported, not one.
+ * A large order fills in pieces and every export carrying it carries all of them: XLE's two 300
+ * unit fills arrive as 300, 300 from each of two IBKR queries, and collapsing that to a single row
+ * would delete 300 real units as surely as keeping all four would invent 300.
+ */
+function dedupeTrades(transactions: StoredTransaction[]) {
+  const groups = new Map<string, StoredTransaction[]>();
+  for (const transaction of transactions) {
+    const identity = tradeIdentity(transaction);
+    groups.set(identity, [...(groups.get(identity) ?? []), transaction]);
+  }
+
+  const duplicates: DuplicateTradeWarning[] = [];
+  const dropped = new Set<StoredTransaction>();
+
+  for (const rows of groups.values()) {
+    if (rows.length < 2) continue;
+    const perSource = new Map<string, StoredTransaction[]>();
+    for (const row of rows) perSource.set(row.source, [...(perSource.get(row.source) ?? []), row]);
+    // Repeats inside a single export are genuine fills of one order, as CORN's five were.
+    if (perSource.size < 2) continue;
+
+    // The export that saw the most fills saw them all; the others are re-reporting the same ones.
+    let dominant: StoredTransaction[] = [];
+    for (const rowsForSource of perSource.values()) {
+      if (rowsForSource.length > dominant.length) dominant = rowsForSource;
+    }
+    for (const row of rows) {
+      if (!dominant.includes(row)) dropped.add(row);
+    }
+
+    const first = dominant[0];
+    duplicates.push({
+      symbol: first.symbol,
+      tradeDate: first.tradeDate,
+      type: first.type,
+      quantity: Math.abs(first.quantity ?? 0),
+      sources: [...perSource.keys()],
+      reason: `${rows.length} records of ${dominant.length} trade${dominant.length === 1 ? "" : "s"}`
+        + ` with the same security, side, quantity and trade date across ${perSource.size} exports`,
+    });
+  }
+
+  const kept = transactions.filter((transaction) => !dropped.has(transaction));
+
+  // Near misses: identical but for the date, within a few days. Flagged, never merged.
+  const near: DuplicateTradeWarning[] = [];
+  const loose = new Map<string, StoredTransaction[]>();
+  for (const transaction of kept) {
+    const key = [transaction.ownerType, transaction.symbol.toUpperCase(), transaction.type, Math.abs(transaction.quantity ?? 0).toFixed(6)].join("|");
+    loose.set(key, [...(loose.get(key) ?? []), transaction]);
+  }
+  for (const rows of loose.values()) {
+    if (rows.length < 2) continue;
+    const sorted = [...rows].sort((a, b) => a.tradeDate.localeCompare(b.tradeDate));
+    for (let index = 1; index < sorted.length; index += 1) {
+      const gap = dateDiffDays(sorted[index - 1].tradeDate, sorted[index].tradeDate);
+      if (gap == null || gap > 4 || gap === 0) continue;
+      if (sorted[index - 1].source === sorted[index].source) continue;
+      near.push({
+        symbol: sorted[index].symbol,
+        tradeDate: `${sorted[index - 1].tradeDate} / ${sorted[index].tradeDate}`,
+        type: sorted[index].type,
+        quantity: Math.abs(sorted[index].quantity ?? 0),
+        sources: [sorted[index - 1].source, sorted[index].source],
+        reason: `same security, side and quantity ${gap} day${gap === 1 ? "" : "s"} apart in two exports; possibly one trade dated to trade and to settlement`,
+      });
+    }
+  }
+
+  return { kept, duplicates, near };
+}
+
 function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreatment) {
   const lots = new Map<string, WorkingLot[]>();
   // Second index on the same lot objects, so a fallback lookup shares their consumed quantities.
   const byBroker = new Map<string, WorkingLot[]>();
   const realised: RealisedTaxLot[] = [];
   const unappliedActions: UnappliedCorporateAction[] = [];
-  const sorted = [...transactions]
-    .filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL" || transaction.type === "CORPORATE_ACTION")
+  const { kept, duplicates, near } = dedupeTrades(
+    transactions.filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL" || transaction.type === "CORPORATE_ACTION"),
+  );
+  const sorted = [...kept]
     .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || a.externalId.localeCompare(b.externalId));
 
   for (const transaction of sorted) {
@@ -388,7 +503,7 @@ function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreat
     }
   }
 
-  return { lots, byBroker, realised, unappliedActions };
+  return { lots, byBroker, realised, unappliedActions, duplicates, near };
 }
 
 function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfDate: string, treatment: TaxTreatment): OpenTaxLot[] {
@@ -484,7 +599,7 @@ function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfD
 
 export function buildTaxLots(data: DashboardData, transactions: StoredTransaction[], generatedAt = new Date(), treatment: TaxTreatment = ACCUMULATION): TaxLotsResponse {
   const asOfDate = (data.lastUpdated ?? generatedAt.toISOString()).slice(0, 10);
-  const { lots, byBroker, realised, unappliedActions } = buildWorkingLots(transactions, treatment);
+  const { lots, byBroker, realised, unappliedActions, duplicates, near } = buildWorkingLots(transactions, treatment);
   const openLots = data.holdings
     .filter(isTaxableHolding)
     .flatMap((holding) => openLotsForHolding(
@@ -501,6 +616,8 @@ export function buildTaxLots(data: DashboardData, transactions: StoredTransactio
   return {
     scope: data.scope,
     unappliedActions,
+    duplicates,
+    near,
     asOfDate,
     generatedAt: generatedAt.toISOString(),
     summary: {
