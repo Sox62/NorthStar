@@ -35,6 +35,29 @@ function summary(transactions: ImportedTransaction[]) {
   return { account: maskAccount(account), dividends, symbols, netCash, taxWithheld, fees };
 }
 
+/**
+ * Dividend references already recorded against the other legal book.
+ *
+ * `Dividend:<reference>` comes off the broker's own statement, so it names one payment into one
+ * account. Finding it under the other owner means the statement was imported there by mistake —
+ * which is how four Directshares payments came to sit in both books, doubling every income figure
+ * that spans them.
+ */
+async function dividendsAlreadyInOtherBook(transactions: ImportedTransaction[], owner: OwnerType) {
+  const otherOwner: OwnerType = owner === "SMSF" ? "PERSONAL" : "SMSF";
+  const existing = await getStorage().listTransactions(otherOwner);
+  const seen = new Set(existing.filter((row) => row.type === "DIVIDEND").map((row) => row.externalId));
+  return transactions.filter((transaction) => seen.has(transaction.externalId));
+}
+
+function clashMessage(clash: ImportedTransaction[], owner: OwnerType) {
+  const otherLabel = owner === "SMSF" ? "Personal" : "SMSF";
+  const names = clash.slice(0, 4).map((transaction) => `${transaction.symbol} ${transaction.tradeDate}`).join(", ");
+  return `${clash.length} of these payments are already recorded against ${otherLabel} (${names}${clash.length > 4 ? ", ..." : ""}). `
+    + `A dividend reference belongs to one account, so importing it here as well would double the income. `
+    + `Remove it from ${otherLabel} first if this book is the right one.`;
+}
+
 export async function POST(request: Request) {
   try {
     const url = new URL(request.url);
@@ -46,14 +69,22 @@ export async function POST(request: Request) {
     const accounts = new Set(transactions.map((transaction) => transaction.externalAccountId || "DIVIDENDS"));
     if (accounts.size > 1) throw new Error("Upload one dividend account at a time.");
 
+    const clash = await dividendsAlreadyInOtherBook(transactions, owner);
+
     if (!commit) {
       return NextResponse.json({
         preview: true,
         source: "Dividend payments",
         owner,
         ...summary(transactions),
+        ...(clash.length ? { warning: clashMessage(clash, owner) } : {}),
       });
     }
+
+    // Refused rather than warned: a dividend reference identifies one broker statement paid into one
+    // account, so the same reference in both books is always a mis-filed import, never two payments.
+    // Importing anyway doubles the income on every view that spans both books.
+    if (clash.length) throw new Error(clashMessage(clash, owner));
 
     return NextResponse.json({
       preview: false,

@@ -622,6 +622,20 @@ export type DashboardData = {
   lastUpdated: string | null;
 };
 
+export type DeleteTransactionsInput = {
+  ownerType: OwnerType;
+  externalIds: string[];
+  /** Optional belt-and-braces filter, so a mistyped id cannot reach a row from another importer. */
+  source?: string;
+  dryRun?: boolean;
+};
+
+export type DeleteTransactionsResult = {
+  deleted: number;
+  dryRun: boolean;
+  matched: Array<{ externalId: string; symbol: string; tradeDate: string; type: string; netCash: number | null; source: string }>;
+};
+
 export type ImportResult = {
   source: string;
   ownerType: OwnerType;
@@ -641,6 +655,12 @@ export interface StorageAdapter {
   importDirectshares(positions: OpeningPosition[], ownerType: OwnerType): Promise<ImportResult>;
   importDirectsharesTransactions(transactions: ImportedTransaction[], ownerType: OwnerType, importSource?: string): Promise<ImportResult>;
   listTransactions(ownerType?: OwnerType): Promise<StoredTransaction[]>;
+  /**
+   * Removes transactions by external id within one legal book. Deliberately narrow: a statement
+   * imported against the wrong owner has to come out without touching the correct copy, which
+   * carries the same external id under the other owner. `dryRun` reports what would go.
+   */
+  deleteTransactions(input: DeleteTransactionsInput): Promise<DeleteTransactionsResult>;
   listOpenOrders(ownerType?: OwnerType): Promise<StoredOpenOrder[]>;
   listPositionRiskPlans(ownerType?: OwnerType): Promise<PositionRiskPlan[]>;
   upsertPositionRiskPlan(input: PositionRiskPlanInput): Promise<PositionRiskPlan>;

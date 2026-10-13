@@ -7,7 +7,7 @@ import { classifyAsset } from "./classify";
 import { canonicalInstrumentName } from "./instrument-names";
 import { PASTED_ORDER_SOURCE } from "./local";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
-import type { AllocationTarget, CashAccount, CompositeIndexResult, CompositeIndexResultQuery, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportOptions, PriceImportResult, PastedOpenOrder, PositionRiskPlan, PositionRiskPlanInput, RiskSnapshot, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
+import type { AllocationTarget, CashAccount, CompositeIndexResult, DeleteTransactionsInput, DeleteTransactionsResult, CompositeIndexResultQuery, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportOptions, PriceImportResult, PastedOpenOrder, PositionRiskPlan, PositionRiskPlanInput, RiskSnapshot, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 import {
   captureSnapshot,
@@ -395,6 +395,51 @@ export class PostgresStorageAdapter implements StorageAdapter {
       await client.query("ROLLBACK");
       throw error;
     } finally { client.release(); }
+  }
+
+  async deleteTransactions(input: DeleteTransactionsInput): Promise<DeleteTransactionsResult> {
+    if (!input.externalIds.length) return { deleted: 0, dryRun: input.dryRun ?? false, matched: [] };
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      const portfolioId = await ensurePortfolio(client, input.ownerType);
+      const values: unknown[] = [portfolioId, input.externalIds];
+      const sourceClause = input.source ? ` AND t.source=$${values.push(input.source)}` : "";
+
+      // Matches are read first so a dry run and a commit can never report different rows.
+      const found = await client.query(`
+        SELECT t.external_id, t.trade_date::text AS trade_date, t.type, t.net_cash, t.source, COALESCE(i.ticker, '') AS ticker
+        FROM transactions t
+        LEFT JOIN instruments i ON i.id=t.instrument_id
+        WHERE t.portfolio_id=$1 AND t.external_id = ANY($2::text[])${sourceClause}
+      `, values);
+      const matched = found.rows.map((row) => ({
+        externalId: row.external_id as string,
+        symbol: row.ticker as string,
+        tradeDate: row.trade_date as string,
+        type: row.type as string,
+        netCash: row.net_cash == null ? null : Number(row.net_cash),
+        source: row.source as string,
+      }));
+
+      if (input.dryRun) {
+        await client.query("ROLLBACK");
+        return { deleted: 0, dryRun: true, matched };
+      }
+
+      const deleted = await client.query(`
+        DELETE FROM transactions
+        WHERE portfolio_id=$1 AND external_id = ANY($2::text[])${sourceClause.replace(/t\./g, "")}
+      `, values);
+      await captureSnapshot(client, portfolioId);
+      await client.query("COMMIT");
+      return { deleted: deleted.rowCount ?? 0, dryRun: false, matched };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async deleteManualAsset(id: string, ownerType: OwnerType) {

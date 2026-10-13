@@ -14,6 +14,8 @@ import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import { dashboardFromStore, latestFxRate, normaliseCurrency, normaliseSymbol, priceBookFromStore } from "./local-analytics";
 import { readStore, writeStore } from "./local-store";
 import type {
+  DeleteTransactionsInput,
+  DeleteTransactionsResult,
   CashAccount,
   AllocationTarget,
   CompositeIndexResult,
@@ -349,6 +351,30 @@ export class LocalStorageAdapter implements StorageAdapter {
     captureSnapshot(store, input.ownerType);
     await writeStore(store);
     return asset;
+  }
+
+  async deleteTransactions(input: DeleteTransactionsInput): Promise<DeleteTransactionsResult> {
+    const store = await readStore();
+    const wanted = new Set(input.externalIds);
+    const matches = store.transactions.filter((transaction) =>
+      transaction.ownerType === input.ownerType
+      && wanted.has(transaction.externalId)
+      && (!input.source || transaction.source === input.source));
+    const matched = matches.map((transaction) => ({
+      externalId: transaction.externalId,
+      symbol: transaction.symbol,
+      tradeDate: transaction.tradeDate,
+      type: transaction.type,
+      netCash: transaction.netCash ?? null,
+      source: transaction.source,
+    }));
+    if (input.dryRun) return { deleted: 0, dryRun: true, matched };
+
+    const removed = new Set(matches.map((transaction) => transaction.id));
+    store.transactions = store.transactions.filter((transaction) => !removed.has(transaction.id));
+    captureSnapshot(store, input.ownerType);
+    await writeStore(store);
+    return { deleted: matches.length, dryRun: false, matched };
   }
 
   async deleteManualAsset(id: string, ownerType: OwnerType) {
