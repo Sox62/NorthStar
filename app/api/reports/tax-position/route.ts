@@ -1,3 +1,5 @@
+import { dateInRange } from "@/lib/reports/eofy/utils";
+import { reportPeriod, type ReportPeriod } from "@/lib/reports/report-period";
 import { getStorage, type DashboardData, type OwnerType, type Scope, type StoredTransaction } from "@/lib/storage";
 import { buildTaxLots, type TaxTreatment } from "@/lib/tax-lots";
 import { recordedSectorForInstrument } from "@/southernstar/lib/sector-map";
@@ -29,7 +31,14 @@ const header = [
   "held_days",
   "discount_eligible",
   "taxable_gain_if_sold_aud",
+  // Appended for the realised section. A disposal's proceeds are not a market value and its gain
+  // is not contingent on selling, so overloading the unrealised columns would mislabel both.
+  "disposal_date",
+  "proceeds_aud",
+  "realised_gain_aud",
+  "taxable_gain_aud",
 ];
+
 
 function csvCell(value: CsvCell) {
   if (value == null) return "";
@@ -99,13 +108,13 @@ function discountEligibility(acquisitionDate: string | null, eligible: boolean, 
   return eligible ? "yes" : "no";
 }
 
-function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTransaction[], treatment: TaxTreatment) {
+function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTransaction[], treatment: TaxTreatment, period: ReportPeriod) {
   /*
    * One row per CGT parcel, not per position. A holding built from three buys at three prices is
    * three assets for capital gains purposes, each with its own acquisition date and its own answer
    * to the twelve-month test, and a single averaged row cannot express that.
    */
-  const { openLots } = buildTaxLots(data, transactions, new Date(), treatment);
+  const { openLots, realisedLots } = buildTaxLots(data, transactions, new Date(), treatment);
   const holdings = data.holdings.filter((holding) => holding.costAud !== 0 || holding.marketValueAud !== 0);
   const sectorByHoldingId = new Map(holdings.map((holding) => [holding.id, recordedSectorForInstrument(holding)]));
 
@@ -143,7 +152,13 @@ function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTra
     "",
     `Gross gains ${money(grossGains)}; gross losses ${money(grossLosses)}; ${openLots.length} parcels; cash ${money(data.cashValue)} excluded`
       + (treatment.pensionPhase ? "; pension phase, so capital gains are exempt current pension income and nothing here is taxable" : "")
-      + (!treatment.pensionPhase && undatedParcels ? `; ${undatedParcels} parcels have no acquisition date, so their discount eligibility is unknown and the taxable figure assumes none` : ""),
+      + (!treatment.pensionPhase && undatedParcels ? `; ${undatedParcels} parcels have no acquisition date, so their discount eligibility is unknown and the taxable figure assumes none` : "")
+      /*
+       * An open position cannot be rewound. The parcels come from today's holdings at today's
+       * prices, so a requested period scopes the realised and income sections beneath and leaves
+       * this one alone. Saying so here is the difference between a caveat and a wrong number.
+       */
+      + (period.scoped ? `; unrealised figures are as at ${reportDate(data)} regardless of the requested period, which no stored history can rewind` : ""),
     data.lastUpdated,
     "",
     "",
@@ -186,10 +201,106 @@ function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTra
       money(lot.taxableGainIfSoldAud),
     ]);
   }
+
+  addRealisedRows(rows, data, realisedLots, treatment, period);
 }
 
-function addDividendRows(rows: CsvRow[], data: DashboardData, transactions: StoredTransaction[]) {
-  const dividends = transactions.filter((transaction) => transaction.type === "DIVIDEND");
+/**
+ * Disposals that fell inside the requested period.
+ *
+ * This is the section a date range is actually for: unlike an open position, a disposal happened on
+ * a date and stays on it, so scoping it needs no historical prices and loses no accuracy. Each row
+ * carries its own acquisition date, which is what makes a reported gain checkable.
+ *
+ * Gains and losses are listed and summed, not netted in the order the ATO requires — losses apply
+ * to undiscounted gains first, which changes the tax. That ordering lives in the EOFY report, and
+ * the summary row below says so rather than implying this total is a return figure.
+ */
+function addRealisedRows(
+  rows: CsvRow[],
+  data: DashboardData,
+  realisedLots: ReturnType<typeof buildTaxLots>["realisedLots"],
+  treatment: TaxTreatment,
+  period: ReportPeriod,
+) {
+  const disposals = realisedLots.filter((lot) => dateInRange(lot.saleDate, period.startDate, period.endDate));
+  if (!disposals.length) return;
+
+  const proceeds = disposals.reduce((sum, lot) => sum + lot.proceedsAud, 0);
+  const cost = disposals.reduce((sum, lot) => sum + lot.costAud, 0);
+  const gains = disposals.reduce((sum, lot) => lot.realisedGainAud > 0 ? sum + lot.realisedGainAud : sum, 0);
+  const losses = disposals.reduce((sum, lot) => lot.realisedGainAud < 0 ? sum + Math.abs(lot.realisedGainAud) : sum, 0);
+  const taxable = disposals.reduce((sum, lot) => sum + lot.taxableGainAud, 0);
+  const unmatched = disposals.filter((lot) => !lot.acquisitionDate);
+
+  rows.push([
+    "cgt_realised_summary",
+    ownerLabel(data),
+    `Realised disposals, ${period.label}`,
+    "",
+    "",
+    money(cost),
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    `${disposals.length} disposals; gross gains ${money(gains)}; gross losses ${money(losses)}; `
+      + "losses are listed, not applied to gains in ATO order, so this is not a return figure — see the EOFY report"
+      + (unmatched.length ? `; ${unmatched.length} disposals have no matched acquisition, so their gain is reported as nil rather than measured` : "")
+      + (treatment.pensionPhase ? "; pension phase, so these gains are exempt current pension income" : ""),
+    data.lastUpdated,
+    "",
+    "",
+    treatment.pensionPhase ? "exempt" : "",
+    "",
+    `${period.startDate} to ${period.endDate}`,
+    money(proceeds),
+    money(gains - losses),
+    money(taxable),
+  ]);
+
+  for (const lot of disposals) {
+    rows.push([
+      "cgt_disposal",
+      ownerLabel(data),
+      lot.name,
+      lot.symbol,
+      lot.broker,
+      money(lot.costAud),
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      [
+        `${lot.quantity.toLocaleString("en-AU", { maximumFractionDigits: 6 })} units`,
+        lot.exchange,
+        treatment.pensionPhase ? "pension phase; gain is exempt current pension income" : `discount rate ${(lot.discountRate * 100).toFixed(0)}%`,
+        lot.note,
+      ].filter(Boolean).join("; "),
+      data.lastUpdated,
+      lot.acquisitionDate ?? "",
+      lot.heldDays ?? "",
+      discountEligibility(lot.acquisitionDate, lot.discountEligible, treatment),
+      "",
+      lot.saleDate,
+      money(lot.proceedsAud),
+      money(lot.realisedGainAud),
+      money(lot.taxableGainAud),
+    ]);
+  }
+}
+
+function addDividendRows(rows: CsvRow[], data: DashboardData, transactions: StoredTransaction[], period: ReportPeriod) {
+  const dividends = transactions.filter((transaction) =>
+    transaction.type === "DIVIDEND" && dateInRange(transaction.tradeDate, period.startDate, period.endDate));
   const totalNetCash = dividends.reduce((sum, transaction) => sum + (transaction.netCash ?? 0), 0);
   const totalTaxWithheld = dividends.reduce((sum, transaction) => sum + (transaction.taxes ?? 0), 0);
 
@@ -210,7 +321,7 @@ function addDividendRows(rows: CsvRow[], data: DashboardData, transactions: Stor
     "",
     "AUD",
     "",
-    `Payments ${dividends.length}`,
+    `Payments ${dividends.length}${period.scoped ? `, paid within ${period.label}` : ""}`,
     data.lastUpdated,
   ]);
 
@@ -238,8 +349,9 @@ function addDividendRows(rows: CsvRow[], data: DashboardData, transactions: Stor
 
 export async function GET(request: Request) {
   try {
-    const requestedScope = new URL(request.url).searchParams.get("scope");
-    const selectedScopes = reportScopes(requestedScope);
+    const params = new URL(request.url).searchParams;
+    const selectedScopes = reportScopes(params.get("scope"));
+    const period = reportPeriod(params);
     const storage = getStorage();
     const dashboards = await Promise.all(selectedScopes.map((scope) => storage.dashboard(scope)));
     const transactionsByScope = await Promise.all(selectedScopes.map((scope) => storage.listTransactions(ownerTypeForScope(scope))));
@@ -247,16 +359,40 @@ export async function GET(request: Request) {
     const reportAnchor = dashboards[0];
     const rows: CsvRow[] = [
       header,
-      ["metadata", filenameScope(selectedScopes), "SouthernStar tax position", "", "", "", "", "", "", "", "", "", "", "", `Generated ${new Date().toISOString()}; unrealised positions and imported dividend income`, reportAnchor.lastUpdated],
+      [
+        "metadata",
+        filenameScope(selectedScopes),
+        "SouthernStar tax position",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        `Generated ${new Date().toISOString()}; period ${period.label}; unrealised positions as at `
+          + `${reportDate(reportAnchor)}, with realised disposals and dividend income within the period`,
+        reportAnchor.lastUpdated,
+        "",
+        "",
+        "",
+        "",
+        `${period.startDate} to ${period.endDate}`,
+      ],
     ];
     dashboards.forEach((dashboard, index) => {
       const pensionPhase = taxProfiles.find((profile) => profile.ownerType === ownerTypeForScope(selectedScopes[index]))?.pensionPhase ?? false;
-      addTaxRows(rows, dashboard, transactionsByScope[index] ?? [], { pensionPhase });
-      addDividendRows(rows, dashboard, transactionsByScope[index] ?? []);
+      addTaxRows(rows, dashboard, transactionsByScope[index] ?? [], { pensionPhase }, period);
+      addDividendRows(rows, dashboard, transactionsByScope[index] ?? [], period);
     });
 
     const body = csv(rows);
-    const filename = `southernstar-tax-position-${filenameScope(selectedScopes)}-${reportDate(reportAnchor)}.csv`;
+    const periodSuffix = period.scoped ? `-${period.label.replaceAll(" ", "")}` : "";
+    const filename = `southernstar-tax-position-${filenameScope(selectedScopes)}${periodSuffix}-${reportDate(reportAnchor)}.csv`;
     return new Response(body, {
       headers: {
         "content-type": "text/csv; charset=utf-8",
