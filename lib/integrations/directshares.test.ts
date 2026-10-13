@@ -107,3 +107,21 @@ test("parseDirectsharesConfirmationCsv extracts bulk confirmations across accoun
   assert.equal(asl.netCash, -22124.31);
   assert.equal(asl.fees, 24.31);
 });
+
+test("a contract note dropped into the holdings importer says which box it wanted", () => {
+  // The two Directshares importers sit next to each other, and the holdings parser's own failure is
+  // "columns length is 21, got 22", which says nothing about where the file should have gone.
+  const notes = [
+    "Account Number,Account Name,AsxCode,Confirmation Number,Order Type,As at Date,Trade Date,Settlement Date,Avg Price,Exch Rate,Price,Quantity,Brokerage,GST,Stampduty,Application Fee,OtherCharge,Fee,Discount,Consideration,Reverse Confirmation Number",
+    '4317403,STEPHEN OXENBURY,WIRE,26253437,Buy,,2024-05-02,2024-05-06,"14.3000 AUD",1.000000,14.30000000,700.000000000,18.14,1.81,0.00,0.00,0.00,0.00,0.00,10029.9500,0,',
+  ].join("\n");
+  assert.throws(() => parseDirectsharesHoldingsCsv(notes), /contract notes/);
+});
+
+test("an All Trades Report dropped into the holdings importer says the same", () => {
+  const trades = [
+    "Code,Market Code,Name,Date,Type,Qty,Price,Instrument Currency,Cost Base Per Share (aud),Brokerage,Brokerage Currency,Exch. Rate,Value,",
+    "ASL,ASX,Andean Silver Limited,2025-07-14,Buy,23486,1.45,AUD,,59,AUD,1,34113.7,",
+  ].join("\n");
+  assert.throws(() => parseDirectsharesHoldingsCsv(trades), /contract notes/);
+});

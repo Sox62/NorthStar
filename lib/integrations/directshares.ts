@@ -36,7 +36,25 @@ function firstText(row: Record<string, string>, keys: string[]) {
   return keys.map((key) => row[key]?.trim()).find(Boolean);
 }
 
+/**
+ * Two Directshares exports sit side by side on the imports page, and the wrong one lands here often
+ * enough to be worth naming. A contract-note or All Trades file dropped into the holdings box fails
+ * on a column count, which tells the reader nothing about which box they wanted.
+ */
+function misroutedExportMessage(csv: string) {
+  const header = csv.split(/\r?\n/).find((line) => line.trim())?.toLowerCase() ?? "";
+  if (header.includes("confirmation number") && header.includes("order type")) {
+    return "That is a Directshares contract note export, not a holdings file. Import it under \"Directshares contract notes\".";
+  }
+  if (header.includes("market code") && header.includes("instrument currency")) {
+    return "That is a Directshares All Trades Report, not a holdings file. Import it under \"Directshares contract notes\".";
+  }
+  return "";
+}
+
 export function parseDirectsharesHoldingsCsv(csv: string): OpeningPosition[] {
+  const misrouted = misroutedExportMessage(csv);
+  if (misrouted) throw new Error(misrouted);
   const rows = parse(csv, { columns: true, skip_empty_lines: true, trim: true, bom: true }) as Record<string, string>[];
   const positions = rows
     .filter(row => row.Code && row.Code.toUpperCase() !== "TOTALS")
