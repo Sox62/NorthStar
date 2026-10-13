@@ -1,4 +1,4 @@
-export type TransactionType = "BUY" | "SELL" | "DIVIDEND" | "DEPOSIT" | "WITHDRAWAL" | "FEE" | "FX";
+export type TransactionType = "BUY" | "SELL" | "DIVIDEND" | "DEPOSIT" | "WITHDRAWAL" | "FEE" | "FX" | "CORPORATE_ACTION";
 
 export type ImportedTransaction = {
   externalId: string;

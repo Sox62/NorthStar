@@ -130,12 +130,36 @@ export function parseDirectsharesAllTradesCsv(csv: string): ImportedTransaction[
     const rawType = (row.Type ?? "").trim().toUpperCase();
     const quantity = numberValue(row.Qty);
     const price = numberValue(row.Price);
-    if (!tradeDate || !quantity || price == null) continue;
-    // Corporate actions ride in the same report: VAU appears as a "Consolidation" of -42,307 units
-    // with no price. It changes a share count without being a trade, so it cannot become a lot.
-    if (rawType !== "BUY" && rawType !== "SELL") continue;
+    if (!tradeDate || !quantity) continue;
 
     const exchange = exchangeFor(row["Market Code"] ?? "");
+
+    /*
+     * Corporate actions ride in the same report — VAU appears as a "Consolidation" of -42,307 units
+     * with no price. They are not trades, but dropping them here is what made them invisible: the
+     * consolidation went unrecorded, the parcel kept its pre-consolidation unit cost, and VAU's
+     * gain was overstated by $16,948 with nothing anywhere to say so. They are now carried through
+     * as their own type for the lot engine to apply, and to complain about if it cannot.
+     */
+    if (rawType !== "BUY" && rawType !== "SELL") {
+      transactions.push({
+        externalId: `DS-ACTION:${symbol}:${exchange}:${tradeDate}:${rawType}:${quantity}`,
+        tradeDate,
+        symbol,
+        exchange,
+        description: (row.Type ?? "").trim() || "Corporate action",
+        instrumentKey: `Directshares:${symbol}:${exchange}`,
+        type: "CORPORATE_ACTION",
+        // Signed: the change in units the action applies, which is all the ratio needs.
+        quantity,
+        currency: (row["Instrument Currency"] ?? "AUD").trim().toUpperCase() || "AUD",
+        source: "Directshares All Trades Report",
+        raw: { ...row },
+      });
+      continue;
+    }
+
+    if (price == null) continue;
     const currency = (row["Instrument Currency"] ?? "AUD").trim().toUpperCase() || "AUD";
     const exchangeRate = numberValue(row["Exch. Rate"]);
     const brokerage = numberValue(row.Brokerage) ?? 0;

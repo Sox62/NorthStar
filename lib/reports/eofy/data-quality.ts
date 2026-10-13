@@ -1,4 +1,4 @@
-import type { RealisedTaxLot } from "@/lib/tax-lots";
+import type { RealisedTaxLot, UnappliedCorporateAction } from "@/lib/tax-lots";
 import type { EofyHistoricalCostRow, EofyHoldingReference, EofyIncomePayment } from "./types";
 
 export function dataQualityNotes(report: {
@@ -7,6 +7,7 @@ export function dataQualityNotes(report: {
   currentHoldings: EofyHoldingReference[];
   historicalCost: EofyHistoricalCostRow[];
   valuationAsOf: string | null;
+  unappliedActions?: UnappliedCorporateAction[];
 }) {
   const notes = [
     "Prepared from imported SouthernStar broker transactions and dividend notifications. Accountant should verify against broker statements.",
@@ -23,6 +24,18 @@ export function dataQualityNotes(report: {
   if (priorCloses) notes.push(`${priorCloses} historical-cost row${priorCloses === 1 ? "" : "s"} use the latest stored close before 30 June because an exact 30 June price was not stored.`);
   if (missingPrices || missingFx) notes.push(`${missingPrices + missingFx} historical-cost row${missingPrices + missingFx === 1 ? "" : "s"} need price or FX backfill before the 30 June market-value column is complete.`);
   if (!report.valuationAsOf) notes.push("No valuation date is recorded for the current open-position reference.");
+
+  /*
+   * A corporate action the engine could not apply leaves a cost base wrong by the whole ratio, and
+   * says so nowhere else. This is the note that would have caught VAU's consolidation at the time
+   * rather than a year later during a reconciliation.
+   */
+  for (const action of report.unappliedActions ?? []) {
+    notes.push(
+      `${action.symbol} ${action.description} on ${action.tradeDate} could not be applied (${action.reason}); `
+      + "its cost base per unit is unadjusted and any gain on it will be wrong.",
+    );
+  }
 
   return notes;
 }

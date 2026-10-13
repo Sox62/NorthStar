@@ -272,3 +272,80 @@ test("a fallback parcel with no date still reports none, rather than inventing o
   assert.equal(lot.heldDays, null);
   assert.equal(lot.discountEligible, false);
 });
+
+/** The real VAU sequence: buy 50,000, consolidate to 7,693, sell it in two parcels. */
+function vauTransactions() {
+  return [
+    { id: "b", ownerType: "PERSONAL", broker: "Directshares", accountKey: "4317403",
+      externalId: "buy", tradeDate: "2025-07-03", symbol: "VAU", exchange: "ASX",
+      instrumentKey: "Directshares:VAU:ASX", type: "BUY", quantity: 50000, price: 0.4,
+      cost: 20000, currency: "AUD", fees: 29.95, fxRateToBase: 1, source: "Directshares All Trades Report" },
+    { id: "c", ownerType: "PERSONAL", broker: "Directshares", accountKey: "4317403",
+      externalId: "action", tradeDate: "2025-11-26", symbol: "VAU", exchange: "ASX",
+      instrumentKey: "Directshares:VAU:ASX", type: "CORPORATE_ACTION", quantity: -42307,
+      currency: "AUD", description: "Consolidation", source: "Directshares All Trades Report" },
+    { id: "s1", ownerType: "PERSONAL", broker: "Directshares", accountKey: "4317403",
+      externalId: "sell1", tradeDate: "2026-04-30", symbol: "VAU", exchange: "ASX",
+      instrumentKey: "Directshares:VAU:ASX", type: "SELL", quantity: 3847, price: 4.53,
+      cost: 17428.91, netCash: 17396.96, currency: "AUD", fees: 31.95, fxRateToBase: 1, source: "Directshares All Trades Report" },
+  ];
+}
+
+function vauDashboard() {
+  return {
+    scope: "personal", storageMode: "postgresql", totalValue: 0, investedValue: 0, cashValue: 0,
+    dailyMovement: 0, totalReturn: 0, totalReturnPercent: 0, holdings: [], cashAccounts: [],
+    allocations: [], performance: [], periodReturns: [], xirr: {}, income: {}, allocationTargets: [],
+    currencyExposure: [], accounts: [], lastUpdated: "2026-06-30T00:00:00.000Z",
+  } as unknown as Parameters<typeof buildTaxLots>[0];
+}
+
+test("a consolidation moves cost per unit without changing the total cost base", () => {
+  // VAU's consolidation was skipped, so 7,693 units kept a 0.40 unit cost instead of 2.60 and the
+  // realised gain came out $16,948 too high — half the gap against Sharesight.
+  const result = buildTaxLots(vauDashboard(), vauTransactions() as never, new Date("2026-06-30T00:00:00.000Z"));
+  const sold = result.realisedLots[0];
+  assert.equal(sold.quantity, 3847);
+  // 20,029.95 of cost over 7,693 units is 2.6037/unit, and 3,847 of them is just over half of it.
+  assert.equal(sold.costAud.toFixed(2), "10016.28");
+  assert.ok(sold.costAud > 10000, "not the 1,541 a pre-consolidation unit cost would give");
+  assert.equal(result.unappliedActions.length, 0, "the action applied cleanly");
+});
+
+test("a consolidation does not restart the twelve-month clock", () => {
+  // It is not a CGT event. Resetting the acquisition date would strip discount eligibility from
+  // long-held parcels — a quieter and larger error than the cost-base one.
+  const base = vauTransactions();
+  const transactions = [base[0], base[1], { ...base[2], tradeDate: "2026-06-29", externalId: "sell-late" }];
+  const lot = buildTaxLots(vauDashboard(), transactions as never, new Date("2026-06-30T00:00:00.000Z")).realisedLots[0];
+  assert.equal(lot.acquisitionDate, "2025-07-03", "the date rides with the parcel, not the action");
+  assert.equal(lot.heldDays, 361, "measured from the buy, not the consolidation");
+});
+
+test("fractional units survive a consolidation rather than being rounded away", () => {
+  // 1,000 units consolidated by -875 leaves 125; selling 87.5 must stay fractional.
+  const base = vauTransactions();
+  const transactions = [
+    { ...base[0], quantity: 1000, cost: 1000, fees: 0 },
+    { ...base[1], quantity: -875 },
+    { ...base[2], quantity: 87.5, cost: 500, netCash: 500 },
+  ];
+  const result = buildTaxLots(vauDashboard(), transactions as never, new Date("2026-06-30T00:00:00.000Z"));
+  const lot = result.realisedLots[0];
+  assert.equal(lot.quantity, 87.5);
+  assert.equal(lot.costAud.toFixed(2), "700.00", "87.5 of 125 units carrying 1,000 of cost");
+});
+
+test("an action that cannot be applied is reported, never silently dropped", () => {
+  // Silence is what let VAU through. An action with no acquisition history to rescale has to say so.
+  const orphan = [{
+    id: "c", ownerType: "PERSONAL", broker: "Directshares", accountKey: "4317403",
+    externalId: "action", tradeDate: "2025-11-26", symbol: "ZZZ", exchange: "ASX",
+    instrumentKey: "Directshares:ZZZ:ASX", type: "CORPORATE_ACTION", quantity: -500,
+    currency: "AUD", description: "Consolidation", source: "Directshares All Trades Report",
+  }];
+  const result = buildTaxLots(vauDashboard(), orphan as never, new Date("2026-06-30T00:00:00.000Z"));
+  assert.equal(result.unappliedActions.length, 1);
+  assert.equal(result.unappliedActions[0].symbol, "ZZZ");
+  assert.match(result.unappliedActions[0].reason, /no acquisition history/);
+});

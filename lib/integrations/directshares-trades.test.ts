@@ -62,12 +62,18 @@ test("lots key onto positions the way the holdings importer spells them", () => 
   ]);
 });
 
-test("a corporate action is not a trade", () => {
+test("a corporate action is carried through as an action, never as a trade", () => {
   // VAU appears as a "Consolidation" of -42,307 units with no price. Treated as a sale it would
-  // invent a disposal, and FIFO would then match it against real lots.
-  const trades = parseDirectsharesAllTradesCsv(report(ASL_BUY, VAU_CONSOLIDATION));
-  assert.equal(trades.length, 1);
-  assert.equal(trades[0].symbol, "ASL");
+  // invent a disposal; dropped, as it used to be, the consolidation goes unrecorded and the parcel
+  // keeps a pre-consolidation unit cost — which overstated VAU's gain by $16,948 in silence.
+  const rows = parseDirectsharesAllTradesCsv(report(ASL_BUY, VAU_CONSOLIDATION));
+  assert.equal(rows.length, 2);
+  const action = rows.find((row) => row.symbol === "VAU");
+  assert.equal(action?.type, "CORPORATE_ACTION");
+  assert.equal(action?.quantity, -42307, "the signed delta is what the ratio is derived from");
+  assert.equal(action?.description, "Consolidation");
+  assert.equal(action?.price, undefined, "an action has no price");
+  assert.equal(rows.find((row) => row.symbol === "ASL")?.type, "BUY");
 });
 
 test("identical trades on one day are numbered rather than collapsed", () => {
@@ -84,7 +90,15 @@ test("a localised date still parses", () => {
   assert.equal(parseDirectsharesAllTradesCsv(report(localised))[0].tradeDate, "2025-07-14");
 });
 
-test("a file with no trades is rejected rather than imported as nothing", () => {
-  assert.throws(() => parseDirectsharesAllTradesCsv(report(VAU_CONSOLIDATION)), /No Directshares trades/);
+test("a file of nothing but corporate actions still imports them", () => {
+  // They are not trades, but they are records that change a cost base, so rejecting the file would
+  // put the system back to having no idea the action happened.
+  const rows = parseDirectsharesAllTradesCsv(report(VAU_CONSOLIDATION));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].type, "CORPORATE_ACTION");
+});
+
+test("a file with nothing usable in it is still rejected", () => {
   assert.throws(() => parseDirectsharesAllTradesCsv("Nothing,useful\n1,2"), /No Directshares All Trades header/);
+  assert.throws(() => parseDirectsharesAllTradesCsv(report()), /No Directshares trades/);
 });

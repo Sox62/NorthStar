@@ -90,6 +90,7 @@ export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, tran
     currentHoldings,
     historicalCost,
     valuationAsOf: dashboard.lastUpdated,
+    unappliedActions: allTaxLots.unappliedActions,
   };
 
   return {

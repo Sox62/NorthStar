@@ -50,6 +50,8 @@ export type TaxLotsResponse = {
   scope: Scope;
   asOfDate: string;
   generatedAt: string;
+  /** Corporate actions the engine could not apply. Never empty silently: see dataQualityNotes. */
+  unappliedActions: UnappliedCorporateAction[];
   summary: {
     openLots: number;
     realisedLots: number;
@@ -217,17 +219,81 @@ function makeRealisedLot(input: Omit<RealisedTaxLot, "taxableGainAud" | "discoun
   };
 }
 
+/**
+ * Rescales a holding's open parcels for a corporate action that changes the share count without
+ * being a disposal — a consolidation, a split, a bonus issue.
+ *
+ * Three things matter and each is easy to get wrong:
+ *
+ *   - The acquisition date rides with the parcel. None of these is a CGT event, so the twelve-month
+ *     clock does not restart. Resetting it would silently strip discount eligibility from long-held
+ *     holdings, which is a worse error than the cost-base one and far harder to notice.
+ *   - Total cost base is unchanged; only cost per unit moves. The ratio divides into the unit cost
+ *     exactly as it multiplies the quantity.
+ *   - It is applied per parcel, not to the aggregate, because parcels have different unit costs and
+ *     different dates and must stay distinguishable afterwards.
+ *
+ * The ratio comes from the row's own quantity delta rather than any declared terms, so VAU's
+ * 50,000 to 7,693 resolves without the report ever stating "1 for 6.5". Fractions are kept: the
+ * book already carries 87.5 BMN and 19.5 CORN, and rounding here would quietly lose value.
+ */
+function applyCorporateAction(parcels: WorkingLot[], deltaQuantity: number): boolean {
+  const before = parcels.reduce((sum, lot) => sum + lot.remainingQuantity, 0);
+  if (before <= tolerance) return false;
+  const after = before + deltaQuantity;
+  if (after <= tolerance) return false;
+  const ratio = after / before;
+  if (!Number.isFinite(ratio) || ratio <= 0) return false;
+
+  for (const parcel of parcels) {
+    if (parcel.remainingQuantity <= tolerance) continue;
+    parcel.remainingQuantity *= ratio;
+    parcel.costPerUnitAud /= ratio;
+  }
+  return true;
+}
+
+export type UnappliedCorporateAction = {
+  symbol: string;
+  tradeDate: string;
+  description: string;
+  quantity: number | null;
+  reason: string;
+};
+
 function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreatment) {
   const lots = new Map<string, WorkingLot[]>();
   // Second index on the same lot objects, so a fallback lookup shares their consumed quantities.
   const byBroker = new Map<string, WorkingLot[]>();
   const realised: RealisedTaxLot[] = [];
+  const unappliedActions: UnappliedCorporateAction[] = [];
   const sorted = [...transactions]
-    .filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL")
+    .filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL" || transaction.type === "CORPORATE_ACTION")
     .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || a.externalId.localeCompare(b.externalId));
 
   for (const transaction of sorted) {
     const key = transactionKey(transaction);
+
+    if (transaction.type === "CORPORATE_ACTION") {
+      // Anything that cannot be applied is reported rather than skipped. Silence is how the VAU
+      // consolidation survived long enough to put $16,948 into a report being used for decisions.
+      const delta = transaction.quantity ?? 0;
+      const applied = delta !== 0 && applyCorporateAction(lots.get(key) ?? [], delta);
+      if (!applied) {
+        unappliedActions.push({
+          symbol: transaction.symbol,
+          tradeDate: transaction.tradeDate,
+          description: transaction.description || "Corporate action",
+          quantity: transaction.quantity ?? null,
+          reason: !delta
+            ? "no quantity change recorded"
+            : (lots.get(key) ?? []).length
+              ? "no open parcels remained to rescale"
+              : "no acquisition history for this holding",
+        });
+      }
+      continue;
+    }
     const quantity = Math.abs(transaction.quantity ?? 0);
     if (quantity <= tolerance) continue;
     const lotRows = lots.get(key) ?? [];
@@ -309,7 +375,7 @@ function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreat
     }
   }
 
-  return { lots, byBroker, realised };
+  return { lots, byBroker, realised, unappliedActions };
 }
 
 function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfDate: string, treatment: TaxTreatment): OpenTaxLot[] {
@@ -405,7 +471,7 @@ function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfD
 
 export function buildTaxLots(data: DashboardData, transactions: StoredTransaction[], generatedAt = new Date(), treatment: TaxTreatment = ACCUMULATION): TaxLotsResponse {
   const asOfDate = (data.lastUpdated ?? generatedAt.toISOString()).slice(0, 10);
-  const { lots, byBroker, realised } = buildWorkingLots(transactions, treatment);
+  const { lots, byBroker, realised, unappliedActions } = buildWorkingLots(transactions, treatment);
   const openLots = data.holdings
     .filter(isTaxableHolding)
     .flatMap((holding) => openLotsForHolding(
@@ -421,6 +487,7 @@ export function buildTaxLots(data: DashboardData, transactions: StoredTransactio
 
   return {
     scope: data.scope,
+    unappliedActions,
     asOfDate,
     generatedAt: generatedAt.toISOString(),
     summary: {
