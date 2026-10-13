@@ -1,5 +1,6 @@
 import { getStorage, type DashboardData, type OwnerType, type Scope, type StoredTransaction } from "@/lib/storage";
-import { sectorForInstrument } from "@/southernstar/lib/sector-map";
+import { buildTaxLots } from "@/lib/tax-lots";
+import { recordedSectorForInstrument } from "@/southernstar/lib/sector-map";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,10 @@ const header = [
   "payment_date",
   "detail",
   "as_of",
+  "acquisition_date",
+  "held_days",
+  "discount_eligible",
+  "taxable_gain_if_sold_aud",
 ];
 
 function csvCell(value: CsvCell) {
@@ -33,7 +38,11 @@ function csvCell(value: CsvCell) {
 }
 
 function csv(rows: CsvRow[]) {
-  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
+  // Padded to the header width so a row written before the CGT columns existed still lines up.
+  return rows
+    .map((row) => [...row, ...Array(Math.max(0, header.length - row.length)).fill("")])
+    .map((row) => row.map(csvCell).join(","))
+    .join("\n");
 }
 
 function money(value: number) {
@@ -74,19 +83,45 @@ function unrealisedPercent(costAud: number, marketValueAud: number) {
   return costAud ? unrealisedAud(costAud, marketValueAud) / costAud * 100 : 0;
 }
 
-function addTaxRows(rows: CsvRow[], data: DashboardData) {
+/**
+ * How a parcel's CGT discount reads when its acquisition date is unknown.
+ *
+ * The thirteen fallback parcels — physical metal, and Directshares holdings whose first buy
+ * predates the All Trades Report — have no date to test the twelve-month rule against. Exporting
+ * "no" would assert they fail it, which is a claim with tax consequences; blank says nothing at
+ * all. "unknown" is the only honest third answer.
+ */
+function discountEligibility(acquisitionDate: string | null, eligible: boolean) {
+  if (!acquisitionDate) return "unknown";
+  return eligible ? "yes" : "no";
+}
+
+function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTransaction[]) {
+  /*
+   * One row per CGT parcel, not per position. A holding built from three buys at three prices is
+   * three assets for capital gains purposes, each with its own acquisition date and its own answer
+   * to the twelve-month test, and a single averaged row cannot express that.
+   */
+  const { openLots } = buildTaxLots(data, transactions);
   const holdings = data.holdings.filter((holding) => holding.costAud !== 0 || holding.marketValueAud !== 0);
-  const totalCost = holdings.reduce((sum, holding) => sum + holding.costAud, 0);
-  const totalMarketValue = holdings.reduce((sum, holding) => sum + holding.marketValueAud, 0);
+  const sectorByHoldingId = new Map(holdings.map((holding) => [holding.id, recordedSectorForInstrument(holding)]));
+
+  /*
+   * The totals are summed from the parcels rather than from the holdings. They used to come from
+   * the holdings, which include cash and closed-out rows that never become CGT parcels, so the
+   * summary disagreed with the lines beneath it by the value of whatever it had swept in — while
+   * its own note claimed cash was excluded. Summing the parcels makes the section foot by
+   * construction, and gains and losses are counted per parcel, which is how the ATO sees them:
+   * each parcel is its own asset, so a loss on one does not quietly net off a gain on another
+   * inside the same holding.
+   */
+  const totalCost = openLots.reduce((sum, lot) => sum + lot.costAud, 0);
+  const totalMarketValue = openLots.reduce((sum, lot) => sum + lot.marketValueAud, 0);
   const unrealisedGain = unrealisedAud(totalCost, totalMarketValue);
-  const grossGains = holdings.reduce((sum, holding) => {
-    const gain = unrealisedAud(holding.costAud, holding.marketValueAud);
-    return gain > 0 ? sum + gain : sum;
-  }, 0);
-  const grossLosses = holdings.reduce((sum, holding) => {
-    const gain = unrealisedAud(holding.costAud, holding.marketValueAud);
-    return gain < 0 ? sum + Math.abs(gain) : sum;
-  }, 0);
+  const grossGains = openLots.reduce((sum, lot) => lot.unrealisedGainAud > 0 ? sum + lot.unrealisedGainAud : sum, 0);
+  const grossLosses = openLots.reduce((sum, lot) => lot.unrealisedGainAud < 0 ? sum + Math.abs(lot.unrealisedGainAud) : sum, 0);
+  const taxableIfSold = openLots.reduce((sum, lot) => sum + lot.taxableGainIfSoldAud, 0);
+  const undatedParcels = openLots.filter((lot) => !lot.acquisitionDate).length;
 
   rows.push([
     "tax_summary",
@@ -103,29 +138,45 @@ function addTaxRows(rows: CsvRow[], data: DashboardData) {
     "",
     "",
     "",
-    `Gross gains ${money(grossGains)}; gross losses ${money(grossLosses)}; cash ${money(data.cashValue)} excluded from CGT lots`,
+    `Gross gains ${money(grossGains)}; gross losses ${money(grossLosses)}; ${openLots.length} parcels; cash ${money(data.cashValue)} excluded${undatedParcels ? `; ${undatedParcels} parcels have no acquisition date, so their discount eligibility is unknown and the taxable figure assumes none` : ""}`,
     data.lastUpdated,
+    "",
+    "",
+    undatedParcels ? "partly unknown" : "",
+    money(taxableIfSold),
   ]);
 
-  for (const holding of holdings) {
-    const gain = unrealisedAud(holding.costAud, holding.marketValueAud);
+  for (const lot of openLots) {
+    const undated = !lot.acquisitionDate;
+    const detail = [
+      sectorByHoldingId.get(lot.id.split(":")[0]) ?? "",
+      `${lot.quantity.toLocaleString("en-AU", { maximumFractionDigits: 6 })} units`,
+      lot.exchange,
+      lot.source === "position_fallback" ? "cost-basis fallback parcel" : "FIFO parcel from imported trades",
+      undated ? "no acquisition date; taxable figure assumes no discount" : `discount rate ${(lot.discountRate * 100).toFixed(0)}%`,
+    ].filter(Boolean).join("; ");
+
     rows.push([
-      "tax_lot",
+      "cgt_parcel",
       ownerLabel(data),
-      holding.name,
-      holding.symbol,
-      holding.broker,
-      money(holding.costAud),
-      money(holding.marketValueAud),
-      money(gain),
-      percent(unrealisedPercent(holding.costAud, holding.marketValueAud)),
+      lot.name,
+      lot.symbol,
+      lot.broker,
+      money(lot.costAud),
+      money(lot.marketValueAud),
+      money(lot.unrealisedGainAud),
+      percent(lot.unrealisedGainPercent),
       "",
       "",
       "",
-      holding.currency,
       "",
-      `${sectorForInstrument(holding)}; ${holding.quantity.toLocaleString("en-AU", { maximumFractionDigits: 6 })} units; ${holding.currency}; ${holding.valuationBasis}; ${holding.source}`,
-      holding.asOfDate,
+      "",
+      detail,
+      lot.asOfDate,
+      lot.acquisitionDate ?? "",
+      lot.heldDays ?? "",
+      discountEligibility(lot.acquisitionDate, lot.discountEligible),
+      money(lot.taxableGainIfSoldAud),
     ]);
   }
 }
@@ -191,7 +242,7 @@ export async function GET(request: Request) {
       ["metadata", filenameScope(selectedScopes), "SouthernStar tax position", "", "", "", "", "", "", "", "", "", "", "", `Generated ${new Date().toISOString()}; unrealised positions and imported dividend income`, reportAnchor.lastUpdated],
     ];
     dashboards.forEach((dashboard, index) => {
-      addTaxRows(rows, dashboard);
+      addTaxRows(rows, dashboard, transactionsByScope[index] ?? []);
       addDividendRows(rows, dashboard, transactionsByScope[index] ?? []);
     });
 
