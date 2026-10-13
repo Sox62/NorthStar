@@ -274,7 +274,10 @@ export type DuplicateTradeWarning = {
   reason: string;
 };
 
-/** Economic identity of a trade, independent of which export carried it or what id it stamped. */
+/**
+ * Economic identity of a trade bar its date, independent of which export carried it or what id it
+ * stamped. The date is handled separately because one broker states two of them for a single trade.
+ */
 function tradeIdentity(transaction: StoredTransaction) {
   return [
     transaction.ownerType,
@@ -282,8 +285,45 @@ function tradeIdentity(transaction: StoredTransaction) {
     transaction.exchange.toUpperCase(),
     transaction.type,
     Math.abs(transaction.quantity ?? 0).toFixed(6),
-    transaction.tradeDate,
   ].join("|");
+}
+
+const isoDay = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Every date the broker itself gave for this trade.
+ *
+ * A Directshares contract note carries both: SVM's sale is "as at" 16 June and dated 17 June, and
+ * the All Trades Report reports it on the 16th. That is one sale under two of the broker's own
+ * conventions, not a guess about nearby dates, so matching on either is safe where matching on
+ * proximity would not be.
+ */
+function tradeDates(transaction: StoredTransaction) {
+  const dates = new Set([transaction.tradeDate]);
+  const alternate = transaction.raw?.asAtDate;
+  if (typeof alternate === "string" && isoDay.test(alternate)) dates.add(alternate);
+  return dates;
+}
+
+/** Whether an export stated both of the broker's dates for these rows, which a contract note does. */
+function datedBothWays(rows: StoredTransaction[]) {
+  return rows.some((row) => tradeDates(row).size > 1) ? 1 : 0;
+}
+
+/** Rows within one identity that the broker dated to the same day under either of its conventions. */
+function clusterByDate(rows: StoredTransaction[]) {
+  const clusters: { dates: Set<string>; rows: StoredTransaction[] }[] = [];
+  for (const row of rows) {
+    const dates = tradeDates(row);
+    const existing = clusters.find((cluster) => [...dates].some((date) => cluster.dates.has(date)));
+    if (!existing) {
+      clusters.push({ dates, rows: [row] });
+      continue;
+    }
+    existing.rows.push(row);
+    for (const date of dates) existing.dates.add(date);
+  }
+  return clusters;
 }
 
 /**
@@ -295,11 +335,10 @@ function tradeIdentity(transaction: StoredTransaction) {
  * holdings sat at exactly twice their real quantity, and four Directshares sales became phantom
  * disposals with no parcels left to match.
  *
- * Only an exact economic match is merged: same owner, security, side, quantity and trade date. A
- * pair that agrees on everything but the date — a contract note dated to the trade against an
- * export dated to settlement, as CDE's 1 June against 2 June — is reported rather than merged,
- * because at that point it is indistinguishable from two genuine trades and guessing would destroy
- * a real disposal.
+ * Only an exact economic match is merged: same owner, security, side, quantity, and a date the
+ * broker gave for both. A pair the broker never dated alike — a contract note dated to the trade
+ * against an export dated to settlement — is reported rather than merged, because at that point it
+ * is indistinguishable from two genuine trades and guessing would destroy a real disposal.
  *
  * Within one identity the count that survives is the *most* any single export reported, not one.
  * A large order fills in pieces and every export carrying it carries all of them: XLE's two 300
@@ -318,30 +357,43 @@ function dedupeTrades(transactions: StoredTransaction[]) {
 
   for (const rows of groups.values()) {
     if (rows.length < 2) continue;
-    const perSource = new Map<string, StoredTransaction[]>();
-    for (const row of rows) perSource.set(row.source, [...(perSource.get(row.source) ?? []), row]);
-    // Repeats inside a single export are genuine fills of one order, as CORN's five were.
-    if (perSource.size < 2) continue;
+    for (const cluster of clusterByDate(rows)) {
+      if (cluster.rows.length < 2) continue;
+      const perSource = new Map<string, StoredTransaction[]>();
+      for (const row of cluster.rows) perSource.set(row.source, [...(perSource.get(row.source) ?? []), row]);
+      // Repeats inside a single export are genuine fills of one order, as CORN's five were.
+      if (perSource.size < 2) continue;
 
-    // The export that saw the most fills saw them all; the others are re-reporting the same ones.
-    let dominant: StoredTransaction[] = [];
-    for (const rowsForSource of perSource.values()) {
-      if (rowsForSource.length > dominant.length) dominant = rowsForSource;
-    }
-    for (const row of rows) {
-      if (!dominant.includes(row)) dropped.add(row);
-    }
+      /*
+       * The export that saw the most fills saw them all; the others are re-reporting the same ones.
+       *
+       * A tie goes to the export that stated both of the broker's dates, which is the contract
+       * note: it is the primary document, and the date of the record that survives is the date the
+       * disposal is reported on. Left to input order a sale dated 30 June on one export and 1 July
+       * on the other would fall into whichever financial year the rows happened to arrive in.
+       */
+      let dominant: StoredTransaction[] = [];
+      for (const rowsForSource of [...perSource.values()].sort((a, b) =>
+        datedBothWays(b) - datedBothWays(a) || a[0].externalId.localeCompare(b[0].externalId))) {
+        if (rowsForSource.length > dominant.length) dominant = rowsForSource;
+      }
+      for (const row of cluster.rows) {
+        if (!dominant.includes(row)) dropped.add(row);
+      }
 
-    const first = dominant[0];
-    duplicates.push({
-      symbol: first.symbol,
-      tradeDate: first.tradeDate,
-      type: first.type,
-      quantity: Math.abs(first.quantity ?? 0),
-      sources: [...perSource.keys()],
-      reason: `${rows.length} records of ${dominant.length} trade${dominant.length === 1 ? "" : "s"}`
-        + ` with the same security, side, quantity and trade date across ${perSource.size} exports`,
-    });
+      const first = dominant[0];
+      const dates = [...cluster.dates].sort();
+      duplicates.push({
+        symbol: first.symbol,
+        tradeDate: first.tradeDate,
+        type: first.type,
+        quantity: Math.abs(first.quantity ?? 0),
+        sources: [...perSource.keys()],
+        reason: `${cluster.rows.length} records of ${dominant.length} trade${dominant.length === 1 ? "" : "s"}`
+          + ` with the same security, side and quantity across ${perSource.size} exports`
+          + (dates.length > 1 ? `, dated ${dates.join(" and ")} by the broker's two conventions` : ""),
+      });
+    }
   }
 
   const kept = transactions.filter((transaction) => !dropped.has(transaction));

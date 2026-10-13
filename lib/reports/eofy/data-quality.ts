@@ -42,17 +42,18 @@ export function dataQualityNotes(report: {
   if (!report.valuationAsOf) notes.push("No valuation date is recorded for the current open-position reference.");
 
   /*
-   * A corporate action the engine could not apply leaves a cost base wrong by the whole ratio, and
-   * says so nowhere else. This is the note that would have caught VAU's consolidation at the time
-   * rather than a year later during a reconciliation.
+   * A trade carried by two exports doubles both quantity and cost base, and nothing else reports
+   * it: thirteen IBKR holdings sat at exactly twice their real size before this note existed.
    */
   const duplicates = report.duplicates ?? [];
   if (duplicates.length) {
     const symbols = [...new Set(duplicates.map((row) => row.symbol))].sort();
     notes.push(
-      `${duplicates.length} trade${duplicates.length === 1 ? "" : "s"} appeared in more than one export and `
-      + `${duplicates.length === 1 ? "was" : "were"} counted once rather than twice (${symbols.join(", ")}). `
-      + "Brokers stamp a different id in each export, so these cannot be de-duplicated on import.",
+      `${duplicates.length} trade${duplicates.length === 1 ? "" : "s"} appeared in more than one export `
+      + `(${symbols.join(", ")}) and ${duplicates.length === 1 ? "has" : "have"} been counted as many times `
+      + "as the single export reporting the most of them, so repeated fills of one order survive while the "
+      + "re-reported copies do not. Brokers stamp a different id in each export, so these cannot be "
+      + "de-duplicated on import.",
     );
   }
 

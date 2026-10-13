@@ -319,7 +319,13 @@ function parseDirectsharesConfirmationCsvRow(row: Record<string, string>): Impor
       tradePrice: averagePrice.price || undefined,
       tradeFxRate: numberValue(row["Exch Rate"]) || undefined,
       settlementCurrency: "AUD",
-      asAtDate: row["As at Date"]?.trim() || undefined,
+      /*
+       * Normalised rather than carried through raw, because this is the broker's other date for the
+       * same trade and the lot engine matches on it: SVM's sale is 16 June in the All Trades Report
+       * and 17 June on the contract note, and without a comparable form of the alternate date the
+       * two records of one sale cannot be recognised as one.
+       */
+      asAtDate: row["As at Date"]?.trim() ? isoDate(row["As at Date"].trim()) : undefined,
       sourceFormat: "Directshares confirmation CSV",
       reverseConfirmationNumber: row["Reverse Confirmation Number"]?.trim() || undefined,
     },

@@ -424,6 +424,32 @@ test("a pair differing only by a day is flagged, never merged", () => {
   assert.match(result.near[0].reason, /1 day apart/);
 });
 
+test("a sale the broker dated two ways is still one sale", () => {
+  // SVM's disposal is 16 June in the All Trades Report and 17 June on the contract note, which also
+  // states 16 June as its "as at" date. Both dates come from the broker, so this is one sale under
+  // two of its own conventions rather than a guess that nearby dates mean the same trade.
+  const row = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "Directshares", accountKey: "4317403", symbol: "SVM",
+    exchange: "TSE", instrumentKey: "SVM:TSE", currency: "AUD", fxRateToBase: 1, fees: 0,
+    type: "SELL", quantity: 3500, ...over,
+  });
+  const rows = [
+    row({ id: "b", externalId: "buy", type: "BUY", tradeDate: "2025-05-23", cost: 21440.41, source: "Directshares All Trades Report" }),
+    row({ id: "a", externalId: "DS-TRADE", tradeDate: "2026-06-16", cost: 61099.13, netCash: 61099.13, source: "Directshares All Trades Report" }),
+    row({
+      id: "c", externalId: "Directshares:38483957", tradeDate: "2026-06-17", cost: 61099.13,
+      netCash: 61099.13, source: "Directshares Contract Note", raw: { asAtDate: "2026-06-16" },
+    }),
+  ];
+  const result = buildTaxLots(emptyDashboard(), rows as never, new Date("2026-10-14T00:00:00.000Z"));
+  assert.equal(result.duplicates.length, 1, "the two records are one disposal");
+  assert.match(result.duplicates[0].reason, /2026-06-16 and 2026-06-17/);
+  assert.equal(result.near.length, 0, "merged, so there is nothing left to flag");
+  assert.equal(result.realisedLots.length, 1, "one disposal, not a phantom second one");
+  assert.equal(result.realisedLots[0].quantity, 3500);
+  assert.equal(result.realisedLots[0].acquisitionDate, "2025-05-23");
+});
+
 /** A sale large enough to need both fills, so a lost fill shows up as an unmatched disposal. */
 const sellSixHundred = {
   ...duplicatedPair()[0], id: "s", externalId: "sell", tradeDate: "2026-09-01", type: "SELL",
