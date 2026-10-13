@@ -1,6 +1,7 @@
-import type { OpenTaxLot, RealisedTaxLot } from "@/lib/tax-lots";
+import { discountRateForOwner, taxableGainForTreatment, type OpenTaxLot, type RealisedTaxLot, type TaxTreatment } from "@/lib/tax-lots";
 import type { EofyCapitalGainsHolding, EofyCapitalGainsReport, EofyHistoricalCostRow, EofyScope, EofyUnrealisedCgtReport, EofyValuationStatus } from "./types";
 import { historicalKey } from "./valuation";
+import { ownerTypeForEofyScope } from "./utils";
 
 export function realisedSummary(lots: RealisedTaxLot[]) {
   const realisedGainsAud = lots.reduce((sum, lot) => lot.realisedGainAud > 0 ? sum + lot.realisedGainAud : sum, 0);
@@ -13,11 +14,17 @@ export function realisedSummary(lots: RealisedTaxLot[]) {
   };
 }
 
-function capitalGainDiscountRate(_scope: EofyScope) {
-  return 0.5;
+/**
+ * The rate comes from the engine rather than a literal here, so a fund gets a third and an
+ * individual a half from one place. `EofyScope` is currently "personal" only — the pack is
+ * deliberately personal-only and the route refuses anything else — so this resolves to a half
+ * today; widening the scope will route through the same rule rather than a second copy of it.
+ */
+function capitalGainDiscountRate(scope: EofyScope) {
+  return discountRateForOwner(ownerTypeForEofyScope(scope));
 }
 
-export function capitalGainsReport(scope: EofyScope, realisedLots: RealisedTaxLot[]): EofyCapitalGainsReport {
+export function capitalGainsReport(scope: EofyScope, realisedLots: RealisedTaxLot[], treatment: TaxTreatment): EofyCapitalGainsReport {
   const shortTerm = realisedLots.filter((lot) => lot.realisedGainAud > 0 && !lot.discountEligible);
   const longTerm = realisedLots.filter((lot) => lot.realisedGainAud > 0 && lot.discountEligible);
   const losses = realisedLots.filter((lot) => lot.realisedGainAud < 0);
@@ -65,7 +72,11 @@ export function capitalGainsReport(scope: EofyScope, realisedLots: RealisedTaxLo
       shortTermGainsAfterLossesAud,
       longTermGainsAfterLossesAud,
       cgtConcessionAud,
-      netCapitalGainAud: shortTermGainsAfterLossesAud + longTermGainsAfterLossesAud - cgtConcessionAud,
+      // Exempt current pension income: the fund's net capital gain is nil however the gains and
+      // losses inside it net off, so the figure is zeroed here rather than discounted.
+      netCapitalGainAud: treatment.pensionPhase
+        ? 0
+        : shortTermGainsAfterLossesAud + longTermGainsAfterLossesAud - cgtConcessionAud,
       discountRate,
     },
     byHolding: [...byHolding.values()].sort((a, b) => b.totalGainAud + b.lossesAud - (a.totalGainAud + a.lossesAud)),
@@ -111,12 +122,16 @@ function lotValuationMap(rows: EofyHistoricalCostRow[], lots: OpenTaxLot[]) {
   return valuations;
 }
 
-function taxableOpenGain(gainAud: number, lot: OpenTaxLot) {
-  if (gainAud <= 0) return gainAud;
-  return lot.discountEligible ? gainAud * (1 - lot.discountRate) : gainAud;
+/**
+ * Repricing a lot to the year end changes its gain, so the taxable figure has to be recomputed —
+ * but through the engine's own rule, not a copy of it. The copy had no tax treatment in scope and
+ * so overwrote an exempt zero with a taxable number on every SMSF lot it touched.
+ */
+function taxableOpenGain(gainAud: number, lot: OpenTaxLot, treatment: TaxTreatment) {
+  return taxableGainForTreatment(gainAud, lot.discountEligible, lot.discountRate, treatment);
 }
 
-export function eofyPricedOpenLots(openLots: OpenTaxLot[], rows: EofyHistoricalCostRow[], endDate: string) {
+export function eofyPricedOpenLots(openLots: OpenTaxLot[], rows: EofyHistoricalCostRow[], endDate: string, treatment: TaxTreatment) {
   const valuations = lotValuationMap(rows, openLots);
   return openLots.map((lot) => {
     const valuation = valuations.get(historicalKey(lot));
@@ -138,7 +153,7 @@ export function eofyPricedOpenLots(openLots: OpenTaxLot[], rows: EofyHistoricalC
       marketValueAud,
       unrealisedGainAud: gainAud,
       unrealisedGainPercent: lot.costAud ? (gainAud / lot.costAud) * 100 : 0,
-      taxableGainIfSoldAud: taxableOpenGain(gainAud, lot),
+      taxableGainIfSoldAud: taxableOpenGain(gainAud, lot, treatment),
       note: `${lot.note} EOFY valuation ${valuation.status}${valuation.date ? ` from ${valuation.date}` : ""}.${quantityMismatch}`,
     };
   });

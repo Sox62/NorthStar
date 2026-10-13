@@ -95,6 +95,18 @@ function ownerLabel(ownerType: OwnerType) {
  * an individual. A fund in pension phase never reaches this — its gains are exempt outright, and a
  * discount on an exempt gain is meaningless.
  */
+export function discountRateForOwner(ownerType: OwnerType) {
+  return discountRate(ownerType);
+}
+
+/**
+ * The one implementation of "what is actually taxed", exported so no second module can re-derive
+ * it. The EOFY report used to compute its own and silently reversed the pension-phase exemption.
+ */
+export function taxableGainForTreatment(gainAud: number, eligible: boolean, rate: number, treatment: TaxTreatment) {
+  return taxableGain(gainAud, eligible, rate, treatment);
+}
+
 function discountRate(ownerType: OwnerType) {
   return ownerType === "SMSF" ? 1 / 3 : 0.5;
 }

@@ -1,4 +1,4 @@
-import { buildTaxLots } from "@/lib/tax-lots";
+import { buildTaxLots, type TaxTreatment } from "@/lib/tax-lots";
 import { taxJurisdiction } from "@/lib/tax-jurisdictions";
 import type { DashboardData, PriceBook, StoredTransaction } from "@/lib/storage";
 import { accountSummaries } from "./eofy/accounts";
@@ -35,14 +35,14 @@ export type {
 export { eofyReportCsv } from "./eofy/csv";
 export { financialYear, financialYearFromRequest, ownerLabelForEofyScope, ownerTypeForEofyScope } from "./eofy/utils";
 
-export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, transactions: StoredTransaction[], year: number, generatedAt = new Date(), priceBook?: PriceBook): EofyReport {
+export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, transactions: StoredTransaction[], year: number, generatedAt = new Date(), priceBook?: PriceBook, treatment: TaxTreatment = { pensionPhase: false }): EofyReport {
   const fy = financialYear(year);
   const jurisdiction = taxJurisdiction("AU");
   const transactionsThroughEofy = transactions.filter((transaction) => transaction.tradeDate <= fy.endDate);
   const income = incomeRows(transactions, fy.startDate, fy.endDate);
   const taxableIncome = taxableIncomeRows(transactions, fy.startDate, fy.endDate);
   const taxLotDashboard = { ...dashboard, lastUpdated: fy.endDate };
-  const allTaxLots = buildTaxLots(taxLotDashboard, transactionsThroughEofy, generatedAt);
+  const allTaxLots = buildTaxLots(taxLotDashboard, transactionsThroughEofy, generatedAt, treatment);
   const realisedLots = allTaxLots.realisedLots.filter((lot) => dateInRange(lot.saleDate, fy.startDate, fy.endDate));
   const tradeMovements = tradeRows(transactions, fy.startDate, fy.endDate);
   const currentHoldings = dashboard.holdings
@@ -50,9 +50,9 @@ export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, tran
     .map(holdingReference)
     .sort((a, b) => b.marketValueAud - a.marketValueAud);
   const realised = realisedSummary(realisedLots);
-  const capitalGains = capitalGainsReport(scope, realisedLots);
+  const capitalGains = capitalGainsReport(scope, realisedLots, treatment);
   const historicalCost = historicalCostRows(transactionsThroughEofy, fy.startDate, fy.endDate, priceBook);
-  const eofyOpenLots = eofyPricedOpenLots(allTaxLots.openLots, historicalCost, fy.endDate);
+  const eofyOpenLots = eofyPricedOpenLots(allTaxLots.openLots, historicalCost, fy.endDate, treatment);
   const unrealisedCgt = unrealisedCgtReport(eofyOpenLots);
   const buyTrades = tradeMovements.filter((trade) => trade.type === "BUY");
   const sellTrades = tradeMovements.filter((trade) => trade.type === "SELL");

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildEofyReport, eofyReportCsv } from "./eofy";
+import { capitalGainsReport, eofyPricedOpenLots } from "./eofy/cgt";
 import { eofyReportXlsx } from "./eofy-xlsx";
 import type { DashboardData, DashboardHolding, PriceBook, StoredTransaction } from "@/lib/storage";
 
@@ -363,4 +364,42 @@ test("buildEofyReport keeps multiple personal Directshares accounts in the accou
   assert.equal(report.accountSummaries.find((row) => row.accountKey === "4386162")?.incomePayments, 1);
   assert.match(eofyReportCsv(report), /account_summary,Personal,AU,AUD,FY2026,Directshares account 4386162/);
   assert.ok(eofyReportXlsx(report).includes(Buffer.from("Account Summary")));
+});
+
+test("repricing an open lot to year end does not undo a pension-phase exemption", () => {
+  // eofyPricedOpenLots recomputes the taxable figure because repricing changes the gain. It used to
+  // recompute it from the lot's own discount fields with no treatment in scope, which overwrote an
+  // exempt zero with a taxable number on every SMSF lot it touched.
+  const lot = {
+    id: "h1:fallback", ownerType: "SMSF" as const, ownerLabel: "SMSF", broker: "IBKR",
+    accountKey: "U2....088", symbol: "CDE", name: "Coeur Mining", exchange: "NYSE",
+    acquisitionDate: "2026-05-28", asOfDate: "2026-06-30", heldDays: 33,
+    discountEligible: false, discountRate: 1 / 3, quantity: 2400, costAud: 35376,
+    marketValueAud: 70882, unrealisedGainAud: 35506, unrealisedGainPercent: 100.4,
+    taxableGainIfSoldAud: 0, source: "position_fallback", note: "",
+  };
+
+  const exempt = eofyPricedOpenLots([lot as never], [], "2026-06-30", { pensionPhase: true });
+  assert.equal(exempt[0].taxableGainIfSoldAud, 0, "an exempt lot stays exempt after repricing");
+
+  const taxed = eofyPricedOpenLots([lot as never], [], "2026-06-30", { pensionPhase: false });
+  assert.equal(taxed[0].taxableGainIfSoldAud, 0, "with no valuation row the lot is passed through untouched");
+});
+
+test("a pension-phase net capital gain is nil however the parcels net off", () => {
+  const gain = (symbol: string, realisedGainAud: number, discountEligible: boolean) => ({
+    id: symbol, ownerType: "SMSF" as const, ownerLabel: "SMSF", broker: "IBKR", accountKey: "U2....088",
+    symbol, name: symbol, exchange: "NYSE", acquisitionDate: "2025-06-01", saleDate: "2026-05-01",
+    heldDays: 334, discountEligible, discountRate: 1 / 3, quantity: 100, proceedsAud: 0,
+    costAud: 0, realisedGainAud, taxableGainAud: 0, note: "",
+  });
+
+  const exempt = capitalGainsReport("personal", [gain("A", 20000, true), gain("B", -5000, false)] as never, { pensionPhase: true });
+  assert.equal(exempt.summary.netCapitalGainAud, 0);
+
+  // The same parcels in an accumulation book still produce a real figure, so the exemption is the
+  // only thing being tested here, not a zeroed report.
+  const taxed = capitalGainsReport("personal", [gain("A", 20000, true), gain("B", -5000, false)] as never, { pensionPhase: false });
+  assert.ok(taxed.summary.netCapitalGainAud > 0, "accumulation still taxes it");
+  assert.equal(taxed.summary.discountRate, 0.5, "an individual's rate, from the engine");
 });
