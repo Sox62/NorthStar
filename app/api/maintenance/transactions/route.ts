@@ -17,6 +17,9 @@ const listSchema = z.object({
   type: z.string().min(1).optional(),
 });
 
+/** The listing is capped; a whole-book reconciliation needs every row. */
+const LIST_LIMIT = 5000;
+
 /**
  * Lists transactions with their external ids, which is how a delete names its rows.
  *
@@ -38,11 +41,14 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ownerType: input.ownerType,
       count: filtered.length,
-      transactions: filtered.slice(0, 500).map((row) => ({
+      transactions: filtered.slice(0, LIST_LIMIT).map((row) => ({
         externalId: row.externalId,
         symbol: row.symbol,
+        exchange: row.exchange,
         tradeDate: row.tradeDate,
         type: row.type,
+        // Needed to reconcile transaction-implied holdings against the position book.
+        quantity: row.quantity ?? null,
         netCash: row.netCash ?? null,
         taxes: row.taxes ?? null,
         broker: row.broker,
