@@ -348,10 +348,20 @@ function addDividendRows(rows: CsvRow[], data: DashboardData, transactions: Stor
 }
 
 export async function GET(request: Request) {
+  const params = new URL(request.url).searchParams;
+  /*
+   * Read the request before touching storage, so a malformed date range answers 400 rather than
+   * 500. A 500 says the server broke and invites a retry; this one is answered by fixing the URL.
+   */
+  let period: ReportPeriod;
   try {
-    const params = new URL(request.url).searchParams;
+    period = reportPeriod(params);
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Unusable date range" }, { status: 400 });
+  }
+
+  try {
     const selectedScopes = reportScopes(params.get("scope"));
-    const period = reportPeriod(params);
     const storage = getStorage();
     const dashboards = await Promise.all(selectedScopes.map((scope) => storage.dashboard(scope)));
     const transactionsByScope = await Promise.all(selectedScopes.map((scope) => storage.listTransactions(ownerTypeForScope(scope))));
