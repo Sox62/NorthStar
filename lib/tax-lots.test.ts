@@ -148,3 +148,77 @@ test("a position is dated even when its trades spell the instrument key differen
   assert.equal(result.openLots[0]?.acquisitionDate, "2025-07-14");
   assert.equal(result.openLots[0]?.discountEligible, true, "held over a year, so the CGT discount applies");
 });
+
+test("a pension-phase fund owes nothing on a gain, discount or not", () => {
+  // StellaWorld is wholly in pension phase, so its gains are exempt current pension income. Run as
+  // accumulation the same book reported $29,644 of gross gains as fully taxable, which would make
+  // trimming a winner in the fund look expensive when it costs nothing.
+  const holding = {
+    id: "h1", ownerType: "SMSF" as const, broker: "IBKR", accountKey: "U24473088",
+    instrumentKey: "DBA:ARCA", symbol: "DBA", name: "Invesco Agriculture", exchange: "ARCA",
+    currency: "USD", assetClass: "EQUITY", quantity: 360, lastPrice: 28.38, averageCostAud: 28.22,
+    costAud: 14290, marketValueAud: 14371, dayGainAud: 0, pnlAud: 81, pnlPercent: 0.57,
+    valuationBasis: "market" as const, asOfDate: "2026-10-13", source: "IBKR", weight: 1,
+  };
+  const data = {
+    scope: "smsf", storageMode: "postgresql", totalValue: 14371, investedValue: 14371,
+    cashValue: 0, dailyMovement: 0, totalReturn: 81, totalReturnPercent: 0.57,
+    holdings: [holding], cashAccounts: [], allocations: [], performance: [], periodReturns: [],
+    xirr: {}, income: {}, allocationTargets: [], currencyExposure: [], accounts: [],
+    lastUpdated: "2026-10-13T00:00:00.000Z",
+  } as unknown as Parameters<typeof buildTaxLots>[0];
+
+  const accumulation = buildTaxLots(data, [], new Date("2026-10-13T00:00:00.000Z"));
+  assert.ok(accumulation.openLots[0].taxableGainIfSoldAud > 0, "accumulation taxes the gain");
+
+  const pension = buildTaxLots(data, [], new Date("2026-10-13T00:00:00.000Z"), { pensionPhase: true });
+  assert.equal(pension.openLots[0].taxableGainIfSoldAud, 0, "pension phase exempts it entirely");
+  assert.equal(pension.summary.taxableGainIfSoldAud, 0, "and the summary with it");
+});
+
+test("pension phase exempts a gain that no discount would have reached anyway", () => {
+  // No SMSF parcel is discount-eligible — the longest is 162 days — so without this the fund's
+  // gains are reported at their full face value.
+  const holding = {
+    id: "h2", ownerType: "SMSF" as const, broker: "IBKR", accountKey: "U24473088",
+    instrumentKey: "CDE:NYSE", symbol: "CDE", name: "Coeur Mining", exchange: "NYSE",
+    currency: "USD", assetClass: "EQUITY", quantity: 2400, lastPrice: 21.1, averageCostAud: 14.74,
+    costAud: 35376, marketValueAud: 70882, dayGainAud: 0, pnlAud: 35506, pnlPercent: 100.4,
+    valuationBasis: "market" as const, asOfDate: "2026-10-13", source: "IBKR", weight: 1,
+  };
+  const data = {
+    scope: "smsf", storageMode: "postgresql", totalValue: 70882, investedValue: 70882,
+    cashValue: 0, dailyMovement: 0, totalReturn: 35506, totalReturnPercent: 100.4,
+    holdings: [holding], cashAccounts: [], allocations: [], performance: [], periodReturns: [],
+    xirr: {}, income: {}, allocationTargets: [], currencyExposure: [], accounts: [],
+    lastUpdated: "2026-10-13T00:00:00.000Z",
+  } as unknown as Parameters<typeof buildTaxLots>[0];
+
+  const lot = buildTaxLots(data, [], new Date("2026-10-13T00:00:00.000Z"), { pensionPhase: true }).openLots[0];
+  assert.equal(lot.discountEligible, false, "held under a year, so no discount applies");
+  assert.equal(lot.taxableGainIfSoldAud, 0, "but the gain is exempt regardless");
+});
+
+test("a loss is still a loss in pension phase, not turned into zero", () => {
+  // Exempt means no tax payable, and taxableGain must not quietly report a capital loss as nil in
+  // a book where it has no value either — but the figure that carries is the gain column, so the
+  // exemption applies to the taxable line alone.
+  const holding = {
+    id: "h3", ownerType: "SMSF" as const, broker: "IBKR", accountKey: "U24473088",
+    instrumentKey: "VELO:NASDAQ", symbol: "VELO", name: "Velocity", exchange: "NASDAQ",
+    currency: "USD", assetClass: "EQUITY", quantity: 400, lastPrice: 14.08, averageCostAud: 24.98,
+    costAud: 14036, marketValueAud: 7910, dayGainAud: 0, pnlAud: -6126, pnlPercent: -43.6,
+    valuationBasis: "market" as const, asOfDate: "2026-10-13", source: "IBKR", weight: 1,
+  };
+  const data = {
+    scope: "smsf", storageMode: "postgresql", totalValue: 7910, investedValue: 7910,
+    cashValue: 0, dailyMovement: 0, totalReturn: -6126, totalReturnPercent: -43.6,
+    holdings: [holding], cashAccounts: [], allocations: [], performance: [], periodReturns: [],
+    xirr: {}, income: {}, allocationTargets: [], currencyExposure: [], accounts: [],
+    lastUpdated: "2026-10-13T00:00:00.000Z",
+  } as unknown as Parameters<typeof buildTaxLots>[0];
+
+  const lot = buildTaxLots(data, [], new Date("2026-10-13T00:00:00.000Z"), { pensionPhase: true }).openLots[0];
+  assert.ok(lot.unrealisedGainAud < 0, "the loss is still reported as a loss");
+  assert.equal(lot.taxableGainIfSoldAud, 0);
+});

@@ -90,9 +90,21 @@ function ownerLabel(ownerType: OwnerType) {
   return ownerType === "SMSF" ? "SMSF" : "Personal";
 }
 
+/**
+ * The CGT discount rate for a book in accumulation phase: a third for a complying fund, a half for
+ * an individual. A fund in pension phase never reaches this — its gains are exempt outright, and a
+ * discount on an exempt gain is meaningless.
+ */
 function discountRate(ownerType: OwnerType) {
   return ownerType === "SMSF" ? 1 / 3 : 0.5;
 }
+
+export type TaxTreatment = {
+  /** True where the book is wholly in pension phase, making capital gains exempt. */
+  pensionPhase: boolean;
+};
+
+const ACCUMULATION: TaxTreatment = { pensionPhase: false };
 
 function maskAccount(account: string) {
   if (!account) return "";
@@ -111,7 +123,15 @@ function isDiscountEligible(heldDays: number | null) {
   return heldDays != null && heldDays >= 365;
 }
 
-function taxableGain(gainAud: number, eligible: boolean, rate: number) {
+/**
+ * What would actually be taxed on a disposal today.
+ *
+ * A gain in a pension-phase book is exempt current pension income, so the answer is nothing at all
+ * — not the gain less a discount. Reporting it as fully taxable, which is what happens without a
+ * tax treatment, makes trimming a winner in the fund look expensive when it is free.
+ */
+function taxableGain(gainAud: number, eligible: boolean, rate: number, treatment: TaxTreatment) {
+  if (treatment.pensionPhase) return 0;
   if (gainAud <= 0) return gainAud;
   return eligible ? gainAud * (1 - rate) : gainAud;
 }
@@ -171,7 +191,7 @@ function sellProceedsAud(transaction: StoredTransaction) {
   return Math.max(0, Math.abs(audAmount(transaction.cost, transaction.fxRateToBase)) - (transaction.fees ?? 0) - (transaction.taxes ?? 0));
 }
 
-function makeRealisedLot(input: Omit<RealisedTaxLot, "taxableGainAud" | "discountEligible" | "discountRate" | "heldDays" | "ownerLabel">) {
+function makeRealisedLot(input: Omit<RealisedTaxLot, "taxableGainAud" | "discountEligible" | "discountRate" | "heldDays" | "ownerLabel">, treatment: TaxTreatment) {
   const heldDays = dateDiffDays(input.acquisitionDate, input.saleDate);
   const discount = discountRate(input.ownerType);
   const eligible = isDiscountEligible(heldDays);
@@ -181,11 +201,11 @@ function makeRealisedLot(input: Omit<RealisedTaxLot, "taxableGainAud" | "discoun
     heldDays,
     discountEligible: eligible,
     discountRate: discount,
-    taxableGainAud: taxableGain(input.realisedGainAud, eligible, discount),
+    taxableGainAud: taxableGain(input.realisedGainAud, eligible, discount, treatment),
   };
 }
 
-function buildWorkingLots(transactions: StoredTransaction[]) {
+function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreatment) {
   const lots = new Map<string, WorkingLot[]>();
   // Second index on the same lot objects, so a fallback lookup shares their consumed quantities.
   const byBroker = new Map<string, WorkingLot[]>();
@@ -249,7 +269,7 @@ function buildWorkingLots(transactions: StoredTransaction[]) {
         costAud,
         realisedGainAud: matchedProceedsAud - costAud,
         note: "FIFO match from imported transactions.",
-      }));
+      }, treatment));
       lot.remainingQuantity -= matchedQuantity;
       remainingSaleQuantity -= matchedQuantity;
     }
@@ -273,14 +293,14 @@ function buildWorkingLots(transactions: StoredTransaction[]) {
         costAud: Math.max(0, unmatchedProceedsAud - estimatedGainAud),
         realisedGainAud: estimatedGainAud,
         note: transaction.realisedPnl != null ? "Acquisition lot missing; using broker realised P/L." : "Acquisition lot missing; realised gain cannot be reconstructed.",
-      }));
+      }, treatment));
     }
   }
 
   return { lots, byBroker, realised };
 }
 
-function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfDate: string): OpenTaxLot[] {
+function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfDate: string, treatment: TaxTreatment): OpenTaxLot[] {
   const currentQuantity = Math.abs(holding.quantity);
   if (currentQuantity <= tolerance) return [];
   const positiveLots = lots.filter((lot) => lot.remainingQuantity > tolerance);
@@ -320,7 +340,7 @@ function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfD
       marketValueAud,
       unrealisedGainAud: gainAud,
       unrealisedGainPercent: costAud ? (gainAud / costAud) * 100 : 0,
-      taxableGainIfSoldAud: taxableGain(gainAud, eligible, rate),
+      taxableGainIfSoldAud: taxableGain(gainAud, eligible, rate, treatment),
       source: lot.source,
       note: scale < 1 ? "Imported transaction lots scaled to current position quantity." : lot.note,
     });
@@ -351,7 +371,7 @@ function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfD
       marketValueAud,
       unrealisedGainAud: gainAud,
       unrealisedGainPercent: fallbackCostAud ? (gainAud / fallbackCostAud) * 100 : 0,
-      taxableGainIfSoldAud: taxableGain(gainAud, false, rate),
+      taxableGainIfSoldAud: taxableGain(gainAud, false, rate, treatment),
       source: "position_fallback",
       note: "Trade history incomplete; using current position cost basis.",
     });
@@ -360,15 +380,16 @@ function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfD
   return output;
 }
 
-export function buildTaxLots(data: DashboardData, transactions: StoredTransaction[], generatedAt = new Date()): TaxLotsResponse {
+export function buildTaxLots(data: DashboardData, transactions: StoredTransaction[], generatedAt = new Date(), treatment: TaxTreatment = ACCUMULATION): TaxLotsResponse {
   const asOfDate = (data.lastUpdated ?? generatedAt.toISOString()).slice(0, 10);
-  const { lots, byBroker, realised } = buildWorkingLots(transactions);
+  const { lots, byBroker, realised } = buildWorkingLots(transactions, treatment);
   const openLots = data.holdings
     .filter(isTaxableHolding)
     .flatMap((holding) => openLotsForHolding(
       holding,
       lots.get(holdingKey(holding)) ?? byBroker.get(brokerKey(holding)) ?? [],
       asOfDate,
+      treatment,
     ))
     .sort((a, b) => b.unrealisedGainAud - a.unrealisedGainAud);
   const realisedLots = realised.sort((a, b) => b.saleDate.localeCompare(a.saleDate));

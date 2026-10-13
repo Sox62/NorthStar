@@ -16,6 +16,7 @@ import { readStore, writeStore } from "./local-store";
 import type {
   DeleteTransactionsInput,
   DeleteTransactionsResult,
+  TaxProfile,
   CashAccount,
   AllocationTarget,
   CompositeIndexResult,
@@ -351,6 +352,23 @@ export class LocalStorageAdapter implements StorageAdapter {
     captureSnapshot(store, input.ownerType);
     await writeStore(store);
     return asset;
+  }
+
+  async listTaxProfiles(): Promise<TaxProfile[]> {
+    const store = await readStore();
+    return (["PERSONAL", "SMSF"] as const).map((ownerType) => ({
+      ownerType,
+      pensionPhase: store.taxProfiles?.find((profile) => profile.ownerType === ownerType)?.pensionPhase ?? false,
+    }));
+  }
+
+  async setTaxProfile(ownerType: OwnerType, pensionPhase: boolean): Promise<TaxProfile> {
+    const store = await readStore();
+    const profiles = (store.taxProfiles ?? []).filter((profile) => profile.ownerType !== ownerType);
+    profiles.push({ ownerType, pensionPhase });
+    store.taxProfiles = profiles;
+    await writeStore(store);
+    return { ownerType, pensionPhase };
   }
 
   async deleteTransactions(input: DeleteTransactionsInput): Promise<DeleteTransactionsResult> {

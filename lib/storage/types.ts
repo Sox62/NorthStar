@@ -565,6 +565,8 @@ export type StructuralLevel = {
 export type StructuralLevelInput = Omit<StructuralLevel, "id" | "updatedAt"> & { id?: string };
 
 export type LocalStore = {
+  /** Per-book tax treatment; absent in stores written before pension phase was modelled. */
+  taxProfiles?: TaxProfile[];
   version: 7;
   transactions: StoredTransaction[];
   positions: StoredPosition[];
@@ -622,6 +624,16 @@ export type DashboardData = {
   lastUpdated: string | null;
 };
 
+/**
+ * Per-book tax treatment. A fund wholly in pension phase pays no tax on capital gains — they are
+ * exempt current pension income — so the CGT discount never enters the calculation for it. Without
+ * this flag the engine can only assume accumulation phase and report gains as fully taxable.
+ */
+export type TaxProfile = {
+  ownerType: OwnerType;
+  pensionPhase: boolean;
+};
+
 export type DeleteTransactionsInput = {
   ownerType: OwnerType;
   externalIds: string[];
@@ -661,6 +673,8 @@ export interface StorageAdapter {
    * carries the same external id under the other owner. `dryRun` reports what would go.
    */
   deleteTransactions(input: DeleteTransactionsInput): Promise<DeleteTransactionsResult>;
+  listTaxProfiles(): Promise<TaxProfile[]>;
+  setTaxProfile(ownerType: OwnerType, pensionPhase: boolean): Promise<TaxProfile>;
   listOpenOrders(ownerType?: OwnerType): Promise<StoredOpenOrder[]>;
   listPositionRiskPlans(ownerType?: OwnerType): Promise<PositionRiskPlan[]>;
   upsertPositionRiskPlan(input: PositionRiskPlanInput): Promise<PositionRiskPlan>;

@@ -22,7 +22,7 @@ import type {
 
 const DATA_FILE = process.env.NORTH_STAR_DATA_FILE || path.join(/*turbopackIgnore: true*/ process.cwd(), ".southern-star", "data.json");
 const LEGACY_DATA_FILE = path.join(/*turbopackIgnore: true*/ process.cwd(), ".north-star", "data.json");
-const EMPTY: LocalStore = { version: 7, transactions: [], positions: [], openOrders: [], riskPlans: [], riskSnapshots: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [], imports: [] };
+const EMPTY: LocalStore = { version: 7, transactions: [], positions: [], openOrders: [], riskPlans: [], riskSnapshots: [], cashAccounts: [], manualAssets: [], platinumPrices: [], dailyPrices: [], fxRates: [], snapshots: [], syncRuns: [], allocationTargets: defaultAllocationTargets(), sectorOverrides: [], minerFundamentals: [], fundamentalResearchDrafts: [], structuralLevels: [], compositeIndexResults: [], imports: [], taxProfiles: [] };
 
 function normalisePhysicalMetalType(value: unknown) {
   return value === "GOLD" || value === "SILVER" || value === "PLATINUM" || value === "PALLADIUM" ? value : "PLATINUM";
@@ -46,6 +46,7 @@ async function parseStoreFile(file: string): Promise<LocalStore> {
       fundamentalResearchDrafts: (parsed.fundamentalResearchDrafts as FundamentalResearchDraft[] | undefined) ?? [],
       structuralLevels: (parsed.structuralLevels as StructuralLevel[] | undefined) ?? [],
       compositeIndexResults: (parsed.compositeIndexResults as CompositeIndexResult[] | undefined) ?? [],
+      taxProfiles: (parsed.taxProfiles as LocalStore["taxProfiles"]) ?? [],
     };
   }
   if (parsed.version === 6) {

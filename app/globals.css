@@ -2362,3 +2362,34 @@ body.southernstar .holdingsShell .holdingsTable th {
   color: var(--muted-dim);
   font-size: 12px;
 }
+
+/* Pension-phase switch on the tax workbench: it changes every taxable figure below it, so it sits
+   beside the scope tabs rather than hidden in a settings page. */
+.taxPhaseToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border: 1px solid rgba(106,130,153,.24);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.taxPhaseToggle input { accent-color: var(--gold); }
+.taxPhaseToggle span {
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.taxPhaseToggle span em {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 500;
+}
+.taxPhaseToggle:has(input:checked) {
+  border-color: rgba(215,181,109,.46);
+  background: rgba(215,181,109,.08);
+}

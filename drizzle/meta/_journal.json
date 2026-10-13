@@ -239,6 +239,13 @@
       "when": 1788912000000,
       "tag": "0033_canonical_instrument_names",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788998400000,
+      "tag": "0034_portfolio_pension_phase",
+      "breakpoints": true
     }
   ]
 }

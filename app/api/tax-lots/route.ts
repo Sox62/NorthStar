@@ -19,11 +19,18 @@ export async function GET(request: Request) {
   try {
     const scope = scopeFromRequest(request);
     const storage = getStorage();
-    const [dashboard, transactions] = await Promise.all([
+    const [dashboard, transactions, profiles] = await Promise.all([
       storage.dashboard(scope),
       storage.listTransactions(ownerTypeForScope(scope)),
+      storage.listTaxProfiles(),
     ]);
-    return NextResponse.json(buildTaxLots(dashboard, transactions));
+    // Overall spans both books, and a pension-phase exemption belongs to one of them, so the
+    // combined view stays on accumulation rather than exempting the personal side with the fund.
+    const ownerType = ownerTypeForScope(scope);
+    const pensionPhase = scope === "overall"
+      ? false
+      : profiles.find((profile) => profile.ownerType === ownerType)?.pensionPhase ?? false;
+    return NextResponse.json(buildTaxLots(dashboard, transactions, new Date(), { pensionPhase }));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to build tax lots" }, { status: 500 });
   }

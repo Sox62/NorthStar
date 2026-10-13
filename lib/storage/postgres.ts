@@ -7,7 +7,7 @@ import { classifyAsset } from "./classify";
 import { canonicalInstrumentName } from "./instrument-names";
 import { PASTED_ORDER_SOURCE } from "./local";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
-import type { AllocationTarget, CashAccount, CompositeIndexResult, DeleteTransactionsInput, DeleteTransactionsResult, CompositeIndexResultQuery, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportOptions, PriceImportResult, PastedOpenOrder, PositionRiskPlan, PositionRiskPlanInput, RiskSnapshot, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
+import type { AllocationTarget, CashAccount, CompositeIndexResult, DeleteTransactionsInput, DeleteTransactionsResult, TaxProfile, CompositeIndexResultQuery, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportOptions, PriceImportResult, PastedOpenOrder, PositionRiskPlan, PositionRiskPlanInput, RiskSnapshot, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 import {
   captureSnapshot,
@@ -395,6 +395,36 @@ export class PostgresStorageAdapter implements StorageAdapter {
       await client.query("ROLLBACK");
       throw error;
     } finally { client.release(); }
+  }
+
+  async listTaxProfiles(): Promise<TaxProfile[]> {
+    const client = await getPool().connect();
+    try {
+      const result = await client.query(`SELECT legal_owner_type, pension_phase FROM portfolios`);
+      const byOwner = new Map(result.rows.map((row) => [row.legal_owner_type as OwnerType, row.pension_phase === true]));
+      return (["PERSONAL", "SMSF"] as const).map((ownerType) => ({
+        ownerType,
+        pensionPhase: byOwner.get(ownerType) ?? false,
+      }));
+    } finally {
+      client.release();
+    }
+  }
+
+  async setTaxProfile(ownerType: OwnerType, pensionPhase: boolean): Promise<TaxProfile> {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      const portfolioId = await ensurePortfolio(client, ownerType);
+      await client.query(`UPDATE portfolios SET pension_phase=$2 WHERE id=$1`, [portfolioId, pensionPhase]);
+      await client.query("COMMIT");
+      return { ownerType, pensionPhase };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async deleteTransactions(input: DeleteTransactionsInput): Promise<DeleteTransactionsResult> {

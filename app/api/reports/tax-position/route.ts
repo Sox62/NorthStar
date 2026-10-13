@@ -1,5 +1,5 @@
 import { getStorage, type DashboardData, type OwnerType, type Scope, type StoredTransaction } from "@/lib/storage";
-import { buildTaxLots } from "@/lib/tax-lots";
+import { buildTaxLots, type TaxTreatment } from "@/lib/tax-lots";
 import { recordedSectorForInstrument } from "@/southernstar/lib/sector-map";
 
 export const runtime = "nodejs";
@@ -91,18 +91,21 @@ function unrealisedPercent(costAud: number, marketValueAud: number) {
  * "no" would assert they fail it, which is a claim with tax consequences; blank says nothing at
  * all. "unknown" is the only honest third answer.
  */
-function discountEligibility(acquisitionDate: string | null, eligible: boolean) {
+function discountEligibility(acquisitionDate: string | null, eligible: boolean, treatment: TaxTreatment) {
+  // In pension phase the discount is not merely unavailable, it is irrelevant: the gain is exempt,
+  // so "no" would read as "taxed in full", the opposite of the truth.
+  if (treatment.pensionPhase) return "exempt";
   if (!acquisitionDate) return "unknown";
   return eligible ? "yes" : "no";
 }
 
-function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTransaction[]) {
+function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTransaction[], treatment: TaxTreatment) {
   /*
    * One row per CGT parcel, not per position. A holding built from three buys at three prices is
    * three assets for capital gains purposes, each with its own acquisition date and its own answer
    * to the twelve-month test, and a single averaged row cannot express that.
    */
-  const { openLots } = buildTaxLots(data, transactions);
+  const { openLots } = buildTaxLots(data, transactions, new Date(), treatment);
   const holdings = data.holdings.filter((holding) => holding.costAud !== 0 || holding.marketValueAud !== 0);
   const sectorByHoldingId = new Map(holdings.map((holding) => [holding.id, recordedSectorForInstrument(holding)]));
 
@@ -138,11 +141,13 @@ function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTra
     "",
     "",
     "",
-    `Gross gains ${money(grossGains)}; gross losses ${money(grossLosses)}; ${openLots.length} parcels; cash ${money(data.cashValue)} excluded${undatedParcels ? `; ${undatedParcels} parcels have no acquisition date, so their discount eligibility is unknown and the taxable figure assumes none` : ""}`,
+    `Gross gains ${money(grossGains)}; gross losses ${money(grossLosses)}; ${openLots.length} parcels; cash ${money(data.cashValue)} excluded`
+      + (treatment.pensionPhase ? "; pension phase, so capital gains are exempt current pension income and nothing here is taxable" : "")
+      + (!treatment.pensionPhase && undatedParcels ? `; ${undatedParcels} parcels have no acquisition date, so their discount eligibility is unknown and the taxable figure assumes none` : ""),
     data.lastUpdated,
     "",
     "",
-    undatedParcels ? "partly unknown" : "",
+    treatment.pensionPhase ? "exempt" : undatedParcels ? "partly unknown" : "",
     money(taxableIfSold),
   ]);
 
@@ -153,7 +158,9 @@ function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTra
       `${lot.quantity.toLocaleString("en-AU", { maximumFractionDigits: 6 })} units`,
       lot.exchange,
       lot.source === "position_fallback" ? "cost-basis fallback parcel" : "FIFO parcel from imported trades",
-      undated ? "no acquisition date; taxable figure assumes no discount" : `discount rate ${(lot.discountRate * 100).toFixed(0)}%`,
+      treatment.pensionPhase
+        ? "pension phase; gain is exempt current pension income"
+        : undated ? "no acquisition date; taxable figure assumes no discount" : `discount rate ${(lot.discountRate * 100).toFixed(0)}%`,
     ].filter(Boolean).join("; ");
 
     rows.push([
@@ -175,7 +182,7 @@ function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTra
       lot.asOfDate,
       lot.acquisitionDate ?? "",
       lot.heldDays ?? "",
-      discountEligibility(lot.acquisitionDate, lot.discountEligible),
+      discountEligibility(lot.acquisitionDate, lot.discountEligible, treatment),
       money(lot.taxableGainIfSoldAud),
     ]);
   }
@@ -236,13 +243,15 @@ export async function GET(request: Request) {
     const storage = getStorage();
     const dashboards = await Promise.all(selectedScopes.map((scope) => storage.dashboard(scope)));
     const transactionsByScope = await Promise.all(selectedScopes.map((scope) => storage.listTransactions(ownerTypeForScope(scope))));
+    const taxProfiles = await storage.listTaxProfiles();
     const reportAnchor = dashboards[0];
     const rows: CsvRow[] = [
       header,
       ["metadata", filenameScope(selectedScopes), "SouthernStar tax position", "", "", "", "", "", "", "", "", "", "", "", `Generated ${new Date().toISOString()}; unrealised positions and imported dividend income`, reportAnchor.lastUpdated],
     ];
     dashboards.forEach((dashboard, index) => {
-      addTaxRows(rows, dashboard, transactionsByScope[index] ?? []);
+      const pensionPhase = taxProfiles.find((profile) => profile.ownerType === ownerTypeForScope(selectedScopes[index]))?.pensionPhase ?? false;
+      addTaxRows(rows, dashboard, transactionsByScope[index] ?? [], { pensionPhase });
       addDividendRows(rows, dashboard, transactionsByScope[index] ?? []);
     });
 

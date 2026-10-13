@@ -45,8 +45,12 @@ async function loadTaxLots(scope: Scope): Promise<TaxLotsResponse> {
   return payload as TaxLotsResponse;
 }
 
+type TaxProfile = { ownerType: "PERSONAL" | "SMSF"; pensionPhase: boolean };
+
 export default function TaxLotsPage() {
   const [scope, setScope] = useState<Scope>("overall");
+  const [profiles, setProfiles] = useState<TaxProfile[]>([]);
+  const [profileBusy, setProfileBusy] = useState(false);
   const [data, setData] = useState<TaxLotsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -68,6 +72,10 @@ export default function TaxLotsPage() {
     }
 
     void load();
+    void fetch("/api/tax-profiles", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload) => { if (!cancelled && Array.isArray(payload.profiles)) setProfiles(payload.profiles); })
+      .catch(() => { /* the phase toggle is a refinement; the lots still render without it */ });
     return () => {
       cancelled = true;
     };
@@ -76,6 +84,33 @@ export default function TaxLotsPage() {
   const topOpenLots = useMemo(() => data?.openLots.slice(0, 80) ?? [], [data]);
   const topRealisedLots = useMemo(() => data?.realisedLots.slice(0, 80) ?? [], [data]);
   const scopeLabel = scopes.find((item) => item.key === scope)?.label ?? "Overall";
+
+  const ownerForScope = (value: Scope) => value === "smsf" ? "SMSF" as const : "PERSONAL" as const;
+  const pensionPhaseFor = (value: Scope) =>
+    profiles.find((profile) => profile.ownerType === ownerForScope(value))?.pensionPhase ?? false;
+
+  /** Changing the phase changes every taxable figure on the page, so the lots are rebuilt after it. */
+  async function updatePensionPhase(value: Scope, pensionPhase: boolean) {
+    setProfileBusy(true);
+    try {
+      const response = await fetch("/api/tax-profiles", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ownerType: ownerForScope(value), pensionPhase }),
+      });
+      const payload = await response.json();
+      if (!response.ok || payload.error) throw new Error(payload.error || "Unable to update tax profile");
+      setProfiles((current) => [
+        ...current.filter((profile) => profile.ownerType !== payload.profile.ownerType),
+        payload.profile,
+      ]);
+      setData(await loadTaxLots(value));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to update tax profile");
+    } finally {
+      setProfileBusy(false);
+    }
+  }
 
   return (
     <main className="shell">
@@ -108,6 +143,17 @@ export default function TaxLotsPage() {
               </button>
             ))}
           </div>
+          {scope === "overall" ? null : (
+            <label className="taxPhaseToggle">
+              <input
+                type="checkbox"
+                checked={pensionPhaseFor(scope)}
+                disabled={profileBusy}
+                onChange={(event) => void updatePensionPhase(scope, event.target.checked)}
+              />
+              <span>Pension phase<em>{pensionPhaseFor(scope) ? "Gains exempt" : "Gains taxable"}</em></span>
+            </label>
+          )}
           <a className="button" href={`/api/reports/tax-position?scope=${scope}`}>Download tax CSV</a>
         </div>
       </Card>
