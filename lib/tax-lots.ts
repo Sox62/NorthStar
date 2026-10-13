@@ -278,7 +278,7 @@ function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreat
       // Anything that cannot be applied is reported rather than skipped. Silence is how the VAU
       // consolidation survived long enough to put $16,948 into a report being used for decisions.
       const delta = transaction.quantity ?? 0;
-      const applied = delta !== 0 && applyCorporateAction(lots.get(key) ?? [], delta);
+      const applied = delta !== 0 && applyCorporateAction(byBroker.get(brokerKey(transaction)) ?? [], delta);
       if (!applied) {
         unappliedActions.push({
           symbol: transaction.symbol,
@@ -287,7 +287,7 @@ function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreat
           quantity: transaction.quantity ?? null,
           reason: !delta
             ? "no quantity change recorded"
-            : (lots.get(key) ?? []).length
+            : (byBroker.get(brokerKey(transaction)) ?? []).length
               ? "no open parcels remained to rescale"
               : "no acquisition history for this holding",
         });
@@ -296,7 +296,18 @@ function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreat
     }
     const quantity = Math.abs(transaction.quantity ?? 0);
     if (quantity <= tolerance) continue;
-    const lotRows = lots.get(key) ?? [];
+    /*
+     * A sell consumes from the broker-level pool, not the account-qualified one. The account on a
+     * transaction is an artefact of which export carried it — the same Directshares holding arrives
+     * as "DIRECTSHARES" from the All Trades Report and as "4317403" from the contract notes — so
+     * keying parcels by account stops a sell ever reaching buys imported from the other file.
+     *
+     * BOE is what that costs: the All Trades file alone leaves 1,637 units when an 8,000 sell
+     * arrives, so 6,363 units disposed against buys sitting in storage under another account key,
+     * and a $10,668 loss went unreported. CGT is assessed per taxpayer, not per broker account, so
+     * pooling here is both the fix and the correct treatment.
+     */
+    const lotRows = byBroker.get(brokerKey(transaction)) ?? [];
 
     if (transaction.type === "BUY") {
       const costAud = buyCostAud(transaction);
@@ -315,10 +326,12 @@ function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreat
         source: "transaction_fifo",
         note: "Matched from imported BUY transaction.",
       });
-      lots.set(key, lotRows);
-      const brokerRows = byBroker.get(brokerKey(transaction)) ?? [];
-      brokerRows.push(lotRows[lotRows.length - 1]);
-      byBroker.set(brokerKey(transaction), brokerRows);
+      byBroker.set(brokerKey(transaction), lotRows);
+      // The account-qualified index points at the same parcel objects, so a holding lookup by exact
+      // key still works and shares whatever the pool has consumed.
+      const accountRows = lots.get(key) ?? [];
+      accountRows.push(lotRows[lotRows.length - 1]);
+      lots.set(key, accountRows);
       continue;
     }
 

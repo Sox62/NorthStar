@@ -403,3 +403,19 @@ test("a pension-phase net capital gain is nil however the parcels net off", () =
   assert.ok(taxed.summary.netCapitalGainAud > 0, "accumulation still taxes it");
   assert.equal(taxed.summary.discountRate, 0.5, "an individual's rate, from the engine");
 });
+
+test("a disposal with no reconstructable cost base still appears in the report", () => {
+  // Its gain is exactly zero, and the three buckets ask for > 0, > 0 and < 0 — so it fell through
+  // all of them and vanished. Twenty-six disposals were missing this way.
+  const lot = {
+    id: "x", ownerType: "PERSONAL" as const, ownerLabel: "Personal", broker: "Directshares",
+    accountKey: "43....403", symbol: "BOE", name: "Boss Energy", exchange: "ASX",
+    acquisitionDate: null, saleDate: "2025-09-23", heldDays: null, discountEligible: false,
+    discountRate: 0.5, quantity: 6363, proceedsAud: 13028.28, costAud: 13028.28,
+    realisedGainAud: 0, taxableGainAud: 0, note: "Acquisition lot missing",
+  };
+  const report = capitalGainsReport("personal", [lot as never], { pensionPhase: false });
+  assert.equal(report.shortTerm.length, 1, "the disposal is visible");
+  assert.equal(report.summary.shortTermGainsAud, 0, "and contributes nothing to the totals");
+  assert.equal(report.byHolding.find((row) => row.code === "BOE")?.soldQuantity, 6363);
+});

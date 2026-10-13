@@ -349,3 +349,33 @@ test("an action that cannot be applied is reported, never silently dropped", () 
   assert.equal(result.unappliedActions[0].symbol, "ZZZ");
   assert.match(result.unappliedActions[0].reason, /no acquisition history/);
 });
+
+test("a sell reaches parcels imported under a different account key", () => {
+  // The same Directshares holding arrives as "DIRECTSHARES" from the All Trades Report and as
+  // "4317403" from the contract notes. Keyed by account, BOE's 8,000-unit sell could only reach
+  // 1,637 units; the other 6,363 were disposed against buys sitting in storage, unreachable, and a
+  // $10,668 loss never reached the return.
+  const row = (over: Record<string, unknown>) => ({
+    id: String(over.externalId), ownerType: "PERSONAL", broker: "Directshares",
+    symbol: "BOE", exchange: "ASX", instrumentKey: "Directshares:BOE:ASX",
+    currency: "AUD", fxRateToBase: 1, fees: 0, source: "x", ...over,
+  });
+  const transactions = [
+    row({ externalId: "old-buy", accountKey: "4317403", tradeDate: "2024-04-15", type: "BUY", quantity: 8000, cost: 40000 }),
+    row({ externalId: "new-buy", accountKey: "DIRECTSHARES", tradeDate: "2025-05-16", type: "BUY", quantity: 1637, cost: 6096 }),
+    row({ externalId: "sell", accountKey: "DIRECTSHARES", tradeDate: "2025-09-23", type: "SELL", quantity: 8000, cost: 16400, netCash: 16400 }),
+  ];
+  const data = {
+    scope: "personal", storageMode: "postgresql", totalValue: 0, investedValue: 0, cashValue: 0,
+    dailyMovement: 0, totalReturn: 0, totalReturnPercent: 0, holdings: [], cashAccounts: [],
+    allocations: [], performance: [], periodReturns: [], xirr: {}, income: {}, allocationTargets: [],
+    currencyExposure: [], accounts: [], lastUpdated: "2026-06-30T00:00:00.000Z",
+  } as unknown as Parameters<typeof buildTaxLots>[0];
+
+  const realised = buildTaxLots(data, transactions as never, new Date("2026-06-30T00:00:00.000Z")).realisedLots;
+  const matched = realised.reduce((sum, lot) => sum + lot.quantity, 0);
+  assert.equal(matched, 8000, "the whole disposal is matched, across both account keys");
+  assert.equal(realised.filter((lot) => lot.acquisitionDate == null).length, 0, "nothing left unmatched");
+  // FIFO still means oldest first: the 2024 parcel is consumed before the 2025 one.
+  assert.equal(realised[realised.length - 1].acquisitionDate, "2024-04-15");
+});

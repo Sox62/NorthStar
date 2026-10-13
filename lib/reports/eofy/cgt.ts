@@ -25,7 +25,15 @@ function capitalGainDiscountRate(scope: EofyScope) {
 }
 
 export function capitalGainsReport(scope: EofyScope, realisedLots: RealisedTaxLot[], treatment: TaxTreatment): EofyCapitalGainsReport {
-  const shortTerm = realisedLots.filter((lot) => lot.realisedGainAud > 0 && !lot.discountEligible);
+  /*
+   * A disposal whose acquisition could not be reconstructed carries a gain of exactly zero, and the
+   * three filters below ask for > 0, > 0 and < 0 — so it fell through all of them and vanished from
+   * the report entirely. Twenty-six disposals were missing this way, BOE's 6,363 units among them,
+   * each one a real CGT event reported as though it had not happened. Zero-gain disposals are now
+   * carried in the non-discounted bucket, where they add nothing to the totals but are visible, and
+   * the data-quality notes count them.
+   */
+  const shortTerm = realisedLots.filter((lot) => lot.realisedGainAud >= 0 && !lot.discountEligible);
   const longTerm = realisedLots.filter((lot) => lot.realisedGainAud > 0 && lot.discountEligible);
   const losses = realisedLots.filter((lot) => lot.realisedGainAud < 0);
   const shortTermGainsAud = shortTerm.reduce((sum, lot) => sum + lot.realisedGainAud, 0);

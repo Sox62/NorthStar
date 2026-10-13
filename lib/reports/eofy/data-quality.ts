@@ -19,7 +19,21 @@ export function dataQualityNotes(report: {
 
   if (!report.incomePayments.length) notes.push("No dividend or distribution income is stored for this financial year and owner scope.");
   if (!report.realisedLots.length) notes.push("No realised sale lots are stored for this financial year and owner scope.");
-  if (report.realisedLots.some((lot) => lot.acquisitionDate == null)) notes.push("Some sale lots are missing acquisition history and use broker realised P/L or an incomplete cost-base estimate.");
+  /*
+   * Quantified rather than hinted at. The old note said "some sale lots" without saying how many or
+   * what they were worth, which is not enough to act on: BOE's unmatched 6,363 units were a $10,668
+   * loss that never reached the return.
+   */
+  const unmatched = report.realisedLots.filter((lot) => lot.acquisitionDate == null);
+  if (unmatched.length) {
+    const symbols = [...new Set(unmatched.map((lot) => lot.symbol))].sort();
+    const proceeds = unmatched.reduce((sum, lot) => sum + lot.proceedsAud, 0);
+    notes.push(
+      `${unmatched.length} disposal${unmatched.length === 1 ? "" : "s"} could not be matched to an acquisition `
+      + `(${symbols.join(", ")}), covering ${proceeds.toFixed(2)} of proceeds. Their gain is reported as nil, `
+      + "so the capital gain or loss on them is missing from this report rather than merely uncertain.",
+    );
+  }
   if (report.currentHoldings.some((holding) => holding.source === "position_fallback")) notes.push("Some open holding cost bases use current position fallback data because complete transaction history is not yet available.");
   if (priorCloses) notes.push(`${priorCloses} historical-cost row${priorCloses === 1 ? "" : "s"} use the latest stored close before 30 June because an exact 30 June price was not stored.`);
   if (missingPrices || missingFx) notes.push(`${missingPrices + missingFx} historical-cost row${missingPrices + missingFx === 1 ? "" : "s"} need price or FX backfill before the 30 June market-value column is complete.`);
