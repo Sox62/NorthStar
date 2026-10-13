@@ -11,6 +11,53 @@ const inputSchema = z.object({
   commit: z.boolean().optional(),
 });
 
+const listSchema = z.object({
+  ownerType: z.enum(["PERSONAL", "SMSF"]),
+  source: z.string().min(1).optional(),
+  type: z.string().min(1).optional(),
+});
+
+/**
+ * Lists transactions with their external ids, which is how a delete names its rows.
+ *
+ * Nothing else exposes an external id, so without this the delete below could only be driven by
+ * ids guessed from a statement — and a guessed id either misses or, worse, matches something else.
+ */
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const input = listSchema.parse({
+      ownerType: (url.searchParams.get("ownerType") || "").toUpperCase(),
+      source: url.searchParams.get("source") || undefined,
+      type: url.searchParams.get("type") || undefined,
+    });
+    const rows = await getStorage().listTransactions(input.ownerType);
+    const filtered = rows.filter((row) =>
+      (!input.source || row.source === input.source)
+      && (!input.type || row.type === input.type));
+    return NextResponse.json({
+      ownerType: input.ownerType,
+      count: filtered.length,
+      transactions: filtered.slice(0, 500).map((row) => ({
+        externalId: row.externalId,
+        symbol: row.symbol,
+        tradeDate: row.tradeDate,
+        type: row.type,
+        netCash: row.netCash ?? null,
+        taxes: row.taxes ?? null,
+        broker: row.broker,
+        accountKey: row.accountKey,
+        source: row.source,
+      })),
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Unable to list transactions" },
+      { status: 400 },
+    );
+  }
+}
+
 /**
  * Removes transactions that should never have been recorded — a statement imported against the
  * wrong legal book, which cannot be corrected by re-importing because the mistaken copy stays put.
