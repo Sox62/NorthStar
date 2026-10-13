@@ -2393,3 +2393,32 @@ body.southernstar .holdingsShell .holdingsTable th {
   border-color: rgba(215,181,109,.46);
   background: rgba(215,181,109,.08);
 }
+
+/* Maintenance: listing records before removing them. Deliberately plain — this is the one surface
+   that destroys data, so it should look like a tool, not an action button. */
+.maintenanceControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 14px;
+  margin: 16px 0 4px;
+}
+.maintenanceControls label { display: flex; flex-direction: column; gap: 6px; }
+.maintenanceControls label span { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.maintenanceTableWrap { margin-top: 14px; max-width: 100%; overflow-x: auto; }
+.maintenanceTable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.maintenanceTable th {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(106,130,153,.22);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.maintenanceTable td { padding: 9px 10px; border-bottom: 1px solid rgba(106,130,153,.12); vertical-align: top; }
+.maintenanceTable td span { display: block; margin-top: 2px; color: var(--text-muted); font-size: 11px; }
+.maintenanceTable .numeric { text-align: right; }
+.maintenanceTable tr.isSelected td { background: rgba(215,181,109,.07); }
+.maintenanceTable input { accent-color: var(--gold); }

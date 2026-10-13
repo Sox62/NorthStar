@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { OpenOrdersPaste } from "@/components/OpenOrdersPaste";
+import { TransactionMaintenance } from "@/components/TransactionMaintenance";
 import { dataHealth } from "@/southernstar/lib/data-health";
 import type { DashboardData } from "@/lib/storage";
 import { Card, Notice, StatusBadge, SummaryGrid } from "@/southernstar/components";
@@ -165,6 +166,8 @@ export default function SyncPage() {
       />
 
       <OpenOrdersPaste />
+
+      <TransactionMaintenance />
 
       <Card className="syncCard">
         <div>
@@ -548,14 +551,17 @@ function ImportSummary({ result }: { result: Result }) {
   if (result.error) return <Notice tone="error" title="Import failed">{result.error}</Notice>;
 
   const errors = Array.isArray(result.errors) ? result.errors.filter(Boolean) : [];
+  // A warning is a sentence, not a figure, so it is lifted out of the grid and shown as a notice.
+  const warning = typeof result.warning === "string" ? result.warning : "";
   const entries = Object.entries(result).filter(
-    ([key, value]) => !["preview", "note", "source", "owner", "ownerType", "storageMode", "synced", "generatedAt", "ibkr"].includes(key)
+    ([key, value]) => !["preview", "note", "source", "owner", "ownerType", "storageMode", "synced", "generatedAt", "ibkr", "warning"].includes(key)
       && !(key === "errors" && Array.isArray(value) && value.length === 0),
   );
 
   return (
     <div className="result">
-      <StatusBadge>{result.preview ? "Validated" : errors.length ? "Partial" : result.synced || result.ok ? "Synced" : "Saved"}</StatusBadge>
+      <StatusBadge tone={warning ? "warning" : undefined}>{result.preview ? (warning ? "Check first" : "Validated") : errors.length ? "Partial" : result.synced || result.ok ? "Synced" : "Saved"}</StatusBadge>
+      {warning ? <Notice title="This import needs a second look">{warning}</Notice> : null}
       <SummaryGrid
         entries={entries
           .filter(([, value]) => value == null || Array.isArray(value) || typeof value !== "object")

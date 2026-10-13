@@ -233,7 +233,7 @@ test("physical metal is dated from its asset record, so the discount can apply",
     currency: "AUD", assetClass: "Platinum bullion", quantity: 3, lastPrice: 74710.8,
     averageCostAud: 54608.8, costAud: 163826, marketValueAud: 224132, dayGainAud: 0,
     pnlAud: 60306, pnlPercent: 36.8, valuationBasis: "market" as const, asOfDate: "2026-10-13",
-    source: "Manual physical", acquisitionDate: "2025-05-22", weight: 1,
+    source: "Manual physical", acquisitionDate: "2025-05-21", weight: 1,
   };
   const data = {
     scope: "personal", storageMode: "postgresql", totalValue: 224132, investedValue: 224132,
@@ -244,8 +244,8 @@ test("physical metal is dated from its asset record, so the discount can apply",
   } as unknown as Parameters<typeof buildTaxLots>[0];
 
   const lot = buildTaxLots(data, [], new Date("2026-10-13T00:00:00.000Z")).openLots[0];
-  assert.equal(lot.acquisitionDate, "2025-05-22");
-  assert.equal(lot.heldDays, 509);
+  assert.equal(lot.acquisitionDate, "2025-05-21");
+  assert.equal(lot.heldDays, 510);
   assert.equal(lot.discountEligible, true, "held well over twelve months");
   assert.equal(Math.round(lot.taxableGainIfSoldAud), 30153, "the fifty per cent discount halves it");
 });
