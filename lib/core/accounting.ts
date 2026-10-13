@@ -143,6 +143,7 @@ export function manualAssetPosition(asset: ManualAsset): StoredPosition {
     valuationBasis: "market",
     asOfDate: asset.asOfDate,
     source: "Manual physical",
+    acquisitionDate: asset.purchaseDate || null,
   };
 }
 

@@ -222,3 +222,53 @@ test("a loss is still a loss in pension phase, not turned into zero", () => {
   assert.ok(lot.unrealisedGainAud < 0, "the loss is still reported as a loss");
   assert.equal(lot.taxableGainIfSoldAud, 0);
 });
+
+test("physical metal is dated from its asset record, so the discount can apply", () => {
+  // Platinum is bought on an invoice, not a contract note, so it has no trade history and lands as
+  // a fallback parcel. Undated it defaulted to no discount and reported $60,306 as fully taxable —
+  // 31% of the personal book's gross gains, overstated by half.
+  const holding = {
+    id: "plat", ownerType: "PERSONAL" as const, broker: "Physical", accountKey: "PERSONAL-PHYSICAL",
+    instrumentKey: "manual:plat", symbol: "PLATINUM", name: "Physical platinum", exchange: "PHYSICAL",
+    currency: "AUD", assetClass: "Platinum bullion", quantity: 3, lastPrice: 74710.8,
+    averageCostAud: 54608.8, costAud: 163826, marketValueAud: 224132, dayGainAud: 0,
+    pnlAud: 60306, pnlPercent: 36.8, valuationBasis: "market" as const, asOfDate: "2026-10-13",
+    source: "Manual physical", acquisitionDate: "2025-05-22", weight: 1,
+  };
+  const data = {
+    scope: "personal", storageMode: "postgresql", totalValue: 224132, investedValue: 224132,
+    cashValue: 0, dailyMovement: 0, totalReturn: 60306, totalReturnPercent: 36.8,
+    holdings: [holding], cashAccounts: [], allocations: [], performance: [], periodReturns: [],
+    xirr: {}, income: {}, allocationTargets: [], currencyExposure: [], accounts: [],
+    lastUpdated: "2026-10-13T00:00:00.000Z",
+  } as unknown as Parameters<typeof buildTaxLots>[0];
+
+  const lot = buildTaxLots(data, [], new Date("2026-10-13T00:00:00.000Z")).openLots[0];
+  assert.equal(lot.acquisitionDate, "2025-05-22");
+  assert.equal(lot.heldDays, 509);
+  assert.equal(lot.discountEligible, true, "held well over twelve months");
+  assert.equal(Math.round(lot.taxableGainIfSoldAud), 30153, "the fifty per cent discount halves it");
+});
+
+test("a fallback parcel with no date still reports none, rather than inventing one", () => {
+  const holding = {
+    id: "ds", ownerType: "PERSONAL" as const, broker: "Directshares", accountKey: "4317403",
+    instrumentKey: "AYA:TSX/TSXV", symbol: "AYA", name: "Aya Gold & Silver", exchange: "TSX/TSXV",
+    currency: "CAD", assetClass: "Silver miners", quantity: 2050, lastPrice: 38.2,
+    averageCostAud: 14.95, costAud: 30638, marketValueAud: 78356, dayGainAud: 0,
+    pnlAud: 47718, pnlPercent: 155.8, valuationBasis: "market" as const, asOfDate: "2026-10-13",
+    source: "Directshares", weight: 1,
+  };
+  const data = {
+    scope: "personal", storageMode: "postgresql", totalValue: 78356, investedValue: 78356,
+    cashValue: 0, dailyMovement: 0, totalReturn: 47718, totalReturnPercent: 155.8,
+    holdings: [holding], cashAccounts: [], allocations: [], performance: [], periodReturns: [],
+    xirr: {}, income: {}, allocationTargets: [], currencyExposure: [], accounts: [],
+    lastUpdated: "2026-10-13T00:00:00.000Z",
+  } as unknown as Parameters<typeof buildTaxLots>[0];
+
+  const lot = buildTaxLots(data, [], new Date("2026-10-13T00:00:00.000Z")).openLots[0];
+  assert.equal(lot.acquisitionDate, null);
+  assert.equal(lot.heldDays, null);
+  assert.equal(lot.discountEligible, false);
+});

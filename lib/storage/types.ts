@@ -132,6 +132,12 @@ export type StoredPosition = {
   valuationBasis: "market" | "cost_basis";
   asOfDate: string;
   source: string;
+  /**
+   * When the position was acquired, for holdings that know it without a trade history. Physical
+   * metal is bought on an invoice, not a contract note, so its date lives on the asset record and
+   * would otherwise never reach the CGT lots.
+   */
+  acquisitionDate?: string | null;
 };
 
 export type StoredTransaction = ImportedTransaction & {

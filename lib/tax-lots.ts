@@ -352,6 +352,15 @@ function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfD
     const marketValueAud = holding.marketValueAud * (missingQuantity / currentQuantity);
     const gainAud = marketValueAud - fallbackCostAud;
     const rate = discountRate(holding.ownerType);
+    /*
+     * A fallback parcel normally has no date, because it exists precisely where trade history is
+     * missing. Physical metal is the exception: it is bought on an invoice rather than a contract
+     * note, so its purchase date sits on the asset record and reaches here on the position. Without
+     * this the platinum parcel defaulted to no discount, overstating its taxable gain by half.
+     */
+    const fallbackAcquisitionDate = holding.acquisitionDate || null;
+    const fallbackHeldDays = dateDiffDays(fallbackAcquisitionDate, asOfDate);
+    const fallbackEligible = isDiscountEligible(fallbackHeldDays);
     output.push({
       id: `${holding.id}:fallback`,
       ownerType: holding.ownerType,
@@ -361,19 +370,21 @@ function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfD
       symbol: holding.symbol,
       name: holding.name,
       exchange: holding.exchange,
-      acquisitionDate: null,
+      acquisitionDate: fallbackAcquisitionDate,
       asOfDate,
-      heldDays: null,
-      discountEligible: false,
+      heldDays: fallbackHeldDays,
+      discountEligible: fallbackEligible,
       discountRate: rate,
       quantity: missingQuantity,
       costAud: fallbackCostAud,
       marketValueAud,
       unrealisedGainAud: gainAud,
       unrealisedGainPercent: fallbackCostAud ? (gainAud / fallbackCostAud) * 100 : 0,
-      taxableGainIfSoldAud: taxableGain(gainAud, false, rate, treatment),
+      taxableGainIfSoldAud: taxableGain(gainAud, fallbackEligible, rate, treatment),
       source: "position_fallback",
-      note: "Trade history incomplete; using current position cost basis.",
+      note: holding.acquisitionDate
+        ? "No trade history; dated from the asset record and valued at current position cost basis."
+        : "Trade history incomplete; using current position cost basis.",
     });
   }
 
