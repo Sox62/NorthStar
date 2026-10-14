@@ -431,6 +431,78 @@ test("a sell reaches parcels imported under a different account key", () => {
   assert.equal(realised[realised.length - 1].acquisitionDate, "2024-04-15");
 });
 
+/** SILJ's real FY2025-26 shape: four buys at rising prices, then the 1,525-unit sale. */
+function siljTransactions() {
+  const row = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "Directshares", accountKey: "4317403", symbol: "SILJ",
+    exchange: "US", instrumentKey: "Directshares:SILJ:US", currency: "AUD", fxRateToBase: 1,
+    fees: 0, source: "Directshares All Trades Report", ...over,
+  });
+  return [
+    row({ id: "b1", externalId: "b1", tradeDate: "2025-06-05", type: "BUY", quantity: 1250, cost: 29122.95 }),
+    row({ id: "b2", externalId: "b2", tradeDate: "2025-07-09", type: "BUY", quantity: 500, cost: 11850.16 }),
+    row({ id: "b3", externalId: "b3", tradeDate: "2025-08-11", type: "BUY", quantity: 900, cost: 23214.77 }),
+    row({ id: "b4", externalId: "b4", tradeDate: "2025-09-23", type: "BUY", quantity: 400, cost: 13701.28 }),
+    row({ id: "s1", externalId: "s1", tradeDate: "2025-12-17", type: "SELL", quantity: 1525, cost: 62115.62, netCash: 62115.62 }),
+  ];
+}
+
+test("a holding's parcels are chosen by its own method", () => {
+  /*
+   * Sharesight matched SILJ's 1,525-unit sale to 400 units from 23 September, 900 from 11 August
+   * and 225 from 9 July — dearest first — and reported 26,735.01 for the year against this engine's
+   * 32,926.42 under first-in-first-out. The difference is the election, not an error in either, and
+   * it is the whole of SILJ's divergence once the second account's disposal is set aside.
+   */
+  const transactions = siljTransactions();
+  const fifo = buildTaxLots(emptyDashboard(), transactions as never, new Date("2026-06-30T00:00:00.000Z"));
+  assert.deepEqual(
+    fifo.realisedLots.map((lot) => [lot.acquisitionDate, Math.round(lot.quantity)]),
+    [["2025-06-05", 1250], ["2025-07-09", 275]],
+    "oldest first",
+  );
+
+  const minimised = buildTaxLots(
+    emptyDashboard(), transactions as never, new Date("2026-06-30T00:00:00.000Z"),
+    { pensionPhase: false }, { method: "fifo", overrides: { "SILJ:US": "minimise_gain" } },
+  );
+  assert.deepEqual(
+    minimised.realisedLots.map((lot) => [lot.acquisitionDate, Math.round(lot.quantity)]),
+    [["2025-09-23", 400], ["2025-08-11", 900], ["2025-07-09", 225]],
+    "dearest first, which is what Sharesight did",
+  );
+  // 13,701.28 + 23,214.77 + 5,332.57 of cost, against 62,115.62 of proceeds.
+  const gain = minimised.realisedLots.reduce((sum, lot) => sum + lot.realisedGainAud, 0);
+  assert.equal(gain.toFixed(2), "19867.00");
+  assert.ok(
+    gain < fifo.realisedLots.reduce((sum, lot) => sum + lot.realisedGainAud, 0),
+    "minimising must not report a larger gain than first-in-first-out",
+  );
+});
+
+test("every disposal records the method that chose its parcel", () => {
+  // A gain has to be explainable years later, and the first question is why this parcel.
+  const result = buildTaxLots(
+    emptyDashboard(), siljTransactions() as never, new Date("2026-06-30T00:00:00.000Z"),
+    { pensionPhase: false }, { method: "lifo" },
+  );
+  assert.deepEqual([...new Set(result.realisedLots.map((lot) => lot.selectionMethod))], ["lifo"]);
+  assert.match(result.realisedLots[0].note, /Last in, first out/);
+  assert.equal(result.selection.method, "lifo", "the report can state it rather than imply it");
+});
+
+test("an unmatched disposal still records the method that would have applied", () => {
+  // Otherwise the row is not comparable with the matched disposals printed beside it.
+  const sellOnly = [siljTransactions()[4]];
+  const result = buildTaxLots(
+    emptyDashboard(), sellOnly as never, new Date("2026-06-30T00:00:00.000Z"),
+    { pensionPhase: false }, { method: "minimise_gain" },
+  );
+  assert.equal(result.realisedLots.length, 1);
+  assert.equal(result.realisedLots[0].acquisitionDate, null);
+  assert.equal(result.realisedLots[0].selectionMethod, "minimise_gain");
+});
+
 /** Two exports carrying the same fill, each with the broker's own id for it. */
 function duplicatedPair() {
   const row = (over: Record<string, unknown>) => ({

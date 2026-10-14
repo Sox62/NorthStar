@@ -1,3 +1,11 @@
+import {
+  defaultParcelSelectionMethod,
+  methodForHolding,
+  orderParcelsForDisposal,
+  parcelSelectionLabels,
+  type ParcelSelection,
+  type ParcelSelectionMethod,
+} from "@/lib/parcel-selection";
 import type { DashboardData, DashboardHolding, OwnerType, Scope, StoredTransaction } from "@/lib/storage";
 
 export type OpenTaxLot = {
@@ -43,6 +51,12 @@ export type RealisedTaxLot = {
   costAud: number;
   realisedGainAud: number;
   taxableGainAud: number;
+  /*
+   * Which rule chose this parcel. Recorded per lot rather than per report because the choice is
+   * per holding, and because a disposal has to be explainable years later: "why this parcel" is
+   * the first question anyone reviewing a gain will ask.
+   */
+  selectionMethod: ParcelSelectionMethod;
   note: string;
 };
 
@@ -56,6 +70,8 @@ export type TaxLotsResponse = {
   duplicates: DuplicateTradeWarning[];
   /** Probable duplicates differing only by a day or two; reported, never merged. */
   near: DuplicateTradeWarning[];
+  /** The parcel selection this run was built under, so a report can state it rather than imply it. */
+  selection: ParcelSelection;
   summary: {
     openLots: number;
     realisedLots: number;
@@ -501,7 +517,7 @@ function dedupeTrades(transactions: StoredTransaction[]) {
   return { kept, duplicates, near };
 }
 
-function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreatment) {
+function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreatment, selection: ParcelSelection) {
   const lots = new Map<string, WorkingLot[]>();
   // Second index on the same lot objects, so a fallback lookup shares their consumed quantities.
   const byBroker = new Map<string, WorkingLot[]>();
@@ -583,7 +599,20 @@ function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreat
     const proceedsAud = sellProceedsAud(transaction);
     const proceedsPerUnitAud = quantity ? proceedsAud / quantity : 0;
 
-    for (const lot of lotRows) {
+    /*
+     * The parcels are ordered per disposal, not once per holding, because what a parcel is worth
+     * selling changes with the sale: the twelve-month test is measured to this sale's date, and the
+     * gain depends on this sale's proceeds. A method chosen for the holding is applied to each of
+     * its disposals in turn.
+     */
+    const method = methodForHolding(selection, transaction);
+    const ordered = orderParcelsForDisposal(lotRows, method, (lot) => {
+      const heldDays = dateDiffDays(lot.acquisitionDate, transaction.tradeDate);
+      const gainPerUnitAud = proceedsPerUnitAud - lot.costPerUnitAud;
+      return taxableGain(gainPerUnitAud, isDiscountEligible(heldDays), discountRate(transaction.ownerType), treatment);
+    });
+
+    for (const lot of ordered) {
       if (remainingSaleQuantity <= tolerance) break;
       if (lot.remainingQuantity <= tolerance) continue;
       const matchedQuantity = Math.min(lot.remainingQuantity, remainingSaleQuantity);
@@ -603,7 +632,8 @@ function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreat
         proceedsAud: matchedProceedsAud,
         costAud,
         realisedGainAud: matchedProceedsAud - costAud,
-        note: "FIFO match from imported transactions.",
+        selectionMethod: method,
+        note: `${parcelSelectionLabels[method]} match from imported transactions.`,
       }, treatment));
       lot.remainingQuantity -= matchedQuantity;
       remainingSaleQuantity -= matchedQuantity;
@@ -627,6 +657,9 @@ function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreat
         proceedsAud: unmatchedProceedsAud,
         costAud: Math.max(0, unmatchedProceedsAud - estimatedGainAud),
         realisedGainAud: estimatedGainAud,
+        // No parcel was chosen, so no method chose it; the holding's own method is still what would
+        // have applied, which is what makes the row comparable with the matched ones beside it.
+        selectionMethod: method,
         note: transaction.realisedPnl != null ? "Acquisition lot missing; using broker realised P/L." : "Acquisition lot missing; realised gain cannot be reconstructed.",
       }, treatment));
     }
@@ -726,9 +759,15 @@ function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfD
   return output;
 }
 
-export function buildTaxLots(data: DashboardData, transactions: StoredTransaction[], generatedAt = new Date(), treatment: TaxTreatment = ACCUMULATION): TaxLotsResponse {
+export function buildTaxLots(
+  data: DashboardData,
+  transactions: StoredTransaction[],
+  generatedAt = new Date(),
+  treatment: TaxTreatment = ACCUMULATION,
+  selection: ParcelSelection = { method: defaultParcelSelectionMethod },
+): TaxLotsResponse {
   const asOfDate = (data.lastUpdated ?? generatedAt.toISOString()).slice(0, 10);
-  const { lots, byBroker, realised, unappliedActions, duplicates, near } = buildWorkingLots(transactions, treatment);
+  const { lots, byBroker, realised, unappliedActions, duplicates, near } = buildWorkingLots(transactions, treatment, selection);
   const openLots = data.holdings
     .filter(isTaxableHolding)
     .flatMap((holding) => openLotsForHolding(
@@ -747,6 +786,7 @@ export function buildTaxLots(data: DashboardData, transactions: StoredTransactio
     unappliedActions,
     duplicates,
     near,
+    selection,
     asOfDate,
     generatedAt: generatedAt.toISOString(),
     summary: {

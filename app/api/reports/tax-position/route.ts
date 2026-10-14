@@ -1,3 +1,4 @@
+import { parcelSelectionLabels } from "@/lib/parcel-selection";
 import { dateInRange } from "@/lib/reports/eofy/utils";
 import { reportPeriod, type ReportPeriod } from "@/lib/reports/report-period";
 import { getStorage, type DashboardData, type OwnerType, type Scope, type StoredTransaction } from "@/lib/storage";
@@ -37,6 +38,9 @@ const header = [
   "proceeds_aud",
   "realised_gain_aud",
   "taxable_gain_aud",
+  // Which rule chose the parcel. A disposal has to be explainable years later, and the choice of
+  // parcel changes the gain without changing the position, so it belongs in the export itself.
+  "selection_method",
 ];
 
 
@@ -172,7 +176,9 @@ function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTra
       sectorByHoldingId.get(lot.id.split(":")[0]) ?? "",
       `${lot.quantity.toLocaleString("en-AU", { maximumFractionDigits: 6 })} units`,
       lot.exchange,
-      lot.source === "position_fallback" ? "cost-basis fallback parcel" : "FIFO parcel from imported trades",
+      // Not labelled with a selection method: an open parcel is what no disposal has consumed, so
+      // no method chose it. The method appears on the disposals, where it did the choosing.
+      lot.source === "position_fallback" ? "cost-basis fallback parcel" : "parcel from imported trades",
       treatment.pensionPhase
         ? "pension phase; gain is exempt current pension income"
         : undated ? "no acquisition date; taxable figure assumes no discount" : `discount rate ${(lot.discountRate * 100).toFixed(0)}%`,
@@ -261,6 +267,7 @@ function addRealisedRows(
     money(proceeds),
     money(gains - losses),
     money(taxable),
+    [...new Set(disposals.map((lot) => parcelSelectionLabels[lot.selectionMethod]))].sort().join(" / "),
   ]);
 
   for (const lot of disposals) {
@@ -294,6 +301,7 @@ function addRealisedRows(
       money(lot.proceedsAud),
       money(lot.realisedGainAud),
       money(lot.taxableGainAud),
+      parcelSelectionLabels[lot.selectionMethod],
     ]);
   }
 }
