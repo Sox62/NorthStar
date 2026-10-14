@@ -2422,3 +2422,86 @@ body.southernstar .holdingsShell .holdingsTable th {
 .maintenanceTable .numeric { text-align: right; }
 .maintenanceTable tr.isSelected td { background: rgba(215,181,109,.07); }
 .maintenanceTable input { accent-color: var(--gold); }
+
+/* Parcel matching on the tax workbench. Same reasoning as the pension-phase switch above it: the
+   rule changes every realised figure on the page, so it belongs beside the numbers it governs
+   rather than in a settings page. Only the exceptions are listed — thirty-seven rows all reading
+   "first in, first out" would bury the one line that differs. */
+.parcelSelection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 18px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(106,130,153,.18);
+}
+.parcelSelectionDefault {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.parcelSelectionDefault span {
+  display: flex;
+  flex-direction: column;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.parcelSelectionDefault span em {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 500;
+}
+.parcelSelection select {
+  padding: 7px 10px;
+  border: 1px solid rgba(106,130,153,.28);
+  border-radius: 8px;
+  background: var(--panel-2, rgba(7,17,28,.6));
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+.parcelSelection button {
+  padding: 7px 12px;
+  border: 1px solid rgba(106,130,153,.28);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.parcelSelection button:hover:not(:disabled) { color: var(--text-primary); }
+.parcelSelection button:disabled { opacity: .45; cursor: default; }
+.parcelSelectionOverrides {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.parcelSelectionOverrides li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 12px;
+  /* Tinted because an exception is the thing worth noticing, in the same gold the page uses to
+     mark anything that departs from the default treatment. */
+  border: 1px solid rgba(215,181,109,.38);
+  border-radius: 999px;
+  background: rgba(215,181,109,.07);
+}
+.parcelSelectionOverrides strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.parcelSelectionAdd { display: inline-flex; align-items: center; gap: 8px; }
+@media (max-width: 720px) {
+  .parcelSelection { flex-direction: column; align-items: stretch; }
+  .parcelSelectionDefault { justify-content: space-between; }
+  .parcelSelectionOverrides li { justify-content: space-between; }
+}

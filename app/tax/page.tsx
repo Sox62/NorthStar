@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ParcelSelectionControl } from "@/components/ParcelSelection";
+import { defaultParcelSelectionMethod, parcelSelectionLabels, type ParcelSelection } from "@/lib/parcel-selection";
 import PageHeader from "@/components/PageHeader";
 import type { Scope } from "@/lib/storage";
 import type { TaxLotsResponse } from "@/lib/tax-lots";
@@ -45,7 +47,7 @@ async function loadTaxLots(scope: Scope): Promise<TaxLotsResponse> {
   return payload as TaxLotsResponse;
 }
 
-type TaxProfile = { ownerType: "PERSONAL" | "SMSF"; pensionPhase: boolean };
+type TaxProfile = { ownerType: "PERSONAL" | "SMSF"; pensionPhase: boolean; parcelSelection?: ParcelSelection };
 
 export default function TaxLotsPage() {
   const [scope, setScope] = useState<Scope>("overall");
@@ -88,15 +90,22 @@ export default function TaxLotsPage() {
   const ownerForScope = (value: Scope) => value === "smsf" ? "SMSF" as const : "PERSONAL" as const;
   const pensionPhaseFor = (value: Scope) =>
     profiles.find((profile) => profile.ownerType === ownerForScope(value))?.pensionPhase ?? false;
+  const selectionFor = (value: Scope) =>
+    profiles.find((profile) => profile.ownerType === ownerForScope(value))?.parcelSelection
+    ?? { method: defaultParcelSelectionMethod };
 
-  /** Changing the phase changes every taxable figure on the page, so the lots are rebuilt after it. */
-  async function updatePensionPhase(value: Scope, pensionPhase: boolean) {
+  /**
+   * Both the phase and the parcel election change every taxable figure on the page, so the lots are
+   * rebuilt after either, rather than leaving the tables showing numbers the setting no longer
+   * produces.
+   */
+  async function updateProfile(value: Scope, change: { pensionPhase?: boolean; parcelSelection?: ParcelSelection }) {
     setProfileBusy(true);
     try {
       const response = await fetch("/api/tax-profiles", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ownerType: ownerForScope(value), pensionPhase }),
+        body: JSON.stringify({ ownerType: ownerForScope(value), ...change }),
       });
       const payload = await response.json();
       if (!response.ok || payload.error) throw new Error(payload.error || "Unable to update tax profile");
@@ -116,7 +125,7 @@ export default function TaxLotsPage() {
     <main className="shell">
       <PageHeader
         title="Tax lots"
-        description="FIFO CGT view for current holdings and realised sales, including discount eligibility by legal owner."
+        description="CGT view for current holdings and realised sales, including discount eligibility by legal owner."
         links={[
           { href: "/", label: "Dashboard" },
           { href: "/holdings", label: "Holdings" },
@@ -130,7 +139,13 @@ export default function TaxLotsPage() {
           <div>
             <p className="eyebrow">CGT workbench</p>
             <h2 className="cardTitle">{scopeLabel} tax position</h2>
-            <p className="cardIntro">FIFO lots are reconstructed from imported BUY and SELL trades. Fallback lots use current position cost basis when acquisition history is incomplete.</p>
+            <p className="cardIntro">
+              Lots are reconstructed from imported BUY and SELL trades. Fallback lots use current position cost
+              basis when acquisition history is incomplete.
+              {/* Stated rather than assumed: the matching rule changes every realised figure below, and a
+                  reader cannot tell which one produced them by looking at the numbers. */}
+              {scope === "overall" ? null : ` Disposals match parcels by ${parcelSelectionLabels[selectionFor(scope).method].toLowerCase()}${Object.keys(selectionFor(scope).overrides ?? {}).length ? ", with exceptions below" : ""}.`}
+            </p>
           </div>
           {data ? <StatusBadge tone={data.summary.fallbackLots ? "warning" : "good"}>{data.summary.fallbackLots ? `${data.summary.fallbackLots} fallback lots` : "Lot history matched"}</StatusBadge> : null}
         </div>
@@ -149,13 +164,22 @@ export default function TaxLotsPage() {
                 type="checkbox"
                 checked={pensionPhaseFor(scope)}
                 disabled={profileBusy}
-                onChange={(event) => void updatePensionPhase(scope, event.target.checked)}
+                onChange={(event) => void updateProfile(scope, { pensionPhase: event.target.checked })}
               />
               <span>Pension phase<em>{pensionPhaseFor(scope) ? "Gains exempt" : "Gains taxable"}</em></span>
             </label>
           )}
           <a className="button" href={`/api/reports/tax-position?scope=${scope}`}>Download tax CSV</a>
         </div>
+
+        {scope === "overall" ? null : (
+          <ParcelSelectionControl
+            selection={selectionFor(scope)}
+            holdings={[...(data?.openLots ?? []), ...(data?.realisedLots ?? [])]}
+            busy={profileBusy}
+            onChange={(parcelSelection) => void updateProfile(scope, { parcelSelection })}
+          />
+        )}
       </Card>
 
       {loading ? (
@@ -223,7 +247,7 @@ export default function TaxLotsPage() {
                       <td>
                         <strong>{lot.symbol}</strong>
                         <span>{lot.name}</span>
-                        <small>{lot.broker} · {lot.exchange} · {lot.source === "position_fallback" ? "fallback cost basis" : "FIFO transaction lot"}</small>
+                        <small>{lot.broker} · {lot.exchange} · {lot.source === "position_fallback" ? "fallback cost basis" : "transaction lot"}</small>
                       </td>
                       <td>{lot.ownerLabel}</td>
                       <td>{dateLabel(lot.acquisitionDate)}</td>
