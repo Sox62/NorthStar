@@ -684,3 +684,45 @@ test("a period scopes the disposals and leaves the open position alone", () => {
   // The later sale still consumed its parcels, so the open side is identical either way.
   assert.deepEqual(fy2026.summary.openCostAud, all.summary.openCostAud);
 });
+
+test("a re-export of history already held does not double it", () => {
+  /*
+   * The hazard after fill numbering landed: rows stored before it carry no number, and a later
+   * export of the same history carries them. Keeping both doubles every shared trade — which is
+   * exactly what the price-rounded duplicates did to BOE and PDN before they were removed by hand.
+   */
+  const row = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "Directshares", accountKey: "DIRECTSHARES", symbol: "GDX",
+    exchange: "ASX", instrumentKey: "Directshares:GDX:ASX", currency: "AUD", fxRateToBase: 1,
+    fees: 0, source: "Directshares All Trades Report", tradeDate: "2025-06-04", type: "BUY",
+    quantity: 365, ...over,
+  });
+  const sell = row({
+    id: "s", externalId: "sell", tradeDate: "2026-06-16", type: "SELL", quantity: 365,
+    cost: 45453.45, netCash: 45453.45,
+  });
+
+  const stale = row({ id: "a", externalId: "DS-TRADE:GDX:ASX:2025-06-04:BUY:365:82.83", cost: 30266.20 });
+  const reexported = row({ id: "b", externalId: "DS-TRADE:GDX:ASX:2025-06-04:BUY:365:82.8303", cost: 30266.31, raw: { fillIndex: 1 } });
+
+  const result = buildTaxLots(emptyDashboard(), [stale, reexported, sell] as never, new Date("2026-10-14T00:00:00.000Z"));
+  assert.equal(result.duplicates.length, 1, "one purchase, not two");
+  assert.equal(result.realisedLots.length, 1);
+  assert.equal(result.realisedLots[0].quantity, 365, "365 bought, 365 sold, nothing unmatched");
+  // The numbered row wins, because a re-export carries the finer price.
+  assert.equal(result.realisedLots[0].costAud.toFixed(2), "30266.31");
+});
+
+test("two genuine fills stored before numbering are still two fills", () => {
+  // The counterpart: both unnumbered and from one export, so they are the fills that export saw.
+  const row = (id: string) => ({
+    ownerType: "PERSONAL", broker: "Directshares", accountKey: "DIRECTSHARES", symbol: "ASL",
+    exchange: "ASX", instrumentKey: "Directshares:ASL:ASX", currency: "AUD", fxRateToBase: 1,
+    fees: 0, source: "Directshares All Trades Report", tradeDate: "2025-07-14", type: "BUY",
+    quantity: 1000, cost: 1450, id, externalId: id,
+  });
+  const sell = { ...row("sell"), tradeDate: "2026-07-14", type: "SELL", quantity: 2000, cost: 4000, netCash: 4000 };
+  const result = buildTaxLots(emptyDashboard(), [row("a"), row("b"), sell] as never, new Date("2026-10-14T00:00:00.000Z"));
+  assert.equal(result.duplicates.length, 0);
+  assert.equal(result.realisedLots.reduce((sum, lot) => sum + lot.quantity, 0), 2000);
+});

@@ -368,7 +368,18 @@ function fillsWithinSource(rows: StoredTransaction[]) {
     }
     if (!byFill.has(index)) byFill.set(index, row);
   }
-  return [...byFill.values(), ...unnumbered];
+  if (!byFill.size || !unnumbered.length) return [...byFill.values(), ...unnumbered];
+
+  /*
+   * Two generations of the same export: rows stored before fills were numbered, beside rows from a
+   * later export of the same history that carry numbers. Keeping both would double every trade the
+   * two exports share, which is how GDX's purchase came to be held at a price rounded to 82.83 by
+   * the older file while the newer one states 82.8303.
+   *
+   * The numbered rows say how many fills there were, so the larger set is the true count, and the
+   * numbered one wins a tie because a re-export carries the finer figures.
+   */
+  return byFill.size >= unnumbered.length ? [...byFill.values()] : unnumbered;
 }
 
 /** Whether an export stated both of the broker's dates for these rows, which a contract note does. */
