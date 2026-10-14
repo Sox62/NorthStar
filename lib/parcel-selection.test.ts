@@ -5,6 +5,7 @@ import {
   isParcelSelectionMethod,
   methodForHolding,
   orderParcelsForDisposal,
+  readParcelSelection,
   type ParcelSelectionMethod,
 } from "./parcel-selection";
 
@@ -83,4 +84,24 @@ test("only the four known methods are accepted", () => {
   assert.equal(isParcelSelectionMethod("average_cost"), false, "not available under Australian CGT");
   assert.equal(isParcelSelectionMethod(""), false);
   assert.equal(isParcelSelectionMethod(undefined), false);
+});
+
+test("a stored selection is read back, and anything unrecognised is discarded", () => {
+  // The overrides are JSON in one column, so an older build, a hand-edited row or a method from a
+  // future version can all turn up. Matching parcels by an unknown rule would change a reported
+  // gain with nothing to say why, so the default takes over instead.
+  assert.deepEqual(readParcelSelection("lifo", { "silj:us": "minimise_gain" }), {
+    method: "lifo",
+    overrides: { "SILJ:US": "minimise_gain" },
+  });
+  assert.deepEqual(readParcelSelection("average_cost", null), { method: "fifo" });
+  assert.deepEqual(readParcelSelection(undefined, undefined), { method: "fifo" });
+  // A bad entry is dropped on its own; the good ones beside it still apply.
+  assert.deepEqual(readParcelSelection("fifo", { "SILJ:US": "minimise_gain", "BOE:ASX": "nonsense", "": "lifo" }), {
+    method: "fifo",
+    overrides: { "SILJ:US": "minimise_gain" },
+  });
+  // Nothing usable leaves no overrides key at all, rather than an empty object to reason about.
+  assert.deepEqual(readParcelSelection("fifo", { "BOE:ASX": 7 }), { method: "fifo" });
+  assert.deepEqual(readParcelSelection("fifo", ["minimise_gain"]), { method: "fifo" });
 });

@@ -1,6 +1,7 @@
 import { getPool } from "@/lib/db/client";
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
 import { buildDashboardModel, buildManualAssetValuation, maskAccount, numberValue, ownerForScope } from "@/lib/core/accounting";
+import { readParcelSelection, type ParcelSelection } from "@/lib/parcel-selection";
 import { defaultAllocationTargets, normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
 import type { Sector } from "@/southernstar/types";
 import { classifyAsset } from "./classify";
@@ -400,12 +401,38 @@ export class PostgresStorageAdapter implements StorageAdapter {
   async listTaxProfiles(): Promise<TaxProfile[]> {
     const client = await getPool().connect();
     try {
-      const result = await client.query(`SELECT legal_owner_type, pension_phase FROM portfolios`);
-      const byOwner = new Map(result.rows.map((row) => [row.legal_owner_type as OwnerType, row.pension_phase === true]));
-      return (["PERSONAL", "SMSF"] as const).map((ownerType) => ({
-        ownerType,
-        pensionPhase: byOwner.get(ownerType) ?? false,
-      }));
+      const result = await client.query(
+        `SELECT legal_owner_type, pension_phase, parcel_selection_method, parcel_selection_overrides FROM portfolios`,
+      );
+      const byOwner = new Map(result.rows.map((row) => [row.legal_owner_type as OwnerType, row]));
+      return (["PERSONAL", "SMSF"] as const).map((ownerType) => {
+        const row = byOwner.get(ownerType);
+        return {
+          ownerType,
+          pensionPhase: row?.pension_phase === true,
+          parcelSelection: readParcelSelection(row?.parcel_selection_method, row?.parcel_selection_overrides),
+        };
+      });
+    } finally {
+      client.release();
+    }
+  }
+
+  async setParcelSelection(ownerType: OwnerType, selection: ParcelSelection): Promise<TaxProfile> {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      const portfolioId = await ensurePortfolio(client, ownerType);
+      await client.query(
+        `UPDATE portfolios SET parcel_selection_method=$2, parcel_selection_overrides=$3 WHERE id=$1`,
+        [portfolioId, selection.method, JSON.stringify(selection.overrides ?? {})],
+      );
+      const result = await client.query(`SELECT pension_phase FROM portfolios WHERE id=$1`, [portfolioId]);
+      await client.query("COMMIT");
+      return { ownerType, pensionPhase: result.rows[0]?.pension_phase === true, parcelSelection: selection };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
     } finally {
       client.release();
     }
@@ -417,8 +444,16 @@ export class PostgresStorageAdapter implements StorageAdapter {
       await client.query("BEGIN");
       const portfolioId = await ensurePortfolio(client, ownerType);
       await client.query(`UPDATE portfolios SET pension_phase=$2 WHERE id=$1`, [portfolioId, pensionPhase]);
+      const result = await client.query(
+        `SELECT parcel_selection_method, parcel_selection_overrides FROM portfolios WHERE id=$1`,
+        [portfolioId],
+      );
       await client.query("COMMIT");
-      return { ownerType, pensionPhase };
+      return {
+        ownerType,
+        pensionPhase,
+        parcelSelection: readParcelSelection(result.rows[0]?.parcel_selection_method, result.rows[0]?.parcel_selection_overrides),
+      };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

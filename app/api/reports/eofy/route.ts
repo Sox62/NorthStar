@@ -19,12 +19,16 @@ export async function GET(request: Request) {
     const year = financialYearFromRequest(url.searchParams.get("year"));
     const format = url.searchParams.get("format");
     const storage = getStorage();
-    const [dashboard, transactions, priceBook] = await Promise.all([
+    const [dashboard, transactions, priceBook, profiles] = await Promise.all([
       storage.dashboard(scope),
       storage.listTransactions("PERSONAL"),
       storage.listPriceBook(2000),
+      storage.listTaxProfiles(),
     ]);
-    const report = buildEofyReport(scope, dashboard, transactions, year, new Date(), priceBook);
+    // The parcel election is the taxpayer's and is stored, so the pack reports what was elected
+    // rather than whatever the engine defaults to.
+    const selection = profiles.find((profile) => profile.ownerType === "PERSONAL")?.parcelSelection;
+    const report = buildEofyReport(scope, dashboard, transactions, year, new Date(), priceBook, { pensionPhase: false }, selection);
 
     if (format === "xlsx") {
       const body = eofyReportXlsx(report);

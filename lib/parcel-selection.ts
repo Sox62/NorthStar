@@ -80,3 +80,27 @@ export function orderParcelsForDisposal<T extends SelectableParcel>(
 
   return indexed.sort(comparators[method]).map((entry) => entry.parcel);
 }
+
+/**
+ * Reads a stored selection back, discarding anything that is not a method this engine implements.
+ *
+ * Both stores keep the overrides as JSON, so a value written by an older build, a hand-edited row or
+ * a method name from a future version can all arrive here. Falling back to first in, first out is
+ * both the engine's long-standing behaviour and the right default; matching parcels by an unknown
+ * rule would change a reported gain with nothing anywhere to say why.
+ */
+export function readParcelSelection(method: unknown, overrides: unknown): ParcelSelection {
+  const selection: ParcelSelection = {
+    method: isParcelSelectionMethod(method) ? method : defaultParcelSelectionMethod,
+  };
+  if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) return selection;
+
+  const usable: Record<string, ParcelSelectionMethod> = {};
+  for (const [holding, value] of Object.entries(overrides as Record<string, unknown>)) {
+    const [symbol = "", exchange = ""] = holding.split(":");
+    if (!symbol || !isParcelSelectionMethod(value)) continue;
+    usable[holdingSelectionKey({ symbol, exchange })] = value;
+  }
+  if (Object.keys(usable).length) selection.overrides = usable;
+  return selection;
+}

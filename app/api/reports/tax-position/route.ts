@@ -1,4 +1,4 @@
-import { parcelSelectionLabels } from "@/lib/parcel-selection";
+import { parcelSelectionLabels, type ParcelSelection } from "@/lib/parcel-selection";
 import { dateInRange } from "@/lib/reports/eofy/utils";
 import { reportPeriod, type ReportPeriod } from "@/lib/reports/report-period";
 import { getStorage, type DashboardData, type OwnerType, type Scope, type StoredTransaction } from "@/lib/storage";
@@ -112,13 +112,13 @@ function discountEligibility(acquisitionDate: string | null, eligible: boolean, 
   return eligible ? "yes" : "no";
 }
 
-function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTransaction[], treatment: TaxTreatment, period: ReportPeriod) {
+function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTransaction[], treatment: TaxTreatment, period: ReportPeriod, selection?: ParcelSelection) {
   /*
    * One row per CGT parcel, not per position. A holding built from three buys at three prices is
    * three assets for capital gains purposes, each with its own acquisition date and its own answer
    * to the twelve-month test, and a single averaged row cannot express that.
    */
-  const { openLots, realisedLots } = buildTaxLots(data, transactions, new Date(), treatment);
+  const { openLots, realisedLots } = buildTaxLots(data, transactions, new Date(), treatment, selection);
   const holdings = data.holdings.filter((holding) => holding.costAud !== 0 || holding.marketValueAud !== 0);
   const sectorByHoldingId = new Map(holdings.map((holding) => [holding.id, recordedSectorForInstrument(holding)]));
 
@@ -403,8 +403,9 @@ export async function GET(request: Request) {
       ],
     ];
     dashboards.forEach((dashboard, index) => {
-      const pensionPhase = taxProfiles.find((profile) => profile.ownerType === ownerTypeForScope(selectedScopes[index]))?.pensionPhase ?? false;
-      addTaxRows(rows, dashboard, transactionsByScope[index] ?? [], { pensionPhase }, period);
+      const profile = taxProfiles.find((item) => item.ownerType === ownerTypeForScope(selectedScopes[index]));
+      const pensionPhase = profile?.pensionPhase ?? false;
+      addTaxRows(rows, dashboard, transactionsByScope[index] ?? [], { pensionPhase }, period, profile?.parcelSelection);
       addDividendRows(rows, dashboard, transactionsByScope[index] ?? [], period);
     });
 

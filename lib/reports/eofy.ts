@@ -1,3 +1,4 @@
+import { defaultParcelSelectionMethod, type ParcelSelection } from "@/lib/parcel-selection";
 import { buildTaxLots, type TaxTreatment } from "@/lib/tax-lots";
 import { taxJurisdiction } from "@/lib/tax-jurisdictions";
 import type { DashboardData, PriceBook, StoredTransaction } from "@/lib/storage";
@@ -35,14 +36,14 @@ export type {
 export { eofyReportCsv } from "./eofy/csv";
 export { financialYear, financialYearFromRequest, ownerLabelForEofyScope, ownerTypeForEofyScope } from "./eofy/utils";
 
-export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, transactions: StoredTransaction[], year: number, generatedAt = new Date(), priceBook?: PriceBook, treatment: TaxTreatment = { pensionPhase: false }): EofyReport {
+export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, transactions: StoredTransaction[], year: number, generatedAt = new Date(), priceBook?: PriceBook, treatment: TaxTreatment = { pensionPhase: false }, selection: ParcelSelection = { method: defaultParcelSelectionMethod }): EofyReport {
   const fy = financialYear(year);
   const jurisdiction = taxJurisdiction("AU");
   const transactionsThroughEofy = transactions.filter((transaction) => transaction.tradeDate <= fy.endDate);
   const income = incomeRows(transactions, fy.startDate, fy.endDate);
   const taxableIncome = taxableIncomeRows(transactions, fy.startDate, fy.endDate);
   const taxLotDashboard = { ...dashboard, lastUpdated: fy.endDate };
-  const allTaxLots = buildTaxLots(taxLotDashboard, transactionsThroughEofy, generatedAt, treatment);
+  const allTaxLots = buildTaxLots(taxLotDashboard, transactionsThroughEofy, generatedAt, treatment, selection);
   const realisedLots = allTaxLots.realisedLots.filter((lot) => dateInRange(lot.saleDate, fy.startDate, fy.endDate));
   const tradeMovements = tradeRows(transactions, fy.startDate, fy.endDate);
   const currentHoldings = dashboard.holdings

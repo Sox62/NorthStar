@@ -1,4 +1,5 @@
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
+import type { ParcelSelection } from "@/lib/parcel-selection";
 import type { AllocationTarget } from "@/southernstar/lib/allocation-drift";
 import type { Sector } from "@/southernstar/types";
 
@@ -638,6 +639,12 @@ export type DashboardData = {
 export type TaxProfile = {
   ownerType: OwnerType;
   pensionPhase: boolean;
+  /*
+   * Which parcels a disposal consumes. Stored rather than passed per report run because it is an
+   * election the taxpayer makes and has to be able to show, and because it is made per holding:
+   * the lodged FY2025-26 return used first in, first out everywhere except one line.
+   */
+  parcelSelection: ParcelSelection;
 };
 
 export type DeleteTransactionsInput = {
@@ -681,6 +688,8 @@ export interface StorageAdapter {
   deleteTransactions(input: DeleteTransactionsInput): Promise<DeleteTransactionsResult>;
   listTaxProfiles(): Promise<TaxProfile[]>;
   setTaxProfile(ownerType: OwnerType, pensionPhase: boolean): Promise<TaxProfile>;
+  /** Kept separate from `setTaxProfile`: two independent settings that happen to share a row. */
+  setParcelSelection(ownerType: OwnerType, selection: ParcelSelection): Promise<TaxProfile>;
   listOpenOrders(ownerType?: OwnerType): Promise<StoredOpenOrder[]>;
   listPositionRiskPlans(ownerType?: OwnerType): Promise<PositionRiskPlan[]>;
   upsertPositionRiskPlan(input: PositionRiskPlanInput): Promise<PositionRiskPlan>;

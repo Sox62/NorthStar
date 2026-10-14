@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
+import { defaultParcelSelectionMethod, readParcelSelection, type ParcelSelection } from "@/lib/parcel-selection";
 import {
   buildManualAssetValuation,
   buildPositionPriceValuation,
@@ -356,19 +357,37 @@ export class LocalStorageAdapter implements StorageAdapter {
 
   async listTaxProfiles(): Promise<TaxProfile[]> {
     const store = await readStore();
-    return (["PERSONAL", "SMSF"] as const).map((ownerType) => ({
+    return (["PERSONAL", "SMSF"] as const).map((ownerType) => {
+      const stored = store.taxProfiles?.find((profile) => profile.ownerType === ownerType);
+      return {
+        ownerType,
+        pensionPhase: stored?.pensionPhase ?? false,
+        // A store written before parcel selection existed carries none, and first in, first out is
+        // both the engine's old behaviour and the right default, so nothing moves on upgrade.
+        parcelSelection: readParcelSelection(stored?.parcelSelection?.method, stored?.parcelSelection?.overrides),
+      };
+    });
+  }
+
+  private async writeTaxProfile(ownerType: OwnerType, change: Partial<Omit<TaxProfile, "ownerType">>): Promise<TaxProfile> {
+    const store = await readStore();
+    const existing = store.taxProfiles?.find((profile) => profile.ownerType === ownerType);
+    const updated: TaxProfile = {
       ownerType,
-      pensionPhase: store.taxProfiles?.find((profile) => profile.ownerType === ownerType)?.pensionPhase ?? false,
-    }));
+      pensionPhase: change.pensionPhase ?? existing?.pensionPhase ?? false,
+      parcelSelection: change.parcelSelection ?? existing?.parcelSelection ?? { method: defaultParcelSelectionMethod },
+    };
+    store.taxProfiles = [...(store.taxProfiles ?? []).filter((profile) => profile.ownerType !== ownerType), updated];
+    await writeStore(store);
+    return updated;
   }
 
   async setTaxProfile(ownerType: OwnerType, pensionPhase: boolean): Promise<TaxProfile> {
-    const store = await readStore();
-    const profiles = (store.taxProfiles ?? []).filter((profile) => profile.ownerType !== ownerType);
-    profiles.push({ ownerType, pensionPhase });
-    store.taxProfiles = profiles;
-    await writeStore(store);
-    return { ownerType, pensionPhase };
+    return this.writeTaxProfile(ownerType, { pensionPhase });
+  }
+
+  async setParcelSelection(ownerType: OwnerType, selection: ParcelSelection): Promise<TaxProfile> {
+    return this.writeTaxProfile(ownerType, { parcelSelection: selection });
   }
 
   async deleteTransactions(input: DeleteTransactionsInput): Promise<DeleteTransactionsResult> {

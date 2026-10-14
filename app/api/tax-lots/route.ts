@@ -27,10 +27,9 @@ export async function GET(request: Request) {
     // Overall spans both books, and a pension-phase exemption belongs to one of them, so the
     // combined view stays on accumulation rather than exempting the personal side with the fund.
     const ownerType = ownerTypeForScope(scope);
-    const pensionPhase = scope === "overall"
-      ? false
-      : profiles.find((profile) => profile.ownerType === ownerType)?.pensionPhase ?? false;
-    return NextResponse.json(buildTaxLots(dashboard, transactions, new Date(), { pensionPhase }));
+    const profile = profiles.find((item) => item.ownerType === ownerType);
+    const pensionPhase = scope === "overall" ? false : profile?.pensionPhase ?? false;
+    return NextResponse.json(buildTaxLots(dashboard, transactions, new Date(), { pensionPhase }, profile?.parcelSelection));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to build tax lots" }, { status: 500 });
   }
