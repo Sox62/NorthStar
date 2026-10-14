@@ -312,6 +312,57 @@ test("a consolidation moves cost per unit without changing the total cost base",
   assert.equal(result.unappliedActions.length, 0, "the action applied cleanly");
 });
 
+test("a stated ratio beats the pool the export could not see", () => {
+  /*
+   * PDN's real shape, in round numbers so the arithmetic is readable. The All Trades Report covers
+   * one account and states its reduction on the holding it sees there — a 1-for-10 consolidation.
+   * The lot pool also holds units bought in the second account, which that export knows nothing
+   * about, so inferring the ratio from the pool reads 90,000/112,000 and gives roughly 1-for-5:
+   * the cost base wrong by half. PDN's live figures are 104,839 → 10,484 against a pool of 117,500.
+   */
+  const row = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "Directshares", symbol: "PDN", exchange: "ASX",
+    instrumentKey: "Directshares:PDN:ASX", currency: "AUD", fxRateToBase: 1, fees: 0, ...over,
+  });
+  const transactions = [
+    row({ id: "a", externalId: "main", accountKey: "DIRECTSHARES", tradeDate: "2021-01-28", type: "BUY", quantity: 100000, cost: 30000 }),
+    row({ id: "b", externalId: "second", accountKey: "4386162", tradeDate: "2024-02-27", type: "BUY", quantity: 12000, cost: 14000 }),
+    row({
+      id: "c", externalId: "action", accountKey: "DIRECTSHARES", tradeDate: "2024-04-19",
+      type: "CORPORATE_ACTION", quantity: -90000, description: "Consolidation",
+      source: "Directshares All Trades Report",
+      raw: { actionQuantityBefore: 100000, actionQuantityAfter: 10000 },
+    }),
+    row({ id: "d", externalId: "sell", accountKey: "DIRECTSHARES", tradeDate: "2026-05-20", type: "SELL", quantity: 6000, cost: 61800, netCash: 61800, source: "Directshares All Trades Report" }),
+  ];
+  const result = buildTaxLots(vauDashboard(), transactions as never, new Date("2026-06-30T00:00:00.000Z"));
+  assert.equal(result.unappliedActions.length, 0);
+  const sold = result.realisedLots[0];
+  assert.equal(sold.quantity, 6000);
+  // 30,000 over 100,000 units is 0.30/unit; consolidated 1 for 10 that is 3.00, not the 1.53 the
+  // pool would have given.
+  assert.equal((sold.costAud / sold.quantity).toFixed(4), "3.0000");
+  assert.equal(sold.costAud.toFixed(2), "18000.00");
+});
+
+test("an action with no stated ratio still falls back to the pool", () => {
+  // Everything imported before importers carried the quantities, VAU included, has only a delta.
+  const transactions = vauTransactions().map((row) => ({ ...row, raw: undefined }));
+  const result = buildTaxLots(vauDashboard(), transactions as never, new Date("2026-06-30T00:00:00.000Z"));
+  assert.equal(result.unappliedActions.length, 0);
+  assert.equal(result.realisedLots[0].costAud.toFixed(2), "10016.28");
+});
+
+test("a ratio stated as nonsense is ignored rather than applied", () => {
+  // A zero or negative before-quantity cannot give a ratio. Falling back to the delta is right;
+  // dividing by it would wipe out the cost base silently.
+  const base = vauTransactions();
+  const transactions = [base[0], { ...base[1], raw: { actionQuantityBefore: 0, actionQuantityAfter: 7693 } }, base[2]];
+  const result = buildTaxLots(vauDashboard(), transactions as never, new Date("2026-06-30T00:00:00.000Z"));
+  assert.equal(result.unappliedActions.length, 0);
+  assert.equal(result.realisedLots[0].costAud.toFixed(2), "10016.28", "inferred from the pool instead");
+});
+
 test("a consolidation does not restart the twelve-month clock", () => {
   // It is not a CGT event. Resetting the acquisition date would strip discount eligibility from
   // long-held parcels — a quieter and larger error than the cost-base one.

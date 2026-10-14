@@ -241,12 +241,17 @@ function makeRealisedLot(input: Omit<RealisedTaxLot, "taxableGainAud" | "discoun
  * 50,000 to 7,693 resolves without the report ever stating "1 for 6.5". Fractions are kept: the
  * book already carries 87.5 BMN and 19.5 CORN, and rounding here would quietly lose value.
  */
-function applyCorporateAction(parcels: WorkingLot[], deltaQuantity: number): boolean {
-  const before = parcels.reduce((sum, lot) => sum + lot.remainingQuantity, 0);
-  if (before <= tolerance) return false;
-  const after = before + deltaQuantity;
-  if (after <= tolerance) return false;
-  const ratio = after / before;
+function applyCorporateAction(parcels: WorkingLot[], deltaQuantity: number, stated: ActionRatio | null): boolean {
+  const pooled = parcels.reduce((sum, lot) => sum + lot.remainingQuantity, 0);
+  if (pooled <= tolerance) return false;
+  /*
+   * The stated ratio wins where the export gave one, because a delta only describes the holding
+   * the reporting entity could see. PDN's −94,355 is one account's reduction, while the pool also
+   * holds 12,661 units bought in another; inferring from the pool reads a 1-for-10 consolidation as
+   * 1-for-5. Applying the stated ratio to the whole pool is right either way: every holder of the
+   * security was consolidated on the same terms.
+   */
+  const ratio = stated ? stated.after / stated.before : (pooled + deltaQuantity) / pooled;
   if (!Number.isFinite(ratio) || ratio <= 0) return false;
 
   for (const parcel of parcels) {
@@ -255,6 +260,23 @@ function applyCorporateAction(parcels: WorkingLot[], deltaQuantity: number): boo
     parcel.costPerUnitAud /= ratio;
   }
   return true;
+}
+
+type ActionRatio = { before: number; after: number };
+
+/**
+ * The before and after quantities an importer recorded for a corporate action, where it knew them.
+ *
+ * Absent for anything imported before importers carried them, and for an action whose own export
+ * could not establish a usable holding — GOLD's split sits on a negative running balance because
+ * its purchases predate every export supplied. Both fall back to inferring from the pool.
+ */
+function statedActionRatio(transaction: StoredTransaction): ActionRatio | null {
+  const before = Number(transaction.raw?.actionQuantityBefore);
+  const after = Number(transaction.raw?.actionQuantityAfter);
+  if (!Number.isFinite(before) || !Number.isFinite(after)) return null;
+  if (before <= tolerance || after <= tolerance) return null;
+  return { before, after };
 }
 
 export type UnappliedCorporateAction = {
@@ -445,14 +467,16 @@ function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreat
       // Anything that cannot be applied is reported rather than skipped. Silence is how the VAU
       // consolidation survived long enough to put $16,948 into a report being used for decisions.
       const delta = transaction.quantity ?? 0;
-      const applied = delta !== 0 && applyCorporateAction(byBroker.get(brokerKey(transaction)) ?? [], delta);
+      const stated = statedActionRatio(transaction);
+      const applied = (delta !== 0 || stated != null)
+        && applyCorporateAction(byBroker.get(brokerKey(transaction)) ?? [], delta, stated);
       if (!applied) {
         unappliedActions.push({
           symbol: transaction.symbol,
           tradeDate: transaction.tradeDate,
           description: transaction.description || "Corporate action",
           quantity: transaction.quantity ?? null,
-          reason: !delta
+          reason: !delta && !stated
             ? "no quantity change recorded"
             : (byBroker.get(brokerKey(transaction)) ?? []).length
               ? "no open parcels remained to rescale"

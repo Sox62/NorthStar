@@ -105,6 +105,53 @@ function fxRateToBase(input: {
   return rate < 1 ? 1 / rate : rate;
 }
 
+type PreparedRow = {
+  row: Record<string, string>;
+  symbol: string;
+  exchange: string;
+  tradeDate: string;
+  rawType: string;
+  /** Signed as the file states it: negative on a sell, and on a consolidation's unit reduction. */
+  quantity: number;
+  price: ReturnType<typeof numberValue>;
+};
+
+/**
+ * The holding this export itself reported immediately before and after each corporate action.
+ *
+ * A ratio is the same for every holder of a security; a quantity delta never is. The report covers
+ * one Directshares account, so its −94,355 PDN consolidation is that account's reduction alone —
+ * while the lot pool also holds the 12,661 units bought in the second account, which this file
+ * cannot see. Inferring the ratio from the pool would read a 1-for-10 consolidation as 1-for-5 and
+ * leave the cost base wrong by half, with nothing anywhere to say so.
+ *
+ * So the export states the ratio from its own running balance, which is the one holding the delta
+ * is known to describe. Prior actions are applied along the way: BOE's bonus issue sits on 3,750
+ * units, not the 30,000 bought before its consolidation.
+ */
+function corporateActionRatios(rows: PreparedRow[]) {
+  const ratios = new Map<PreparedRow, { before: number; after: number }>();
+  const balances = new Map<string, number>();
+  const ordered = rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) =>
+      a.row.symbol.localeCompare(b.row.symbol)
+      || a.row.tradeDate.localeCompare(b.row.tradeDate)
+      || a.index - b.index);
+
+  for (const { row } of ordered) {
+    const key = `${row.symbol}:${row.exchange}`;
+    const before = balances.get(key) ?? 0;
+    const after = before + row.quantity;
+    balances.set(key, after);
+    if (row.rawType === "BUY" || row.rawType === "SELL") continue;
+    // No ratio where the running balance is unusable: GOLD's split sits on −250 units because its
+    // purchases predate every export supplied. Stating nothing leaves the engine to report it.
+    if (before > 0 && after > 0) ratios.set(row, { before, after });
+  }
+  return ratios;
+}
+
 export function parseDirectsharesAllTradesCsv(csv: string): ImportedTransaction[] {
   const index = headerLine(csv);
   if (index < 0) throw new Error("No Directshares All Trades header row was found in this CSV.");
@@ -118,21 +165,40 @@ export function parseDirectsharesAllTradesCsv(csv: string): ImportedTransaction[
     relax_column_count: true,
   }) as Record<string, string>[];
 
-  const seen = new Map<string, number>();
-  const transactions: ImportedTransaction[] = [];
-
+  const prepared: PreparedRow[] = [];
   for (const row of rows) {
     const symbol = (row.Code ?? "").trim().toUpperCase().replace(/\//g, ".");
-    // Per-market sheets repeat the header and end with a "Total" line; neither is a trade.
-    if (!symbol || symbol === "CODE" || symbol === "TOTAL") continue;
+    // Per-market sheets repeat the header, so a second "Code" line is not a trade.
+    if (!symbol || symbol === "CODE") continue;
+    /*
+     * "Total" closes the combined listing. Stopping there matters because the workbook restates the
+     * same trades in per-market sheets below it, and reading those would both double every trade
+     * and corrupt the running balance the ratios above are taken from.
+     */
+    if (symbol === "TOTAL") break;
 
     const tradeDate = isoDate(row.Date);
     const rawType = (row.Type ?? "").trim().toUpperCase();
     const quantity = numberValue(row.Qty);
-    const price = numberValue(row.Price);
     if (!tradeDate || !quantity) continue;
 
-    const exchange = exchangeFor(row["Market Code"] ?? "");
+    prepared.push({
+      row,
+      symbol,
+      exchange: exchangeFor(row["Market Code"] ?? ""),
+      tradeDate,
+      rawType,
+      quantity,
+      price: numberValue(row.Price),
+    });
+  }
+
+  const ratios = corporateActionRatios(prepared);
+  const seen = new Map<string, number>();
+  const transactions: ImportedTransaction[] = [];
+
+  for (const entry of prepared) {
+    const { row, symbol, exchange, tradeDate, rawType, quantity, price } = entry;
 
     /*
      * Corporate actions ride in the same report — VAU appears as a "Consolidation" of -42,307 units
@@ -142,6 +208,7 @@ export function parseDirectsharesAllTradesCsv(csv: string): ImportedTransaction[
      * as their own type for the lot engine to apply, and to complain about if it cannot.
      */
     if (rawType !== "BUY" && rawType !== "SELL") {
+      const ratio = ratios.get(entry);
       transactions.push({
         externalId: `DS-ACTION:${symbol}:${exchange}:${tradeDate}:${rawType}:${quantity}`,
         tradeDate,
@@ -154,7 +221,10 @@ export function parseDirectsharesAllTradesCsv(csv: string): ImportedTransaction[
         quantity,
         currency: (row["Instrument Currency"] ?? "AUD").trim().toUpperCase() || "AUD",
         source: "Directshares All Trades Report",
-        raw: { ...row },
+        raw: {
+          ...row,
+          ...(ratio ? { actionQuantityBefore: ratio.before, actionQuantityAfter: ratio.after } : {}),
+        },
       });
       continue;
     }

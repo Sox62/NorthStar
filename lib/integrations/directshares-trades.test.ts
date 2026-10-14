@@ -76,6 +76,71 @@ test("a corporate action is carried through as an action, never as a trade", () 
   assert.equal(rows.find((row) => row.symbol === "ASL")?.type, "BUY");
 });
 
+/** PDN's real history: a 1-for-10 consolidation on a holding built from seven purchases. */
+const PDN_ROWS = [
+  "PDN,ASX,Paladin Energy Ltd,2021-01-19,Buy,3000,0.3,AUD,,19.95,AUD,1,919.95,",
+  "PDN,ASX,Paladin Energy Ltd,2021-01-28,Buy,35000,0.285,AUD,,19.95,AUD,1,9994.95,",
+  "PDN,ASX,Paladin Energy Ltd,2021-01-28,Buy,30000,0.3,AUD,,19.95,AUD,1,9019.95,",
+  "PDN,ASX,Paladin Energy Ltd,2022-05-03,Buy,6750,0.72,AUD,,0,AUD,1,4860,",
+  "PDN,ASX,Paladin Energy Ltd,2023-03-14,Buy,16089,0.62,AUD,,22.23,AUD,1,9999.63,",
+  "PDN,ASX,Paladin Energy Ltd,2023-05-30,Buy,9000,0.54,AUD,,19.95,AUD,1,4879.95,",
+  "PDN,ASX,Paladin Energy Ltd,2023-12-07,Buy,5000,0.94,AUD,,19.95,AUD,1,4719.95,",
+  "PDN,ASX,Paladin Energy Ltd,2024-04-19,Consolidation,-94355,,AUD,,,AUD,,,",
+];
+
+test("a corporate action states the holding the export itself reported", () => {
+  // The delta alone cannot give a ratio, because it describes only the account this export covers.
+  // The export's own running balance can: 104,839 units before, 10,484 after — 1 for 10.
+  const action = parseDirectsharesAllTradesCsv(report(...PDN_ROWS))
+    .find((row) => row.type === "CORPORATE_ACTION");
+  assert.equal(action?.raw?.actionQuantityBefore, 104839);
+  assert.equal(action?.raw?.actionQuantityAfter, 10484);
+});
+
+test("a later action sits on the holding earlier ones left behind", () => {
+  // BOE's bonus issue applies to the 3,750 units surviving its 1-for-8 consolidation, not the
+  // 30,000 originally bought. A running balance that ignored the consolidation would say +3.4%.
+  const rows = parseDirectsharesAllTradesCsv(report(
+    "BOE,ASX,Boss Energy Ltd,2021-09-17,Buy,30000,0.32,AUD,,19.95,AUD,1,9619.95,",
+    "BOE,ASX,Boss Energy Ltd,2021-12-07,Consolidation,-26250,,AUD,,,AUD,,,",
+    "BOE,ASX,Boss Energy Ltd,2024-01-05,Bonus,1013,,AUD,,,AUD,,,",
+  ));
+  const [consolidation, bonus] = rows.filter((row) => row.type === "CORPORATE_ACTION");
+  assert.deepEqual(
+    [consolidation.raw?.actionQuantityBefore, consolidation.raw?.actionQuantityAfter],
+    [30000, 3750],
+  );
+  assert.deepEqual([bonus.raw?.actionQuantityBefore, bonus.raw?.actionQuantityAfter], [3750, 4763]);
+});
+
+test("an action with no holding behind it states no ratio", () => {
+  // GOLD's split sits on a negative running balance, because its purchases predate every export
+  // supplied. A ratio invented from that would be worse than none: the engine reports what it
+  // cannot apply, and a stated ratio would stop it ever being reported.
+  const action = parseDirectsharesAllTradesCsv(report(
+    "GOLD,ASX,Global X Physical Gold,2022-06-30,Sell,-250,24.5,AUD,,19.95,AUD,1,-6105.05,",
+    "GOLD,ASX,Global X Physical Gold,2022-06-17,Split,450,,AUD,,,AUD,,,",
+  )).find((row) => row.type === "CORPORATE_ACTION");
+  assert.equal(action?.raw?.actionQuantityBefore, undefined);
+  assert.equal(action?.raw?.actionQuantityAfter, undefined);
+});
+
+test("the per-market sheets below the combined total are not read twice", () => {
+  // The workbook restates every trade in per-market sheets after the combined listing's Total. Read
+  // on, each trade doubles and the running balance behind every ratio is nonsense.
+  const rows = parseDirectsharesAllTradesCsv([
+    report(...PDN_ROWS),
+    "Total,,,,,,,,,,,,,",
+    "Grouping 1 ASX,,,,,,,,,,,,,",
+    HEADER,
+    ...PDN_ROWS,
+    "Total,,,,,,,,,,,,,",
+  ].join("\n"));
+  assert.equal(rows.length, PDN_ROWS.length, "the combined listing once, not the groupings as well");
+  const action = rows.find((row) => row.type === "CORPORATE_ACTION");
+  assert.equal(action?.raw?.actionQuantityBefore, 104839);
+});
+
 test("identical trades on one day are numbered rather than collapsed", () => {
   const trades = parseDirectsharesAllTradesCsv(report(ASL_BUY, ASL_BUY));
   assert.equal(trades.length, 2);
