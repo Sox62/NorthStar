@@ -650,3 +650,37 @@ test("repeated fills of the same size survive de-duplication", () => {
   assert.equal(result.realisedLots.reduce((sum, lot) => sum + lot.quantity, 0), 600, "both genuine fills remain");
   assert.equal(result.realisedLots.filter((lot) => lot.acquisitionDate == null).length, 0);
 });
+
+test("a period scopes the disposals and leaves the open position alone", () => {
+  /*
+   * Every transaction is still used to build the lots, whatever period is asked for: parcels are
+   * consumed in sequence, so building from a slice would match a disposal against acquisitions an
+   * earlier, excluded sale had already taken. And an open position cannot be rewound — it is
+   * today's holdings at today's prices — so the period scopes the realised side only.
+   */
+  const transactions = siljTransactions();
+  const later = {
+    ...transactions[4], id: "s2", externalId: "s2", tradeDate: "2026-08-20", quantity: 400,
+    cost: 16000, netCash: 16000,
+  };
+  const all = buildTaxLots(emptyDashboard(), [...transactions, later] as never, new Date("2026-10-14T00:00:00.000Z"));
+  assert.equal(all.period, null);
+  assert.equal(all.summary.realisedLots, all.realisedLots.length);
+
+  const fy2026 = buildTaxLots(
+    emptyDashboard(), [...transactions, later] as never, new Date("2026-10-14T00:00:00.000Z"),
+    { pensionPhase: false }, { method: "fifo" }, { startDate: "2025-07-01", endDate: "2026-06-30" },
+  );
+  assert.deepEqual(fy2026.period, { startDate: "2025-07-01", endDate: "2026-06-30" });
+  assert.ok(fy2026.realisedLots.length < all.realisedLots.length, "the August 2026 sale is out of range");
+  assert.equal(fy2026.realisedLots.every((lot) => lot.saleDate <= "2026-06-30"), true);
+
+  // The summary has to foot to the lots printed beneath it, which is the whole point of filtering
+  // before it is computed rather than after.
+  assert.equal(fy2026.summary.realisedLots, fy2026.realisedLots.length);
+  const net = fy2026.realisedLots.reduce((sum, lot) => sum + lot.realisedGainAud, 0);
+  assert.equal(fy2026.summary.netRealisedAud.toFixed(2), net.toFixed(2));
+
+  // The later sale still consumed its parcels, so the open side is identical either way.
+  assert.deepEqual(fy2026.summary.openCostAud, all.summary.openCostAud);
+});

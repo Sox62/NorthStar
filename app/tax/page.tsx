@@ -40,8 +40,23 @@ function tone(value: number) {
   return value >= 0 ? "positive" : "negative";
 }
 
-async function loadTaxLots(scope: Scope): Promise<TaxLotsResponse> {
-  const response = await fetch(`/api/tax-lots?scope=${scope}`, { cache: "no-store" });
+/** The year being reported on, which after 30 June is the one that just closed. */
+function defaultFinancialYearEnding() {
+  const today = new Date();
+  return today.getMonth() >= 6 ? today.getFullYear() : today.getFullYear() - 1;
+}
+
+function yearOptions() {
+  const current = defaultFinancialYearEnding();
+  return [current, current - 1, current - 2, current - 3, current - 4];
+}
+
+type Period = number | "all";
+
+const periodQuery = (period: Period) => period === "all" ? "" : `&year=${period}`;
+
+async function loadTaxLots(scope: Scope, period: Period): Promise<TaxLotsResponse> {
+  const response = await fetch(`/api/tax-lots?scope=${scope}${periodQuery(period)}`, { cache: "no-store" });
   const payload = await response.json();
   if (!response.ok || payload.error) throw new Error(payload.error || "Unable to load tax lots");
   return payload as TaxLotsResponse;
@@ -51,6 +66,11 @@ type TaxProfile = { ownerType: "PERSONAL" | "SMSF"; pensionPhase: boolean; parce
 
 export default function TaxLotsPage() {
   const [scope, setScope] = useState<Scope>("overall");
+  /*
+   * Every disposal on record by default. A year selector that started on one year would silently
+   * shorten what this page has always shown, and the realised figures here are read as totals.
+   */
+  const [period, setPeriod] = useState<Period>("all");
   const [profiles, setProfiles] = useState<TaxProfile[]>([]);
   const [profileBusy, setProfileBusy] = useState(false);
   const [data, setData] = useState<TaxLotsResponse | null>(null);
@@ -64,7 +84,7 @@ export default function TaxLotsPage() {
       setLoading(true);
       setError("");
       try {
-        const result = await loadTaxLots(scope);
+        const result = await loadTaxLots(scope, period);
         if (!cancelled) setData(result);
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : "Unable to load tax lots");
@@ -81,7 +101,7 @@ export default function TaxLotsPage() {
     return () => {
       cancelled = true;
     };
-  }, [scope]);
+  }, [scope, period]);
 
   const topOpenLots = useMemo(() => data?.openLots.slice(0, 80) ?? [], [data]);
   const topRealisedLots = useMemo(() => data?.realisedLots.slice(0, 80) ?? [], [data]);
@@ -113,7 +133,7 @@ export default function TaxLotsPage() {
         ...current.filter((profile) => profile.ownerType !== payload.profile.ownerType),
         payload.profile,
       ]);
-      setData(await loadTaxLots(value));
+      setData(await loadTaxLots(value, period));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to update tax profile");
     } finally {
@@ -169,7 +189,14 @@ export default function TaxLotsPage() {
               <span>Pension phase<em>{pensionPhaseFor(scope) ? "Gains exempt" : "Gains taxable"}</em></span>
             </label>
           )}
-          <a className="button" href={`/api/reports/tax-position?scope=${scope}`}>Download tax CSV</a>
+          <label className="yearSelect">
+            <span>Realised</span>
+            <select value={period} onChange={(event) => setPeriod(event.target.value === "all" ? "all" : Number(event.target.value))}>
+              <option value="all">All dates</option>
+              {yearOptions().map((item) => <option key={item} value={item}>FY{item}</option>)}
+            </select>
+          </label>
+          <a className="button" href={`/api/reports/tax-position?scope=${scope}${periodQuery(period)}`}>Download tax CSV</a>
         </div>
 
         {scope === "overall" ? null : (
@@ -222,6 +249,12 @@ export default function TaxLotsPage() {
               <div>
                 <p className="eyebrow">Open lots</p>
                 <h2 className="cardTitle">Unrealised CGT by acquisition lot</h2>
+                {period === "all" ? null : (
+                  <p className="cardIntro">
+                    As at {dateLabel(data.asOfDate)}, not FY{period}. An open position is today&rsquo;s holdings at
+                    today&rsquo;s prices, and no stored history rewinds it; the year scopes the realised sales below.
+                  </p>
+                )}
               </div>
               <span className="panelCount">{topOpenLots.length} shown</span>
             </div>
@@ -276,6 +309,7 @@ export default function TaxLotsPage() {
               <div>
                 <p className="eyebrow">Realised lots</p>
                 <h2 className="cardTitle">Matched sales and taxable gains</h2>
+                <p className="cardIntro">{period === "all" ? "Every disposal on record." : `Disposals sold within FY${period}.`}</p>
               </div>
               <span className="panelCount">{topRealisedLots.length} shown</span>
             </div>

@@ -72,6 +72,8 @@ export type TaxLotsResponse = {
   near: DuplicateTradeWarning[];
   /** The parcel selection this run was built under, so a report can state it rather than imply it. */
   selection: ParcelSelection;
+  /** The period the realised lots were filtered to, or null for every disposal on record. */
+  period: { startDate: string; endDate: string } | null;
   summary: {
     openLots: number;
     realisedLots: number;
@@ -765,8 +767,15 @@ export function buildTaxLots(
   generatedAt = new Date(),
   treatment: TaxTreatment = ACCUMULATION,
   selection: ParcelSelection = { method: defaultParcelSelectionMethod },
+  period?: { startDate: string; endDate: string },
 ): TaxLotsResponse {
   const asOfDate = (data.lastUpdated ?? generatedAt.toISOString()).slice(0, 10);
+  /*
+   * Every transaction is still used, whatever period was asked for. Parcels are consumed in
+   * sequence, so building the lots from a slice of the history would match a disposal against
+   * acquisitions that an earlier, excluded sale had already taken. The period filters the output,
+   * not the input.
+   */
   const { lots, byBroker, realised, unappliedActions, duplicates, near } = buildWorkingLots(transactions, treatment, selection);
   const openLots = data.holdings
     .filter(isTaxableHolding)
@@ -777,7 +786,9 @@ export function buildTaxLots(
       treatment,
     ))
     .sort((a, b) => b.unrealisedGainAud - a.unrealisedGainAud);
-  const realisedLots = realised.sort((a, b) => b.saleDate.localeCompare(a.saleDate));
+  const realisedLots = realised
+    .filter((lot) => !period || (lot.saleDate >= period.startDate && lot.saleDate <= period.endDate))
+    .sort((a, b) => b.saleDate.localeCompare(a.saleDate));
   const realisedGainAud = realisedLots.reduce((sum, lot) => lot.realisedGainAud > 0 ? sum + lot.realisedGainAud : sum, 0);
   const realisedLossAud = realisedLots.reduce((sum, lot) => lot.realisedGainAud < 0 ? sum + Math.abs(lot.realisedGainAud) : sum, 0);
 
@@ -787,6 +798,12 @@ export function buildTaxLots(
     duplicates,
     near,
     selection,
+    /*
+     * Realised lots only. An open position cannot be rewound — the parcels come from today's
+     * holdings at today's prices — so a period scopes the disposals and leaves the open side as at
+     * `asOfDate`, which is the honest pairing and the one the page has to state.
+     */
+    period: period ?? null,
     asOfDate,
     generatedAt: generatedAt.toISOString(),
     summary: {
