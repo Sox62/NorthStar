@@ -519,6 +519,48 @@ test("two genuine fills of the same size on the same day are both kept", () => {
   assert.equal(result.realisedLots.filter((lot) => lot.acquisitionDate == null).length, 0);
 });
 
+test("one export's two records of a single fill are one trade", () => {
+  /*
+   * BOE's 12,263-unit sale came from two exports of the same history at different price precision.
+   * The All Trades id embeds the price, so ":3.73" and ":3.7323" are different ids for one sale and
+   * neither import could see the other. Both rows are that day's first fill, which is what settles
+   * it — two real fills would be numbered 1 and 2. Left standing, the pool drains and the genuine
+   * disposal reports a nil gain.
+   */
+  const row = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "Directshares", accountKey: "DIRECTSHARES", symbol: "BOE",
+    exchange: "ASX", instrumentKey: "Directshares:BOE:ASX", currency: "AUD", fxRateToBase: 1,
+    fees: 0, source: "Directshares All Trades Report", ...over,
+  });
+  const rows = [
+    row({ id: "b", externalId: "DS-TRADE:BOE:ASX:2025-05-16:BUY:12263:3", tradeDate: "2025-05-16", type: "BUY", quantity: 12263, cost: 36789, raw: { fillIndex: 1 } }),
+    row({ id: "s1", externalId: "DS-TRADE:BOE:ASX:2025-09-23:SELL:-12263:3.73", tradeDate: "2025-09-23", type: "SELL", quantity: 12263, cost: 45746.99, netCash: 45746.99, raw: { fillIndex: 1 } }),
+    row({ id: "s2", externalId: "DS-TRADE:BOE:ASX:2025-09-23:SELL:-12263:3.7323", tradeDate: "2025-09-23", type: "SELL", quantity: 12263, cost: 45775.2, netCash: 45775.2, raw: { fillIndex: 1 } }),
+  ];
+  const result = buildTaxLots(emptyDashboard(), rows as never, new Date("2026-10-14T00:00:00.000Z"));
+  assert.equal(result.duplicates.length, 1);
+  assert.match(result.duplicates[0].reason, /2 records of 1 trade/);
+  assert.equal(result.realisedLots.length, 1, "one sale, not two");
+  assert.equal(result.realisedLots.filter((lot) => lot.acquisitionDate == null).length, 0, "nothing left unmatched");
+});
+
+test("fills an export numbered separately are both kept", () => {
+  // The counterpart: numbered 1 and 2, so genuinely two fills of one order and both must survive.
+  const row = (fillIndex: number, externalId: string) => ({
+    ownerType: "PERSONAL", broker: "Directshares", accountKey: "DIRECTSHARES", symbol: "ASL",
+    exchange: "ASX", instrumentKey: "Directshares:ASL:ASX", currency: "AUD", fxRateToBase: 1,
+    fees: 0, source: "Directshares All Trades Report", tradeDate: "2025-07-14", type: "BUY",
+    quantity: 1000, cost: 1450, id: externalId, externalId, raw: { fillIndex },
+  });
+  const sell = {
+    ...row(1, "sell"), tradeDate: "2026-07-14", type: "SELL", quantity: 2000, cost: 4000,
+    netCash: 4000, raw: { fillIndex: 1 },
+  };
+  const result = buildTaxLots(emptyDashboard(), [row(1, "fill-1"), row(2, "fill-2"), sell] as never, new Date("2026-10-14T00:00:00.000Z"));
+  assert.equal(result.duplicates.length, 0);
+  assert.equal(result.realisedLots.reduce((sum, lot) => sum + lot.quantity, 0), 2000, "both fills remain");
+});
+
 test("repeated fills of the same size survive de-duplication", () => {
   // XLE filled twice at 300 units and both IBKR queries carry both fills. The true count is the
   // most either export reported — two — so collapsing the four rows to one would delete 300 real

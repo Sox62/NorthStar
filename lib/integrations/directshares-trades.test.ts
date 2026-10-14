@@ -150,6 +150,19 @@ test("identical trades on one day are numbered rather than collapsed", () => {
   assert.deepEqual(again.map((trade) => trade.externalId), trades.map((trade) => trade.externalId));
 });
 
+test("each row records which fill of the order it is", () => {
+  // The id embeds the price, so a later export of the same history at finer precision mints a new
+  // id for a trade already held: BOE's 12,263-unit sale arrived as both ":3.73" and ":3.7323". The
+  // fill number is what tells one trade exported twice from two genuine fills.
+  const [first, second] = parseDirectsharesAllTradesCsv(report(ASL_BUY, ASL_BUY));
+  assert.equal(first.raw?.fillIndex, 1);
+  assert.equal(second.raw?.fillIndex, 2);
+  // A rounded price is a different id but still the first fill of that day's trade.
+  const rounded = parseDirectsharesAllTradesCsv(report(ASL_BUY.replace("1.45", "1.4500001")))[0];
+  assert.notEqual(rounded.externalId, first.externalId, "the id moves with the price");
+  assert.equal(rounded.raw?.fillIndex, 1, "the fill number does not");
+});
+
 test("a localised date still parses", () => {
   const localised = ASL_BUY.replace("2025-07-14", "14/07/2025");
   assert.equal(parseDirectsharesAllTradesCsv(report(localised))[0].tradeDate, "2025-07-14");

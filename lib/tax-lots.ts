@@ -327,6 +327,32 @@ function tradeDates(transaction: StoredTransaction) {
   return dates;
 }
 
+/**
+ * Collapses rows an importer numbered as the same fill of the same order.
+ *
+ * An importer that numbers its fills is stating how many there were, which the source name alone
+ * cannot: two records of one sale and two genuine fills both arrive as two rows from "Directshares
+ * All Trades Report". BOE's 12,263-unit sale came from two exports of the same history at different
+ * price precision, and because its id embeds the price neither import could see the other. Both
+ * rows are fill 1, so they are one sale; two real fills would be 1 and 2.
+ *
+ * Rows from an importer that does not number its fills are left alone — IBKR's arrive with distinct
+ * broker ids and distinct cash amounts, and are genuinely separate fills.
+ */
+function fillsWithinSource(rows: StoredTransaction[]) {
+  const byFill = new Map<number, StoredTransaction>();
+  const unnumbered: StoredTransaction[] = [];
+  for (const row of rows) {
+    const index = Number(row.raw?.fillIndex);
+    if (!Number.isInteger(index) || index <= 0) {
+      unnumbered.push(row);
+      continue;
+    }
+    if (!byFill.has(index)) byFill.set(index, row);
+  }
+  return [...byFill.values(), ...unnumbered];
+}
+
 /** Whether an export stated both of the broker's dates for these rows, which a contract note does. */
 function datedBothWays(rows: StoredTransaction[]) {
   return rows.some((row) => tradeDates(row).size > 1) ? 1 : 0;
@@ -383,8 +409,35 @@ function dedupeTrades(transactions: StoredTransaction[]) {
       if (cluster.rows.length < 2) continue;
       const perSource = new Map<string, StoredTransaction[]>();
       for (const row of cluster.rows) perSource.set(row.source, [...(perSource.get(row.source) ?? []), row]);
-      // Repeats inside a single export are genuine fills of one order, as CORN's five were.
-      if (perSource.size < 2) continue;
+
+      // An export's own fill numbering collapses its re-reports of a single fill. This is the only
+      // duplicate visible inside one source, and the only one the source name cannot rule out.
+      let collapsed = 0;
+      for (const [source, rowsForSource] of perSource) {
+        const fills = fillsWithinSource(rowsForSource);
+        if (fills.length === rowsForSource.length) continue;
+        for (const row of rowsForSource) if (!fills.includes(row)) dropped.add(row);
+        collapsed += rowsForSource.length - fills.length;
+        perSource.set(source, fills);
+      }
+
+      // Repeats inside a single export are otherwise genuine fills of one order, as CORN's five were.
+      if (perSource.size < 2) {
+        if (collapsed) {
+          const [kept] = [...perSource.values()][0];
+          duplicates.push({
+            symbol: kept.symbol,
+            tradeDate: kept.tradeDate,
+            type: kept.type,
+            quantity: Math.abs(kept.quantity ?? 0),
+            sources: [kept.source],
+            reason: `${cluster.rows.length} records of ${cluster.rows.length - collapsed}`
+              + ` trade${cluster.rows.length - collapsed === 1 ? "" : "s"}, which that export numbered`
+              + " as the same fill — one trade exported twice, not two fills",
+          });
+        }
+        continue;
+      }
 
       /*
        * The export that saw the most fills saw them all; the others are re-reporting the same ones.

@@ -234,8 +234,17 @@ export function parseDirectsharesAllTradesCsv(csv: string): ImportedTransaction[
     const exchangeRate = numberValue(row["Exch. Rate"]);
     const brokerage = numberValue(row.Brokerage) ?? 0;
 
-    // Identical trades on one day are legitimate, so repeats are numbered rather than dropped;
-    // the id stays stable across re-imports of the same file, which is what dedupe relies on.
+    /*
+     * Identical trades on one day are legitimate, so repeats are numbered rather than dropped; the
+     * id stays stable across re-imports of the same file, which is what dedupe relies on.
+     *
+     * The number is also recorded on the row, because the id alone cannot be trusted to identify
+     * one trade across two exports: it embeds the price, and a later export of the same history at
+     * finer precision mints a new id for the same trade. BOE's 12,263-unit sale arrived as both
+     * ":3.73" and ":3.7323", and the engine cannot tell two records of one trade from two genuine
+     * fills by looking at the source alone. The fill number can: one sale reported twice is fill 1
+     * twice, whereas two fills are 1 and 2.
+     */
     const base = `DS-TRADE:${symbol}:${exchange}:${tradeDate}:${rawType}:${quantity}:${price}`;
     const occurrence = (seen.get(base) ?? 0) + 1;
     seen.set(base, occurrence);
@@ -263,7 +272,7 @@ export function parseDirectsharesAllTradesCsv(csv: string): ImportedTransaction[
         exchangeRate,
       }),
       source: "Directshares All Trades Report",
-      raw: { ...row },
+      raw: { ...row, fillIndex: occurrence },
     });
   }
 
