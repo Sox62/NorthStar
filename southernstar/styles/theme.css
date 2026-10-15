@@ -63,6 +63,9 @@ body.southernstar .nsRail {
   position:sticky;
   top:0;
   height:100vh;
+  height:100dvh;
+  min-height:0;
+  overflow:hidden;
   display:flex;
   flex-direction:column;
   gap:34px;
@@ -72,6 +75,7 @@ body.southernstar .nsRail {
 }
 
 body.southernstar .nsRailBrand {
+  flex-shrink:0;
   display:flex;
   align-items:center;
   gap:14px;
@@ -127,6 +131,11 @@ body.southernstar .nsRailMotto {
 }
 
 body.southernstar .nsRailNav {
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior-y:contain;
   display:flex;
   flex-direction:column;
   gap:8px;
@@ -157,6 +166,7 @@ body.southernstar .nsRailNav a.isActive {
 }
 
 body.southernstar .nsRailFooter {
+  flex-shrink:0;
   margin-top:auto;
   color:var(--muted-dim);
   font-size:12px;
