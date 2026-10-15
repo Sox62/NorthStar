@@ -267,6 +267,13 @@
       "when": 1792051200000,
       "tag": "0037_stop_email_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792108800000,
+      "tag": "0038_stopped_trade_history",
+      "breakpoints": true
     }
   ]
 }

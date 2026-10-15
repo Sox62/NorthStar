@@ -1,4 +1,5 @@
 import { getPool } from "@/lib/db/client";
+import type { StopExitRevision } from "@/lib/risk/stopped-trades-types";
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
 import { buildDashboardModel, buildManualAssetValuation, maskAccount, numberValue, ownerForScope } from "@/lib/core/accounting";
 import { readParcelSelection, type ParcelSelection } from "@/lib/parcel-selection";
@@ -101,6 +102,16 @@ function compositeIndexResultFromRow(row: Record<string, unknown>): CompositeInd
 }
 
 export class PostgresStorageAdapter implements StorageAdapter {
+  async listStopExitRevisions(ownerType?: OwnerType): Promise<StopExitRevision[]> {
+    const result = await getPool().query(`SELECT id,owner_type,record,recorded_at FROM stop_exit_revisions ${ownerType ? "WHERE owner_type=$1" : ""} ORDER BY sequence`, ownerType ? [ownerType] : []);
+    return result.rows.map(row => ({ id: row.id, ownerType: row.owner_type, record: row.record, recordedAt: row.recorded_at.toISOString() }));
+  }
+
+  async appendStopExitRevision(revision: StopExitRevision) {
+    await getPool().query(`INSERT INTO stop_exit_revisions (id,owner_type,record,recorded_at) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING`,
+      [revision.id, revision.ownerType, JSON.stringify(revision.record), revision.recordedAt]);
+  }
+
   async importTaxEvidence(input: EvidenceImport, ownerType: OwnerType) {
     validateEvidenceTransactions(input.transactions);
     const client = await getPool().connect();

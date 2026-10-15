@@ -3,6 +3,7 @@ import type { EvidenceDocument, EvidenceImport, EvidenceReview, EvidenceSource }
 import type { ParcelSelection } from "@/lib/parcel-selection";
 import type { AllocationTarget } from "@/southernstar/lib/allocation-drift";
 import type { Sector } from "@/southernstar/types";
+import type { StopExitRevision } from "@/lib/risk/stopped-trades-types";
 
 export type { AllocationTarget };
 
@@ -573,6 +574,7 @@ export type StructuralLevel = {
 export type StructuralLevelInput = Omit<StructuralLevel, "id" | "updatedAt"> & { id?: string };
 
 export type LocalStore = {
+  stopExitRevisions?: StopExitRevision[];
   evidenceDocuments?: EvidenceDocument[];
   evidenceReviews?: EvidenceReview[];
   /** Per-book tax treatment; absent in stores written before pension phase was modelled. */
@@ -701,6 +703,8 @@ export type ImportResult = {
 export type IbkrImportOptions = { evidenceOnly?: boolean };
 
 export interface StorageAdapter {
+  listStopExitRevisions(ownerType?: OwnerType): Promise<StopExitRevision[]>;
+  appendStopExitRevision(revision: StopExitRevision): Promise<void>;
   importTaxEvidence(input: EvidenceImport, ownerType: OwnerType): Promise<{ imported: number; duplicates: number; conflicts: ImportConflict[]; sourceId: string }>;
   listEvidenceSources(ownerType: OwnerType): Promise<EvidenceSource[]>;
   getEvidenceDocument(id: string, ownerType: OwnerType): Promise<EvidenceDocument | null>;

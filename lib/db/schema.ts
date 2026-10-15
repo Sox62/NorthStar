@@ -1,4 +1,5 @@
 import {
+  bigserial,
   boolean,
   date,
   index,
@@ -18,6 +19,14 @@ export const stopAlertSettings = pgTable("stop_alert_settings", {
   enabled: boolean("enabled").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const stopExitRevisions = pgTable("stop_exit_revisions", {
+  id: uuid("id").primaryKey(),
+  sequence: bigserial("sequence", { mode: "number" }).notNull().unique(),
+  ownerType: text("owner_type").notNull(),
+  record: jsonb("record").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [index("stop_exit_owner_history_idx").on(table.ownerType, table.recordedAt)]);
 
 export const stopAlertEvents = pgTable("stop_alert_events", {
   id: text("id").primaryKey(),

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { StopExitRevision } from "@/lib/risk/stopped-trades-types";
 import { evidenceDocument } from "@/lib/tax-evidence/sources";
 import type { EvidenceImport, EvidenceReview } from "@/lib/tax-evidence/types";
 import { evidenceMetadata, keepLocalEvidence, linkExistingEvidence, serializedLocalEvidence, sourceLinkedTransaction, validateEvidenceTransactions } from "./evidence";
@@ -214,6 +215,18 @@ function buildSyncRun(input: NewSyncRun): SyncRun {
 }
 
 export class LocalStorageAdapter implements StorageAdapter {
+  async listStopExitRevisions(ownerType?: OwnerType): Promise<StopExitRevision[]> {
+    return ((await readStore()).stopExitRevisions ?? []).filter(row => !ownerType || row.ownerType === ownerType);
+  }
+
+  async appendStopExitRevision(revision: StopExitRevision) {
+    return serializedLocalEvidence(async () => {
+      const store = await readStore();
+      store.stopExitRevisions = [...(store.stopExitRevisions ?? []), revision];
+      await writeStore(store);
+    });
+  }
+
   async importTaxEvidence(input: EvidenceImport, ownerType: OwnerType) {
     return serializedLocalEvidence(async () => {
       validateEvidenceTransactions(input.transactions);

@@ -7,6 +7,7 @@ import type { EntryOrderRisk, RiskGroupSummary, StopRiskRow, StopsRiskDashboard 
 import type { Scope, StopType } from "@/lib/storage";
 import { stopProximity } from "@/lib/risk/stop-proximity";
 import StopEmailAlerts from "./StopEmailAlerts";
+import StoppedTrades from "./StoppedTrades";
 import styles from "./StopsOrdersDashboard.module.css";
 
 const stopTypes: StopType[] = ["STRUCTURAL", "TACTICAL", "TRAILING", "VOLATILITY", "MANUAL_REVIEW"];
@@ -312,6 +313,8 @@ export default function StopsOrdersDashboard() {
           </select>
         </div>
       </div>
+
+      <StoppedTrades scope={scope} />
 
       {error ? <Notice tone="error" title="Stops & Orders needs attention">{error}</Notice> : null}
 
