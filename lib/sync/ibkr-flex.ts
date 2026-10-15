@@ -1,5 +1,5 @@
 import { fetchIbkrFlexReport } from "@/lib/integrations/ibkr";
-import type { ImportResult, OwnerType, StorageAdapter, SyncTrigger } from "@/lib/storage";
+import type { IbkrImportOptions, ImportResult, OwnerType, StorageAdapter, SyncTrigger } from "@/lib/storage";
 
 export type IbkrFlexSyncConfig = {
   ownerType: OwnerType;
@@ -22,6 +22,8 @@ export type IbkrFlexSyncResult = ImportResult & {
   generatedAt: string | null;
   flexTransactions: number;
   flexTrades: number;
+  flexFxTransactions: number;
+  flexCashTransactions: number;
   flexOpenPositions: number;
   flexOpenOrders: number;
   tradeConfirmTrades: number;
@@ -143,7 +145,7 @@ export function ibkrFlexNotConfiguredMessage(ownerType?: OwnerType) {
   return "No IBKR Flex queries are configured. Set IBKR_FLEX_TOKEN plus IBKR_FLEX_QUERY_ID, or owner-specific IBKR_PERSONAL_FLEX_QUERY_ID / IBKR_SMSF_FLEX_QUERY_ID.";
 }
 
-export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFlexSyncConfig, trigger: SyncTrigger): Promise<IbkrFlexSyncResult> {
+export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFlexSyncConfig, trigger: SyncTrigger, options: IbkrImportOptions = {}): Promise<IbkrFlexSyncResult> {
   const startedAt = new Date().toISOString();
   try {
     const report = await fetchIbkrFlexReport(config.token, config.queryId);
@@ -159,17 +161,23 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
         if (cash.currency !== "AUD" && cash.fxRateToAud) fallbackFxRates.set(cash.currency, cash.fxRateToAud);
       }
       for (const transaction of tradeReport.transactions) {
-        if (transaction.currency !== "AUD" && !transaction.fxRateToBase) transaction.fxRateToBase = fallbackFxRates.get(transaction.currency);
+        if (transaction.currency !== "AUD" && !transaction.fxRateToBase) {
+          transaction.fxRateToBase = fallbackFxRates.get(transaction.currency);
+          if (transaction.fxRateToBase) transaction.raw = { ...transaction.raw, _fxRateOrigin: "Activity position/cash snapshot fallback", _fxRateAsOf: report.toDate };
+        }
       }
       const existingIds = new Set(report.transactions.map((transaction) => transaction.externalId));
       const additionalTrades = tradeReport.transactions.filter((transaction) => !existingIds.has(transaction.externalId));
       report.transactions.push(...additionalTrades);
+      report.sourceDocuments = [...(report.sourceDocuments ?? []), ...(tradeReport.sourceDocuments ?? [])];
       tradeConfirmTrades = additionalTrades.filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL").length;
       if (tradeReport.toDate > report.toDate) report.toDate = tradeReport.toDate;
       if (!report.whenGenerated || (tradeReport.whenGenerated && tradeReport.whenGenerated > report.whenGenerated)) report.whenGenerated = tradeReport.whenGenerated;
     }
-    const result = await storage.importIbkr(report, config.ownerType);
+    const result = await storage.importIbkr(report, config.ownerType, options);
     const flexTrades = report.transactions.filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL").length;
+    const flexFxTransactions = report.transactions.filter((transaction) => transaction.type === "FX").length;
+    const flexCashTransactions = report.transactions.filter((transaction) => transaction.type === "CASH_ACTIVITY").length;
     const cashMessage = report.cashBalances.length
       ? report.cashBalances.map((cash) => `${cash.currency} ${cash.balance.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`).join(", ")
       : report.cash
@@ -182,9 +190,11 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
       status: "success",
       startedAt,
       recordCount: report.transactions.length,
-      positionCount: result.positions,
+      positionCount: options.evidenceOnly ? null : result.positions,
       cashAud: result.cashAud ?? null,
-      message: `${result.positions} ${config.label} positions from Flex ${report.fromDate} to ${report.toDate}; ${flexTrades} trade${flexTrades === 1 ? "" : "s"} parsed${tradeConfirmTrades ? ` (${tradeConfirmTrades} from trade confirmations)` : ""}, ${result.imported} imported, ${result.duplicates} duplicate${result.duplicates === 1 ? "" : "s"}; ${report.openOrders.length} open order${report.openOrders.length === 1 ? "" : "s"}; cash ${cashMessage}`,
+      message: options.evidenceOnly
+        ? `${config.label} evidence from Flex ${report.fromDate} to ${report.toDate}; ${flexTrades} security trades, ${flexFxTransactions} FX conversions, ${flexCashTransactions} cash movements; ${result.imported} imported, ${result.duplicates} existing records; current valuations unchanged`
+        : `${result.positions} ${config.label} positions from Flex ${report.fromDate} to ${report.toDate}; ${flexTrades} trade${flexTrades === 1 ? "" : "s"} parsed${tradeConfirmTrades ? ` (${tradeConfirmTrades} from trade confirmations)` : ""}, ${flexFxTransactions} FX conversions, ${flexCashTransactions} cash movements, ${result.imported} imported, ${result.duplicates} duplicate${result.duplicates === 1 ? "" : "s"}; ${report.openOrders.length} open order${report.openOrders.length === 1 ? "" : "s"}; cash ${cashMessage}`,
     });
     return {
       synced: true,
@@ -199,6 +209,8 @@ export async function syncIbkrFlexConfig(storage: StorageAdapter, config: IbkrFl
       tradeConfirmQueryIdTail: config.tradeConfirmQueryId ? queryIdTail(config.tradeConfirmQueryId) : undefined,
       flexTransactions: report.transactions.length,
       flexTrades,
+      flexFxTransactions,
+      flexCashTransactions,
       flexOpenPositions: report.openPositions.length,
       flexOpenOrders: report.openOrders.length,
       tradeConfirmTrades,

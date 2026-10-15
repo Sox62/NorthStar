@@ -236,6 +236,23 @@ export const importRuns = pgTable("import_runs", {
   importedAt: timestamp("imported_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const taxEvidenceSources = pgTable("tax_evidence_sources", {
+  id: text("id").primaryKey(),
+  portfolioId: uuid("portfolio_id").references(() => portfolios.id).notNull(),
+  system: text("system").notNull(), accountKey: text("account_key").notNull(), filename: text("filename").notNull(),
+  mediaType: text("media_type").notNull(), sha256: text("sha256").notNull(), contentBase64: text("content_base64").notNull(),
+  startDate: date("start_date").notNull(), endDate: date("end_date").notNull(), metadata: jsonb("metadata").notNull().default({}),
+  importedAt: timestamp("imported_at", { withTimezone: true }).defaultNow().notNull(),
+}, table => [uniqueIndex("tax_evidence_source_content_uq").on(table.portfolioId, table.system, table.accountKey, table.sha256),
+  index("tax_evidence_source_owner_period_idx").on(table.portfolioId, table.startDate, table.endDate)]);
+
+export const taxEvidenceReviews = pgTable("tax_evidence_reviews", {
+  id: uuid("id").defaultRandom().primaryKey(), portfolioId: uuid("portfolio_id").references(() => portfolios.id).notNull(),
+  outgoingId: uuid("outgoing_id").references(() => transactions.id).notNull(), incomingId: uuid("incoming_id").references(() => transactions.id).notNull(),
+  action: text("action").notNull(), note: text("note").notNull(), author: text("author").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const syncRuns = pgTable("sync_runs", {
   id: uuid("id").defaultRandom().primaryKey(),
   source: text("source").notNull(),

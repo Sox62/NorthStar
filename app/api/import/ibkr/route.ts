@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     if (owner !== "SMSF" && owner !== "PERSONAL") throw new Error("Invalid portfolio owner.");
 
     const report = parseIbkrFlexXml(await request.text());
-    const securities = report.transactions.filter(transaction => transaction.type !== "FX");
+    const securities = report.transactions.filter(transaction => transaction.type === "BUY" || transaction.type === "SELL");
     const fx = report.transactions.filter(transaction => transaction.type === "FX");
     const uniqueInstruments = new Set([
       ...securities.map(transaction => transaction.instrumentKey),
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
         records: report.transactions.length,
         securityExecutions: securities.length,
         fxExecutions: fx.length,
+        cashTransactions: report.transactions.filter((transaction) => transaction.type === "CASH_ACTIVITY").length,
         uniqueInstruments,
         openPositions: report.openPositions.length,
         cashAud: report.cash?.balanceAud ?? report.cashBalances.reduce((sum, cash) => sum + cash.balanceAud, 0),

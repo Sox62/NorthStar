@@ -1,4 +1,6 @@
-export type TransactionType = "BUY" | "SELL" | "DIVIDEND" | "DEPOSIT" | "WITHDRAWAL" | "FEE" | "FX" | "CORPORATE_ACTION";
+import type { EvidenceSourceInput } from "@/lib/tax-evidence/types";
+
+export type TransactionType = "BUY" | "SELL" | "DIVIDEND" | "DEPOSIT" | "WITHDRAWAL" | "FEE" | "FX" | "CORPORATE_ACTION" | "CASH_ACTIVITY";
 
 export type ImportedTransaction = {
   externalId: string;
@@ -96,6 +98,8 @@ export type IbkrNavSnapshot = {
 };
 
 export type IbkrFlexReport = {
+  /** Original files are private evidence, not a second transaction ledger. */
+  sourceDocuments?: EvidenceSourceInput[];
   accountId: string;
   fromDate: string;
   toDate: string;

@@ -59,11 +59,11 @@ function u32(value: number) {
   return buffer;
 }
 
-function zip(files: Array<{ path: string; data: string | Buffer }>) {
+export function createZip(files: Array<{ path: string; data: string | Buffer }>, generatedAt = new Date()) {
   const localParts: Buffer[] = [];
   const centralParts: Buffer[] = [];
   let offset = 0;
-  const { dosDate, dosTime } = dosDateTime();
+  const { dosDate, dosTime } = dosDateTime(generatedAt);
 
   for (const file of files) {
     const name = Buffer.from(file.path, "utf8");
@@ -296,7 +296,7 @@ export function createXlsx(sheets: XlsxSheet[]) {
     { path: "xl/styles.xml", data: stylesXml() },
     ...sheets.map((sheet, index) => ({ path: `xl/worksheets/sheet${index + 1}.xml`, data: worksheetXml(sheet) })),
   ];
-  return zip(files);
+  return createZip(files);
 }
 
 export function xlsxCell(value: CellValue, style?: CellStyle): XlsxCell {

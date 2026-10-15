@@ -4,13 +4,16 @@ import { buildDashboardModel, buildManualAssetValuation, maskAccount, numberValu
 import { readParcelSelection, type ParcelSelection } from "@/lib/parcel-selection";
 import { importConflicts } from "./import-conflicts";
 import { pensionPhaseFor } from "@/lib/pension-phase";
+import { evidenceDocument } from "@/lib/tax-evidence/sources";
+import type { EvidenceImport, EvidenceReview } from "@/lib/tax-evidence/types";
+import { evidenceMetadata, keepPgEvidence, linkExistingEvidence, pgEvidence, pgReview, sourceLinkedTransaction, validateEvidenceTransactions } from "./evidence";
 import { defaultAllocationTargets, normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
 import type { Sector } from "@/southernstar/types";
 import { classifyAsset } from "./classify";
 import { canonicalInstrumentName } from "./instrument-names";
 import { PASTED_ORDER_SOURCE } from "./local";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
-import type { ImportConflict } from "./types";
+import type { IbkrImportOptions, ImportConflict } from "./types";
 import type { AllocationTarget, CashAccount, CompositeIndexResult, DeleteTransactionsInput, DeleteTransactionsResult, TaxProfile, CompositeIndexResultQuery, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportOptions, PriceImportResult, PastedOpenOrder, PositionRiskPlan, PositionRiskPlanInput, RiskSnapshot, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 import {
@@ -98,21 +101,105 @@ function compositeIndexResultFromRow(row: Record<string, unknown>): CompositeInd
 }
 
 export class PostgresStorageAdapter implements StorageAdapter {
-  async importIbkr(report: IbkrFlexReport, ownerType: OwnerType): Promise<ImportResult> {
+  async importTaxEvidence(input: EvidenceImport, ownerType: OwnerType) {
+    validateEvidenceTransactions(input.transactions);
     const client = await getPool().connect();
     try {
       await client.query("BEGIN");
       const portfolioId = await ensurePortfolio(client, ownerType);
+      const accountId = await ensureBrokerAccount(client, portfolioId, input.source.system, input.source.accountKey, "AUD");
+      const document = evidenceDocument(input.source, ownerType);
+      await keepPgEvidence(client, portfolioId, [document]);
+      let imported = 0;
+      let duplicates = 0;
+      const conflicts: ImportConflict[] = [];
+      for (const incoming of input.transactions) {
+        const transaction = sourceLinkedTransaction(incoming, [document]);
+        const result = await client.query(`INSERT INTO transactions
+          (portfolio_id,account_id,type,trade_date,settle_date,currency,net_cash,external_id,source,raw)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (account_id,source,external_id) DO NOTHING`,
+          [portfolioId, accountId, transaction.type, transaction.tradeDate, transaction.settleDate || null, transaction.currency, transaction.netCash,
+            transaction.externalId, transaction.source, JSON.stringify(transaction.raw)]);
+        if (result.rowCount) imported++;
+        else {
+          duplicates++;
+          const stored = await client.query(`SELECT trade_date::text,currency,net_cash::text,raw FROM transactions WHERE account_id=$1 AND source=$2 AND external_id=$3`, [accountId, transaction.source, transaction.externalId]);
+          const row = stored.rows[0];
+          if (row) {
+            const changes = importConflicts({ externalId: transaction.externalId, symbol: transaction.symbol, tradeDate: row.trade_date,
+              currency: row.currency, netCash: optionalNumber(row.net_cash) }, transaction as unknown as Record<string, unknown>);
+            conflicts.push(...changes);
+            if (!changes.length) await client.query(`UPDATE transactions SET raw=$1 WHERE account_id=$2 AND source=$3 AND external_id=$4`,
+              [JSON.stringify(linkExistingEvidence(row.raw, transaction.raw)), accountId, transaction.source, transaction.externalId]);
+          }
+        }
+      }
+      await client.query("COMMIT");
+      return { imported, duplicates, conflicts, sourceId: document.id };
+    } catch (error) { await client.query("ROLLBACK"); throw error; }
+    finally { client.release(); }
+  }
+
+  async listEvidenceSources(ownerType: OwnerType) {
+    const result = await getPool().query(`SELECT s.id,s.system,s.account_key,s.filename,s.media_type,s.sha256,s.start_date::text,s.end_date::text,s.metadata,s.imported_at,p.legal_owner_type
+      FROM tax_evidence_sources s JOIN portfolios p ON p.id=s.portfolio_id WHERE p.legal_owner_type=$1 ORDER BY s.imported_at,s.id`, [ownerType]);
+    return result.rows.map((row) => evidenceMetadata(pgEvidence(row)));
+  }
+
+  async getEvidenceDocument(id: string, ownerType: OwnerType) {
+    const result = await getPool().query(`SELECT s.*,s.start_date::text,s.end_date::text,p.legal_owner_type FROM tax_evidence_sources s
+      JOIN portfolios p ON p.id=s.portfolio_id WHERE s.id=$1 AND p.legal_owner_type=$2`, [id, ownerType]);
+    return result.rows[0] ? pgEvidence(result.rows[0]) : null;
+  }
+
+  async listEvidenceReviews(ownerType: OwnerType) {
+    const result = await getPool().query(`SELECT r.*,p.legal_owner_type FROM tax_evidence_reviews r JOIN portfolios p ON p.id=r.portfolio_id
+      WHERE p.legal_owner_type=$1 ORDER BY r.created_at,r.id`, [ownerType]);
+    return result.rows.map(pgReview);
+  }
+
+  async recordEvidenceReview(input: Omit<EvidenceReview, "id" | "createdAt">) {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      // Serialize review decisions for this owner, including concurrent browser tabs.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`tax-evidence:${input.ownerType}`]);
+      const { validateTransferReview } = await import("@/lib/tax-evidence/transfers");
+      const cash = await client.query(`SELECT t.id,t.type,t.net_cash::text,t.currency,p.legal_owner_type,ba.broker,ba.external_account_id
+        FROM transactions t JOIN portfolios p ON p.id=t.portfolio_id JOIN broker_accounts ba ON ba.id=t.account_id
+        WHERE t.id=ANY($1::uuid[]) AND p.legal_owner_type=$2`, [[input.outgoingId, input.incomingId], input.ownerType]);
+      const history = await client.query(`SELECT r.*,p.legal_owner_type FROM tax_evidence_reviews r JOIN portfolios p ON p.id=r.portfolio_id
+        WHERE p.legal_owner_type=$1 ORDER BY r.created_at,r.id`, [input.ownerType]);
+      validateTransferReview(input, cash.rows.map((row) => ({ id: row.id, type: row.type, netCash: optionalNumber(row.net_cash), currency: row.currency,
+        ownerType: row.legal_owner_type, broker: row.broker, accountKey: row.external_account_id })), history.rows.map(pgReview));
+      const portfolioId = await ensurePortfolio(client, input.ownerType);
+      const result = await client.query(`INSERT INTO tax_evidence_reviews (portfolio_id,outgoing_id,incoming_id,action,note,author)
+        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *, $7::text AS legal_owner_type`,
+        [portfolioId, input.outgoingId, input.incomingId, input.action, input.note, input.author, input.ownerType]);
+      await client.query("COMMIT");
+      return pgReview(result.rows[0]);
+    } catch (error) { await client.query("ROLLBACK"); throw error; }
+    finally { client.release(); }
+  }
+
+  async importIbkr(report: IbkrFlexReport, ownerType: OwnerType, options: IbkrImportOptions = {}): Promise<ImportResult> {
+    const client = await getPool().connect();
+    try {
+      await client.query("BEGIN");
+      const portfolioId = await ensurePortfolio(client, ownerType);
+      const documents = (report.sourceDocuments ?? []).map((source) => evidenceDocument(source, ownerType));
+      await keepPgEvidence(client, portfolioId, documents);
       const accountKey = report.accountId || report.transactions.find(transaction => transaction.externalAccountId)?.externalAccountId || "IBKR";
       const accountId = await ensureBrokerAccount(client, portfolioId, "IBKR", accountKey, "AUD");
       let imported = 0;
       let duplicates = 0;
       const conflicts: ImportConflict[] = [];
 
-      for (const transaction of report.transactions) {
+      for (const incoming of report.transactions) {
+        const transaction = sourceLinkedTransaction(incoming, documents);
         let instrumentId: string | null = null;
         const name = canonicalInstrumentName(transaction.symbol, transaction.description);
-        if (transaction.type !== "FX") instrumentId = await ensureInstrument(client, {
+        if (["BUY", "SELL", "DIVIDEND", "CORPORATE_ACTION"].includes(transaction.type)) instrumentId = await ensureInstrument(client, {
           source: "IBKR", externalKey: transaction.instrumentKey || `${transaction.symbol}:${transaction.exchange}`,
           name, ticker: transaction.symbol, exchange: transaction.exchange,
           currency: transaction.currency, assetClass: classifyAsset(transaction.symbol, name),
@@ -140,12 +227,12 @@ export class PostgresStorageAdapter implements StorageAdapter {
            */
           const stored = await client.query(`
             SELECT trade_date::text, quantity::text, price::text, cost::text, currency,
-              fees::text, taxes::text, net_cash::text, fx_rate_to_base::text
+              fees::text, taxes::text, net_cash::text, fx_rate_to_base::text, raw
             FROM transactions WHERE account_id=$1 AND source=$2 AND external_id=$3
           `, [accountId, transaction.source, transaction.externalId]);
           const row = stored.rows[0];
           if (row) {
-            conflicts.push(...importConflicts({
+            const changes = importConflicts({
               externalId: transaction.externalId,
               symbol: transaction.symbol,
               tradeDate: row.trade_date,
@@ -157,20 +244,29 @@ export class PostgresStorageAdapter implements StorageAdapter {
               taxes: optionalNumber(row.taxes),
               fxRateToBase: optionalNumber(row.fx_rate_to_base),
               currency: row.currency,
-            } as never, transaction as unknown as Record<string, unknown>));
+            } as never, transaction as unknown as Record<string, unknown>);
+            conflicts.push(...changes);
+            if (!changes.length && transaction.raw?._evidenceSourceId) await client.query(`UPDATE transactions SET raw=$1 WHERE account_id=$2 AND source=$3 AND external_id=$4`,
+              [JSON.stringify(linkExistingEvidence(row.raw, transaction.raw)), accountId, transaction.source, transaction.externalId]);
           }
         }
       }
 
-      const positionCount = report.openPositions.length
-        ? await replaceIbkrOpenPositions(client, report, portfolioId, accountId)
-        : await rebuildIbkrPositions(client, portfolioId, accountId);
-      const openOrderCount = await replaceIbkrOpenOrders(client, report, portfolioId, accountId);
-      await replaceIbkrNavSnapshots(client, report, portfolioId);
-      await upsertIbkrCash(client, report, portfolioId);
+      let positionCount = 0;
+      let openOrderCount = 0;
+      if (!options.evidenceOnly) {
+        positionCount = report.openPositions.length
+          ? await replaceIbkrOpenPositions(client, report, portfolioId, accountId)
+          : await rebuildIbkrPositions(client, portfolioId, accountId);
+        openOrderCount = await replaceIbkrOpenOrders(client, report, portfolioId, accountId);
+        await replaceIbkrNavSnapshots(client, report, portfolioId);
+        await upsertIbkrCash(client, report, portfolioId);
+        await captureSnapshot(client, portfolioId);
+      }
       await client.query(`INSERT INTO import_runs (portfolio_id, account_id, source, record_count) VALUES ($1,$2,'IBKR',$3)`, [portfolioId, accountId, report.transactions.length]);
-      await captureSnapshot(client, portfolioId);
       await client.query("COMMIT");
+      if (options.evidenceOnly) return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, conflicts,
+        positions: 0, openPositions: 0, openOrders: 0, evidenceOnly: true, storageMode: "postgresql" };
       const valuationSource = report.openPositions.length
         ? "open_positions_with_trade_overlay"
         : "trade_cost_basis";

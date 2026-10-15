@@ -16,6 +16,14 @@ type ReportDownload = {
 
 const downloads: ReportDownload[] = [
   {
+    title: "Tax evidence and FX",
+    owner: "Personal or SMSF",
+    href: "/reports/tax-evidence",
+    downloadLabel: "Choose owner and year",
+    detail: "Original-currency cash activity, both FX legs, transfer review, source statements and an accountant evidence ZIP.",
+    rows: "One legal owner per report",
+  },
+  {
     title: "Consolidated wealth statement",
     owner: "Overall",
     href: "/api/reports/wealth-statement?scope=overall",

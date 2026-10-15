@@ -1,4 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
+import { ibkrCashActivity, ibkrSourceDocument } from "@/lib/tax-evidence/ibkr";
+import { sourceHash } from "@/lib/tax-evidence/sources";
 import type { BrokerAdapter, IbkrFlexOpenOrder, IbkrFlexReport, IbkrNavSnapshot, IbkrOpenPosition, ImportedTransaction } from "./types";
 
 const arr = <T>(value: T | T[] | undefined): T[] => value === undefined ? [] : Array.isArray(value) ? value : [value];
@@ -510,6 +512,7 @@ export function parseIbkrFlexXml(xml: string, options: { allowTradeConfirmOnly?:
     }
 
     transactions.push(...parseTransactions(statement, statementAccount, baseCurrency, baseFxRateToAud || 1));
+    transactions.push(...ibkrCashActivity(statement, statementAccount));
     if (options.allowTradeConfirmOnly) transactions.push(...parseTradeConfirms(statement, statementAccount));
     openPositions.push(...parseOpenPositions(statement, statementAccount, baseFxRateToAud || 1));
     openOrders.push(...parseOpenOrders(statement, statementAccount));
@@ -534,7 +537,13 @@ export function parseIbkrFlexXml(xml: string, options: { allowTradeConfirmOnly?:
     throw new Error(`No IBKR trades, Open Positions, open orders, NAV history or Cash Report were found in this Flex report.${shape ? ` Detected ${shape}.` : ""} Check that IBKR_SMSF_FLEX_QUERY_ID / IBKR_PERSONAL_FLEX_QUERY_ID points to an Activity Statement Flex query with Open Positions, Trades, Cash Report, Forex Balances, Conversion Rates and NAV sections. Trade Confirmation query IDs must be set only in IBKR_SMSF_TRADE_CONFIRM_FLEX_QUERY_ID / IBKR_PERSONAL_TRADE_CONFIRM_FLEX_QUERY_ID.`);
   }
 
-  return { accountId, fromDate, toDate, whenGenerated, transactions, openPositions, openOrders, navSnapshots, cash, cashBalances };
+  const statementSha256 = sourceHash(xml);
+  for (const transaction of transactions) {
+    if (transaction.externalAccountId && transaction.externalAccountId !== accountId) throw new Error("A transaction belongs to a different account than its Flex statement.");
+    transaction.raw = { ...transaction.raw, _sourceSha256: statementSha256 };
+  }
+  return { accountId, fromDate, toDate, whenGenerated, transactions, openPositions, openOrders, navSnapshots, cash, cashBalances,
+    sourceDocuments: [ibkrSourceDocument(xml, statements, accountId)] };
 }
 
 type FlexServiceResponse = {
@@ -611,7 +620,10 @@ export async function fetchIbkrFlexXml(token = process.env.IBKR_FLEX_TOKEN, quer
 }
 
 export async function fetchIbkrFlexReport(token?: string, queryId?: string, options: { allowTradeConfirmOnly?: boolean } = {}): Promise<IbkrFlexReport> {
-  return parseIbkrFlexXml(await fetchIbkrFlexXml(token, queryId), options);
+  const report = parseIbkrFlexXml(await fetchIbkrFlexXml(token, queryId), options);
+  const retrievedAt = new Date().toISOString();
+  for (const source of report.sourceDocuments ?? []) source.metadata = { ...source.metadata, retrievalMethod: "IBKR Flex Web Service", retrievedAt };
+  return report;
 }
 
 export class IbkrFlexAdapter implements BrokerAdapter {

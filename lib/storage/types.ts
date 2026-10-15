@@ -1,4 +1,5 @@
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
+import type { EvidenceDocument, EvidenceImport, EvidenceReview, EvidenceSource } from "@/lib/tax-evidence/types";
 import type { ParcelSelection } from "@/lib/parcel-selection";
 import type { AllocationTarget } from "@/southernstar/lib/allocation-drift";
 import type { Sector } from "@/southernstar/types";
@@ -572,6 +573,8 @@ export type StructuralLevel = {
 export type StructuralLevelInput = Omit<StructuralLevel, "id" | "updatedAt"> & { id?: string };
 
 export type LocalStore = {
+  evidenceDocuments?: EvidenceDocument[];
+  evidenceReviews?: EvidenceReview[];
   /** Per-book tax treatment; absent in stores written before pension phase was modelled. */
   taxProfiles?: TaxProfile[];
   version: 7;
@@ -692,10 +695,18 @@ export type ImportResult = {
   openOrders?: number;
   cashAud?: number;
   valuationSource?: "open_positions" | "open_positions_with_trade_overlay" | "trade_cost_basis";
+  evidenceOnly?: boolean;
 };
 
+export type IbkrImportOptions = { evidenceOnly?: boolean };
+
 export interface StorageAdapter {
-  importIbkr(report: IbkrFlexReport, ownerType: OwnerType): Promise<ImportResult>;
+  importTaxEvidence(input: EvidenceImport, ownerType: OwnerType): Promise<{ imported: number; duplicates: number; conflicts: ImportConflict[]; sourceId: string }>;
+  listEvidenceSources(ownerType: OwnerType): Promise<EvidenceSource[]>;
+  getEvidenceDocument(id: string, ownerType: OwnerType): Promise<EvidenceDocument | null>;
+  listEvidenceReviews(ownerType: OwnerType): Promise<EvidenceReview[]>;
+  recordEvidenceReview(input: Omit<EvidenceReview, "id" | "createdAt">): Promise<EvidenceReview>;
+  importIbkr(report: IbkrFlexReport, ownerType: OwnerType, options?: IbkrImportOptions): Promise<ImportResult>;
   importDirectshares(positions: OpeningPosition[], ownerType: OwnerType): Promise<ImportResult>;
   importDirectsharesTransactions(transactions: ImportedTransaction[], ownerType: OwnerType, importSource?: string): Promise<ImportResult>;
   listTransactions(ownerType?: OwnerType): Promise<StoredTransaction[]>;

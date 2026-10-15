@@ -4,6 +4,7 @@ node_modules/
 .env.local
 .env.*.local
 .north-star/
+.southern-star/
 *.log
 .DS_Store
 tsconfig.tsbuildinfo
