@@ -104,6 +104,12 @@ async function importGroupedTransactions(transactions: ImportedTransaction[], ow
     accountKey: groups.length === 1 ? results[0]?.accountKey ?? "DIRECTSHARES" : `${groups.length} accounts`,
     imported: results.reduce((sum, row) => sum + (row.imported ?? 0), 0),
     duplicates: results.reduce((sum, row) => sum + (row.duplicates ?? 0), 0),
+    /*
+     * Surfaced beside the counts, because an amendment is indistinguishable from a re-import in
+     * the totals: both read as a duplicate, and only this says the source changed its mind about
+     * a figure already stored.
+     */
+    conflicts: results.flatMap((row) => row.conflicts ?? []),
     positions: results.reduce((sum, row) => sum + (row.positions ?? 0), 0),
     storageMode: results[0]?.storageMode ?? "postgresql",
     accountCount: groups.length,

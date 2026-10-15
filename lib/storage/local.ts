@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
 import { defaultParcelSelectionMethod, readParcelSelection, type ParcelSelection } from "@/lib/parcel-selection";
 import { pensionPhaseFor } from "@/lib/pension-phase";
+import { importConflicts } from "./import-conflicts";
 import {
   buildManualAssetValuation,
   buildPositionPriceValuation,
@@ -12,6 +13,7 @@ import {
 import { normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
 import { canonicalInstrumentName } from "./instrument-names";
+import type { ImportConflict } from "./types";
 import type { Sector } from "@/southernstar/types";
 import { resolveIbkrCurrentPositions } from "./ibkr-positions";
 import { dashboardFromStore, latestFxRate, normaliseCurrency, normaliseSymbol, priceBookFromStore } from "./local-analytics";
@@ -211,17 +213,31 @@ export class LocalStorageAdapter implements StorageAdapter {
   async importIbkr(report: IbkrFlexReport, ownerType: OwnerType): Promise<ImportResult> {
     const store = await readStore();
     const accountKey = report.accountId || report.transactions.find(transaction => transaction.externalAccountId)?.externalAccountId || "IBKR";
-    const existing = new Set(store.transactions.map(transaction => `${transaction.ownerType}:${transaction.broker}:${transaction.accountKey}:${transaction.externalId}`));
+    const existing = new Map(store.transactions.map(transaction =>
+      [`${transaction.ownerType}:${transaction.broker}:${transaction.accountKey}:${transaction.externalId}`, transaction]));
     let imported = 0;
     let duplicates = 0;
+    const conflicts: ImportConflict[] = [];
 
     for (const transaction of report.transactions) {
       const key = `${ownerType}:IBKR:${accountKey}:${transaction.externalId}`;
-      if (existing.has(key)) { duplicates += 1; continue; }
-      existing.add(key);
-      const { raw: _raw, ...persisted } = transaction;
+      const stored = existing.get(key);
+      if (stored) {
+        // An amendment keeps the broker's id, so it arrives looking like a re-import. Reported
+        // rather than applied: which version is right is a question about the correction.
+        conflicts.push(...importConflicts(stored, transaction as unknown as Record<string, unknown>));
+        duplicates += 1;
+        continue;
+      }
+      existing.set(key, transaction as never);
+      /*
+       * The broker's own row is kept. It was stripped here while the PostgreSQL path retained it,
+       * so the two stores disagreed about what evidence a transaction carries — and the fields the
+       * row holds are the only record of what the source actually said, which is what a later
+       * question about a number is answered from.
+       */
       store.transactions.push({
-        ...persisted,
+        ...transaction,
         description: canonicalInstrumentName(transaction.symbol, transaction.description),
         id: randomUUID(),
         ownerType,
@@ -255,7 +271,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     const valuationSource = report.openPositions.length
       ? "open_positions_with_trade_overlay"
       : "trade_cost_basis";
-    return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, openPositions: report.openPositions.length, openOrders: report.openOrders.length, cashAud: ibkrTotalCashFromComponents(report)?.balanceAud, valuationSource, storageMode: "local-file" };
+    return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, conflicts, positions: positionCount, openPositions: report.openPositions.length, openOrders: report.openOrders.length, cashAud: ibkrTotalCashFromComponents(report)?.balanceAud, valuationSource, storageMode: "local-file" };
   }
 
   async importDirectshares(positions: OpeningPosition[], ownerType: OwnerType): Promise<ImportResult> {

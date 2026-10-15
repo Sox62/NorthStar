@@ -661,12 +661,31 @@ export type DeleteTransactionsResult = {
   matched: Array<{ externalId: string; symbol: string; tradeDate: string; type: string; netCash: number | null; source: string }>;
 };
 
+/**
+ * A row the source has amended since it was stored.
+ *
+ * An amendment keeps the broker's identifier, so it arrives looking exactly like a re-import. It
+ * was counted as a duplicate and discarded, which left the superseded figures in place with
+ * nothing to say the source had changed its mind. These are reported rather than applied: which
+ * version is right is a question about the broker's correction, not one an importer should answer.
+ */
+export type ImportConflict = {
+  externalId: string;
+  symbol: string;
+  tradeDate: string;
+  field: string;
+  stored: string;
+  incoming: string;
+};
+
 export type ImportResult = {
   source: string;
   ownerType: OwnerType;
   accountKey: string;
   imported: number;
   duplicates: number;
+  /** Rows whose stored copy disagrees with what the source now says. */
+  conflicts?: ImportConflict[];
   positions: number;
   storageMode: "local-file" | "postgresql";
   openPositions?: number;

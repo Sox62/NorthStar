@@ -104,3 +104,27 @@ test("an empty id list is a no-op, never a wildcard", async () => {
   assert.equal(await idsFor(storage, "SMSF"), 2);
   assert.equal(await idsFor(storage, "PERSONAL"), 2);
 });
+
+test("a re-import that changed a figure is reported, not counted as a repeat", async () => {
+  /*
+   * An amendment keeps the broker's identifier, so it arrives looking exactly like a re-import. It
+   * was discarded as a duplicate, leaving the superseded figure in place with nothing to say the
+   * source had changed its mind.
+   */
+  const { importConflicts } = await import("./import-conflicts");
+  const stored = { externalId: "T-1", symbol: "BHP", tradeDate: "2026-06-10", cost: 100, quantity: 10, fees: 5 };
+  const incoming = { tradeDate: "2026-06-10", cost: 100, quantity: 10, fees: 5 };
+
+  assert.deepEqual(importConflicts(stored as never, incoming), [], "an exact repeat is a duplicate");
+  assert.deepEqual(importConflicts(stored as never, { cost: 100 }), [], "a field the source does not state is not a change");
+
+  const amended = importConflicts(stored as never, { ...incoming, cost: 150 });
+  assert.equal(amended.length, 1);
+  assert.deepEqual(
+    { field: amended[0].field, stored: amended[0].stored, incoming: amended[0].incoming },
+    { field: "cost", stored: "100", incoming: "150" },
+  );
+
+  // Floating-point round-tripping through a store must not read as an amendment.
+  assert.deepEqual(importConflicts(stored as never, { ...incoming, cost: 100.0000001 }), []);
+});

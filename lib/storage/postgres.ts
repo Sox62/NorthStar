@@ -2,6 +2,7 @@ import { getPool } from "@/lib/db/client";
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
 import { buildDashboardModel, buildManualAssetValuation, maskAccount, numberValue, ownerForScope } from "@/lib/core/accounting";
 import { readParcelSelection, type ParcelSelection } from "@/lib/parcel-selection";
+import { importConflicts } from "./import-conflicts";
 import { pensionPhaseFor } from "@/lib/pension-phase";
 import { defaultAllocationTargets, normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
 import type { Sector } from "@/southernstar/types";
@@ -9,6 +10,7 @@ import { classifyAsset } from "./classify";
 import { canonicalInstrumentName } from "./instrument-names";
 import { PASTED_ORDER_SOURCE } from "./local";
 import { getLatestPlatinumPricePostgres, listPriceBookPostgres, recordDailyPricesPostgres, recordPlatinumPricePostgres } from "./postgres/pricing";
+import type { ImportConflict } from "./types";
 import type { AllocationTarget, CashAccount, CompositeIndexResult, DeleteTransactionsInput, DeleteTransactionsResult, TaxProfile, CompositeIndexResultQuery, DailyPriceInput, DashboardData, FxRateInput, ImportResult, ManualAsset, FundamentalResearchDraft, FundamentalResearchDraftInput, FundamentalResearchDraftStatus, MinerFundamentals, MinerFundamentalsInput, StructuralLevel, StructuralLevelInput, NewSyncRun, OwnerType, PlatinumPrice, PriceBook, PriceImportOptions, PriceImportResult, PastedOpenOrder, PositionRiskPlan, PositionRiskPlanInput, RiskSnapshot, Scope, SectorOverride, StorageAdapter, StoredOpenOrder, StoredPosition, StoredTransaction, SyncRun } from "./types";
 
 import {
@@ -105,6 +107,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const accountId = await ensureBrokerAccount(client, portfolioId, "IBKR", accountKey, "AUD");
       let imported = 0;
       let duplicates = 0;
+      const conflicts: ImportConflict[] = [];
 
       for (const transaction of report.transactions) {
         let instrumentId: string | null = null;
@@ -126,7 +129,37 @@ export class PostgresStorageAdapter implements StorageAdapter {
           transaction.currency, transaction.fees ?? 0, transaction.taxes ?? 0, transaction.netCash ?? null,
           transaction.fxRateToBase ?? null, transaction.realisedPnl ?? null, transaction.externalId, transaction.source,
           transaction.raw ? JSON.stringify(transaction.raw) : null]);
-        if (inserted.rowCount) imported += 1; else duplicates += 1;
+        if (inserted.rowCount) {
+          imported += 1;
+        } else {
+          duplicates += 1;
+          /*
+           * `DO NOTHING` cannot tell a repeat from an amendment, and an amendment keeps the
+           * broker's identifier. Read the stored row back and say what moved, rather than leaving
+           * superseded figures in place with nothing to show the source changed its mind.
+           */
+          const stored = await client.query(`
+            SELECT trade_date::text, quantity::text, price::text, cost::text, currency,
+              fees::text, taxes::text, net_cash::text, fx_rate_to_base::text
+            FROM transactions WHERE account_id=$1 AND source=$2 AND external_id=$3
+          `, [accountId, transaction.source, transaction.externalId]);
+          const row = stored.rows[0];
+          if (row) {
+            conflicts.push(...importConflicts({
+              externalId: transaction.externalId,
+              symbol: transaction.symbol,
+              tradeDate: row.trade_date,
+              quantity: optionalNumber(row.quantity),
+              price: optionalNumber(row.price),
+              cost: optionalNumber(row.cost),
+              netCash: optionalNumber(row.net_cash),
+              fees: optionalNumber(row.fees),
+              taxes: optionalNumber(row.taxes),
+              fxRateToBase: optionalNumber(row.fx_rate_to_base),
+              currency: row.currency,
+            } as never, transaction as unknown as Record<string, unknown>));
+          }
+        }
       }
 
       const positionCount = report.openPositions.length
@@ -141,7 +174,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const valuationSource = report.openPositions.length
         ? "open_positions_with_trade_overlay"
         : "trade_cost_basis";
-      return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: positionCount, openPositions: report.openPositions.length, openOrders: openOrderCount, cashAud: ibkrTotalCashFromComponents(report)?.balanceAud, valuationSource, storageMode: "postgresql" };
+      return { source: "IBKR", ownerType, accountKey: maskAccount(accountKey), imported, duplicates, conflicts, positions: positionCount, openPositions: report.openPositions.length, openOrders: openOrderCount, cashAud: ibkrTotalCashFromComponents(report)?.balanceAud, valuationSource, storageMode: "postgresql" };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -193,6 +226,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const accountId = await ensureBrokerAccount(client, portfolioId, "Directshares", accountKey, "AUD");
       let imported = 0;
       let duplicates = 0;
+      const conflicts: ImportConflict[] = [];
 
       for (const transaction of transactions) {
         const name = canonicalInstrumentName(transaction.symbol, transaction.description);
@@ -217,13 +251,43 @@ export class PostgresStorageAdapter implements StorageAdapter {
           transaction.currency, transaction.fees ?? 0, transaction.taxes ?? 0, transaction.netCash ?? null,
           transaction.fxRateToBase ?? null, transaction.realisedPnl ?? null, transaction.externalId, transaction.source,
           transaction.raw ? JSON.stringify(transaction.raw) : null]);
-        if (inserted.rowCount) imported += 1; else duplicates += 1;
+        if (inserted.rowCount) {
+          imported += 1;
+        } else {
+          duplicates += 1;
+          /*
+           * `DO NOTHING` cannot tell a repeat from an amendment, and an amendment keeps the
+           * broker's identifier. Read the stored row back and say what moved, rather than leaving
+           * superseded figures in place with nothing to show the source changed its mind.
+           */
+          const stored = await client.query(`
+            SELECT trade_date::text, quantity::text, price::text, cost::text, currency,
+              fees::text, taxes::text, net_cash::text, fx_rate_to_base::text
+            FROM transactions WHERE account_id=$1 AND source=$2 AND external_id=$3
+          `, [accountId, transaction.source, transaction.externalId]);
+          const row = stored.rows[0];
+          if (row) {
+            conflicts.push(...importConflicts({
+              externalId: transaction.externalId,
+              symbol: transaction.symbol,
+              tradeDate: row.trade_date,
+              quantity: optionalNumber(row.quantity),
+              price: optionalNumber(row.price),
+              cost: optionalNumber(row.cost),
+              netCash: optionalNumber(row.net_cash),
+              fees: optionalNumber(row.fees),
+              taxes: optionalNumber(row.taxes),
+              fxRateToBase: optionalNumber(row.fx_rate_to_base),
+              currency: row.currency,
+            } as never, transaction as unknown as Record<string, unknown>));
+          }
+        }
       }
 
       await client.query(`INSERT INTO import_runs (portfolio_id, account_id, source, record_count) VALUES ($1,$2,$3,$4)`, [portfolioId, accountId, importSource, transactions.length]);
       const positionCount = await client.query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM current_positions WHERE account_id=$1`, [accountId]);
       await client.query("COMMIT");
-      return { source: importSource, ownerType, accountKey: maskAccount(accountKey), imported, duplicates, positions: numberValue(positionCount.rows[0]?.count), storageMode: "postgresql" };
+      return { source: importSource, ownerType, accountKey: maskAccount(accountKey), imported, duplicates, conflicts, positions: numberValue(positionCount.rows[0]?.count), storageMode: "postgresql" };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
