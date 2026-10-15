@@ -2,12 +2,17 @@
 
 **Date:** 15 October 2026
 **Responding to:** [AUDIT_REPORT.md](AUDIT_REPORT.md) and [DISCREPANCY_REGISTER.md](DISCREPANCY_REGISTER.md)
-**Audit basis:** `2b7184f` · **This work:** `7534cba`, `39f56c4`, `b5e4e02`, `01177f4`
+**Audit basis:** `2b7184f` · **This work:** `7534cba`, `39f56c4`, `b5e4e02`, `01177f4`, `bfc7535`
 **Tests:** 399 → 419, all passing
 
 The audit was taken seriously because it was right. Its findings were reproduced independently
 before any of them were acted on, and one of them — F02 — is a defect in work delivered the
 previous day that should have been caught at the time and was not.
+
+A follow-up review then found three of those fixes incomplete, after this document had already
+recorded them as done. Those corrections are marked inline below and the cause is in section 6.
+The first version of this file claimed more than the code did, which is the failure mode a
+document like this exists to prevent.
 
 This document records what was fixed, what was partly fixed, what was deliberately left, and the
 reasoning in each case. Where the audit's conclusion was qualified, the qualification is stated
@@ -258,7 +263,28 @@ acknowledged gap. They remain open and scoped.
 
 ## 6. Errors made during this work
 
-Two, both self-inflicted, both corrected.
+Three, all self-inflicted, all corrected.
+
+**Fixes reported as complete that were not.** Three findings were recorded as closed in the first
+version of this document while still live in the code:
+
+- **F03** — the register names two defects under it, foreign commissions (P14) and foreign dividend
+  gross (P15). Only the commission half was done. The dividend half was never touched, and a
+  USD110 dividend at 1.5 went on reporting gross income of AUD110.
+- **F04** — the missing-rate scan covered trades only, so dividends converted by the same absent
+  number went unnamed, and the tax position export carried no data-quality rows at all.
+- **F02** — the pooling key was aligned to the instrument key rather than to ticker and venue,
+  trading one split for another. The parcel engine keys on ticker and venue precisely to survive
+  that, in a comment directly above the function.
+
+The cause is a difference in standard, not in care. The audit's findings were each reproduced
+before being acted on; the closures were not tested to the same standard. For F03 in particular
+the register named two defects and only one was checked — reading the finding's title rather than
+its contents. **A finding is closed when every defect it names fails to reproduce, not when the
+change that addresses it compiles.** The regressions now in the suite encode that for these three;
+the habit is the real fix.
+
+**A mutating request used as a build probe.**
 
 **A mutating request used as a build probe.** `POST /api/tax-profiles` with
 `{ownerType: PERSONAL, pensionPhase: true}` was used to test whether a deployment had landed. On
