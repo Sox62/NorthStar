@@ -360,3 +360,58 @@
     width: 100%;
   }
 }
+
+.gaugeLegend {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.legendGood { color: var(--status-positive, #54b389); }
+.legendWarning { color: var(--status-warning, #d7b56d); }
+.legendDanger { color: var(--status-negative, #ed7070); }
+
+.stopGauge {
+  --gauge-color: var(--status-positive, #54b389);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 145px;
+  max-width: 190px;
+  font-variant-numeric: tabular-nums;
+}
+
+.gauge_warning { --gauge-color: var(--status-warning, #d7b56d); }
+.gauge_danger,
+.gauge_breached { --gauge-color: var(--status-negative, #ed7070); }
+
+.gaugeHeading strong {
+  color: var(--gauge-color);
+  font-size: 11px;
+}
+
+.gaugeTrack {
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid var(--gauge-color);
+  border-radius: 3px;
+  background: var(--surface-control);
+}
+
+.gaugeTrack span {
+  display: block;
+  height: 100%;
+  background: var(--gauge-color);
+}
+
+.stopGauge small { margin-top: 0; font-size: 10px; }
+.gaugeUnknown { color: var(--text-muted); font-size: 11px; }
+
+.emailAlerts { margin-top: 18px; padding: 14px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-card); font-size: 12px; }
+.emailAlerts summary { cursor: pointer; font-weight: 600; }
+.emailAlerts p { color: var(--text-muted); line-height: 1.5; }
+.emailAlerts form { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.emailAlerts label { display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
+.emailAlerts input[type="email"] { width: min(360px, 100%); padding: 9px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-control); color: var(--text-primary); font: inherit; }
+.emailAlerts .alertToggle { flex-direction: row; align-items: center; }

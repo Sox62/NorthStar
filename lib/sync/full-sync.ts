@@ -1,6 +1,7 @@
 import { fetchAbcPlatinumPrice } from "@/lib/integrations/abc-bullion";
 import type { QuoteProvider } from "@/lib/integrations/market-data";
 import { recordStopsRiskSnapshot } from "@/lib/risk/stops";
+import { checkStopEmailAlerts } from "@/lib/risk/stop-alerts";
 import { getStorage, type StorageAdapter, type SyncTrigger } from "@/lib/storage";
 import { configuredIbkrFlexSyncs, ibkrFlexNotConfiguredMessage, legacyIbkrFlexOwner, syncIbkrFlexConfig, waitForIbkrFlexSlot } from "@/lib/sync/ibkr-flex";
 import { syncDirectsharesDividends } from "@/lib/sync/directshares-dividends";
@@ -31,6 +32,7 @@ export type FullSyncResult = {
   fundamentals?: unknown;
   platinum?: unknown;
   risk?: unknown;
+  stopAlerts?: unknown;
 };
 
 async function recordRiskOutput(storage: StorageAdapter, output: FullSyncResult, errors: string[]) {
@@ -39,6 +41,11 @@ async function recordRiskOutput(storage: StorageAdapter, output: FullSyncResult,
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown portfolio risk snapshot error";
     errors.push(`Portfolio Risk: ${message}`);
+  }
+  try {
+    output.stopAlerts = await checkStopEmailAlerts(storage);
+  } catch (error) {
+    errors.push(`Stop email alerts: ${error instanceof Error ? error.message : "Unable to check alerts"}`);
   }
 }
 

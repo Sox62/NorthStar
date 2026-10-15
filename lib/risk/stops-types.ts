@@ -50,6 +50,7 @@ export type StopRiskRow = {
   quantity: number;
   averageCostAud: number;
   currentPrice: number | null;
+  priceAsOfDate?: string | null;
   currentPriceAud: number | null;
   marketValueAud: number;
   stopType: StopType | null;

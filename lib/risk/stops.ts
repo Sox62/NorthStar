@@ -460,6 +460,7 @@ export async function buildStopsRiskDashboard(storage: StorageAdapter, scope: Sc
       quantity,
       averageCostAud,
       currentPrice,
+      priceAsOfDate: position.asOfDate,
       currentPriceAud,
       marketValueAud: position.marketValueAud,
       stopType: plan?.stopType ?? null,

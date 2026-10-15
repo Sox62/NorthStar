@@ -260,6 +260,13 @@
       "when": 1792022400000,
       "tag": "0036_tax_evidence",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1792051200000,
+      "tag": "0037_stop_email_alerts",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,24 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+export const stopAlertSettings = pgTable("stop_alert_settings", {
+  id: text("id").primaryKey(),
+  recipient: text("recipient").notNull(),
+  enabled: boolean("enabled").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const stopAlertEvents = pgTable("stop_alert_events", {
+  id: text("id").primaryKey(),
+  seriesKey: text("series_key").notNull(),
+  severity: integer("severity").notNull(),
+  status: text("status").notNull(),
+  email: jsonb("email").notNull(),
+  providerId: text("provider_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+}, table => [index("stop_alert_events_series_idx").on(table.seriesKey)]);
+
 export const portfolioGroups = pgTable("portfolio_groups", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { refreshMarketQuotes } from "@/lib/integrations/market-data";
 import { getStorage } from "@/lib/storage";
+import { checkStopEmailAlerts } from "@/lib/risk/stop-alerts";
 
 export const runtime = "nodejs";
 
@@ -47,7 +48,9 @@ export async function POST(request: Request) {
       error: status === "failed" ? errors.join("; ") || "No quotes were returned." : null,
     });
 
+    const stopAlerts = await checkStopEmailAlerts(storage).catch(() => ({ status: "failed", message: "Price refresh completed, but email alerts could not be checked." }));
     return NextResponse.json({
+      stopAlerts,
       refreshed: true,
       providerConfigured: quotes.providerConfigured,
       providers: quotes.providers,

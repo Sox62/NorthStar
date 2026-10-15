@@ -5,6 +5,7 @@ import { syncDirectsharesDividends } from "../lib/sync/directshares-dividends";
 import { syncDirectsharesEmail } from "../lib/sync/directshares-email";
 import { syncSourcedFundamentals } from "../lib/sync/fundamentals";
 import { syncMarketData } from "../lib/sync/market-data";
+import { checkStopEmailAlerts } from "../lib/risk/stop-alerts";
 
 async function main() {
   const today = new Date().toISOString().slice(0, 10);
@@ -50,6 +51,13 @@ async function main() {
     console.log(`[sync] Fundamentals: ${result.message}`);
   } catch (error) {
     console.error("[sync] Fundamentals:", error);
+  }
+
+  try {
+    const result = await checkStopEmailAlerts(storage);
+    console.log(`[sync] Stop email alerts: ${result.status}`);
+  } catch (error) {
+    console.error("[sync] Stop email alerts:", error);
   }
 
   try {

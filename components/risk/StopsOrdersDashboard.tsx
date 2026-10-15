@@ -5,6 +5,8 @@ import PageHeader from "@/components/PageHeader";
 import { Card, Notice, StatusBadge } from "@/southernstar/components";
 import type { EntryOrderRisk, RiskGroupSummary, StopRiskRow, StopsRiskDashboard } from "@/lib/risk/stops";
 import type { Scope, StopType } from "@/lib/storage";
+import { stopProximity } from "@/lib/risk/stop-proximity";
+import StopEmailAlerts from "./StopEmailAlerts";
 import styles from "./StopsOrdersDashboard.module.css";
 
 const stopTypes: StopType[] = ["STRUCTURAL", "TACTICAL", "TRAILING", "VOLATILITY", "MANUAL_REVIEW"];
@@ -28,7 +30,7 @@ const exceptionLabels: Record<string, string> = {
   UNCLASSIFIED_BROKER_ORDER: "Unclassified order",
 };
 
-type SortKey = "risk" | "symbol" | "exceptions" | "rr";
+type SortKey = "risk" | "symbol" | "exceptions" | "rr" | "proximity";
 
 type EditForm = {
   stopType: StopType;
@@ -74,6 +76,27 @@ function brokerLabel(row: StopRiskRow) {
 
 function brokerTone(row: StopRiskRow) {
   return row.brokerStop.status === "PROTECTED" ? "good" as const : row.brokerStop.status === "NONE" ? "bad" as const : "warning" as const;
+}
+
+function StopGauge({ row }: { row: StopRiskRow }) {
+  const level = stopProximity(row);
+  if (level.distancePercent == null) {
+    return <span className={styles.gaugeUnknown}>{level.stopPrice == null ? "No stop level" : "Price unavailable"}</span>;
+  }
+  const breached = level.tone === "breached";
+  const label = breached ? "At / below level" : `${percent(level.distancePercent, 1)} room`;
+  const source = `${level.source}${row.brokerStop.status === "STALE" && level.source === "Broker stop" ? " · stale import" : ""}`;
+  const description = `${source} ${nativePrice(level.stopPrice, row.currency)}. ${label}. Distance is the percentage fall from the recorded current price. Full gauge = 15% or more. Green >10%, amber 5–10%, red <5%. A breach does not confirm a broker fill.`;
+  return (
+    <div className={`${styles.stopGauge} ${styles[`gauge_${level.tone}`]}`} title={description}>
+      <div className={styles.gaugeHeading}><strong>{label}</strong></div>
+      <div className={styles.gaugeTrack} role="meter" aria-label={`${row.symbol} ${description}`} aria-valuemin={0} aria-valuemax={15} aria-valuenow={Math.min(15, Math.max(0, level.distancePercent))} aria-valuetext={label}>
+        <span style={{ width: `${level.fillPercent}%` }} />
+      </div>
+      <small>{source} · {nativePrice(level.stopPrice, row.currency)}</small>
+      {breached ? <small>Check execution</small> : null}
+    </div>
+  );
 }
 
 function formFromRow(row: StopRiskRow): EditForm {
@@ -216,6 +239,7 @@ export default function StopsOrdersDashboard() {
       !q || row.symbol.toUpperCase().includes(q) || row.name.toUpperCase().includes(q) || row.sector.toUpperCase().includes(q)
     ) ?? [];
     return [...filtered].sort((left, right) => {
+      if (sort === "proximity") return (stopProximity(left).distancePercent ?? Infinity) - (stopProximity(right).distancePercent ?? Infinity);
       if (sort === "symbol") return left.symbol.localeCompare(right.symbol);
       if (sort === "exceptions") return right.exceptions.length - left.exceptions.length || (right.riskFromCurrentAud ?? 0) - (left.riskFromCurrentAud ?? 0);
       if (sort === "rr") return (right.rewardRiskRatio ?? -1) - (left.rewardRiskRatio ?? -1);
@@ -270,6 +294,8 @@ export default function StopsOrdersDashboard() {
         description="SouthernStar’s own invalidation levels, broker stop reconciliation, pending entry capital and portfolio risk if protective stops are hit."
       />
 
+      <StopEmailAlerts />
+
       <div className={styles.toolbar}>
         <div className={styles.scopeTabs} aria-label="Portfolio scope">
           <ScopeButton scope="overall" current={scope} onClick={setScope}>Overall</ScopeButton>
@@ -280,6 +306,7 @@ export default function StopsOrdersDashboard() {
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter symbol, name or sector" />
           <select value={sort} onChange={(event) => setSort(event.target.value as SortKey)} aria-label="Sort stops table">
             <option value="risk">Sort by risk</option>
+            <option value="proximity">Nearest stop first</option>
             <option value="exceptions">Sort by exceptions</option>
             <option value="symbol">Sort by symbol</option>
             <option value="rr">Sort by reward/risk</option>
@@ -311,6 +338,8 @@ export default function StopsOrdersDashboard() {
             </div>
             <StatusBadge tone={rows.some((row) => row.exceptions.length) ? "warning" : "good"}>{rows.length} rows</StatusBadge>
           </div>
+          <p className={styles.gaugeLegend}>Room to stop: <span className={styles.legendGood}>green &gt;10%</span> · <span className={styles.legendWarning}>amber 5–10%</span> · <span className={styles.legendDanger}>red &lt;5%</span>. Full tank = 15%+. Based on recorded prices; broker stops take priority over SS plans.</p>
+          {summary ? <p className={styles.gaugeLegend}>Loaded {new Date(summary.capturedAt).toLocaleString("en-AU")} · price and broker imports may be older. Refresh to load updated records.</p> : null}
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
@@ -321,6 +350,7 @@ export default function StopsOrdersDashboard() {
                   <th className={styles.numeric}>Entry</th>
                   <th className={styles.numeric}>Current</th>
                   <th className={styles.numeric}>Stop</th>
+                  <th>Room to stop</th>
                   <th>Type</th>
                   <th className={styles.numeric}>Risk</th>
                   <th className={styles.numeric}>% NAV</th>
@@ -352,6 +382,7 @@ export default function StopsOrdersDashboard() {
                     <td className={styles.numeric}>{money(row.averageCostAud, 2)}</td>
                     <td className={styles.numeric}>{nativePrice(row.currentPrice, row.currency)}</td>
                     <td className={styles.numeric}>{nativePrice(row.plannedStopPrice, row.currency)}</td>
+                    <td><StopGauge row={row} /></td>
                     <td>{row.stopType ? stopTypeLabels[row.stopType] : "-"}</td>
                     <td className={styles.numeric}>{money(row.riskFromCurrentAud)}</td>
                     <td className={styles.numeric}>{percent(row.riskPercentNav)}</td>
@@ -373,7 +404,7 @@ export default function StopsOrdersDashboard() {
                 ))}
                 {!rows.length ? (
                   <tr>
-                    <td colSpan={12}><p className={styles.empty}>No matching positions.</p></td>
+                    <td colSpan={13}><p className={styles.empty}>No matching positions.</p></td>
                   </tr>
                 ) : null}
               </tbody>
