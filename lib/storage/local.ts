@@ -259,7 +259,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     return serializedLocalEvidence(async () => {
       const store = await readStore();
       const { validateTransferReview } = await import("@/lib/tax-evidence/transfers");
-      validateTransferReview(input, store.transactions, store.evidenceReviews ?? []);
+      validateTransferReview(input, store.transactions, store.evidenceReviews ?? [], store.evidenceDocuments ?? []);
       const review = { ...input, id: randomUUID(), createdAt: new Date().toISOString() };
       (store.evidenceReviews ??= []).push(review);
       await writeStore(store);

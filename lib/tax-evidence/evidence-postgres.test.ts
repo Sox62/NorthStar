@@ -97,3 +97,45 @@ test("PostgreSQL bank cash rows retain their descriptions and currency identity 
     if (previousUrl == null) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previousUrl;
   }
 });
+
+test("PostgreSQL FX receipt reviews lock, validate and retain reversible cross-currency links", async () => {
+  const previousUrl = process.env.DATABASE_URL; const previousPool = globalThis.__northStarPool;
+  process.env.DATABASE_URL = "postgresql://synthetic-unused/test";
+  const outgoing = "00000000-0000-4000-8000-000000000001", incoming = "00000000-0000-4000-8000-000000000002";
+  const source = evidenceDocument(externalFxImport(readExternalFx({ provider: "Test FX", month: "2026-10", fromCurrency: "USD", fromAmount: 20,
+    toCurrency: "AUD", toAmount: 30, fundingTransactionId: outgoing, note: "Synthetic declaration." }, "Test"), "SYNTH-FX", []).source, "PERSONAL");
+  const history: Record<string, unknown>[] = []; const calls: string[] = []; let credit = 31;
+  const client = { release() {}, async query(sql: string, values?: unknown[]) {
+    calls.push(sql);
+    if (sql.includes("FROM transactions t")) return { rows: [
+      { id: outgoing, type: "CASH_ACTIVITY", net_cash: "-20", currency: "USD", legal_owner_type: "PERSONAL", broker: "Westpac", external_account_id: "SYNTH-USD" },
+      { id: incoming, type: "CASH_ACTIVITY", net_cash: String(credit), currency: "AUD", legal_owner_type: "PERSONAL", broker: "Macquarie", external_account_id: "SYNTH-AUD" },
+    ] };
+    if (sql.includes("FROM tax_evidence_reviews")) return { rows: history };
+    if (sql.includes("FROM tax_evidence_sources")) return { rows: [{ ...source, account_key: source.accountKey, start_date: source.startDate, end_date: source.endDate, imported_at: source.importedAt, legal_owner_type: "PERSONAL" }] };
+    if (/INSERT INTO (portfolio_groups|portfolios)/.test(sql)) return { rows: [{ id: outgoing }], rowCount: 1 };
+    if (sql.includes("INSERT INTO tax_evidence_reviews")) {
+      const row = { id: `00000000-0000-4000-8000-00000000000${history.length + 3}`, outgoing_id: values![1], incoming_id: values![2], action: values![3], note: values![4], author: values![5], legal_owner_type: values![6], created_at: `2026-10-15T01:00:0${history.length}Z` };
+      history.push(row); return { rows: [row], rowCount: 1 };
+    }
+    return { rows: [], rowCount: 1 };
+  } };
+  globalThis.__northStarPool = { connect: async () => client } as unknown as Pool;
+  try {
+    const storage = new PostgresStorageAdapter();
+    const input = { ownerType: "PERSONAL" as const, outgoingId: outgoing, incomingId: incoming, externalFxId: source.id, action: "match" as const, note: "Synthetic bank receipt agrees.", author: "Test" };
+    await assert.rejects(() => storage.recordEvidenceReview(input), /payout currency and amount/);
+    assert.equal(calls.at(-1), "ROLLBACK"); assert.equal(history.length, 0);
+    credit = 30; calls.length = 0;
+    const saved = await storage.recordEvidenceReview(input);
+    assert.equal(saved.externalFxId, source.id); assert.equal(saved.note, input.note); assert.equal(calls.at(-1), "COMMIT");
+    assert.ok(calls.findIndex((sql) => sql.includes("pg_advisory_xact_lock")) < calls.findIndex((sql) => sql.includes("FROM transactions")));
+    await assert.rejects(() => storage.recordEvidenceReview(input), /already matched/);
+    const undo = await storage.recordEvidenceReview({ ...input, action: "unmatch", note: "Undo review, preserve original." });
+    assert.equal(undo.externalFxId, source.id); assert.equal(history.length, 2);
+    assert.ok(!calls.some((sql) => /UPDATE transactions|INSERT INTO transactions|current_positions|cash_accounts|portfolio_snapshots/.test(sql)));
+  } finally {
+    globalThis.__northStarPool = previousPool;
+    if (previousUrl == null) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previousUrl;
+  }
+});

@@ -2,6 +2,7 @@ import type { PoolClient } from "pg";
 import type { ImportedTransaction } from "@/lib/integrations/types";
 import type { EvidenceDocument, EvidenceReview, EvidenceSource } from "@/lib/tax-evidence/types";
 import { evidenceRaw } from "@/lib/tax-evidence/sources";
+import { decodeReviewNote } from "@/lib/tax-evidence/transfers";
 import type { LocalStore, OwnerType } from "./types";
 
 let localEvidenceQueue: Promise<unknown> = Promise.resolve();
@@ -55,7 +56,7 @@ export function pgEvidence(row: Record<string, unknown>): EvidenceDocument {
 
 export function pgReview(row: Record<string, unknown>): EvidenceReview {
   return { id: String(row.id), ownerType: row.legal_owner_type as OwnerType, outgoingId: String(row.outgoing_id), incomingId: String(row.incoming_id),
-    action: row.action as EvidenceReview["action"], note: String(row.note), author: String(row.author), createdAt: new Date(String(row.created_at)).toISOString() };
+    action: row.action as EvidenceReview["action"], ...decodeReviewNote(row.note), author: String(row.author), createdAt: new Date(String(row.created_at)).toISOString() };
 }
 
 /** Only evidence cash events may enter this path; it never rebuilds positions or changes cash/NAV. */

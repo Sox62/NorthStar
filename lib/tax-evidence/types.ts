@@ -43,6 +43,8 @@ export type EvidenceReview = {
   ownerType: OwnerType;
   outgoingId: string;
   incomingId: string;
+  /** Links an existing FX declaration to its recorded receiving cash row. */
+  externalFxId?: string;
   action: "match" | "unmatch";
   note: string;
   author: string;

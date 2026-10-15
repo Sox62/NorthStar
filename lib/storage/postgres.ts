@@ -165,18 +165,20 @@ export class PostgresStorageAdapter implements StorageAdapter {
       await client.query("BEGIN");
       // Serialize review decisions for this owner, including concurrent browser tabs.
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`tax-evidence:${input.ownerType}`]);
-      const { validateTransferReview } = await import("@/lib/tax-evidence/transfers");
+      const { validateTransferReview, encodeReviewNote } = await import("@/lib/tax-evidence/transfers");
       const cash = await client.query(`SELECT t.id,t.type,t.net_cash::text,t.currency,p.legal_owner_type,ba.broker,ba.external_account_id
         FROM transactions t JOIN portfolios p ON p.id=t.portfolio_id JOIN broker_accounts ba ON ba.id=t.account_id
         WHERE t.id=ANY($1::uuid[]) AND p.legal_owner_type=$2`, [[input.outgoingId, input.incomingId], input.ownerType]);
       const history = await client.query(`SELECT r.*,p.legal_owner_type FROM tax_evidence_reviews r JOIN portfolios p ON p.id=r.portfolio_id
         WHERE p.legal_owner_type=$1 ORDER BY r.created_at,r.id`, [input.ownerType]);
+      const declaration = input.externalFxId ? await client.query(`SELECT s.*,s.start_date::text,s.end_date::text,p.legal_owner_type
+        FROM tax_evidence_sources s JOIN portfolios p ON p.id=s.portfolio_id WHERE s.id=$1 AND p.legal_owner_type=$2`, [input.externalFxId, input.ownerType]) : null;
       validateTransferReview(input, cash.rows.map((row) => ({ id: row.id, type: row.type, netCash: optionalNumber(row.net_cash), currency: row.currency,
-        ownerType: row.legal_owner_type, broker: row.broker, accountKey: row.external_account_id })), history.rows.map(pgReview));
+        ownerType: row.legal_owner_type, broker: row.broker, accountKey: row.external_account_id })), history.rows.map(pgReview), declaration?.rows.map(pgEvidence) ?? []);
       const portfolioId = await ensurePortfolio(client, input.ownerType);
-      const result = await client.query(`INSERT INTO tax_evidence_reviews (portfolio_id,outgoing_id,incoming_id,action,note,author)
-        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *, $7::text AS legal_owner_type`,
-        [portfolioId, input.outgoingId, input.incomingId, input.action, input.note, input.author, input.ownerType]);
+      const result = await client.query(`INSERT INTO tax_evidence_reviews (portfolio_id,outgoing_id,incoming_id,action,note,author,created_at)
+        VALUES ($1,$2,$3,$4,$5,$6,clock_timestamp()) RETURNING *, $7::text AS legal_owner_type`,
+        [portfolioId, input.outgoingId, input.incomingId, input.action, encodeReviewNote(input), input.author, input.ownerType]);
       await client.query("COMMIT");
       return pgReview(result.rows[0]);
     } catch (error) { await client.query("ROLLBACK"); throw error; }

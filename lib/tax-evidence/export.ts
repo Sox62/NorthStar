@@ -25,9 +25,10 @@ export function evidenceCsvFiles(report: TaxEvidenceReport) {
       ...report.conversions.map((row) => [row.id, row.date, row.account, row.fromCurrency, row.fromAmount, row.toCurrency, row.toAmount, row.rate, row.rateBasis, row.fee, row.feeCurrency, row.sourceId]),
     ]) },
     { path: "External_FX_Evidence.csv", data: evidenceCsv([
-      ["declaration_source_id", "provider", "account", "reference", "reported_month", "exact_conversion_date", "from_currency", "from_amount", "to_currency", "to_amount", "amount_implied_to_per_from", "quoted_rate", "fee_amount", "fee_currency", "pairing_status", "evidence_basis", "funding_transaction_id", "funding_date", "funding_account", "note", "recorded_by", "supporting_source_ids"],
+      ["declaration_source_id", "provider", "account", "reference", "reported_month", "exact_conversion_date", "from_currency", "from_amount", "to_currency", "to_amount", "amount_implied_to_per_from", "quoted_rate", "fee_amount", "fee_currency", "pairing_status", "evidence_basis", "funding_transaction_id", "funding_date", "funding_account", "note", "recorded_by", "supporting_source_ids", "receipt_transaction_id", "receipt_account", "receipt_date", "receipt_currency", "receipt_amount", "receipt_source_id", "receipt_source_basis", "receipt_review_id", "receipt_review_note"],
       ...report.externalFx.map((row) => [row.id, row.provider, row.account, row.reference, row.month, row.conversionDate, row.fromCurrency, row.fromAmount, row.toCurrency, row.toAmount,
-        row.amountImpliedRate, row.quotedRate, row.feeAmount, row.feeCurrency, row.pairingStatus, row.evidenceBasis, row.fundingTransactionId, row.fundingDate, row.fundingAccount, row.note, row.author, row.supportingSourceIds.join(";")]),
+        row.amountImpliedRate, row.quotedRate, row.feeAmount, row.feeCurrency, row.pairingStatus, row.evidenceBasis, row.fundingTransactionId, row.fundingDate, row.fundingAccount, row.note, row.author, row.supportingSourceIds.join(";"),
+        row.receipt?.transactionId, row.receipt?.account, row.receipt?.date, row.receipt?.currency, row.receipt?.amount, row.receipt?.sourceId, row.receipt?.sourceBasis, row.receipt?.reviewId, row.receipt?.note]),
     ]) },
     { path: "Transfers_Reconciliation.csv", data: evidenceCsv([
       ["outgoing_row_id", "incoming_row_id", "from_account", "to_account", "withdrawal_date", "receipt_date", "currency", "withdrawal", "receipt", "difference", "review_status", "review_note"],
@@ -56,7 +57,7 @@ export function evidenceZip(report: TaxEvidenceReport, documents: EvidenceDocume
     files.push({ path: `Supporting_Documents/${document.system}/${document.id}-${name}`, data });
   }
   if (documents.length !== ids.size) throw new Error("A source document is unavailable. Retry after restoring the missing evidence.");
-  const selectedIds = new Set([...report.transactions.map((row) => row.id), ...report.externalFx.map((row) => row.fundingTransactionId)]);
+  const selectedIds = new Set([...report.transactions.map((row) => row.id), ...report.externalFx.flatMap((row) => [row.fundingTransactionId, row.receipt?.transactionId])]);
   files.push({ path: "Report.json", data: JSON.stringify(report, null, 2) });
   files.push({ path: "Canonical_Transactions.json", data: JSON.stringify(canonicalTransactions.filter((row) => row.ownerType === report.ownerType && selectedIds.has(row.id)), null, 2) });
   files.push({ path: "Review_History.json", data: JSON.stringify(report.reviews, null, 2) });

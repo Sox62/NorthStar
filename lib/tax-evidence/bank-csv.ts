@@ -62,7 +62,8 @@ export function parseBankEvidenceCsv(content: Buffer, input: {
   });
   return { transactions, source: { system: input.system, accountKey: input.accountKey, filename: input.filename, mediaType: "text/csv",
     contentBase64: content.toString("base64"), startDate: input.startDate, endDate: input.endDate,
-    metadata: { timezone: null, sections: ["Bank transactions"], coverageBasis: "Period declared on import; verify against original statement",
+    metadata: { timezone: null, sections: ["Bank transactions"], evidenceBasis: [...new Set(records.map((row) => row.EvidenceBasis).filter(Boolean))].join("; ") || null,
+      coverageBasis: "Period declared on import; verify against original statement",
       balances: [{ currency: input.currency, startDate: input.startDate, endDate: input.endDate, opening: input.opening ?? null, closing: input.closing ?? null }],
       balanceBasis: "Opening/closing balances declared on import" } } };
 }

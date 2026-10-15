@@ -3,6 +3,7 @@ import { getStorage } from "@/lib/storage";
 
 export const runtime = "nodejs";
 const schema = z.object({ ownerType: z.enum(["PERSONAL", "SMSF"]), outgoingId: z.string().uuid(), incomingId: z.string().uuid(),
+  externalFxId: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   action: z.enum(["match", "unmatch"]), note: z.string().trim().min(1).max(2000) });
 export async function POST(request: Request) {
   try {

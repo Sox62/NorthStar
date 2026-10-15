@@ -8,7 +8,7 @@ import { parseBankEvidenceCsv, evidenceDate } from "./bank-csv";
 import { buildTaxEvidenceReport, conversionEvidence } from "./report";
 import { evidenceCsv, evidenceZip } from "./export";
 import { evidenceDocument, sourceHash } from "./sources";
-import { validateTransferReview } from "./transfers";
+import { validateTransferReview, encodeReviewNote, decodeReviewNote } from "./transfers";
 import { parseWestpacActivityText } from "./bank-pdf";
 import { externalFxImport, readExternalFx } from "./external-fx";
 import type { LocalStore, StoredTransaction } from "@/lib/storage/types";
@@ -467,4 +467,108 @@ test("external declarations retain year boundaries and cannot silently change fa
   assert.equal(buildTaxEvidenceReport("PERSONAL", [], source, [], 2028, at).externalFx[0].feeAmount, 0);
   const changed = structuredClone(input); changed.source.metadata.externalFx!.toAmount = 20;
   await assert.rejects(() => storage.importTaxEvidence(changed, "PERSONAL"), /different coverage or balances/);
+});
+
+test("external FX payouts reconcile to receiving credits with append-only undo and no changed cash facts", async () => {
+  writeFileSync(dataFile, JSON.stringify(empty));
+  const { LocalStorageAdapter } = await import("@/lib/storage/local");
+  const { readStore } = await import("@/lib/storage/local-store");
+  const { POST } = await import("@/app/api/tax-evidence/reviews/route");
+  const storage = new LocalStorageAdapter();
+  await storage.importTaxEvidence(bank("Westpac", -1000, "FX-FUND"), "PERSONAL");
+  const credit = parseBankEvidenceCsv(Buffer.from("Date,Description,Currency,Amount,EvidenceBasis,UnlabelledAdjacentValue\n2026-10-02,From Synthetic FX,AUD,1500,User-transcribed bank activity,1599.50\n"), {
+    system: "Macquarie", accountKey: "SYNTH-AUD", currency: "AUD", filename: "user-transcribed.csv", startDate: "2026-10-01", endDate: "2026-10-02",
+  });
+  await storage.importTaxEvidence(credit, "PERSONAL");
+  const rows = await storage.listTransactions("PERSONAL");
+  const outgoing = rows.find((row) => row.netCash === -1000)!;
+  const incoming = rows.find((row) => row.netCash === 1500)!;
+  const declaration = readExternalFx({ provider: "Synthetic FX", month: "2026-10", fromCurrency: "USD", fromAmount: 1000, toCurrency: "AUD", toAmount: 1500,
+    fundingTransactionId: outgoing.id, note: "Exact execution date and fees not supplied." }, "Test");
+  const original = await storage.importTaxEvidence(externalFxImport(declaration, "SYNTH-FX", []), "PERSONAL");
+  const before = await readStore();
+  const input = { ownerType: "PERSONAL", outgoingId: outgoing.id, incomingId: incoming.id, externalFxId: original.sourceId, action: "match", note: "Payer, amount and date agree with the user-transcribed receiving entry." };
+  const post = (changes = {}) => POST(new Request("http://localhost/api/tax-evidence/reviews", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...input, ...changes }) }));
+  assert.equal((await post()).status, 200);
+  assert.equal((await post()).status, 400);
+  assert.equal((await post({ ownerType: "SMSF" })).status, 400);
+  assert.equal((await post({ externalFxId: "0".repeat(64) })).status, 400);
+  assert.equal((await post({ externalFxId: undefined })).status, 400);
+  const sources = await storage.listEvidenceSources("PERSONAL");
+  const reviews = await storage.listEvidenceReviews("PERSONAL");
+  const report = buildTaxEvidenceReport("PERSONAL", rows, sources, reviews, 2027, at);
+  const receipt = report.externalFx[0].receipt!;
+  assert.equal(receipt.date, "2026-10-02"); assert.equal(receipt.amount, 1500); assert.equal(receipt.transactionId, incoming.id);
+  assert.equal(receipt.sourceBasis, "User-transcribed bank activity");
+  assert.equal(report.externalFx[0].conversionDate, null); assert.equal(report.externalFx[0].pairingStatus, "provisional");
+  assert.equal(report.transfers.length, 0); assert.equal(report.reviews.length, 1);
+  assert.ok(!report.exceptions.some((row) => row.code === "unmatched_cash" && [outgoing.id, incoming.id].includes(row.transactionId!)));
+  assert.ok(report.exceptions.some((row) => row.code === "user_transcribed_bank_source"));
+  const after = await readStore();
+  for (const key of ["transactions", "positions", "cashAccounts", "snapshots", "evidenceDocuments"] as const) assert.deepEqual(after[key], before[key]);
+  assert.equal(incoming.raw!.UnlabelledAdjacentValue, "1599.50"); assert.equal(incoming.raw!._statementBalance, null);
+  const files = unzip(evidenceZip(report, after.evidenceDocuments!, rows));
+  assert.match(files.get("External_FX_Evidence.csv")!.toString(), /receipt_date/);
+  assert.match(files.get("External_FX_Evidence.csv")!.toString(), /2026-10-02/);
+  assert.equal(JSON.parse(files.get("Review_History.json")!.toString())[0].externalFxId, original.sourceId);
+  assert.equal((await post({ action: "unmatch", note: "Review undone; originals retained." })).status, 200);
+  const undone = buildTaxEvidenceReport("PERSONAL", rows, sources, await storage.listEvidenceReviews("PERSONAL"), 2027, at);
+  assert.equal(undone.externalFx[0].receipt, null); assert.equal(undone.reviews.length, 2);
+  assert.ok(undone.exceptions.some((row) => row.code === "external_fx_receipt_unlinked"));
+});
+
+test("FX receipt reviews reject wrong payout amounts and retain cross-year receiving evidence", async () => {
+  writeFileSync(dataFile, JSON.stringify(empty));
+  const { LocalStorageAdapter } = await import("@/lib/storage/local");
+  const storage = new LocalStorageAdapter();
+  const out = bank("Westpac", -20, "FY-FUND"); out.transactions[0].tradeDate = "2027-06-30";
+  await storage.importTaxEvidence(out, "PERSONAL");
+  await storage.importTaxEvidence(parseBankEvidenceCsv(Buffer.from("Date,Description,Amount,TransactionID\n2027-07-01,Test FX,30,FY-RECEIPT\n"), {
+    system: "Macquarie", accountKey: "SYNTH", currency: "AUD", filename: "july.csv", startDate: "2027-07-01", endDate: "2027-07-01",
+  }), "PERSONAL");
+  const rows = await storage.listTransactions("PERSONAL"); const incoming = rows.find((row) => row.netCash === 30)!; const funding = rows.find((row) => row.netCash === -20)!;
+  const input = externalFxImport(readExternalFx({ provider: "Test FX", month: "2027-06", fromCurrency: "USD", fromAmount: 20, toCurrency: "AUD", toAmount: 30,
+    fundingTransactionId: funding.id, note: "June funding, July receipt; execution date unknown." }, "Test"), "SYNTH", []);
+  const saved = await storage.importTaxEvidence(input, "PERSONAL"); const sources = await storage.listEvidenceSources("PERSONAL");
+  const review = { ownerType: "PERSONAL" as const, outgoingId: funding.id, incomingId: incoming.id, externalFxId: saved.sourceId, action: "match" as const, note: "Cross-year receipt verified.", author: "Test" };
+  assert.throws(() => validateTransferReview(review, rows.map((row) => row.id === incoming.id ? { ...row, netCash: 31 } : row), [], sources), /payout currency and amount/);
+  assert.throws(() => validateTransferReview(review, rows.map((row) => row.id === incoming.id ? { ...row, currency: "USD" } : row), [], sources), /payout currency and amount/);
+  await storage.recordEvidenceReview(review);
+  const july = buildTaxEvidenceReport("PERSONAL", rows, sources, await storage.listEvidenceReviews("PERSONAL"), 2028, at);
+  assert.equal(july.externalFx.length, 1); assert.equal(july.externalFx[0].month, "2027-06"); assert.equal(july.externalFx[0].receipt?.date, "2027-07-01");
+  assert.equal(july.sources.length, 3);
+  const june = buildTaxEvidenceReport("PERSONAL", rows, sources, await storage.listEvidenceReviews("PERSONAL"), 2027, at);
+  const { readStore } = await import("@/lib/storage/local-store");
+  const store = await readStore(); const selectedDocs = store.evidenceDocuments!.filter((d) => june.sources.some((s) => s.id === d.id));
+  const files = unzip(evidenceZip(june, selectedDocs, rows));
+  assert.equal(JSON.parse(files.get("Canonical_Transactions.json")!.toString()).length, 2);
+});
+
+test("review notes round-trip FX identity without reinterpreting historical human notes", () => {
+  const input = { note: "Receipt confirmed; original source retained.", externalFxId: "a".repeat(64) };
+  assert.deepEqual(decodeReviewNote(encodeReviewNote(input)), input);
+  assert.deepEqual(decodeReviewNote("Legacy transfer note"), { note: "Legacy transfer note" });
+  const prefixedHuman = { note: "SS-EVIDENCE-REVIEW-V1:human supplied text" };
+  assert.deepEqual(decodeReviewNote(encodeReviewNote(prefixedHuman)), prefixedHuman);
+  assert.deepEqual(decodeReviewNote('SS-EVIDENCE-REVIEW-V1:{"note":"Human note","ownerType":"SMSF","incomingId":"other"}'), { note: "Human note" });
+});
+
+test("concurrent FX reviews cannot reuse a receiving-bank credit", async () => {
+  writeFileSync(dataFile, JSON.stringify(empty));
+  const { LocalStorageAdapter } = await import("@/lib/storage/local"); const storage = new LocalStorageAdapter();
+  await storage.importTaxEvidence(bank("Westpac", -20, "FUND-A"), "PERSONAL");
+  await storage.importTaxEvidence(bank("Westpac", -20, "FUND-B"), "PERSONAL");
+  await storage.importTaxEvidence(parseBankEvidenceCsv(Buffer.from("Date,Description,Amount,TransactionID\n2026-10-02,Test FX,30,ONE-CREDIT\n"), {
+    system: "Macquarie", accountKey: "SYNTH-AUD", currency: "AUD", filename: "credit.csv", startDate: "2026-10-01", endDate: "2026-10-02",
+  }), "PERSONAL");
+  const rows = await storage.listTransactions("PERSONAL"); const credit = rows.find((row) => row.netCash === 30)!;
+  const reviews = [];
+  for (const funding of rows.filter((row) => row.netCash === -20)) {
+    const doc = await storage.importTaxEvidence(externalFxImport(readExternalFx({ provider: "Test FX", month: "2026-10", fromCurrency: "USD", fromAmount: 20,
+      toCurrency: "AUD", toAmount: 30, fundingTransactionId: funding.id, note: "Synthetic payout." }, "Test"), "SYNTH-FX", []), "PERSONAL");
+    reviews.push({ ownerType: "PERSONAL" as const, outgoingId: funding.id, incomingId: credit.id, externalFxId: doc.sourceId, action: "match" as const, note: "Review incoming credit.", author: "Test" });
+  }
+  const outcomes = await Promise.allSettled(reviews.map((review) => storage.recordEvidenceReview(review)));
+  assert.equal(outcomes.filter((result) => result.status === "fulfilled").length, 1);
+  assert.equal((await storage.listEvidenceReviews("PERSONAL")).length, 1);
 });

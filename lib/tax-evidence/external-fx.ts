@@ -44,7 +44,7 @@ export function readExternalFx(input: Record<string, unknown>, author: string): 
     feeAmount, feeCurrency, fundingTransactionId, pairingStatus, evidenceBasis, note: text("note", 4000, true)!, author };
 }
 
-export function validateExternalFunding(row: ExternalFxEvidence, transactions: StoredTransaction[], owner: OwnerType) {
+export function validateExternalFunding<T extends Pick<StoredTransaction, "id" | "ownerType" | "type" | "netCash" | "currency">>(row: ExternalFxEvidence, transactions: T[], owner: OwnerType) {
   if (!row.fundingTransactionId) return null;
   const funding = transactions.find((item) => item.id === row.fundingTransactionId && item.ownerType === owner);
   if (!funding || !["CASH_ACTIVITY", "DEPOSIT", "WITHDRAWAL"].includes(funding.type) || (funding.netCash ?? 0) >= 0
@@ -63,7 +63,7 @@ export function externalFxImport(row: ExternalFxEvidence, accountKey: string, su
       externalFx: row, supportingSourceIds: declaration.supportingSourceIds } } };
 }
 
-export function externalFxForReport(owner: OwnerType, sources: EvidenceSource[], transactions: StoredTransaction[], start: string, end: string) {
+export function externalFxForReport(owner: OwnerType, sources: EvidenceSource[], transactions: StoredTransaction[], start: string, end: string, includeIds = new Set<string>()) {
   const rows: Array<ExternalFxEvidence & { id: string; account: string; amountImpliedRate: number; fundingAccount: string | null; fundingDate: string | null; supportingSourceIds: string[] }> = [];
   const exceptions: Array<{ code: string; transactionId: string | null; detail: string }> = [];
   const explainedFunding = new Set<string>();
@@ -77,12 +77,12 @@ export function externalFxForReport(owner: OwnerType, sources: EvidenceSource[],
     try { declaration = readExternalFx(source.metadata.externalFx as unknown as Record<string, unknown>, source.metadata.externalFx.author); }
     catch { exceptions.push({ code: "invalid_external_fx", transactionId: null, detail: `External FX declaration ${source.id} is invalid and needs review.` }); continue; }
     const date = declaration.conversionDate ?? `${declaration.month}-01`;
-    if (date < start || date > end) continue;
+    if ((date < start || date > end) && !includeIds.has(source.id)) continue;
     let funding: StoredTransaction | null = null;
     try { funding = validateExternalFunding(declaration, transactions, owner); }
     catch { exceptions.push({ code: "external_fx_funding_mismatch", transactionId: declaration.fundingTransactionId, detail: `${declaration.provider}: linked funding record does not agree with the declared currency/amount/owner.` }); }
     if (!funding) exceptions.push({ code: "external_fx_unlinked", transactionId: null, detail: `${declaration.provider} ${declaration.month}: no matching recorded funding withdrawal is linked.` });
-    if (!declaration.conversionDate) exceptions.push({ code: "external_fx_date_unknown", transactionId: null, detail: `${declaration.provider} ${declaration.month}: exact conversion/payout date is unknown; only the reported month is used for year selection.` });
+    if (!declaration.conversionDate) exceptions.push({ code: "external_fx_date_unknown", transactionId: null, detail: `${declaration.provider} ${declaration.month}: exact FX conversion date is unknown. The declaration retains month precision; receiving-bank dates are tracked separately.` });
     if (declaration.evidenceBasis === "user_reported") exceptions.push({ code: "external_fx_user_reported", transactionId: null, detail: `${declaration.provider} ${declaration.month}: amounts are user-reported; the ratio is not a confirmed execution rate.` });
     if (declaration.feeAmount == null) exceptions.push({ code: "external_fx_fee_unknown", transactionId: null, detail: `${declaration.provider} ${declaration.month}: provider fees are unknown, not assumed zero.` });
     const support = source.metadata.supportingSourceIds ?? [];

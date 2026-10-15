@@ -3,7 +3,7 @@ import { financialYear } from "@/lib/reports/eofy/utils";
 import type { OwnerType, StoredTransaction } from "@/lib/storage/types";
 import type { EvidenceReview, EvidenceSource } from "./types";
 import { accountReference, displayAccount } from "./sources";
-import { activeTransferReviews, isTransferCash } from "./transfers";
+import { activeEvidenceReviews, activeTransferReviews, isTransferCash, validateTransferReview } from "./transfers";
 import { externalFxForReport } from "./external-fx";
 
 export const evidenceDeclaration = "Transaction evidence only; Australian CGT and Division 775 forex tax treatment to be determined by the accountant.";
@@ -39,13 +39,31 @@ export function buildTaxEvidenceReport(ownerType: OwnerType, transactions: Store
   const selected = owned.filter((row) => inPeriod(row.tradeDate)).sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || a.id.localeCompare(b.id));
   const sourcesById = new Map(allSources.filter((source) => source.ownerType === ownerType).map((source) => [source.id, source]));
   const exceptions: Array<{ code: string; transactionId: string | null; detail: string }> = [];
-  const externalFx = externalFxForReport(ownerType, allSources, owned, period.startDate, period.endDate);
-  exceptions.push(...externalFx.exceptions);
   const selectedIds = new Set(selected.map((row) => row.id));
-  const active = activeTransferReviews(allReviews.filter((review) => review.ownerType === ownerType));
+  const ownedReviews = allReviews.filter((review) => review.ownerType === ownerType);
+  const active = activeTransferReviews(ownedReviews);
+  const fxReceiptReviews = activeEvidenceReviews(ownedReviews).filter((review) => review.externalFxId).filter((review) => {
+    try { validateTransferReview(review, owned, [], allSources); return true; }
+    catch { exceptions.push({ code: "external_fx_receipt_invalid", transactionId: review.incomingId, detail: "An FX receipt review no longer agrees with its owner, declaration or cash records. It has not been treated as reconciled." }); return false; }
+  });
+  const externalFx = externalFxForReport(ownerType, allSources, owned, period.startDate, period.endDate,
+    new Set(fxReceiptReviews.filter((review) => selectedIds.has(review.outgoingId) || selectedIds.has(review.incomingId)).map((review) => review.externalFxId!)));
+  exceptions.push(...externalFx.exceptions);
+  const externalFxRows = externalFx.rows.map((row) => {
+    const review = fxReceiptReviews.find((review) => review.externalFxId === row.id);
+    const credit = review ? owned.find((credit) => credit.id === review.incomingId)! : null;
+    const sourceId = typeof credit?.raw?._evidenceSourceId === "string" ? credit.raw._evidenceSourceId : null;
+    if (sourceId) externalFx.referencedSourceIds.add(sourceId);
+    const receipt = credit && review ? { transactionId: credit.id, account: displayAccount(credit.broker, credit.accountKey), date: credit.tradeDate,
+      currency: credit.currency, amount: credit.netCash!, sourceId, sourceBasis: String(credit.raw?.EvidenceBasis ?? "Recorded bank source; review original"),
+      reviewId: review.id, note: review.note, author: review.author, reviewedAt: review.createdAt } : null;
+    if (!receipt) exceptions.push({ code: "external_fx_receipt_unlinked", transactionId: row.fundingTransactionId, detail: `${row.provider} ${row.month}: payout has not been reconciled to a recorded receiving-bank credit.` });
+    return { ...row, receipt };
+  });
   for (const review of active) if (externalFx.explainedFunding.has(review.outgoingId)) exceptions.push({ code: "external_fx_double_assignment", transactionId: review.outgoingId,
     detail: "A withdrawal has both a confirmed cash-transfer match and a user-confirmed external FX declaration. Review the conflicting links." });
-  const assigned = new Set([...active.flatMap((review) => [review.outgoingId, review.incomingId]), ...externalFx.explainedFunding]);
+  const assigned = new Set([...active.flatMap((review) => [review.outgoingId, review.incomingId]), ...externalFx.explainedFunding,
+    ...fxReceiptReviews.flatMap((review) => [review.outgoingId, review.incomingId])]);
   const transferPairs: Array<{ outgoingId: string; incomingId: string; outgoingAccount: string; incomingAccount: string; outgoingDate: string; incomingDate: string;
     currency: string; outgoingAmount: number; incomingAmount: number; difference: number; status: "candidate" | "confirmed"; note: string }> = [];
   const cash = owned.filter(isTransferCash);
@@ -123,6 +141,8 @@ export function buildTaxEvidenceReport(ownerType: OwnerType, transactions: Store
     if (!sources.some((source) => source.system === system)) exceptions.push({ code: "missing_evidence", transactionId: null, detail: `Missing evidence: no ${system} source document supplied for this financial year.` });
   }
   for (const source of sources) {
+    if (/user.transcribed/i.test(String(source.metadata.evidenceBasis ?? ""))) exceptions.push({ code: "user_transcribed_bank_source", transactionId: null,
+      detail: `${source.filename}: user-transcribed bank activity; an original bank statement/export has not been supplied for these entries.` });
     if (!source.metadata.timezone) exceptions.push({ code: "source_timezone_unknown", transactionId: null, detail: `${source.filename}: broker/bank timezone not supplied. Reporting uses the original source calendar date; verify year-end cutoffs.` });
     if (source.system === "IBKR") {
       const sections = source.metadata.sections ?? [];
@@ -190,10 +210,12 @@ export function buildTaxEvidenceReport(ownerType: OwnerType, transactions: Store
     if (status !== "arithmetic_matches") exceptions.push({ code: `cash_${status}`, transactionId: null, detail: `${row.account} ${row.currency}: ${variance == null ? "year-end statement balances or cash movements are missing" : `cash roll-forward differs by ${variance.toFixed(2)}`}.` });
     return { id, ...row, variance, status };
   }).sort((a, b) => a.id.localeCompare(b.id));
-  const reviews = allReviews.filter((review) => review.ownerType === ownerType && (selectedIds.has(review.outgoingId) || selectedIds.has(review.incomingId)));
-  const inputHash = hash({ ownerType, year, transactions: selected, sources: sources.map((source) => ({ ...source, importedAt: source.importedAt })), reviews, externalFx: externalFx.rows });
-  return { version: "tax-evidence-v2", ownerType, period, generatedAt: generatedAt.toISOString(), timezone: "Australia/Sydney", dateBasis: "Original broker/bank calendar date; external declarations retain month precision when exact dates are unknown", declaration: evidenceDeclaration,
+  const fxIds = new Set(externalFxRows.map((row) => row.id));
+  const reviews = allReviews.filter((review) => review.ownerType === ownerType && (selectedIds.has(review.outgoingId) || selectedIds.has(review.incomingId)
+    || (review.externalFxId != null && fxIds.has(review.externalFxId))));
+  const inputHash = hash({ ownerType, year, transactions: selected, sources: sources.map((source) => ({ ...source, importedAt: source.importedAt })), reviews, externalFx: externalFxRows });
+  return { version: "tax-evidence-v3", ownerType, period, generatedAt: generatedAt.toISOString(), timezone: "Australia/Sydney", dateBasis: "Original broker/bank calendar date; external declarations retain month precision when exact dates are unknown", declaration: evidenceDeclaration,
     inputHash, transactions: rows, conversions: rows.flatMap((row) => row.fx ? [{ ...row.fx, date: row.date, account: row.account, sourceId: row.sourceId }] : []),
-    externalFx: externalFx.rows, transfers: transferPairs, balances, currencyTotals: [...currencyTotals.values()].sort((a, b) => a.currency.localeCompare(b.currency)), exceptions, reviews,
+    externalFx: externalFxRows, transfers: transferPairs, balances, currencyTotals: [...currencyTotals.values()].sort((a, b) => a.currency.localeCompare(b.currency)), exceptions, reviews,
     sources: sources.map(({ accountKey, ...source }) => ({ ...source, account: displayAccount(source.system, accountKey), filename: source.filename.replaceAll(accountKey, `…${accountKey.slice(-3)}`) })) };
 }

@@ -11,3 +11,12 @@
 .importForm .wide { grid-column: 1 / -1; }
 .exceptions { padding-left: 20px; max-height: 360px; overflow-y: auto; }
 .exceptions li { margin-bottom: 12px; }
+.fxItems { display: grid; gap: 16px; margin: 20px 0; }
+.fxItem { padding: 16px; border: 1px solid var(--line, #34414b); border-radius: 12px; }
+.fxItem h3 { margin: 0 0 16px; overflow-wrap: anywhere; }
+.fxFacts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin: 0 0 18px; }
+.fxFacts dt { opacity: .7; margin-bottom: 6px; }
+.fxFacts dd { margin: 0; font-variant-numeric: tabular-nums; }
+.fxFacts small { display: block; opacity: .75; margin-top: 6px; }
+.fxItem details { margin-top: 14px; }
+.fxItem textarea, .fxItem select { width: 100%; min-width: 0; }
