@@ -185,11 +185,20 @@
   font-variant-numeric: tabular-nums;
 }
 
+.assetIdentity {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px;
+  align-items: center;
+  gap: 12px;
+  width: clamp(208px, calc(100vw - 96px), 280px);
+}
+
 .assetButton {
   display: flex;
   flex-direction: column;
   gap: 2px;
   width: 100%;
+  min-width: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -205,7 +214,7 @@
 }
 
 .assetButton span {
-  max-width: 220px;
+  max-width: 100%;
   overflow: hidden;
   color: var(--text-muted);
   text-overflow: ellipsis;
@@ -373,40 +382,41 @@
 .legendDanger { color: var(--status-negative, #ed7070); }
 
 .stopGauge {
-  --gauge-color: var(--status-positive, #54b389);
+  --gauge-color: #72a18d;
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  min-width: 145px;
-  max-width: 190px;
+  gap: 3px;
+  min-width: 0;
+  width: 86px;
   font-variant-numeric: tabular-nums;
 }
 
-.gauge_warning { --gauge-color: var(--status-warning, #d7b56d); }
+.gauge_warning { --gauge-color: #b9a273; }
 .gauge_danger,
-.gauge_breached { --gauge-color: var(--status-negative, #ed7070); }
+.gauge_breached { --gauge-color: #bd8484; }
 
 .gaugeHeading strong {
-  color: var(--gauge-color);
-  font-size: 11px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
 }
 
 .gaugeTrack {
-  height: 12px;
+  height: 5px;
   overflow: hidden;
-  border: 1px solid var(--gauge-color);
-  border-radius: 3px;
-  background: var(--surface-control);
+  border-radius: 2px;
+  background: rgba(140, 157, 174, 0.16);
 }
 
 .gaugeTrack span {
   display: block;
   height: 100%;
   background: var(--gauge-color);
+  opacity: 0.8;
 }
 
-.stopGauge small { margin-top: 0; font-size: 10px; }
-.gaugeUnknown { color: var(--text-muted); font-size: 11px; }
+.stopGauge small { margin-top: 0; font-size: 9px; }
+.gaugeUnknown { color: var(--text-muted); font-size: 10px; }
 
 .emailAlerts { margin-top: 18px; padding: 14px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-card); font-size: 12px; }
 .emailAlerts summary { cursor: pointer; font-weight: 600; }

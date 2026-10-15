@@ -93,8 +93,7 @@ function StopGauge({ row }: { row: StopRiskRow }) {
       <div className={styles.gaugeTrack} role="meter" aria-label={`${row.symbol} ${description}`} aria-valuemin={0} aria-valuemax={15} aria-valuenow={Math.min(15, Math.max(0, level.distancePercent))} aria-valuetext={label}>
         <span style={{ width: `${level.fillPercent}%` }} />
       </div>
-      <small>{source} · {nativePrice(level.stopPrice, row.currency)}</small>
-      {breached ? <small>Check execution</small> : null}
+      <small>{source}</small>
     </div>
   );
 }
@@ -350,7 +349,6 @@ export default function StopsOrdersDashboard() {
                   <th className={styles.numeric}>Entry</th>
                   <th className={styles.numeric}>Current</th>
                   <th className={styles.numeric}>Stop</th>
-                  <th>Room to stop</th>
                   <th>Type</th>
                   <th className={styles.numeric}>Risk</th>
                   <th className={styles.numeric}>% NAV</th>
@@ -363,10 +361,13 @@ export default function StopsOrdersDashboard() {
                 {rows.map((row) => (
                   <tr key={row.positionId} className={selectedId === row.positionId ? styles.selectedRow : undefined} onClick={() => selectRow(row)}>
                     <td>
-                      <button type="button" className={styles.assetButton} onClick={() => selectRow(row)}>
-                        <strong>{row.symbol}</strong>
-                        <span>{row.name}</span>
-                      </button>
+                      <div className={styles.assetIdentity}>
+                        <button type="button" className={styles.assetButton} onClick={() => selectRow(row)}>
+                          <strong>{row.symbol}</strong>
+                          <span>{row.name}</span>
+                        </button>
+                        <StopGauge row={row} />
+                      </div>
                       {row.exceptions.length ? (
                         <div className={styles.exceptionList}>
                           {row.exceptions.slice(0, 3).map((exception) => (
@@ -382,7 +383,6 @@ export default function StopsOrdersDashboard() {
                     <td className={styles.numeric}>{money(row.averageCostAud, 2)}</td>
                     <td className={styles.numeric}>{nativePrice(row.currentPrice, row.currency)}</td>
                     <td className={styles.numeric}>{nativePrice(row.plannedStopPrice, row.currency)}</td>
-                    <td><StopGauge row={row} /></td>
                     <td>{row.stopType ? stopTypeLabels[row.stopType] : "-"}</td>
                     <td className={styles.numeric}>{money(row.riskFromCurrentAud)}</td>
                     <td className={styles.numeric}>{percent(row.riskPercentNav)}</td>
@@ -404,7 +404,7 @@ export default function StopsOrdersDashboard() {
                 ))}
                 {!rows.length ? (
                   <tr>
-                    <td colSpan={13}><p className={styles.empty}>No matching positions.</p></td>
+                    <td colSpan={12}><p className={styles.empty}>No matching positions.</p></td>
                   </tr>
                 ) : null}
               </tbody>
