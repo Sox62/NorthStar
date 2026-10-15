@@ -1,4 +1,4 @@
-import type { DuplicateTradeWarning, RealisedTaxLot, UnappliedCorporateAction } from "@/lib/tax-lots";
+import type { DuplicateTradeWarning, MissingFxTransaction, RealisedTaxLot, UnappliedCorporateAction } from "@/lib/tax-lots";
 import type { EofyHistoricalCostRow, EofyHoldingReference, EofyIncomePayment } from "./types";
 
 export function dataQualityNotes(report: {
@@ -10,6 +10,7 @@ export function dataQualityNotes(report: {
   unappliedActions?: UnappliedCorporateAction[];
   duplicates?: DuplicateTradeWarning[];
   nearDuplicates?: DuplicateTradeWarning[];
+  missingFx?: MissingFxTransaction[];
 }) {
   const notes = [
     "Prepared from imported SouthernStar broker transactions and dividend notifications. Accountant should verify against broker statements.",
@@ -65,6 +66,22 @@ export function dataQualityNotes(report: {
     notes.push(
       `${row.symbol} ${row.type} of ${row.quantity} on ${row.tradeDate} may be one trade recorded twice: ${row.reason}. `
       + "Both have been kept; check the contract note before relying on this holding's cost base.",
+    );
+  }
+
+  /*
+   * A foreign row with no rate was valued at 1, producing an AUD figure that reads as a measurement
+   * and is not one: a USD100 purchase reported a cost base of AUD100. The arithmetic still has to
+   * produce something, so the assumption is named here rather than left to look like a fact.
+   */
+  const unratedRows = report.missingFx ?? [];
+  if (unratedRows.length) {
+    const currencies = [...new Set(unratedRows.map((row) => row.currency))].sort();
+    const symbols = [...new Set(unratedRows.map((row) => row.symbol))].sort();
+    notes.push(
+      `${unratedRows.length} ${currencies.join("/")} transaction${unratedRows.length === 1 ? " has" : "s have"} no exchange rate `
+      + `(${symbols.join(", ")}), so ${unratedRows.length === 1 ? "its" : "their"} Australian dollar amounts are assumed at parity `
+      + "rather than measured. Every total that includes them is provisional until the rates are supplied.",
     );
   }
 

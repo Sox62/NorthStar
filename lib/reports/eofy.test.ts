@@ -507,3 +507,89 @@ test("the historical schedule applies a consolidation", () => {
   assert.equal(row.costOfSalesAud.toFixed(2), "150.00");
   assert.equal(row.closingBalanceAud.toFixed(2), "150.00");
 });
+
+test("year-end open lots come from what was held at year end", () => {
+  /*
+   * The schedule took its quantities from current holdings, so a position sold after 30 June
+   * reported the year-end value of two units spread across the one still held, and a holding sold
+   * out entirely vanished from a schedule whose purpose is to show what was owned on 30 June.
+   */
+  const base = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "Directshares", accountKey: "A", symbol: "T", exchange: "ASX",
+    instrumentKey: "Directshares:T:ASX", currency: "AUD", fxRateToBase: 1, fees: 0, source: "S", ...over,
+  });
+  const rows = [
+    base({ id: "b", externalId: "b", tradeDate: "2025-08-01", type: "BUY", quantity: 2, cost: 200 }),
+    // Sold in August 2026 — the next financial year, after the 30 June cut-off.
+    base({ id: "s", externalId: "s", tradeDate: "2026-08-01", type: "SELL", quantity: 1, cost: 150, netCash: 150 }),
+  ];
+  const report = buildEofyReport("personal", dashboard([
+    holding({ id: "h", symbol: "T", name: "T", exchange: "ASX", currency: "AUD", quantity: 1, costAud: 100, marketValueAud: 150 }),
+  ]), rows as never, 2026, new Date("2026-10-15T00:00:00.000Z"));
+
+  assert.equal(report.historicalCost[0].closingQuantity, 2, "two units were held on 30 June");
+  const open = [...report.unrealisedCgt.shortTerm, ...report.unrealisedCgt.longTerm];
+  assert.equal(open.reduce((sum, lot) => sum + lot.quantity, 0), 2, "the open schedule agrees, rather than reading today's one");
+  assert.equal(open.reduce((sum, lot) => sum + lot.costAud, 0).toFixed(2), "200.00");
+});
+
+test("a holding sold out after year end is still in the year-end schedule", () => {
+  const base = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "Directshares", accountKey: "A", symbol: "Z", exchange: "ASX",
+    instrumentKey: "Directshares:Z:ASX", currency: "AUD", fxRateToBase: 1, fees: 0, source: "S", ...over,
+  });
+  const rows = [
+    base({ id: "b", externalId: "b", tradeDate: "2025-08-01", type: "BUY", quantity: 10, cost: 1000 }),
+    base({ id: "s", externalId: "s", tradeDate: "2026-09-01", type: "SELL", quantity: 10, cost: 1500, netCash: 1500 }),
+  ];
+  // Nothing is held now, so the old path had nothing to scale and dropped the holding entirely.
+  const report = buildEofyReport("personal", dashboard([]), rows as never, 2026, new Date("2026-10-15T00:00:00.000Z"));
+  const open = [...report.unrealisedCgt.shortTerm, ...report.unrealisedCgt.longTerm];
+  assert.equal(open.reduce((sum, lot) => sum + lot.quantity, 0), 10, "ten units were held on 30 June");
+});
+
+test("fees are converted by the currency the source states, not the trade's", () => {
+  /*
+   * A Directshares export states brokerage in AUD however the trade was priced; IBKR states its
+   * commission in the currency charged. Converting both by the trade's rate inflated $129 of
+   * Directshares brokerage to $196 on a USD trade; converting neither understated IBKR's by the
+   * same factor.
+   */
+  const row = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "X", accountKey: "A", symbol: "T", exchange: "US",
+    instrumentKey: "T:US", currency: "USD", fxRateToBase: 1.5, ...over,
+  });
+  const directshares = [
+    row({ id: "b", externalId: "b", source: "Directshares All Trades Report", tradeDate: "2025-08-01", type: "BUY", quantity: 1, cost: 100, fees: 10 }),
+    row({ id: "s", externalId: "s", source: "Directshares All Trades Report", tradeDate: "2025-10-01", type: "SELL", quantity: 1, cost: 200, netCash: 200 }),
+  ];
+  const dsReport = buildEofyReport("personal", dashboard([]), directshares as never, 2026, new Date("2026-06-30T00:00:00.000Z"));
+  // USD100 x 1.5 = AUD150, plus AUD10 of brokerage stated in AUD.
+  assert.equal(dsReport.realisedLots[0].costAud, 160);
+  assert.equal(dsReport.tradeMovements.find((t) => t.type === "BUY")!.feesAud, 10, "not 15");
+
+  const ibkr = [
+    row({ id: "b", externalId: "b", source: "IBKR Flex", tradeDate: "2025-08-01", type: "BUY", quantity: 1, cost: 100, fees: 10, raw: { feeCurrency: "USD" } }),
+    row({ id: "s", externalId: "s", source: "IBKR Flex", tradeDate: "2025-10-01", type: "SELL", quantity: 1, cost: 200, netCash: 200 }),
+  ];
+  const ibkrReport = buildEofyReport("personal", dashboard([]), ibkr as never, 2026, new Date("2026-06-30T00:00:00.000Z"));
+  // USD100 x 1.5 = AUD150, plus USD10 of commission at the same rate = AUD15.
+  assert.equal(ibkrReport.realisedLots[0].costAud, 165);
+  assert.equal(ibkrReport.tradeMovements.find((t) => t.type === "BUY")!.feesAud, 15);
+});
+
+test("a foreign trade with no rate is reported, not quietly valued at parity", () => {
+  const row = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "IBKR", accountKey: "U1", symbol: "T", exchange: "ARCA",
+    instrumentKey: "T:ARCA", currency: "USD", fxRateToBase: null, fees: 0, source: "IBKR Flex", ...over,
+  });
+  const rows = [
+    row({ id: "b", externalId: "b", tradeDate: "2025-08-01", type: "BUY", quantity: 1, cost: 100 }),
+    row({ id: "s", externalId: "s", tradeDate: "2025-10-01", type: "SELL", quantity: 1, cost: 200, netCash: 200 }),
+  ];
+  const report = buildEofyReport("personal", dashboard([]), rows as never, 2026, new Date("2026-06-30T00:00:00.000Z"));
+  const note = report.dataQuality.find((entry) => /no exchange rate/.test(entry));
+  assert.ok(note, "the assumption has to be stated");
+  assert.match(note!, /assumed at parity rather than measured/);
+  assert.match(note!, /USD/);
+});

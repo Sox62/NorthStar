@@ -1,7 +1,8 @@
 import type { DashboardHolding, StoredTransaction } from "@/lib/storage";
 import { sectorForInstrument } from "@/southernstar/lib/sector-map";
 import type { EofyHoldingReference, EofyTradeMovement } from "./types";
-import { dateInRange, transactionAud, transactionGrossAud, transactionNetCashAud } from "./utils";
+import { feeCurrencyFor } from "@/lib/money";
+import { dateInRange, transactionAud, transactionFeesAud, transactionGrossAud, transactionNetCashAud } from "./utils";
 
 export function tradeRows(transactions: StoredTransaction[], startDate: string, endDate: string) {
   return transactions
@@ -21,8 +22,10 @@ export function tradeRows(transactions: StoredTransaction[], startDate: string, 
       currency: transaction.currency,
       fxRateToAud: transaction.fxRateToBase ?? null,
       grossAud: transactionGrossAud(transaction),
-      feesAud: transactionAud(transaction.fees, transaction),
-      taxesAud: transactionAud(transaction.taxes, transaction),
+      // One combined figure by the shared rule; the currency the source stated them in rides along.
+      feesAud: transactionFeesAud(transaction),
+      taxesAud: 0,
+      feeCurrency: feeCurrencyFor(transaction),
       netCashAud: transactionNetCashAud(transaction),
       source: transaction.source,
     }))

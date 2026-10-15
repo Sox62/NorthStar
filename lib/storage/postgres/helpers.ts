@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 import type { IbkrFlexReport, ImportedTransaction } from "@/lib/integrations/types";
-import { maskAccount, numberValue } from "@/lib/core/accounting";
+import { ibkrCashAccountSegment, maskAccount, numberValue } from "@/lib/core/accounting";
 import { classifyAsset } from "../classify";
 import { canonicalInstrumentName } from "../instrument-names";
 import { resolveIbkrCurrentPositions } from "../ibkr-positions";
@@ -248,7 +248,21 @@ export async function upsertIbkrCash(client: PoolClient, report: IbkrFlexReport,
   const total = ibkrTotalCashFromComponents(report);
   const components = report.cashBalances;
   if (!total && !components.length) return;
-  await client.query(`UPDATE cash_accounts SET is_active=false,updated_at=NOW() WHERE portfolio_id=$1 AND institution='IBKR'`, [portfolioId]);
+  /*
+   * Only this account's own snapshots are superseded. Matching on institution alone meant a second
+   * account's import retired the first one's balances. The names are read back and filtered here
+   * rather than picked apart in SQL, because the account segment is a naming convention this layer
+   * owns and the row count is a handful.
+   */
+  const segment = report.accountId && report.accountId !== "IBKR" ? maskAccount(report.accountId) : "";
+  const existing = await client.query<{ id: string; name: string }>(
+    `SELECT id, name FROM cash_accounts WHERE portfolio_id=$1 AND institution='IBKR' AND is_active`,
+    [portfolioId],
+  );
+  const supersededIds = existing.rows.filter((row) => ibkrCashAccountSegment(row.name) === segment).map((row) => row.id);
+  if (supersededIds.length) {
+    await client.query(`UPDATE cash_accounts SET is_active=false,updated_at=NOW() WHERE id = ANY($1::uuid[])`, [supersededIds]);
+  }
   if (total) await writeIbkrCashAccount(client, portfolioId, ibkrCashAccountName(report, total, "total"), total, true);
   else if (components.length === 1) await writeIbkrCashAccount(client, portfolioId, ibkrCashAccountName(report, components[0]!, "component"), components[0]!, true);
   for (const cash of components) {

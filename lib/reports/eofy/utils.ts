@@ -1,3 +1,4 @@
+import { feesAud } from "@/lib/money";
 import type { OwnerType, StoredTransaction } from "@/lib/storage";
 import { taxJurisdiction, type TaxJurisdictionCode } from "@/lib/tax-jurisdictions";
 import type { EofyScope } from "./types";
@@ -95,4 +96,16 @@ export function transactionGrossAud(transaction: StoredTransaction) {
 
 export function transactionNetCashAud(transaction: StoredTransaction) {
   return transactionAud(transaction.netCash, transaction);
+}
+
+/**
+ * Fees and taxes in AUD, by the same rule the parcel engine uses.
+ *
+ * These schedules used to convert fees with the transaction's rate unconditionally, which inflated
+ * Directshares brokerage — already AUD — by the exchange rate: $129 of brokerage reported as $196
+ * on a USD trade. Where the shared rule cannot convert, the stated amount is used so a schedule
+ * still foots, and the row is reported as incomplete elsewhere.
+ */
+export function transactionFeesAud(transaction: StoredTransaction) {
+  return feesAud(transaction) ?? (Math.abs(transaction.fees ?? 0) + Math.abs(transaction.taxes ?? 0));
 }

@@ -168,8 +168,14 @@ export function eofyPricedOpenLots(openLots: OpenTaxLot[], rows: EofyHistoricalC
 }
 
 export function unrealisedCgtReport(openLots: OpenTaxLot[]): EofyUnrealisedCgtReport {
-  const shortTerm = openLots.filter((lot) => lot.unrealisedGainAud > 0 && !lot.discountEligible);
-  const longTerm = openLots.filter((lot) => lot.unrealisedGainAud > 0 && lot.discountEligible);
+  /*
+   * Every lot lands in exactly one bucket. Splitting on `> 0` and `< 0` left a lot sitting at
+   * precisely nil in none of them, so a holding whose year-end price is unavailable — valued at its
+   * own cost, and therefore showing no gain — disappeared from a schedule of what was held. The
+   * realised side had the same gap and the same fix.
+   */
+  const shortTerm = openLots.filter((lot) => lot.unrealisedGainAud >= 0 && !lot.discountEligible);
+  const longTerm = openLots.filter((lot) => lot.unrealisedGainAud >= 0 && lot.discountEligible);
   const losses = openLots.filter((lot) => lot.unrealisedGainAud < 0);
   return {
     shortTerm,

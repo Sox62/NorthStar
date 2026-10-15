@@ -60,6 +60,20 @@ export function percent(numerator: number, denominator: number) {
   return denominator ? (numerator / denominator) * 100 : 0;
 }
 
+/**
+ * The account an IBKR cash-account name belongs to, as a masked segment, or "" when the export
+ * never named one.
+ *
+ * Names are built as `IBKR Cash · <account> · <currency|Total AUD>`, and the account segment is the
+ * only account identity a cash row carries — the table has no account column. Importing a second
+ * account used to retire the first one's balances because the deactivation matched on institution
+ * alone: A at $100 then B at $200 left $200 active instead of $300.
+ */
+export function ibkrCashAccountSegment(name: string) {
+  const parts = name.split(" · ");
+  return parts.length >= 3 ? parts[1]! : "";
+}
+
 export function maskAccount(account: string) {
   return account.length <= 4 ? account : `${account.slice(0, 2)}••••${account.slice(-3)}`;
 }

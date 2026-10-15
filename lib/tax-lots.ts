@@ -1,3 +1,4 @@
+import { feesAud, foreignWithoutFx } from "@/lib/money";
 import {
   defaultParcelSelectionMethod,
   methodForHolding,
@@ -70,6 +71,8 @@ export type TaxLotsResponse = {
   duplicates: DuplicateTradeWarning[];
   /** Probable duplicates differing only by a day or two; reported, never merged. */
   near: DuplicateTradeWarning[];
+  /** Foreign rows with no usable rate: their AUD figures are assumed, not measured. */
+  missingFx: MissingFxTransaction[];
   /** The parcel selection this run was built under, so a report can state it rather than imply it. */
   selection: ParcelSelection;
   /** The period the realised lots were filtered to, or null for every disposal on record. */
@@ -225,13 +228,22 @@ function isTaxableHolding(holding: DashboardHolding) {
   return holding.assetClass !== "Cash" && holding.symbol.toUpperCase() !== "CASH";
 }
 
+/*
+ * Fees go through the shared rule rather than being added raw. A Directshares export states
+ * brokerage in AUD and IBKR states its commission in the trade's currency; adding both unconverted
+ * was right for the first and understated the second by the exchange rate. Where the rule cannot
+ * convert — a third currency, or a missing rate — the amount is taken as stated and the row is
+ * reported as incomplete rather than being quietly scaled by a number nobody has.
+ */
 function buyCostAud(transaction: StoredTransaction) {
-  return Math.abs(audAmount(transaction.cost, transaction.fxRateToBase)) + (transaction.fees ?? 0) + (transaction.taxes ?? 0);
+  const fees = feesAud(transaction) ?? (Math.abs(transaction.fees ?? 0) + Math.abs(transaction.taxes ?? 0));
+  return Math.abs(audAmount(transaction.cost, transaction.fxRateToBase)) + fees;
 }
 
 function sellProceedsAud(transaction: StoredTransaction) {
   if (transaction.netCash != null) return Math.abs(audAmount(transaction.netCash, transaction.fxRateToBase));
-  return Math.max(0, Math.abs(audAmount(transaction.cost, transaction.fxRateToBase)) - (transaction.fees ?? 0) - (transaction.taxes ?? 0));
+  const fees = feesAud(transaction) ?? (Math.abs(transaction.fees ?? 0) + Math.abs(transaction.taxes ?? 0));
+  return Math.max(0, Math.abs(audAmount(transaction.cost, transaction.fxRateToBase)) - fees);
 }
 
 function makeRealisedLot(input: Omit<RealisedTaxLot, "taxableGainAud" | "discountEligible" | "discountRate" | "heldDays" | "ownerLabel">, treatment: TaxTreatment) {
@@ -313,6 +325,14 @@ export type UnappliedCorporateAction = {
   description: string;
   quantity: number | null;
   reason: string;
+};
+
+export type MissingFxTransaction = {
+  symbol: string;
+  tradeDate: string;
+  type: string;
+  currency: string;
+  source: string;
 };
 
 export type DuplicateTradeWarning = {
@@ -540,6 +560,20 @@ function dedupeTrades(transactions: StoredTransaction[]) {
   return { kept, duplicates, near };
 }
 
+/**
+ * The trades a report should count: de-duplicated, in order, corporate actions included.
+ *
+ * Exposed so a schedule can be built from the same set the parcel engine uses without running the
+ * engine first — reading the raw rows instead is what let one trade carried by two exports become
+ * four trade movements beside a single canonical disposal.
+ */
+export function reconcileTrades(transactions: StoredTransaction[]) {
+  const { kept } = dedupeTrades(
+    transactions.filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL" || transaction.type === "CORPORATE_ACTION"),
+  );
+  return [...kept].sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || a.externalId.localeCompare(b.externalId));
+}
+
 function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreatment, selection: ParcelSelection) {
   const lots = new Map<string, WorkingLot[]>();
   // Second index on the same lot objects, so a fallback lookup shares their consumed quantities.
@@ -688,7 +722,16 @@ function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreat
     }
   }
 
-  return { lots, byBroker, realised, unappliedActions, duplicates, near, reconciled: sorted };
+  const missingFx = sorted
+    .filter(foreignWithoutFx)
+    .map((transaction) => ({
+      symbol: transaction.symbol,
+      tradeDate: transaction.tradeDate,
+      type: transaction.type,
+      currency: transaction.currency,
+      source: transaction.source,
+    }));
+  return { lots, byBroker, realised, unappliedActions, duplicates, near, reconciled: sorted, missingFx };
 }
 
 function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfDate: string, treatment: TaxTreatment): OpenTaxLot[] {
@@ -797,7 +840,7 @@ export function buildTaxLots(
    * acquisitions that an earlier, excluded sale had already taken. The period filters the output,
    * not the input.
    */
-  const { lots, byBroker, realised, unappliedActions, duplicates, near, reconciled } = buildWorkingLots(transactions, treatment, selection);
+  const { lots, byBroker, realised, unappliedActions, duplicates, near, reconciled, missingFx } = buildWorkingLots(transactions, treatment, selection);
   const openLots = data.holdings
     .filter(isTaxableHolding)
     .flatMap((holding) => openLotsForHolding(
@@ -819,6 +862,7 @@ export function buildTaxLots(
     duplicates,
     near,
     selection,
+    missingFx,
     reconciledTransactions: reconciled,
     /*
      * Realised lots only. An open position cannot be rewound — the parcels come from today's

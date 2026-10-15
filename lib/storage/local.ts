@@ -7,6 +7,7 @@ import {
   buildPositionPriceValuation,
   manualAssetPosition,
   maskAccount,
+  ibkrCashAccountSegment,
 } from "@/lib/core/accounting";
 import { normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
 import { classifyAsset } from "./classify";
@@ -137,7 +138,16 @@ function upsertIbkrCash(store: LocalStore, report: IbkrFlexReport, ownerType: Ow
   const total = ibkrTotalCashFromComponents(report);
   const components = report.cashBalances;
   if (!total && !components.length) return;
-  for (const existing of store.cashAccounts.filter(account => account.ownerType === ownerType && account.institution === "IBKR")) {
+  /*
+   * Only this account's own snapshots are superseded. Deactivating every IBKR row for the owner
+   * meant importing a second account retired the first one's cash: A at $100 then B at $200 left
+   * $200 active rather than $300. A one-account-per-file parser does not make it one account per
+   * owner across successive imports.
+   */
+  const segment = report.accountId && report.accountId !== "IBKR" ? maskAccount(report.accountId) : "";
+  for (const existing of store.cashAccounts.filter(account =>
+    account.ownerType === ownerType && account.institution === "IBKR"
+    && ibkrCashAccountSegment(account.name) === segment)) {
     existing.isActive = false;
     existing.updatedAt = new Date().toISOString();
   }

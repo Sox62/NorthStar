@@ -315,6 +315,7 @@ function parseDirectsharesConfirmationCsvRow(row: Record<string, string>): Impor
       grossAud,
       consideration: considerationAud,
       fees,
+      feeCurrency: "AUD",
       tradeCurrency: averagePrice.currency || instrument.currency,
       tradePrice: averagePrice.price || undefined,
       tradeFxRate: numberValue(row["Exch Rate"]) || undefined,

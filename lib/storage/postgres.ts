@@ -243,7 +243,13 @@ export class PostgresStorageAdapter implements StorageAdapter {
       FROM transactions t
       JOIN portfolios p ON p.id=t.portfolio_id
       JOIN broker_accounts ba ON ba.id=t.account_id
-      JOIN instruments i ON i.id=t.instrument_id
+      /*
+       * Left, not inner. A currency conversion has no security, so it is stored with a null
+       * instrument — and an inner join silently dropped every one of them from the only read the
+       * application has. Nothing downstream could see a transaction that is demonstrably in the
+       * table, which is the worst shape a data defect can take.
+       */
+      LEFT JOIN instruments i ON i.id=t.instrument_id
       ${ownerFilter}
       ORDER BY t.trade_date, t.created_at
     `, values);
@@ -256,10 +262,15 @@ export class PostgresStorageAdapter implements StorageAdapter {
       externalAccountId: row.external_account_id,
       tradeDate: row.trade_date,
       settleDate: row.settle_date ?? undefined,
-      symbol: row.ticker,
-      exchange: row.exchange,
-      description: row.name,
-      instrumentKey: row.external_key,
+      /*
+       * An FX row has no instrument, so the joined columns are null. The identity it does carry is
+       * the pair the broker named, which the parser kept in `raw` — falling back to it means a
+       * currency conversion reads as "AUD.USD" rather than vanishing or arriving nameless.
+       */
+      symbol: (row.ticker as string | null) ?? String((row.raw as Record<string, unknown> | null)?.symbol ?? "FX"),
+      exchange: (row.exchange as string | null) ?? String((row.raw as Record<string, unknown> | null)?.exchange ?? ""),
+      description: (row.name as string | null) ?? String((row.raw as Record<string, unknown> | null)?.description ?? ""),
+      instrumentKey: (row.external_key as string | null) ?? undefined,
       isin: row.isin ?? undefined,
       conid: row.conid ?? undefined,
       type: row.type,

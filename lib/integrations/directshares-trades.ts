@@ -272,7 +272,8 @@ export function parseDirectsharesAllTradesCsv(csv: string): ImportedTransaction[
         exchangeRate,
       }),
       source: "Directshares All Trades Report",
-      raw: { ...row, fillIndex: occurrence },
+      // The export states brokerage in AUD whatever the instrument is priced in.
+      raw: { ...row, fillIndex: occurrence, feeCurrency: "AUD" },
     });
   }
 

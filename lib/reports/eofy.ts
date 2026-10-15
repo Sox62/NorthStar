@@ -1,12 +1,12 @@
 import { defaultParcelSelectionMethod, type ParcelSelection } from "@/lib/parcel-selection";
-import { buildTaxLots, type TaxTreatment } from "@/lib/tax-lots";
+import { buildTaxLots, reconcileTrades, type TaxTreatment } from "@/lib/tax-lots";
 import { taxJurisdiction } from "@/lib/tax-jurisdictions";
-import type { DashboardData, PriceBook, StoredTransaction } from "@/lib/storage";
+import type { DashboardData, DashboardHolding, PriceBook, StoredTransaction } from "@/lib/storage";
 import { accountSummaries } from "./eofy/accounts";
 import { capitalGainsReport, eofyPricedOpenLots, realisedSummary, unrealisedCgtReport } from "./eofy/cgt";
 import { dataQualityNotes } from "./eofy/data-quality";
 import { eofyReportCsv } from "./eofy/csv";
-import { historicalCostRows } from "./eofy/historical-cost";
+import { historicalCostRows, yearEndPositions } from "./eofy/historical-cost";
 import { incomeRows, taxableIncomeRows } from "./eofy/income";
 import { eofyReconciliationReport } from "./eofy/reconciliation";
 import { holdingReference, tradeRows } from "./eofy/trades";
@@ -42,7 +42,36 @@ export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, tran
   const transactionsThroughEofy = transactions.filter((transaction) => transaction.tradeDate <= fy.endDate);
   const income = incomeRows(transactions, fy.startDate, fy.endDate);
   const taxableIncome = taxableIncomeRows(transactions, fy.startDate, fy.endDate);
-  const taxLotDashboard = { ...dashboard, lastUpdated: fy.endDate };
+  /*
+   * The open lots are built from what the trades say was held at 30 June, not from what is held
+   * today. Passing current holdings meant a position sold in August reported the year-end value of
+   * two units spread over the one still held, and a holding sold out entirely disappeared from a
+   * schedule whose whole purpose is to show what was owned at year end.
+   */
+  const reconciledThroughEofy = reconcileTrades(transactionsThroughEofy);
+  const closingPositions = yearEndPositions(reconciledThroughEofy, fy.endDate, selection);
+  const byInstrument = new Map(dashboard.holdings.map((holding) => [`${holding.symbol}:${holding.exchange}`.toUpperCase(), holding]));
+  const closingHoldings = closingPositions.map((position) => {
+    const current = byInstrument.get(`${position.symbol}:${position.exchange}`.toUpperCase());
+    return {
+      ...(current ?? {}),
+      id: `eofy:${position.instrumentKey}`,
+      ownerType: position.ownerType,
+      broker: position.broker,
+      accountKey: position.accountKey,
+      symbol: position.symbol,
+      exchange: position.exchange,
+      instrumentKey: position.instrumentKey,
+      name: position.name,
+      quantity: position.quantity,
+      costAud: position.costAud,
+      averageCostAud: position.quantity ? position.costAud / position.quantity : 0,
+      // Repriced to 30 June from the historical schedule further down; cost stands in until then,
+      // so an unpriced holding reads as no gain rather than as an invented one.
+      marketValueAud: position.costAud,
+    } as DashboardHolding;
+  });
+  const taxLotDashboard = { ...dashboard, lastUpdated: fy.endDate, holdings: closingHoldings };
   const allTaxLots = buildTaxLots(taxLotDashboard, transactionsThroughEofy, generatedAt, treatment, selection);
   const realisedLots = allTaxLots.realisedLots.filter((lot) => dateInRange(lot.saleDate, fy.startDate, fy.endDate));
   /*
@@ -100,6 +129,7 @@ export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, tran
     unappliedActions: allTaxLots.unappliedActions,
     duplicates: allTaxLots.duplicates,
     nearDuplicates: allTaxLots.near,
+    missingFx: allTaxLots.missingFx,
   };
 
   return {

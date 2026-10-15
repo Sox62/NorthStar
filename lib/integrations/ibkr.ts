@@ -334,7 +334,8 @@ function parseTransactions(statement: Record<string, unknown>, statementAccount:
       fxRateToBase: transactionFxRateToAud(trade, currency, baseCurrency, baseFxRateToAud),
       realisedPnl: numberOrUndefined(trade.fifoPnlRealized),
       source: "IBKR Flex",
-      raw: trade,
+      // Stated by the source: the commission is charged in its own currency, not the book's.
+      raw: { ...trade, feeCurrency: String(trade.ibCommissionCurrency ?? currency ?? "").toUpperCase() || undefined },
     });
   }
 

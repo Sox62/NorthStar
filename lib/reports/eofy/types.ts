@@ -246,6 +246,8 @@ export type EofyTradeMovement = {
   grossAud: number;
   feesAud: number;
   taxesAud: number;
+  /** The currency the source stated fees in, which is not always the trade's. */
+  feeCurrency?: string;
   netCashAud: number;
   source: string;
 };

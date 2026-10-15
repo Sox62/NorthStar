@@ -3,7 +3,7 @@ import { orderParcelsForDisposal, parcelSelectionLabels, methodForHolding, defau
 import { applyCorporateAction, dateDiffDays, discountRateForOwner, isDiscountEligible } from "@/lib/tax-lots";
 import type { EofyHistoricalCostRow } from "./types";
 import { historicalValuation } from "./valuation";
-import { transactionAud, transactionGrossAud, transactionNetCashAud } from "./utils";
+import { transactionAud, transactionFeesAud, transactionGrossAud, transactionNetCashAud } from "./utils";
 
 type HistoricalLot = {
   /** Named as the engine names it, so its corporate-action rescale applies to these parcels too. */
@@ -13,6 +13,12 @@ type HistoricalLot = {
 };
 
 type HistoricalAccumulator = {
+  ownerType: StoredTransaction["ownerType"];
+  broker: string;
+  accountKey: string;
+  symbol: string;
+  exchange: string;
+  instrumentKey: string;
   market: string;
   code: string;
   name: string;
@@ -41,17 +47,23 @@ function historyKey(input: Pick<StoredTransaction, "ownerType" | "broker" | "ins
 }
 
 function buyCostAud(transaction: StoredTransaction) {
-  return Math.abs(transactionGrossAud(transaction)) + Math.abs(transactionAud(transaction.fees, transaction)) + Math.abs(transactionAud(transaction.taxes, transaction));
+  return Math.abs(transactionGrossAud(transaction)) + transactionFeesAud(transaction);
 }
 
 function saleProceedsAud(transaction: StoredTransaction) {
   const netCash = Math.abs(transactionNetCashAud(transaction));
   if (netCash) return netCash;
-  return Math.max(0, transactionGrossAud(transaction) - Math.abs(transactionAud(transaction.fees, transaction)) - Math.abs(transactionAud(transaction.taxes, transaction)));
+  return Math.max(0, transactionGrossAud(transaction) - transactionFeesAud(transaction));
 }
 
 function historicalAccumulator(transaction: StoredTransaction): HistoricalAccumulator {
   return {
+    ownerType: transaction.ownerType,
+    broker: transaction.broker,
+    accountKey: transaction.accountKey,
+    symbol: transaction.symbol,
+    exchange: transaction.exchange,
+    instrumentKey: transaction.instrumentKey || `${transaction.symbol}:${transaction.exchange}`,
     market: transaction.exchange,
     code: transaction.symbol,
     name: transaction.description || transaction.symbol,
@@ -132,7 +144,7 @@ function applyHistoricalTransaction(row: HistoricalAccumulator, transaction: Sto
   return costOfSalesAud;
 }
 
-export function historicalCostRows(transactions: StoredTransaction[], startDate: string, endDate: string, priceBook?: PriceBook, selection: ParcelSelection = { method: defaultParcelSelectionMethod }): EofyHistoricalCostRow[] {
+function accumulate(transactions: StoredTransaction[], startDate: string, endDate: string, selection: ParcelSelection) {
   const rows = new Map<string, HistoricalAccumulator>();
   const sorted = [...transactions]
     .filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL" || transaction.type === "CORPORATE_ACTION")
@@ -162,7 +174,25 @@ export function historicalCostRows(transactions: StoredTransaction[], startDate:
     rows.set(key, row);
   }
 
-  return [...rows.values()]
+  return rows;
+}
+
+/**
+ * What was actually held at a cut-off, reconstructed from the trades rather than read off today.
+ *
+ * The year-end unrealised schedule took its quantities from current holdings, so a position sold
+ * in August reported the year-end value of two units spread across the one unit still held, and a
+ * holding sold out entirely vanished from a schedule that is supposed to show what was owned on
+ * 30 June. A closing position is the one thing the transactions can state exactly.
+ */
+export function yearEndPositions(transactions: StoredTransaction[], endDate: string, selection: ParcelSelection = { method: defaultParcelSelectionMethod }) {
+  return [...accumulate(transactions, endDate, endDate, selection).values()]
+    .map((row) => ({ ...row, ...lotTotals(row.lots) }))
+    .filter((row) => row.quantity > 0.000001);
+}
+
+export function historicalCostRows(transactions: StoredTransaction[], startDate: string, endDate: string, priceBook?: PriceBook, selection: ParcelSelection = { method: defaultParcelSelectionMethod }): EofyHistoricalCostRow[] {
+  return [...accumulate(transactions, startDate, endDate, selection).values()]
     .map((row) => {
       const closing = lotTotals(row.lots);
       const baseRow = {

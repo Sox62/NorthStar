@@ -10,6 +10,19 @@ export type ReportPeriod = {
 
 const isoDay = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * A date that exists, not merely one that is shaped like one.
+ *
+ * `2026-02-30` matched the pattern and sorted correctly against its neighbours, so a range could
+ * open on a day that never happened and report a period nobody could check. Round-tripping through
+ * UTC catches it: the parser rolls 30 February into 2 March, and the rolled value no longer matches
+ * what was asked for.
+ */
+function isRealCalendarDay(value: string) {
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 /** Stands in for an open-ended period, so every section can filter on one pair of bounds. */
 const allDates: ReportPeriod = { label: "all dates", startDate: "0001-01-01", endDate: "9999-12-31", scoped: false };
 
@@ -32,6 +45,8 @@ export function reportPeriod(params: URLSearchParams, today = new Date()): Repor
     if (!isoDay.test(from ?? "") || !isoDay.test(to ?? "")) {
       throw new Error("A date range needs both from and to, each as YYYY-MM-DD.");
     }
+    const unreal = [from!, to!].find((value) => !isRealCalendarDay(value));
+    if (unreal) throw new Error(`${unreal} is not a date on the calendar.`);
     if (from! > to!) throw new Error("from must not be later than to.");
     return { label: `${from} to ${to}`, startDate: from!, endDate: to!, scoped: true };
   }
