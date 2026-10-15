@@ -71,7 +71,11 @@ export type TaxLotsResponse = {
   duplicates: DuplicateTradeWarning[];
   /** Probable duplicates differing only by a day or two; reported, never merged. */
   near: DuplicateTradeWarning[];
-  /** Foreign rows with no usable rate: their AUD figures are assumed, not measured. */
+  /*
+   * Foreign rows with no usable rate: their AUD figures are assumed, not measured. Scanned across
+   * every transaction rather than the trades alone, because a dividend paid in a foreign currency
+   * is converted by the same absent number and its income total is just as provisional.
+   */
   missingFx: MissingFxTransaction[];
   /** The parcel selection this run was built under, so a report can state it rather than imply it. */
   selection: ParcelSelection;
@@ -722,7 +726,7 @@ function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreat
     }
   }
 
-  const missingFx = sorted
+  const missingFx = transactions
     .filter(foreignWithoutFx)
     .map((transaction) => ({
       symbol: transaction.symbol,

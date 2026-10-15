@@ -593,3 +593,69 @@ test("a foreign trade with no rate is reported, not quietly valued at parity", (
   assert.match(note!, /assumed at parity rather than measured/);
   assert.match(note!, /USD/);
 });
+
+test("a foreign dividend's gross is converted, not read as dollars it is not in", () => {
+  /*
+   * Importers keep two shapes of the same number: `grossDividendAud`, already converted, and
+   * `grossDividend`, in the currency the payment was made in. Both were read as AUD, so a USD110
+   * dividend at 1.5 reported gross income of AUD110 against net income of AUD150 — a gross
+   * smaller than the net it contains.
+   */
+  const dividend = {
+    id: "d", externalId: "d", ownerType: "PERSONAL", broker: "X", accountKey: "A",
+    symbol: "T", exchange: "US", instrumentKey: "T:US", tradeDate: "2025-09-01",
+    type: "DIVIDEND", currency: "USD", fxRateToBase: 1.5, netCash: 100, taxes: 10,
+    source: "Dividend CSV", raw: { grossDividend: 110 },
+  };
+  const report = buildEofyReport("personal", dashboard([]), [dividend] as never, 2026, new Date("2026-06-30T00:00:00.000Z"));
+  const payment = report.incomePayments[0];
+  assert.equal(payment.netIncomeAud, 150, "USD100 at 1.5");
+  assert.equal(payment.taxWithheldAud, 15, "USD10 at 1.5");
+  assert.equal(payment.grossIncomeAud, 165, "USD110 at 1.5, not 110");
+  assert.ok(payment.grossIncomeAud >= payment.netIncomeAud, "a gross cannot be smaller than its net");
+});
+
+test("an amount the importer already converted is not converted twice", () => {
+  const dividend = {
+    id: "d", externalId: "d", ownerType: "PERSONAL", broker: "X", accountKey: "A",
+    symbol: "T", exchange: "US", instrumentKey: "T:US", tradeDate: "2025-09-01",
+    type: "DIVIDEND", currency: "USD", fxRateToBase: 1.5, netCash: 100, taxes: 10,
+    source: "Dividend CSV", raw: { grossDividendAud: 165 },
+  };
+  const report = buildEofyReport("personal", dashboard([]), [dividend] as never, 2026, new Date("2026-06-30T00:00:00.000Z"));
+  assert.equal(report.incomePayments[0].grossIncomeAud, 165, "not 247.50");
+});
+
+test("a foreign dividend with no rate is reported alongside the trades", () => {
+  // The scan covered trades only, so a dividend converted by the same absent number went unnamed.
+  const dividend = {
+    id: "d", externalId: "d", ownerType: "PERSONAL", broker: "X", accountKey: "A",
+    symbol: "T", exchange: "US", instrumentKey: "T:US", tradeDate: "2025-09-01",
+    type: "DIVIDEND", currency: "USD", fxRateToBase: null, netCash: 100,
+    source: "Dividend CSV", raw: {},
+  };
+  const report = buildEofyReport("personal", dashboard([]), [dividend] as never, 2026, new Date("2026-06-30T00:00:00.000Z"));
+  const note = report.dataQuality.find((entry) => /no exchange rate/.test(entry));
+  assert.ok(note, "an income total resting on an assumed rate has to say so");
+  assert.match(note!, /T/);
+});
+
+test("one holding stays one row however its instrument key is written", () => {
+  /*
+   * The same position is stored as "ASL:ASX" from a position file and "Directshares:ASL:ASX" from
+   * an imported trade. Keying the historical schedule on the instrument key split it in two, which
+   * is the exact mismatch the parcel engine keys on ticker and venue to survive.
+   */
+  const base = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "Directshares", accountKey: "A", symbol: "ASL", exchange: "ASX",
+    currency: "AUD", fxRateToBase: 1, fees: 0, source: "S", ...over,
+  });
+  const rows = [
+    base({ id: "b", externalId: "b", instrumentKey: "Directshares:ASL:ASX", tradeDate: "2025-08-01", type: "BUY", quantity: 100, cost: 1000 }),
+    base({ id: "s", externalId: "s", instrumentKey: "ASL:ASX", tradeDate: "2025-10-01", type: "SELL", quantity: 100, cost: 1500, netCash: 1500 }),
+  ];
+  const report = buildEofyReport("personal", dashboard([]), rows as never, 2026, new Date("2026-06-30T00:00:00.000Z"));
+  assert.equal(report.historicalCost.length, 1, "one holding, one row");
+  assert.equal(report.historicalCost[0].costOfSalesAud, 1000, "the sale reaches the buy written the other way");
+  assert.equal(report.historicalCost[0].closingQuantity, 0);
+});

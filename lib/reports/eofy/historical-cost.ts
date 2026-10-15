@@ -38,11 +38,17 @@ type HistoricalAccumulator = {
  * split BOE into three schedule rows closing at 56,837 units between them, against a real holding
  * of none.
  */
-function historyKey(input: Pick<StoredTransaction, "ownerType" | "broker" | "instrumentKey" | "symbol" | "exchange">) {
+function historyKey(input: Pick<StoredTransaction, "ownerType" | "broker" | "symbol" | "exchange">) {
+  /*
+   * Ticker and venue, exactly as the parcel engine keys parcels — and deliberately not the
+   * instrument key, which is not written the same way on both sides: a Directshares position is
+   * stored as "ASL:ASX" while an imported trade carries "Directshares:ASL:ASX". Keying on it
+   * reproduced the split this pooling exists to avoid, one holding at a time.
+   */
   return [
     input.ownerType,
     input.broker,
-    (input.instrumentKey || `${input.symbol}:${input.exchange}`).toUpperCase(),
+    `${input.symbol}:${input.exchange}`.toUpperCase(),
   ].join("|");
 }
 

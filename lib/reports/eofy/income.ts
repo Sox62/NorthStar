@@ -1,13 +1,14 @@
 import type { StoredTransaction } from "@/lib/storage";
 import type { EofyAustralianIncomeRow, EofyForeignIncomeRow, EofyIncomePayment, EofyIncomeSymbol, EofyTaxableIncomeSections } from "./types";
+import { rawAmountAud } from "@/lib/money";
 import { dateInRange, rawAmount, rawString, transactionAud } from "./utils";
 
 function dividendGrossAud(transaction: StoredTransaction, netIncomeAud: number, taxWithheldAud: number, frankingCreditsAud: number) {
-  return rawAmount(transaction, ["grossDividendAud", "grossDividend"]) || netIncomeAud + taxWithheldAud + frankingCreditsAud;
+  return rawAmountAud(transaction, ["grossDividendAud"], ["grossDividend"]) || netIncomeAud + taxWithheldAud + frankingCreditsAud;
 }
 
 function dividendFrankingCreditsAud(transaction: StoredTransaction) {
-  return rawAmount(transaction, ["frankingCreditAud", "frankingCredit"]);
+  return rawAmountAud(transaction, ["frankingCreditAud"], ["frankingCredit"]);
 }
 
 function dividendExDate(transaction: StoredTransaction) {

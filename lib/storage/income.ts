@@ -1,3 +1,4 @@
+import { rawAmountAud } from "@/lib/money";
 import type { IncomeSummary, StoredTransaction } from "./types";
 
 function amount(value: unknown) {
@@ -45,8 +46,8 @@ export function buildIncomeSummary(transactions: StoredTransaction[], navAud: nu
   for (const dividend of dividends) {
     const net = transactionAud(dividend.netCash ?? 0, dividend);
     const withheld = transactionAud(dividend.taxes ?? 0, dividend);
-    const franking = rawAmount(dividend, ["frankingCreditAud", "frankingCredit"]);
-    const rawGross = rawAmount(dividend, ["grossDividendAud", "grossDividend"]);
+    const franking = rawAmountAud(dividend, ["frankingCreditAud"], ["frankingCredit"]);
+    const rawGross = rawAmountAud(dividend, ["grossDividendAud"], ["grossDividend"]);
     const gross = rawGross || net + withheld + franking;
     const symbol = dividend.symbol || "Income";
     const row = symbols.get(symbol) ?? { symbol, payments: 0, netCashAud: 0, taxWithheldAud: 0, frankingCreditsAud: 0, grossIncomeAud: 0 };

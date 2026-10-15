@@ -118,7 +118,7 @@ function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTra
    * three assets for capital gains purposes, each with its own acquisition date and its own answer
    * to the twelve-month test, and a single averaged row cannot express that.
    */
-  const { openLots, realisedLots } = buildTaxLots(data, transactions, new Date(), treatment, selection);
+  const { openLots, realisedLots, missingFx } = buildTaxLots(data, transactions, new Date(), treatment, selection);
   const holdings = data.holdings.filter((holding) => holding.costAud !== 0 || holding.marketValueAud !== 0);
   const sectorByHoldingId = new Map(holdings.map((holding) => [holding.id, recordedSectorForInstrument(holding)]));
 
@@ -209,6 +209,39 @@ function addTaxRows(rows: CsvRow[], data: DashboardData, transactions: StoredTra
   }
 
   addRealisedRows(rows, data, realisedLots, treatment, period);
+
+  /*
+   * The export carried no warnings of any kind, so a figure resting on an assumption left this
+   * file looking exactly like one that did not. A foreign row with no rate is valued at parity,
+   * and anyone reading these totals has to be told which ones that touches.
+   */
+  if (missingFx.length) {
+    const currencies = [...new Set(missingFx.map((row) => row.currency))].sort();
+    rows.push([
+      "data_quality",
+      ownerLabel(data),
+      "Missing exchange rates",
+      "",
+      "",
+      "", "", "", "", "", "", "", currencies.join(" "), "",
+      `${missingFx.length} ${currencies.join("/")} transaction${missingFx.length === 1 ? " has" : "s have"} no exchange rate, `
+        + "so their Australian dollar amounts are assumed at parity rather than measured. "
+        + "Every total above that includes them is provisional.",
+      data.lastUpdated,
+    ]);
+    for (const row of missingFx) {
+      rows.push([
+        "data_quality",
+        ownerLabel(data),
+        "No exchange rate on record",
+        row.symbol,
+        "",
+        "", "", "", "", "", "", "", row.currency, row.tradeDate,
+        `${row.type} from ${row.source}; Australian dollar value assumed at parity`,
+        data.lastUpdated,
+      ]);
+    }
+  }
 }
 
 /**

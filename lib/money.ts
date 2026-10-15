@@ -66,3 +66,35 @@ export function feesAud(transaction: Pick<StoredTransaction, "currency" | "fxRat
   const rate = usableFxRate(transaction);
   return rate == null ? null : amount * rate;
 }
+
+function rawNumber(transaction: Pick<StoredTransaction, "raw">, keys: string[]) {
+  const raw = transaction.raw;
+  if (!raw) return 0;
+  for (const key of keys) {
+    const value = raw[key];
+    if (typeof value === "number" && Number.isFinite(value) && value) return value;
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value.replace(/[^\d.-]/g, ""));
+      if (Number.isFinite(parsed) && parsed) return parsed;
+    }
+  }
+  return 0;
+}
+
+/**
+ * A figure kept on the imported row, converted only if the field it came from is not already AUD.
+ *
+ * Dividend importers keep two shapes of the same number: `grossDividendAud`, which the source or
+ * the importer has already converted, and `grossDividend`, which is in whatever currency the
+ * payment was made in. Both were read as AUD, so a USD110 dividend at 1.5 reported gross income of
+ * AUD110 against net income of AUD150 — a gross smaller than the net it contains.
+ */
+export function rawAmountAud(
+  transaction: Pick<StoredTransaction, "raw" | "currency" | "fxRateToBase">,
+  audKeys: string[],
+  localKeys: string[],
+) {
+  const alreadyAud = rawNumber(transaction, audKeys);
+  if (alreadyAud) return alreadyAud;
+  return transactionAmountAud(rawNumber(transaction, localKeys), transaction);
+}
