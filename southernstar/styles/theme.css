@@ -1964,6 +1964,8 @@ body.southernstar .nsActivityRow.is-failed em {
 
   body.southernstar .nsScreen > aside { display:none; }
 
+  body.southernstar .nsMobileBar .mobileMenu { display:block; }
+
   body.southernstar .nsMobileBar {
     position:sticky;
     top:0;
