@@ -144,7 +144,7 @@ export default function TaxLotsPage() {
   return (
     <main className="shell">
       <PageHeader
-        title="Tax lots"
+        title="Tax positions"
         description="CGT view for current holdings and realised sales, including discount eligibility by legal owner."
         links={[
           { href: "/", label: "Dashboard" },
@@ -246,19 +246,17 @@ export default function TaxLotsPage() {
           </section>
 
           <Card className="taxTableCard">
-            <div className="panelHeader">
-              <div>
-                <p className="eyebrow">Open lots</p>
-                <h2 className="cardTitle">Unrealised CGT by acquisition lot</h2>
+            <details className="taxLotsDisclosure">
+              <summary>
+                <h2 className="cardTitle taxLotsHeading">Unrealised positions<span className="panelCount">{topOpenLots.length} shown</span></h2>
+              </summary>
+              <p className="cardIntro">CGT by acquisition lot.</p>
                 {period === "all" ? null : (
                   <p className="cardIntro">
                     As at {dateLabel(data.asOfDate)}, not FY{period}. An open position is today&rsquo;s holdings at
                     today&rsquo;s prices, and no stored history rewinds it; the year scopes the realised sales below.
                   </p>
                 )}
-              </div>
-              <span className="panelCount">{topOpenLots.length} shown</span>
-            </div>
             <div className="taxTableWrap">
               <table className="taxTable">
                 <thead>
@@ -303,17 +301,16 @@ export default function TaxLotsPage() {
                 </tbody>
               </table>
             </div>
+            </details>
           </Card>
 
           <Card className="taxTableCard">
-            <div className="panelHeader">
-              <div>
-                <p className="eyebrow">Realised lots</p>
-                <h2 className="cardTitle">Matched sales and taxable gains</h2>
+            <details className="taxLotsDisclosure">
+              <summary>
+                <h2 className="cardTitle taxLotsHeading">Realised positions<span className="panelCount">{topRealisedLots.length} shown</span></h2>
+              </summary>
+                <p className="cardIntro">Matched sales and taxable gains.</p>
                 <p className="cardIntro">{period === "all" ? "Every disposal on record." : `Disposals sold within FY${period}.`}</p>
-              </div>
-              <span className="panelCount">{topRealisedLots.length} shown</span>
-            </div>
             <div className="taxTableWrap">
               <table className="taxTable realisedTaxTable">
                 <thead>
@@ -355,6 +352,7 @@ export default function TaxLotsPage() {
                 </tbody>
               </table>
             </div>
+            </details>
           </Card>
         </>
       ) : null}

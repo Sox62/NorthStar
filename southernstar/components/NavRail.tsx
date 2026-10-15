@@ -2,59 +2,7 @@
 import React from "react";
 import { BrandMark } from "./BrandMark";
 import MobileMenu from "@/components/MobileMenu";
-
-type RailItem = {
-  key: string;
-  label: string;
-  href: string;
-  icon: string;
-};
-
-const sections: Array<{ label: string; items: RailItem[] }> = [
-  {
-    label: "Overview",
-    items: [{ key: "overview", label: "State of play", href: "/", icon: "overview" }],
-  },
-  {
-    label: "Capital",
-    items: [
-      { key: "holdings", label: "Capital", href: "/holdings", icon: "holdings" },
-      { key: "accounts-mandates", label: "Accounts & mandates", href: "/accounts", icon: "reports" },
-      { key: "cash", label: "Cash accounts", href: "/cash", icon: "cash" },
-      { key: "targets", label: "Armed list", href: "/targets", icon: "targets" },
-    ],
-  },
-  {
-    label: "Discipline",
-    items: [
-      { key: "sectors", label: "Positions & strategy", href: "/sectors", icon: "sectors" },
-      { key: "position-sizer", label: "Position sizer", href: "/sizer", icon: "targets" },
-      { key: "stops-orders", label: "Stops & orders", href: "/risk", icon: "security" },
-      { key: "reports", label: "Harvest plan", href: "/reports", icon: "reports" },
-    ],
-  },
-  {
-    label: "Analysis",
-    items: [
-      { key: "opportunities", label: "Opportunities", href: "/opportunities", icon: "targets" },
-      { key: "rari-regime", label: "RARI regime", href: "/regime/rari", icon: "prices" },
-      { key: "relative-leadership", label: "Relative leadership", href: "/relative", icon: "prices" },
-      { key: "prices", label: "Chart workbench", href: "/prices", icon: "prices" },
-      { key: "relative-calculator", label: "Relative calculator", href: "/relative/calculator", icon: "targets" },
-      { key: "fundamentals-risk", label: "Fundamentals & risk", href: "/fundamentals", icon: "security" },
-    ],
-  },
-  {
-    label: "Data",
-    items: [
-      { key: "bullion", label: "Physical metals", href: "/assets", icon: "bullion" },
-      { key: "sync", label: "Imports", href: "/sync", icon: "sync" },
-      { key: "security", label: "Security", href: "/security", icon: "security" },
-      { key: "tax", label: "Tax", href: "/tax", icon: "tax" },
-    ],
-  },
-];
-
+import { navigationSections } from "@/lib/navigation";
 
 const icons: Record<string, React.ReactNode> = {
   overview: <><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></>,
@@ -101,15 +49,15 @@ export function NavRail({ active = "overview", logoSrc, owner = "Stephen", onNav
             <div className="nsRailMotto">In Via Recta Celeriter</div>
           </div>
         </div>
-        <nav className="nsRailNav">
-          {sections.map((section) => (
+        <nav className="nsRailNav" aria-label="Primary navigation">
+          {navigationSections.map((section) => (
             <div className="nsRailSection" key={section.label}>
               <p>{section.label}</p>
               {section.items.map((it) => {
                 const on = it.key === active;
                 return (
                   <a key={it.key} href={it.href} onClick={(e) => { if (onNavigate) { e.preventDefault(); onNavigate(it.key); } }}
-                    className={on ? "isActive" : undefined}>
+                    className={on ? "isActive" : undefined} aria-current={on ? "page" : undefined}>
                     <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8}>{icons[it.icon] ?? icons.overview}</svg>
                     {it.label}
                   </a>

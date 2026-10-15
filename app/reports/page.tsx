@@ -16,6 +16,14 @@ type ReportDownload = {
 
 const downloads: ReportDownload[] = [
   {
+    title: "Tax positions",
+    owner: "Overall, Personal or SMSF",
+    href: "/tax",
+    downloadLabel: "Open positions",
+    detail: "Realised sales, unrealised positions and acquisition lots, with owner and reporting-period controls.",
+    rows: "CGT workbench",
+  },
+  {
     title: "Tax evidence and FX",
     owner: "Personal or SMSF",
     href: "/reports/tax-evidence",
@@ -83,7 +91,7 @@ export default function ReportsPage() {
         description="Download CSV outputs or open print-ready report pages. The EOFY accountant tax pack is AU Personal only; SMSF remains separate."
         links={[
           { href: "/", label: "Dashboard" },
-          { href: "/tax", label: "Tax lots" },
+          { href: "/tax", label: "Tax positions" },
           { href: "/targets", label: "Targets" },
           { href: "/roadmap", label: "Roadmap" },
         ]}
@@ -96,7 +104,7 @@ export default function ReportsPage() {
           <p className="cardIntro">Generated directly from stored SouthernStar portfolio data. AU is live for the Personal accountant pack; UK and US are reserved as separate tax jurisdictions for future reporting.</p>
           <SummaryGrid
             entries={[
-              ["Exports", downloads.length],
+              ["Reports", downloads.length],
               ["Format", "CSV + print"],
               ["Tax", "AU live, UK/US reserved"],
               ["Scopes", "Overall, Personal, SMSF"],
@@ -125,10 +133,10 @@ export default function ReportsPage() {
       <Card>
         <div className="panelHeader">
           <div>
-            <p className="eyebrow">Downloads</p>
-            <h2 className="cardTitle">Report files</h2>
+            <p className="eyebrow">Browse and download</p>
+            <h2 className="cardTitle">Reports and exports</h2>
           </div>
-          <span className="panelCount">{downloads.length} exports</span>
+          <span className="panelCount">{downloads.length} reports</span>
         </div>
 
         <div className={styles.list}>

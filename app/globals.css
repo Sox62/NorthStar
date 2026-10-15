@@ -248,6 +248,16 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   overflow: auto;
   overscroll-behavior-y: contain;
 }
+.mobileMenuSection { display: grid; gap: 8px; }
+.mobileMenuSection h2 {
+  margin: 14px 4px 2px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
 .mobileMenuNav a {
   min-height: 54px;
   display: flex;
@@ -1485,6 +1495,26 @@ body.southernstar .holdingsShell .holdingsTable th {
   min-width: 0;
   margin-top: 18px;
 }
+.taxLotsDisclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  cursor: pointer;
+  list-style: none;
+}
+.taxLotsDisclosure > summary::-webkit-details-marker { display: none; }
+.taxLotsDisclosure > summary::before {
+  content: "";
+  flex: 0 0 auto;
+  border-style: solid;
+  border-width: 5px 0 5px 7px;
+  border-color: transparent transparent transparent var(--accent);
+  transition: transform .15s ease;
+}
+.taxLotsDisclosure[open] > summary::before { transform: rotate(90deg); }
+.taxLotsDisclosure > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 6px; }
+.taxLotsHeading { flex: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
 .taxTableWrap {
   margin-top: 18px;
   max-width: 100%;

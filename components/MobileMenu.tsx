@@ -3,35 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-
-const navItems = [
-  { href: "/", label: "Overview", detail: "Portfolio dashboard" },
-  { href: "/holdings", label: "Capital", detail: "Share allocation" },
-  { href: "/accounts", label: "Accounts & mandates", detail: "Legal books" },
-  { href: "/prices", label: "Pricing", detail: "Market closes" },
-  { href: "/sectors", label: "Sectors", detail: "Exposure breakdown" },
-  { href: "/risk", label: "Stops & orders", detail: "Portfolio risk" },
-  { href: "/targets", label: "Targets", detail: "Allocation drift" },
-  { href: "/regime/rari", label: "Regime", detail: "RARI" },
-  { href: "/relative", label: "Relative", detail: "Ratio charts" },
-  { href: "/relative/calculator", label: "Calculator", detail: "Manual ratios" },
-  { href: "/fundamentals", label: "Fundamentals", detail: "Miner risk queue" },
-  { href: "/sync", label: "Sync", detail: "Feeds and status" },
-  { href: "/cash", label: "Cash", detail: "Bank balances" },
-  { href: "/assets", label: "Physical metals", detail: "Gold, silver, platinum, palladium" },
-  { href: "/reports", label: "Reports", detail: "Exports" },
-  { href: "/tax", label: "Tax", detail: "CGT lots" },
-  { href: "/security", label: "Security", detail: "Access methods" },
-];
-
-function isActive(pathname: string, href: string) {
-  if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
+import { activeNavigationKey, navigationSections } from "@/lib/navigation";
 
 export default function MobileMenu() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const active = activeNavigationKey(pathname);
 
   return (
     <div className="mobileMenu">
@@ -67,18 +44,22 @@ export default function MobileMenu() {
             </button>
           </div>
 
-          <nav className="mobileMenuNav">
-            {navItems.map((item) => (
+          <nav className="mobileMenuNav" aria-label="Primary navigation">
+            {navigationSections.map((section) => <section className="mobileMenuSection" key={section.label} aria-label={section.label}>
+              <h2>{section.label}</h2>
+              {section.items.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className={isActive(pathname, item.href) ? "isActive" : undefined}
+                className={active === item.key ? "isActive" : undefined}
+                aria-current={active === item.key ? "page" : undefined}
                 onClick={() => setOpen(false)}
               >
                 <span>{item.label}</span>
                 <em>{item.detail}</em>
               </Link>
-            ))}
+              ))}
+            </section>)}
           </nav>
         </aside>
       )}
