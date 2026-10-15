@@ -2,8 +2,8 @@
 
 **Date:** 15 October 2026
 **Responding to:** [AUDIT_REPORT.md](AUDIT_REPORT.md) and [DISCREPANCY_REGISTER.md](DISCREPANCY_REGISTER.md)
-**Audit basis:** `2b7184f` · **This work:** `7534cba`, `39f56c4`, `b5e4e02`
-**Tests:** 399 → 415, all passing
+**Audit basis:** `2b7184f` · **This work:** `7534cba`, `39f56c4`, `b5e4e02`, `01177f4`
+**Tests:** 399 → 419, all passing
 
 The audit was taken seriously because it was right. Its findings were reproduced independently
 before any of them were acted on, and one of them — F02 — is a defect in work delivered the
@@ -100,9 +100,16 @@ configuration choice but a mistake that reports every personal capital gain as u
 ### F02 — one reconciled set feeds every schedule · `7534cba`
 
 `buildTaxLots` now exposes the trades it actually counted, and the trade and historical-cost
-schedules read that instead of the raw rows. The historical schedule additionally pools by broker
-as the engine does, applies the parcel election, and rescales for a corporate action **through the
-engine's own function** rather than a second copy of the rule. The audit was explicit about not
+schedules read that instead of the raw rows. The historical schedule additionally pools as the engine
+does, applies the parcel election, and rescales for a corporate action **through the engine's own
+function** rather than a second copy of the rule.
+
+**The pooling key was wrong on the first attempt, corrected in `01177f4`.** Dropping the account
+from the historical key while keeping the *instrument* key traded one split for another: an
+instrument key is not written the same way on both sides — a Directshares position is stored as
+"ASL:ASX" while an imported trade carries "Directshares:ASL:ASX". The parcel engine keys on ticker
+and venue precisely to survive that, and says so in a comment directly above the function. Both
+now key the same way. The audit was explicit about not
 growing a second engine and that was the right instruction.
 
 Live effect:
@@ -119,7 +126,11 @@ Live effect:
 Net capital gain unchanged at **189,623.38** — the CGT engine was already right; what moved is
 everything that had been contradicting it.
 
-### F03 — fee currency · `39f56c4`
+### F03 — fee currency · `39f56c4`, completed in `01177f4`
+
+**This was reported as fixed when only half of it was.** The register's F03 covers two defects:
+foreign commissions (P14) and foreign dividend gross (P15). Only the commission half was done,
+and the finding was described as closed. A follow-up review caught it.
 
 Importers now state the currency fees are denominated in. Rows stored before the field existed fall
 back to what their importer is known to have done, which is the only reading of them that is ever
@@ -128,11 +139,22 @@ trade schedule.
 
 Live effect: EWZ brokerage on a USD trade reads **$129.09** where it read $196.28.
 
+The dividend half, `01177f4`: importers keep two shapes of one number — `grossDividendAud`,
+already converted, and `grossDividend`, in the currency paid — and both income paths read both as
+AUD. A USD110 dividend at 1.5 reported gross income of AUD110 against net income of AUD150, a
+gross smaller than the net it contains. The second is now converted and the first left alone.
+
 ### F04 — missing exchange rates · `39f56c4`
 
 A foreign row with no rate was valued at 1, producing an AUD figure that reads as a measurement and
 is not one. Those rows are collected and named in the data-quality notes, and the totals that
 include them are called provisional.
+
+**Incomplete as first shipped, finished in `01177f4`.** The scan covered trades only, so a
+dividend converted by the same absent number went unnamed; and the tax position export carried no
+data-quality rows at all, so a total resting on an assumption looked exactly like one that did
+not. The scan now covers every transaction type and the export carries the warning with a row per
+affected transaction.
 
 The arithmetic still produces a number. Refusing to value the row would make a total silently
 smaller, which is a worse failure than a stated assumption. FY2026 has no exposure — all 36 of its
@@ -264,6 +286,17 @@ FY2025-26 personal, against the lodged Sharesight figure of $195,597.30:
 | Difference | −5,973.92 |
 | Holdings agreeing exactly | 28 of 37 |
 | Like-for-like gap, excluding the second account | **$738 raw on $255,143 — 0.29%** |
+
+**The per-holding figures are pre-discount and the headline is post-discount.** Quoting both
+without bridging them left $304.99 looking unaccounted for. It is the extra CGT discount: our
+long-term gains are $609.97 higher than Sharesight's, and half of that is removed as concession.
+
+```
+raw per-holding differences          −5,668.92
+extra CGT discount                     −304.98
+                                     ─────────
+net difference                       −5,973.92
+```
 
 The nine holdings that differ are all accounted for: **−6,407.12** is Directshares account
 `4386162`, which Sharesight's portfolio does not contain; **576.36** is a confirmed AMIT cost base
