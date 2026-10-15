@@ -5,13 +5,18 @@ import PageHeader from "@/components/PageHeader";
 import { Card, Notice, SummaryGrid } from "@/southernstar/components";
 import type { TaxEvidenceReport } from "@/lib/tax-evidence/report";
 import type { IbkrFlexSyncResult } from "@/lib/sync/ibkr-flex";
+import ExternalFxSection from "./ExternalFxSection";
 import styles from "./TaxEvidence.module.css";
 
 function currentFinancialYear() {
   const parts = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Sydney", year: "numeric", month: "numeric" }).formatToParts(new Date());
   return Number(parts.find((part) => part.type === "year")?.value) + (Number(parts.find((part) => part.type === "month")?.value) >= 7 ? 1 : 0);
 }
-const amount = (value: number | null | undefined) => value == null ? "Missing evidence" : value.toLocaleString("en-AU", { maximumFractionDigits: 6 });
+const amount = (value: number | null | undefined) => {
+  if (value == null) return "Missing evidence";
+  const formatted = value.toLocaleString("en-AU", { maximumFractionDigits: 6 });
+  return formatted === "-0" ? "0" : formatted;
+};
 
 export default function TaxEvidencePage() {
   const [scope, setScope] = useState<"personal" | "smsf">("personal");
@@ -110,6 +115,7 @@ export default function TaxEvidencePage() {
       <button type="button" disabled={busy} onClick={refreshIbkrEvidence}>{syncing ? "Fetching IBKR evidence…" : "Refresh IBKR evidence"}</button>
       {flexResult ? <div role="status"><p>Flex response recorded for {flexResult.statementFrom} – {flexResult.statementTo}: {flexResult.flexFxTransactions} FX conversions, {flexResult.flexCashTransactions} cash movements and {flexResult.flexTrades} security trades.</p><p>{flexResult.imported} new records; {flexResult.duplicates} existing IDs skipped.</p>{flexResult.conflicts?.length ? <Notice>{flexResult.conflicts.length} source amendments need review; stored transactions were retained.</Notice> : null}</div> : null}
     </Card>
+    <ExternalFxSection key={`${scope}:${year}`} scope={scope} year={year} report={report} busy={busy} onBusyChange={setBusy} onRecorded={() => setRevision((value) => value + 1)} />
     {report ? <>
       <Card><SummaryGrid entries={[["Transactions", report.transactions.length], ["FX conversions", report.conversions.length], ["Confirmed transfers", report.transfers.filter((row) => row.status === "confirmed").length], ["Exceptions", report.exceptions.length], ["Source documents", report.sources.length]]} /></Card>
       <Card><h2>Currency activity</h2><p>Gross recorded flows by currency, including inter-account movements. No currencies are combined into an assumed AUD total.</p><div className={styles.scroll}><table><thead><tr><th>Currency</th><th>Cash receipts</th><th>Cash payments</th><th>Converted in</th><th>Converted out</th><th>Fees</th></tr></thead><tbody>{report.currencyTotals.map((row) => <tr key={row.currency}><td>{row.currency}</td><td>{amount(row.cashReceipts)}</td><td>{amount(row.cashPayments)}</td><td>{amount(row.convertedIn)}</td><td>{amount(row.convertedOut)}</td><td>{amount(row.fees)}</td></tr>)}</tbody></table></div></Card>
@@ -128,14 +134,15 @@ export default function TaxEvidencePage() {
     <Card><h2>Bank statements and artwork documents</h2><p>Files are assigned to the selected owner, {scope === "personal" ? "Personal" : "SMSF"}. Preview checks the file before it is recorded.</p>
       <form onSubmit={importFile} onChange={() => setPreviewKey("")} className={styles.importForm}>
         <label>Source<select value={system} onChange={(event) => { setSystem(event.target.value); setFile(null); setImportResult(null); }}><option>Westpac</option><option>Macquarie</option><option>Artwork</option></select></label>
-        <label>Original file<input type="file" accept={system === "Artwork" ? ".pdf,.txt,.csv,.xml" : ".csv"} onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label>
+        <label>Original file<input type="file" accept={system === "Artwork" ? ".pdf,.txt,.csv,.xml" : system === "Westpac" ? ".csv,.pdf" : ".csv"} onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label>
           <label>Stable account identifier<input name="account" required maxLength={128} placeholder={system === "Artwork" ? "Artwork sale reference" : "Account number or consistent private account ID"} /></label>
           <label>Statement / evidence period from<input name="from" type="date" required defaultValue={`${year - 1}-07-01`} key={`from:${year}`} /></label>
           <label>To<input name="to" type="date" required defaultValue={`${year}-06-30`} key={`to:${year}`} /></label>
-          {system !== "Artwork" ? <><label>Account currency<input name="currency" defaultValue={system === "Westpac" ? "USD" : "AUD"} key={`currency:${system}`} required minLength={3} maxLength={3} /></label><label>Opening statement balance (optional)<input name="opening" type="number" step="any" /></label><label>Closing statement balance (optional)<input name="closing" type="number" step="any" /></label><p>CSV needs Date, Description and Amount (signed), or Debit/Credit columns. Reference, Currency and Balance are optional. Use ISO or DD/MM/YYYY dates. Declare the period from the statement; missing balances stay unknown.</p></> : <p>Attach the contract, invoice, commission/settlement or provenance document. This records evidence only and creates no artwork tax calculation.</p>}
+          {system !== "Artwork" ? <><label>Account currency<input name="currency" defaultValue={system === "Westpac" ? "USD" : "AUD"} key={`currency:${system}`} required minLength={3} maxLength={3} /></label><label>Opening statement balance (CSV only, optional)<input name="opening" type="number" step="any" /></label><label>Closing statement balance (CSV only, optional)<input name="closing" type="number" step="any" /></label><p>CSV needs Date, Description and Amount (signed), or Debit/Credit columns. Reference, Currency and Balance are optional. Use ISO or DD/MM/YYYY dates. Westpac also accepts text-based Account Activity PDFs; preview the extracted rows before recording. Leave PDF opening/closing balances blank; the Available tile is not a statement balance.</p></> : <p>Attach the contract, invoice, commission/settlement or provenance document. This records evidence only and creates no artwork tax calculation.</p>}
         <div className={styles.toolbar}><button type="submit" value="preview" disabled={busy || !file}>Preview file</button><button type="submit" value="commit" className="primary" disabled={busy || !previewKey}>Record evidence</button></div>
       </form>
       {importResult ? <div role="status"><p>{String(importResult.note ?? "Evidence recorded.")}</p><p>{importResult.preview ? "Preview" : "Imported"}: {String(importResult.transactions ?? importResult.imported ?? 0)} transaction rows. {importResult.duplicates != null ? `${importResult.duplicates} exact/existing IDs skipped.` : ""}</p>{Array.isArray(importResult.conflicts) && importResult.conflicts.length ? <Notice>{importResult.conflicts.length} source amendments need review; stored transactions were retained.</Notice> : null}</div> : null}
+      {Array.isArray(importResult?.rows) ? <div className={styles.scroll}><table><thead><tr><th>Preview date</th><th>Description</th><th>Currency</th><th>Signed amount</th></tr></thead><tbody>{(importResult.rows as Array<{ date: string; description: string; currency: string; amount: number }>).map((row, index) => <tr key={index}><td>{row.date}</td><td>{row.description}</td><td>{row.currency}</td><td>{amount(row.amount)}</td></tr>)}</tbody></table><p>Preview shows up to 50 rows. Verify the amounts and selected owner before recording.</p></div> : null}
     </Card>
   </main>;
 }

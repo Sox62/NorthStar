@@ -9,6 +9,8 @@ import { buildTaxEvidenceReport, conversionEvidence } from "./report";
 import { evidenceCsv, evidenceZip } from "./export";
 import { evidenceDocument, sourceHash } from "./sources";
 import { validateTransferReview } from "./transfers";
+import { parseWestpacActivityText } from "./bank-pdf";
+import { externalFxImport, readExternalFx } from "./external-fx";
 import type { LocalStore, StoredTransaction } from "@/lib/storage/types";
 
 // Seed the file before importing the adapter: a missing path otherwise reads the real legacy store.
@@ -34,6 +36,31 @@ function bank(system: "Westpac" | "Macquarie", value: number, reference: string,
     system, accountKey: `${system}-${owner}`, currency: "USD", filename: "statement.csv", startDate: "2026-07-01", endDate: "2027-06-30",
   });
   return input;
+}
+
+const bankPdfText = `United States Dollars
+Currency Account
+Available
+AUD 0.00
+Transactions
+Date Description Debit Credit
+07 Aug 2026 WITHDRAWAL ONLINE 3003 INTL JPMORGAN C -$1190.00
+06 Aug 2026 OVERSEAS TELEGRAPHIC TRANSFER REFERENCE 3001 - FEE -$10.00
+06 Aug 2026 WITHDRAWAL ONLINE 3002 INTL TEST FX -$1200.00
+05 Aug 2026 PROCEEDS OVERSEAS TELEGRAPHIC TRANSFER REFERENCE 3001 SYNTHETIC PAYER $2400.00
+Things you should know
+Processed transactions only.
+Account activity
+Copyright 2026 Westpac Banking Corporation`;
+function syntheticBankPdf() {
+  const stream = `BT\n/F1 10 Tf\n40 760 Td\n12 TL\n${bankPdfText.split("\n").map((line) => `(${line.replace(/[\\()]/g, "\\$&")}) Tj T*`).join("\n")}\nET`;
+  const objects = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>", `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
+  let data = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((value, index) => { offsets.push(Buffer.byteLength(data)); data += `${index + 1} 0 obj\n${value}\nendobj\n`; });
+  const start = Buffer.byteLength(data);
+  data += `xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Root 1 0 R /Size 6 >>\nstartxref\n${start}\n%%EOF`;
+  return Buffer.from(data);
 }
 
 function unzip(buffer: Buffer) {
@@ -347,4 +374,97 @@ test("conflicting statement balances cannot report a successful cash reconciliat
   assert.equal(report.balances[0].status, "conflicting_evidence");
   assert.equal(report.balances[0].variance, null);
   assert.ok(report.exceptions.some((row) => row.code === "conflicting_balance"));
+});
+
+test("Westpac PDF preview retains original bytes and does not turn its AUD Available tile into a USD balance", async () => {
+  writeFileSync(dataFile, JSON.stringify(empty));
+  const { POST } = await import("@/app/api/tax-evidence/import/route");
+  const { LocalStorageAdapter } = await import("@/lib/storage/local");
+  const { readStore } = await import("@/lib/storage/local-store");
+  const bytes = syntheticBankPdf();
+  const request = (commit: boolean) => {
+    const form = new FormData();
+    for (const [key, value] of Object.entries({ owner: "PERSONAL", system: "Westpac", account: "SYNTH-USD", currency: "USD", from: "2026-07-01", to: "2027-06-30" })) form.set(key, value);
+    form.set("file", new File([bytes], "synthetic-activity.pdf"));
+    return new Request(`http://localhost/api/tax-evidence/import?commit=${commit ? 1 : 0}`, { method: "POST", body: form });
+  };
+  const before = JSON.stringify(await readStore());
+  const previewResponse = await POST(request(false));
+  assert.equal(previewResponse.status, 200);
+  const preview = await previewResponse.json();
+  assert.equal(preview.transactions, 4); assert.equal(preview.rows.length, 4); assert.equal(preview.from, "2026-08-05"); assert.equal(preview.to, "2026-08-07");
+  assert.equal(JSON.stringify(await readStore()), before);
+  const imported = await (await POST(request(true))).json(); assert.equal(imported.imported, 4);
+  assert.equal((await (await POST(request(true))).json()).imported, 0);
+  const storage = new LocalStorageAdapter();
+  const original = await storage.getEvidenceDocument(imported.sourceId, "PERSONAL");
+  assert.ok(Buffer.from(original!.contentBase64, "base64").equals(bytes));
+  const rows = await storage.listTransactions("PERSONAL");
+  assert.equal(rows.reduce((total, row) => total + row.netCash!, 0), 0);
+  const report = buildTaxEvidenceReport("PERSONAL", rows, await storage.listEvidenceSources("PERSONAL"), [], 2027, at);
+  assert.equal(report.balances[0].opening, null); assert.equal(report.balances[0].closing, null); assert.equal(report.balances[0].status, "missing_evidence");
+  assert.equal(report.currencyTotals[0].fees, 10);
+  const input = { accountKey: "SYNTH-USD", currency: "USD", filename: "synthetic.pdf", startDate: "2026-07-01", endDate: "2027-06-30" };
+  assert.throws(() => parseWestpacActivityText(bankPdfText, bytes, { ...input, currency: "AUD" }), /account-currency/);
+  assert.throws(() => parseWestpacActivityText(bankPdfText.replace("-$1200.00", "$1200.00"), bytes, input), /signed debit/);
+  assert.throws(() => parseWestpacActivityText(bankPdfText.replace("-$1200.00", "-$1200.00 $1.00"), bytes, input), /ambiguous amount/);
+  assert.throws(() => parseWestpacActivityText(bankPdfText + "\n-- 1 of 2 --\n08 Aug 2026 OTHER ROW -$1.00", bytes, input), /partial import/);
+});
+
+test("users can log external FX evidence with month precision and originals without duplicating bank cash", async () => {
+  writeFileSync(dataFile, JSON.stringify(empty));
+  const { LocalStorageAdapter } = await import("@/lib/storage/local");
+  const { readStore } = await import("@/lib/storage/local-store");
+  const storage = new LocalStorageAdapter();
+  const pdf = syntheticBankPdf();
+  await storage.importTaxEvidence(parseWestpacActivityText(bankPdfText, pdf, { accountKey: "SYNTH-USD", currency: "USD", filename: "synthetic.pdf", startDate: "2026-07-01", endDate: "2027-06-30" }), "PERSONAL");
+  const transactions = await storage.listTransactions("PERSONAL");
+  const funding = transactions.find((row) => row.netCash === -1200)!;
+  const before = await readStore();
+  const { POST } = await import("@/app/api/tax-evidence/external-fx/route");
+  const post = (changes: Record<string, string> = {}) => {
+    const form = new FormData();
+    for (const [key, value] of Object.entries({ owner: "PERSONAL", provider: "Synthetic FX", account: "SYNTH-PROVIDER", month: "2026-08", fromCurrency: "USD", fromAmount: "1200", toCurrency: "AUD", toAmount: "1800", fundingTransactionId: funding.id, pairingStatus: "user_confirmed", evidenceBasis: "user_reported", note: "User confirms this funding and payout belong to the same transfer. Exact conversion day and fees remain unknown.", ...changes })) form.set(key, value);
+    form.set("support", new File(["Synthetic user payout confirmation"], "confirmation.txt"));
+    return POST(new Request("http://localhost/api/tax-evidence/external-fx", { method: "POST", body: form }));
+  };
+  const response = await post(); assert.equal(response.status, 200);
+  const recorded = await response.json(); assert.equal(recorded.recorded, true); assert.equal(recorded.amountImpliedRate, 1.5);
+  assert.equal((await post()).status, 200);
+  const after = await readStore();
+  assert.deepEqual(after.transactions, before.transactions);
+  for (const key of ["positions", "cashAccounts", "openOrders", "snapshots"] as const) assert.deepEqual(after[key], before[key]);
+  assert.equal(after.evidenceDocuments!.length, 3);
+  const report = buildTaxEvidenceReport("PERSONAL", transactions, await storage.listEvidenceSources("PERSONAL"), [], 2027, at);
+  assert.equal(report.externalFx.length, 1); assert.equal(report.externalFx[0].conversionDate, null); assert.equal(report.externalFx[0].month, "2026-08");
+  assert.equal(report.externalFx[0].fundingDate, "2026-08-06"); assert.equal(report.externalFx[0].pairingStatus, "user_confirmed");
+  assert.equal(report.externalFx[0].feeAmount, null); assert.equal(report.externalFx[0].quotedRate, null);
+  assert.ok(report.exceptions.some((row) => row.code === "external_fx_date_unknown"));
+  assert.ok(!report.exceptions.some((row) => row.code === "unmatched_cash" && row.transactionId === funding.id));
+  assert.equal(report.balances.length, 1); assert.equal(report.balances[0].movement, 0); assert.equal(report.currencyTotals.some((row) => row.currency === "AUD"), false);
+  const files = unzip(evidenceZip(report, after.evidenceDocuments!, after.transactions));
+  assert.ok(files.get("External_FX_Evidence.csv")!.toString().includes("user_confirmed"));
+  assert.ok([...files.values()].some((data) => data.equals(Buffer.from("Synthetic user payout confirmation"))));
+  const count = after.evidenceDocuments!.length;
+  assert.equal((await post({ owner: "SMSF" })).status, 400);
+  assert.equal((await post({ fromAmount: "1201" })).status, 400);
+  assert.equal((await post({ evidenceBasis: "provider_confirmation" })).status, 400);
+  assert.equal((await post({ conversionDate: "2026-09-01" })).status, 400);
+  assert.equal((await readStore()).evidenceDocuments!.length, count);
+  const other = buildTaxEvidenceReport("SMSF", transactions, after.evidenceDocuments!, [], 2027, at);
+  assert.equal(other.externalFx.length, 0);
+});
+
+test("external declarations retain year boundaries and cannot silently change facts for the same original", async () => {
+  writeFileSync(dataFile, JSON.stringify(empty));
+  const { LocalStorageAdapter } = await import("@/lib/storage/local");
+  const storage = new LocalStorageAdapter();
+  const row = readExternalFx({ provider: "Synthetic FX", month: "2027-07", fromCurrency: "USD", fromAmount: "10", toCurrency: "AUD", toAmount: "15", feeAmount: "0", feeCurrency: "AUD", note: "July activity; exact date unknown." }, "Test");
+  const input = externalFxImport(row, "SYNTH", []);
+  await storage.importTaxEvidence(input, "PERSONAL");
+  const source = await storage.listEvidenceSources("PERSONAL");
+  assert.equal(buildTaxEvidenceReport("PERSONAL", [], source, [], 2027, at).externalFx.length, 0);
+  assert.equal(buildTaxEvidenceReport("PERSONAL", [], source, [], 2028, at).externalFx[0].feeAmount, 0);
+  const changed = structuredClone(input); changed.source.metadata.externalFx!.toAmount = 20;
+  await assert.rejects(() => storage.importTaxEvidence(changed, "PERSONAL"), /different coverage or balances/);
 });

@@ -1,6 +1,7 @@
 import { parseIbkrFlexXml } from "@/lib/integrations/ibkr";
 import { getStorage, type OwnerType } from "@/lib/storage";
 import { evidenceDate, parseBankEvidenceCsv } from "@/lib/tax-evidence/bank-csv";
+import { parseWestpacActivityPdf } from "@/lib/tax-evidence/bank-pdf";
 import type { EvidenceImport } from "@/lib/tax-evidence/types";
 
 export const runtime = "nodejs";
@@ -40,13 +41,19 @@ export async function POST(request: Request) {
         if (!Number.isFinite(Number(value))) throw new Error("Opening and closing balances must be numbers or blank.");
         return Number(value);
       };
-      input = parseBankEvidenceCsv(content, { system, accountKey, currency, filename: file.name, startDate, endDate, opening: optionalAmount("opening"), closing: optionalAmount("closing") });
+      if (/\.pdf$/i.test(file.name)) {
+        if (system !== "Westpac") throw new Error("Use a Macquarie CSV export. PDF extraction currently supports Westpac Account Activity reports.");
+        if (optionalAmount("opening") != null || optionalAmount("closing") != null) throw new Error("This activity PDF does not supply statement opening/closing balances. Leave those fields blank.");
+        input = await parseWestpacActivityPdf(content, { accountKey, currency, filename: file.name, startDate, endDate });
+      } else input = parseBankEvidenceCsv(content, { system, accountKey, currency, filename: file.name, startDate, endDate, opening: optionalAmount("opening"), closing: optionalAmount("closing") });
     } else if (system === "Artwork") {
       if (!/\.(pdf|txt|csv|xml)$/i.test(file.name)) throw new Error("Attach artwork evidence as PDF, TXT, CSV or XML.");
       input = { transactions: [], source: { system, accountKey, filename: file.name, mediaType: "application/octet-stream", contentBase64: content.toString("base64"),
         startDate, endDate, metadata: { sections: ["Supporting artwork document"], timezone: null } } };
     } else throw new Error("Choose IBKR, Westpac, Macquarie or Artwork.");
-    if (!commit) return Response.json({ preview: true, transactions: input.transactions.length, from: startDate, to: endDate, note: "Cash evidence and the original file will be retained. Portfolio balances and positions are not updated by this import." });
+    if (!commit) return Response.json({ preview: true, transactions: input.transactions.length, from: input.source.startDate, to: input.source.endDate,
+      rows: input.transactions.slice(0, 50).map((row) => ({ date: row.tradeDate, description: row.description, currency: row.currency, amount: row.netCash })),
+      note: "Cash evidence and the original file will be retained. Portfolio balances and positions are not updated by this import." });
     return Response.json({ preview: false, ...(await storage.importTaxEvidence(input, owner as OwnerType)) });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Unable to import evidence." }, { status: 400 });

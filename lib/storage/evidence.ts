@@ -13,7 +13,9 @@ export function serializedLocalEvidence<T>(work: () => Promise<T>): Promise<T> {
 
 function sameSourceDeclaration(existing: Pick<EvidenceSource, "startDate" | "endDate" | "metadata">, incoming: EvidenceDocument) {
   if (existing.startDate !== incoming.startDate || existing.endDate !== incoming.endDate
-    || JSON.stringify(existing.metadata.balances ?? []) !== JSON.stringify(incoming.metadata.balances ?? [])) {
+    || JSON.stringify(existing.metadata.balances ?? []) !== JSON.stringify(incoming.metadata.balances ?? [])
+    || JSON.stringify(existing.metadata.externalFx ?? null) !== JSON.stringify(incoming.metadata.externalFx ?? null)
+    || JSON.stringify(existing.metadata.supportingSourceIds ?? []) !== JSON.stringify(incoming.metadata.supportingSourceIds ?? [])) {
     throw new Error("This original file is already recorded with different coverage or balances. Review the existing declaration; it was not overwritten.");
   }
 }
@@ -65,7 +67,8 @@ export function validateEvidenceTransactions(transactions: ImportedTransaction[]
 }
 
 export function sourceLinkedTransaction(transaction: ImportedTransaction, documents: EvidenceDocument[]) {
-  return { ...transaction, raw: evidenceRaw(transaction.raw, documents) };
+  return { ...transaction, raw: { ...evidenceRaw(transaction.raw, documents), ...(transaction.type === "CASH_ACTIVITY"
+    ? { _evidenceDescription: transaction.description, _evidenceSymbol: transaction.symbol } : {}) } };
 }
 
 /** Link an identical historical row to a newly supplied original, preserving its original facts. */

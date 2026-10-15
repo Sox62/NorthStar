@@ -109,12 +109,13 @@ export class PostgresStorageAdapter implements StorageAdapter {
       const portfolioId = await ensurePortfolio(client, ownerType);
       const accountId = await ensureBrokerAccount(client, portfolioId, input.source.system, input.source.accountKey, "AUD");
       const document = evidenceDocument(input.source, ownerType);
-      await keepPgEvidence(client, portfolioId, [document]);
+      const documents = [document, ...(input.additionalSources ?? []).map((source) => evidenceDocument(source, ownerType))];
+      await keepPgEvidence(client, portfolioId, documents);
       let imported = 0;
       let duplicates = 0;
       const conflicts: ImportConflict[] = [];
       for (const incoming of input.transactions) {
-        const transaction = sourceLinkedTransaction(incoming, [document]);
+        const transaction = sourceLinkedTransaction(incoming, documents);
         const result = await client.query(`INSERT INTO transactions
           (portfolio_id,account_id,type,trade_date,settle_date,currency,net_cash,external_id,source,raw)
           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (account_id,source,external_id) DO NOTHING`,
@@ -427,9 +428,9 @@ export class PostgresStorageAdapter implements StorageAdapter {
        * the pair the broker named, which the parser kept in `raw` — falling back to it means a
        * currency conversion reads as "AUD.USD" rather than vanishing or arriving nameless.
        */
-      symbol: (row.ticker as string | null) ?? String((row.raw as Record<string, unknown> | null)?.symbol ?? "FX"),
+      symbol: (row.ticker as string | null) ?? String((row.raw as Record<string, unknown> | null)?.symbol ?? (row.raw as Record<string, unknown> | null)?._evidenceSymbol ?? (row.type === "FX" ? "FX" : row.currency)),
       exchange: (row.exchange as string | null) ?? String((row.raw as Record<string, unknown> | null)?.exchange ?? ""),
-      description: (row.name as string | null) ?? String((row.raw as Record<string, unknown> | null)?.description ?? ""),
+      description: (row.name as string | null) ?? String((row.raw as Record<string, unknown> | null)?.description ?? (row.raw as Record<string, unknown> | null)?._evidenceDescription ?? (row.raw as Record<string, unknown> | null)?.Description ?? (row.raw as Record<string, unknown> | null)?.Details ?? ""),
       instrumentKey: (row.external_key as string | null) ?? undefined,
       isin: row.isin ?? undefined,
       conid: row.conid ?? undefined,

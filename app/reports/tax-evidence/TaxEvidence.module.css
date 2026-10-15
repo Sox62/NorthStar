@@ -8,5 +8,6 @@
 .scroll small, .exceptions small { display: block; opacity: .7; font-size: .82em; margin-top: 4px; }
 .importForm { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
 .importForm p, .importForm .toolbar { grid-column: 1 / -1; }
+.importForm .wide { grid-column: 1 / -1; }
 .exceptions { padding-left: 20px; max-height: 360px; overflow-y: auto; }
 .exceptions li { margin-bottom: 12px; }

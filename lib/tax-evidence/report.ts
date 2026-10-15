@@ -4,6 +4,7 @@ import type { OwnerType, StoredTransaction } from "@/lib/storage/types";
 import type { EvidenceReview, EvidenceSource } from "./types";
 import { accountReference, displayAccount } from "./sources";
 import { activeTransferReviews, isTransferCash } from "./transfers";
+import { externalFxForReport } from "./external-fx";
 
 export const evidenceDeclaration = "Transaction evidence only; Australian CGT and Division 775 forex tax treatment to be determined by the accountant.";
 const numeric = (value: unknown): number | null => value == null || value === "" || !Number.isFinite(Number(value)) ? null : Number(value);
@@ -38,9 +39,13 @@ export function buildTaxEvidenceReport(ownerType: OwnerType, transactions: Store
   const selected = owned.filter((row) => inPeriod(row.tradeDate)).sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || a.id.localeCompare(b.id));
   const sourcesById = new Map(allSources.filter((source) => source.ownerType === ownerType).map((source) => [source.id, source]));
   const exceptions: Array<{ code: string; transactionId: string | null; detail: string }> = [];
+  const externalFx = externalFxForReport(ownerType, allSources, owned, period.startDate, period.endDate);
+  exceptions.push(...externalFx.exceptions);
   const selectedIds = new Set(selected.map((row) => row.id));
   const active = activeTransferReviews(allReviews.filter((review) => review.ownerType === ownerType));
-  const assigned = new Set(active.flatMap((review) => [review.outgoingId, review.incomingId]));
+  for (const review of active) if (externalFx.explainedFunding.has(review.outgoingId)) exceptions.push({ code: "external_fx_double_assignment", transactionId: review.outgoingId,
+    detail: "A withdrawal has both a confirmed cash-transfer match and a user-confirmed external FX declaration. Review the conflicting links." });
+  const assigned = new Set([...active.flatMap((review) => [review.outgoingId, review.incomingId]), ...externalFx.explainedFunding]);
   const transferPairs: Array<{ outgoingId: string; incomingId: string; outgoingAccount: string; incomingAccount: string; outgoingDate: string; incomingDate: string;
     currency: string; outgoingAmount: number; incomingAmount: number; difference: number; status: "candidate" | "confirmed"; note: string }> = [];
   const cash = owned.filter(isTransferCash);
@@ -111,7 +116,7 @@ export function buildTaxEvidenceReport(ownerType: OwnerType, transactions: Store
       fxRateToAud: numeric(row.fxRateToBase), fxRateEvidence: String(row.raw?._fxRateOrigin ?? "Stored normalization rate; verify provenance in original source"), fx,
     };
   });
-  const referencedSources = new Set(rows.map((row) => row.sourceId));
+  const referencedSources = new Set([...rows.map((row) => row.sourceId), ...externalFx.referencedSourceIds]);
   const sources = [...sourcesById.values()].filter((source) => (source.startDate <= period.endDate && source.endDate >= period.startDate) || referencedSources.has(source.id))
     .sort((a, b) => a.id.localeCompare(b.id));
   for (const system of (ownerType === "PERSONAL" ? ["IBKR", "Westpac", "Macquarie", "Artwork"] : ["IBKR"])) {
@@ -177,6 +182,7 @@ export function buildTaxEvidenceReport(ownerType: OwnerType, transactions: Store
       }
     }
     if (row.fees) currencyTotal(String(row.raw?.feeCurrency ?? row.raw?.ibCommissionCurrency ?? row.currency)).fees += Math.abs(row.fees);
+    if (row.type === "CASH_ACTIVITY" && row.raw?._evidenceCategory === "Bank fee" && row.netCash != null) currencyTotal(row.currency).fees += Math.abs(row.netCash);
   }
   const balances = [...accounts.entries()].map(([id, row]) => {
     const variance = !row.balanceConflict && row.opening != null && row.closing != null && !row.missingMovements ? row.opening + row.movement - row.closing : null;
@@ -185,9 +191,9 @@ export function buildTaxEvidenceReport(ownerType: OwnerType, transactions: Store
     return { id, ...row, variance, status };
   }).sort((a, b) => a.id.localeCompare(b.id));
   const reviews = allReviews.filter((review) => review.ownerType === ownerType && (selectedIds.has(review.outgoingId) || selectedIds.has(review.incomingId)));
-  const inputHash = hash({ ownerType, year, transactions: selected, sources: sources.map((source) => ({ ...source, importedAt: source.importedAt })), reviews });
-  return { version: "tax-evidence-v1", ownerType, period, generatedAt: generatedAt.toISOString(), timezone: "Australia/Sydney", dateBasis: "Original broker/bank calendar date; unknown source timezones are exceptions", declaration: evidenceDeclaration,
+  const inputHash = hash({ ownerType, year, transactions: selected, sources: sources.map((source) => ({ ...source, importedAt: source.importedAt })), reviews, externalFx: externalFx.rows });
+  return { version: "tax-evidence-v2", ownerType, period, generatedAt: generatedAt.toISOString(), timezone: "Australia/Sydney", dateBasis: "Original broker/bank calendar date; external declarations retain month precision when exact dates are unknown", declaration: evidenceDeclaration,
     inputHash, transactions: rows, conversions: rows.flatMap((row) => row.fx ? [{ ...row.fx, date: row.date, account: row.account, sourceId: row.sourceId }] : []),
-    transfers: transferPairs, balances, currencyTotals: [...currencyTotals.values()].sort((a, b) => a.currency.localeCompare(b.currency)), exceptions, reviews,
+    externalFx: externalFx.rows, transfers: transferPairs, balances, currencyTotals: [...currencyTotals.values()].sort((a, b) => a.currency.localeCompare(b.currency)), exceptions, reviews,
     sources: sources.map(({ accountKey, ...source }) => ({ ...source, account: displayAccount(source.system, accountKey), filename: source.filename.replaceAll(accountKey, `…${accountKey.slice(-3)}`) })) };
 }

@@ -219,12 +219,13 @@ export class LocalStorageAdapter implements StorageAdapter {
       validateEvidenceTransactions(input.transactions);
       const store = await readStore();
       const document = evidenceDocument(input.source, ownerType);
-      keepLocalEvidence(store, [document]);
+      const documents = [document, ...(input.additionalSources ?? []).map((source) => evidenceDocument(source, ownerType))];
+      keepLocalEvidence(store, documents);
       let imported = 0;
       let duplicates = 0;
       const conflicts: ImportConflict[] = [];
       for (const incoming of input.transactions) {
-        const transaction = sourceLinkedTransaction(incoming, [document]);
+        const transaction = sourceLinkedTransaction(incoming, documents);
         const stored = store.transactions.find((row) => row.ownerType === ownerType && row.broker === input.source.system
           && row.accountKey === input.source.accountKey && row.source === transaction.source && row.externalId === transaction.externalId);
         if (stored) {

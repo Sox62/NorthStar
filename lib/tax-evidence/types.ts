@@ -1,7 +1,25 @@
 import type { ImportedTransaction } from "@/lib/integrations/types";
 import type { OwnerType } from "@/lib/storage/types";
 
-export type EvidenceSystem = "IBKR" | "Westpac" | "Macquarie" | "Artwork";
+export type EvidenceSystem = "IBKR" | "Westpac" | "Macquarie" | "Artwork" | "External FX";
+export type ExternalFxEvidence = {
+  provider: string;
+  reference: string | null;
+  month: string;
+  conversionDate: string | null;
+  fromCurrency: string;
+  fromAmount: number;
+  toCurrency: string;
+  toAmount: number;
+  quotedRate: number | null;
+  feeAmount: number | null;
+  feeCurrency: string | null;
+  fundingTransactionId: string | null;
+  pairingStatus: "provisional" | "user_confirmed";
+  evidenceBasis: "user_reported" | "provider_confirmation";
+  note: string;
+  author: string;
+};
 export type EvidenceBalance = { currency: string; startDate: string; endDate: string; opening: number | null; closing: number | null };
 export type EvidenceSourceInput = {
   system: EvidenceSystem;
@@ -11,7 +29,7 @@ export type EvidenceSourceInput = {
   contentBase64: string;
   startDate: string;
   endDate: string;
-  metadata: { sections?: string[]; balances?: EvidenceBalance[]; timezone?: string | null; [key: string]: unknown };
+  metadata: { sections?: string[]; balances?: EvidenceBalance[]; timezone?: string | null; externalFx?: ExternalFxEvidence; supportingSourceIds?: string[]; [key: string]: unknown };
 };
 export type EvidenceSource = Omit<EvidenceSourceInput, "contentBase64"> & {
   id: string;
@@ -30,4 +48,4 @@ export type EvidenceReview = {
   author: string;
   createdAt: string;
 };
-export type EvidenceImport = { source: EvidenceSourceInput; transactions: ImportedTransaction[] };
+export type EvidenceImport = { source: EvidenceSourceInput; additionalSources?: EvidenceSourceInput[]; transactions: ImportedTransaction[] };
