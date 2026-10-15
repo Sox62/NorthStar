@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { parcelSelectionLabels, parcelSelectionMethods } from "@/lib/parcel-selection";
+import { pensionPhaseApplies } from "@/lib/pension-phase";
 import { getStorage } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -23,6 +24,14 @@ const inputSchema = z.object({
 }).refine(
   (input) => input.pensionPhase !== undefined || input.parcelSelection !== undefined,
   { message: "Send pensionPhase, parcelSelection, or both." },
+).refine(
+  /*
+   * Refused rather than quietly coerced. Exempt current pension income belongs to a complying
+   * fund; an individual never has it, so a request to put a Personal book in pension phase is a
+   * mistake worth naming — it would report every personal capital gain as untaxed.
+   */
+  (input) => !input.pensionPhase || pensionPhaseApplies(input.ownerType),
+  { message: "Pension phase applies to the SMSF only. An individual cannot hold exempt current pension income." },
 );
 
 export async function GET() {

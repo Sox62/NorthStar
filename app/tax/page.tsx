@@ -178,7 +178,8 @@ export default function TaxLotsPage() {
               </button>
             ))}
           </div>
-          {scope === "overall" ? null : (
+          {/* Offered for the fund alone: an individual cannot hold exempt current pension income. */}
+          {scope === "smsf" ? (
             <label className="taxPhaseToggle">
               <input
                 type="checkbox"
@@ -188,7 +189,7 @@ export default function TaxLotsPage() {
               />
               <span>Pension phase<em>{pensionPhaseFor(scope) ? "Gains exempt" : "Gains taxable"}</em></span>
             </label>
-          )}
+          ) : null}
           <label className="yearSelect">
             <span>Realised</span>
             <select value={period} onChange={(event) => setPeriod(event.target.value === "all" ? "all" : Number(event.target.value))}>

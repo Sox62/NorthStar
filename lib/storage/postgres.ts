@@ -2,6 +2,7 @@ import { getPool } from "@/lib/db/client";
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
 import { buildDashboardModel, buildManualAssetValuation, maskAccount, numberValue, ownerForScope } from "@/lib/core/accounting";
 import { readParcelSelection, type ParcelSelection } from "@/lib/parcel-selection";
+import { pensionPhaseFor } from "@/lib/pension-phase";
 import { defaultAllocationTargets, normaliseAllocationTargets } from "@/southernstar/lib/allocation-drift";
 import type { Sector } from "@/southernstar/types";
 import { classifyAsset } from "./classify";
@@ -409,7 +410,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
         const row = byOwner.get(ownerType);
         return {
           ownerType,
-          pensionPhase: row?.pension_phase === true,
+          pensionPhase: pensionPhaseFor(ownerType, row?.pension_phase),
           parcelSelection: readParcelSelection(row?.parcel_selection_method, row?.parcel_selection_overrides),
         };
       });
@@ -429,7 +430,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       );
       const result = await client.query(`SELECT pension_phase FROM portfolios WHERE id=$1`, [portfolioId]);
       await client.query("COMMIT");
-      return { ownerType, pensionPhase: result.rows[0]?.pension_phase === true, parcelSelection: selection };
+      return { ownerType, pensionPhase: pensionPhaseFor(ownerType, result.rows[0]?.pension_phase), parcelSelection: selection };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -443,7 +444,9 @@ export class PostgresStorageAdapter implements StorageAdapter {
     try {
       await client.query("BEGIN");
       const portfolioId = await ensurePortfolio(client, ownerType);
-      await client.query(`UPDATE portfolios SET pension_phase=$2 WHERE id=$1`, [portfolioId, pensionPhase]);
+      // Coerced on the way in as well as the way out: a Personal row must never hold it.
+      const inForce = pensionPhaseFor(ownerType, pensionPhase);
+      await client.query(`UPDATE portfolios SET pension_phase=$2 WHERE id=$1`, [portfolioId, inForce]);
       const result = await client.query(
         `SELECT parcel_selection_method, parcel_selection_overrides FROM portfolios WHERE id=$1`,
         [portfolioId],
@@ -451,7 +454,7 @@ export class PostgresStorageAdapter implements StorageAdapter {
       await client.query("COMMIT");
       return {
         ownerType,
-        pensionPhase,
+        pensionPhase: inForce,
         parcelSelection: readParcelSelection(result.rows[0]?.parcel_selection_method, result.rows[0]?.parcel_selection_overrides),
       };
     } catch (error) {

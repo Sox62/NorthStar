@@ -45,14 +45,20 @@ export function buildEofyReport(scope: EofyScope, dashboard: DashboardData, tran
   const taxLotDashboard = { ...dashboard, lastUpdated: fy.endDate };
   const allTaxLots = buildTaxLots(taxLotDashboard, transactionsThroughEofy, generatedAt, treatment, selection);
   const realisedLots = allTaxLots.realisedLots.filter((lot) => dateInRange(lot.saleDate, fy.startDate, fy.endDate));
-  const tradeMovements = tradeRows(transactions, fy.startDate, fy.endDate);
+  /*
+   * Every schedule in this pack is built from the trades the engine actually counted, not from the
+   * raw rows. Reading the raw rows is what let one trade carried by two exports become four trade
+   * movements and double a historical purchase while the CGT beside it correctly counted one.
+   */
+  const reconciled = allTaxLots.reconciledTransactions;
+  const tradeMovements = tradeRows(reconciled, fy.startDate, fy.endDate);
   const currentHoldings = dashboard.holdings
     .filter((holding) => holding.marketValueAud || holding.costAud || holding.quantity)
     .map(holdingReference)
     .sort((a, b) => b.marketValueAud - a.marketValueAud);
   const realised = realisedSummary(realisedLots);
   const capitalGains = capitalGainsReport(scope, realisedLots, treatment);
-  const historicalCost = historicalCostRows(transactionsThroughEofy, fy.startDate, fy.endDate, priceBook);
+  const historicalCost = historicalCostRows(reconciled, fy.startDate, fy.endDate, priceBook, selection);
   const eofyOpenLots = eofyPricedOpenLots(allTaxLots.openLots, historicalCost, fy.endDate, treatment);
   const unrealisedCgt = unrealisedCgtReport(eofyOpenLots);
   const buyTrades = tradeMovements.filter((trade) => trade.type === "BUY");

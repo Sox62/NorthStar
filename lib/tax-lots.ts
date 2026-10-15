@@ -74,6 +74,13 @@ export type TaxLotsResponse = {
   selection: ParcelSelection;
   /** The period the realised lots were filtered to, or null for every disposal on record. */
   period: { startDate: string; endDate: string } | null;
+  /*
+   * The trades this run actually counted: de-duplicated, in order, corporate actions included.
+   * Any schedule in the same report must be built from these rather than from the raw rows, or it
+   * will contradict the CGT beside it — one trade carried by two exports became four trade
+   * movements and $570 of proceeds against $285 of canonical disposals.
+   */
+  reconciledTransactions: StoredTransaction[];
   summary: {
     openLots: number;
     realisedLots: number;
@@ -147,7 +154,7 @@ function maskAccount(account: string) {
   return account.length <= 4 ? account : `${account.slice(0, 2)}....${account.slice(-3)}`;
 }
 
-function dateDiffDays(start: string | null, end: string) {
+export function dateDiffDays(start: string | null, end: string) {
   if (!start) return null;
   const startTime = new Date(`${start}T12:00:00Z`).getTime();
   const endTime = new Date(`${end}T12:00:00Z`).getTime();
@@ -155,7 +162,7 @@ function dateDiffDays(start: string | null, end: string) {
   return Math.floor((endTime - startTime) / 86_400_000);
 }
 
-function isDiscountEligible(heldDays: number | null) {
+export function isDiscountEligible(heldDays: number | null) {
   return heldDays != null && heldDays >= 365;
 }
 
@@ -259,7 +266,7 @@ function makeRealisedLot(input: Omit<RealisedTaxLot, "taxableGainAud" | "discoun
  * 50,000 to 7,693 resolves without the report ever stating "1 for 6.5". Fractions are kept: the
  * book already carries 87.5 BMN and 19.5 CORN, and rounding here would quietly lose value.
  */
-function applyCorporateAction(parcels: WorkingLot[], deltaQuantity: number, stated: ActionRatio | null): boolean {
+export function applyCorporateAction(parcels: RescalableParcel[], deltaQuantity: number, stated: ActionRatio | null): boolean {
   const pooled = parcels.reduce((sum, lot) => sum + lot.remainingQuantity, 0);
   if (pooled <= tolerance) return false;
   /*
@@ -280,7 +287,10 @@ function applyCorporateAction(parcels: WorkingLot[], deltaQuantity: number, stat
   return true;
 }
 
-type ActionRatio = { before: number; after: number };
+export type ActionRatio = { before: number; after: number };
+
+/** The minimum a parcel must look like to be rescaled. `WorkingLot` satisfies it structurally. */
+export type RescalableParcel = { remainingQuantity: number; costPerUnitAud: number };
 
 /**
  * The before and after quantities an importer recorded for a corporate action, where it knew them.
@@ -678,7 +688,7 @@ function buildWorkingLots(transactions: StoredTransaction[], treatment: TaxTreat
     }
   }
 
-  return { lots, byBroker, realised, unappliedActions, duplicates, near };
+  return { lots, byBroker, realised, unappliedActions, duplicates, near, reconciled: sorted };
 }
 
 function openLotsForHolding(holding: DashboardHolding, lots: WorkingLot[], asOfDate: string, treatment: TaxTreatment): OpenTaxLot[] {
@@ -787,7 +797,7 @@ export function buildTaxLots(
    * acquisitions that an earlier, excluded sale had already taken. The period filters the output,
    * not the input.
    */
-  const { lots, byBroker, realised, unappliedActions, duplicates, near } = buildWorkingLots(transactions, treatment, selection);
+  const { lots, byBroker, realised, unappliedActions, duplicates, near, reconciled } = buildWorkingLots(transactions, treatment, selection);
   const openLots = data.holdings
     .filter(isTaxableHolding)
     .flatMap((holding) => openLotsForHolding(
@@ -809,6 +819,7 @@ export function buildTaxLots(
     duplicates,
     near,
     selection,
+    reconciledTransactions: reconciled,
     /*
      * Realised lots only. An open position cannot be rewound — the parcels come from today's
      * holdings at today's prices — so a period scopes the disposals and leaves the open side as at

@@ -419,3 +419,91 @@ test("a disposal with no reconstructable cost base still appears in the report",
   assert.equal(report.summary.shortTermGainsAud, 0, "and contributes nothing to the totals");
   assert.equal(report.byHolding.find((row) => row.code === "BOE")?.soldQuantity, 6363);
 });
+
+test("every schedule in the pack counts a trade the same number of times", () => {
+  /*
+   * One trade carried by two exports became four trade movements, $570 of sale proceeds against
+   * $285 of canonical disposals, and a doubled historical purchase — while the CGT beside them
+   * correctly counted one. The schedules read raw rows; only the CGT saw the de-duplicated set.
+   */
+  const base = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "IBKR", accountKey: "U1", symbol: "T", exchange: "ARCA",
+    instrumentKey: "T:ARCA", currency: "AUD", fxRateToBase: 1, fees: 0, ...over,
+  });
+  const rows = [
+    base({ id: "a1", externalId: "a1", source: "IBKR Flex", tradeDate: "2025-08-01", type: "BUY", quantity: 1, cost: 165 }),
+    base({ id: "a2", externalId: "a2", source: "IBKR Trade Confirmation Flex", tradeDate: "2025-08-01", type: "BUY", quantity: 1, cost: 165 }),
+    base({ id: "s1", externalId: "s1", source: "IBKR Flex", tradeDate: "2025-10-01", type: "SELL", quantity: 1, cost: 285, netCash: 285 }),
+    base({ id: "s2", externalId: "s2", source: "IBKR Trade Confirmation Flex", tradeDate: "2025-10-01", type: "SELL", quantity: 1, cost: 285, netCash: 285 }),
+  ];
+  const report = buildEofyReport("personal", dashboard([]), rows as never, 2026, new Date("2026-06-30T00:00:00.000Z"));
+  assert.equal(report.realisedLots.length, 1, "one disposal");
+  assert.equal(report.tradeMovements.length, 2, "one buy and one sell, not four rows");
+  assert.equal(report.summary.sellsAud, 285);
+  assert.equal(report.summary.buysAud, 165);
+  assert.equal(report.historicalCost[0].purchasesAud, 165);
+});
+
+test("the historical schedule consumes the parcel the election chose", () => {
+  // A cost-of-sales figure that took a different parcel from the disposal printed beside it is not
+  // a second opinion, it is a contradiction. Under LIFO this read $100 against the CGT's $200.
+  const base = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "X", accountKey: "A", symbol: "T", exchange: "US",
+    instrumentKey: "T:US", currency: "AUD", fxRateToBase: 1, fees: 0, source: "S", ...over,
+  });
+  const rows = [
+    base({ id: "b1", externalId: "b1", tradeDate: "2025-08-01", type: "BUY", quantity: 1, cost: 100 }),
+    base({ id: "b2", externalId: "b2", tradeDate: "2025-09-01", type: "BUY", quantity: 1, cost: 200 }),
+    base({ id: "s", externalId: "s", tradeDate: "2025-10-01", type: "SELL", quantity: 1, cost: 300, netCash: 300 }),
+  ];
+  const report = buildEofyReport(
+    "personal", dashboard([]), rows as never, 2026, new Date("2026-06-30T00:00:00.000Z"),
+    undefined, { pensionPhase: false }, { method: "lifo" },
+  );
+  const cgtCost = report.realisedLots.reduce((sum, lot) => sum + lot.costAud, 0);
+  assert.equal(cgtCost, 200);
+  assert.equal(report.historicalCost[0].costOfSalesAud, 200, "same parcel as the CGT");
+  assert.match(report.historicalCost[0].allocationMethod, /Last in, first out/);
+});
+
+test("the historical schedule pools a holding across the accounts an export names", () => {
+  /*
+   * Keying on the account split BOE into three schedule rows closing at 56,837 units between them,
+   * against a real holding of none — the account says which export carried a row, not which
+   * holding it belongs to.
+   */
+  const base = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "Directshares", symbol: "BOE", exchange: "ASX",
+    instrumentKey: "Directshares:BOE:ASX", currency: "AUD", fxRateToBase: 1, fees: 0, source: "S", ...over,
+  });
+  const rows = [
+    base({ id: "b", externalId: "b", accountKey: "4317403", tradeDate: "2025-08-01", type: "BUY", quantity: 100, cost: 1000 }),
+    base({ id: "s", externalId: "s", accountKey: "DIRECTSHARES", tradeDate: "2025-10-01", type: "SELL", quantity: 100, cost: 1500, netCash: 1500 }),
+  ];
+  const report = buildEofyReport("personal", dashboard([]), rows as never, 2026, new Date("2026-06-30T00:00:00.000Z"));
+  assert.equal(report.historicalCost.length, 1, "one holding, one row");
+  assert.equal(report.historicalCost[0].costOfSalesAud, 1000, "the sale reaches the buy filed under the other account");
+  assert.equal(report.historicalCost[0].closingQuantity, 0);
+});
+
+test("the historical schedule applies a consolidation", () => {
+  // Skipped, it reported PDN at a tenth of its real unit cost and BOE at an eighth.
+  const base = (over: Record<string, unknown>) => ({
+    ownerType: "PERSONAL", broker: "Directshares", accountKey: "A", symbol: "PDN", exchange: "ASX",
+    instrumentKey: "Directshares:PDN:ASX", currency: "AUD", fxRateToBase: 1, fees: 0,
+    source: "Directshares All Trades Report", ...over,
+  });
+  const rows = [
+    base({ id: "b", externalId: "b", tradeDate: "2025-08-01", type: "BUY", quantity: 1000, cost: 300 }),
+    base({
+      id: "c", externalId: "c", tradeDate: "2025-09-01", type: "CORPORATE_ACTION", quantity: -900,
+      description: "Consolidation", raw: { actionQuantityBefore: 1000, actionQuantityAfter: 100 },
+    }),
+    base({ id: "s", externalId: "s", tradeDate: "2025-10-01", type: "SELL", quantity: 50, cost: 400, netCash: 400 }),
+  ];
+  const row = buildEofyReport("personal", dashboard([]), rows as never, 2026, new Date("2026-06-30T00:00:00.000Z")).historicalCost[0];
+  assert.equal(row.closingQuantity, 50, "1,000 consolidated to 100, then 50 sold");
+  // $300 over 100 units is $3.00 each, not the pre-consolidation $0.30.
+  assert.equal(row.costOfSalesAud.toFixed(2), "150.00");
+  assert.equal(row.closingBalanceAud.toFixed(2), "150.00");
+});

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { IbkrFlexReport, ImportedTransaction, OpeningPosition } from "@/lib/integrations/types";
 import { defaultParcelSelectionMethod, readParcelSelection, type ParcelSelection } from "@/lib/parcel-selection";
+import { pensionPhaseFor } from "@/lib/pension-phase";
 import {
   buildManualAssetValuation,
   buildPositionPriceValuation,
@@ -361,7 +362,7 @@ export class LocalStorageAdapter implements StorageAdapter {
       const stored = store.taxProfiles?.find((profile) => profile.ownerType === ownerType);
       return {
         ownerType,
-        pensionPhase: stored?.pensionPhase ?? false,
+        pensionPhase: pensionPhaseFor(ownerType, stored?.pensionPhase),
         // A store written before parcel selection existed carries none, and first in, first out is
         // both the engine's old behaviour and the right default, so nothing moves on upgrade.
         parcelSelection: readParcelSelection(stored?.parcelSelection?.method, stored?.parcelSelection?.overrides),
@@ -374,7 +375,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     const existing = store.taxProfiles?.find((profile) => profile.ownerType === ownerType);
     const updated: TaxProfile = {
       ownerType,
-      pensionPhase: change.pensionPhase ?? existing?.pensionPhase ?? false,
+      pensionPhase: pensionPhaseFor(ownerType, change.pensionPhase ?? existing?.pensionPhase),
       parcelSelection: change.parcelSelection ?? existing?.parcelSelection ?? { method: defaultParcelSelectionMethod },
     };
     store.taxProfiles = [...(store.taxProfiles ?? []).filter((profile) => profile.ownerType !== ownerType), updated];

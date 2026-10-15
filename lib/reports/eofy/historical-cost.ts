@@ -1,11 +1,15 @@
 import type { PriceBook, StoredTransaction } from "@/lib/storage";
+import { orderParcelsForDisposal, parcelSelectionLabels, methodForHolding, defaultParcelSelectionMethod, type ParcelSelection } from "@/lib/parcel-selection";
+import { applyCorporateAction, dateDiffDays, discountRateForOwner, isDiscountEligible } from "@/lib/tax-lots";
 import type { EofyHistoricalCostRow } from "./types";
 import { historicalValuation } from "./valuation";
 import { transactionAud, transactionGrossAud, transactionNetCashAud } from "./utils";
 
 type HistoricalLot = {
-  quantity: number;
+  /** Named as the engine names it, so its corporate-action rescale applies to these parcels too. */
+  remainingQuantity: number;
   costPerUnitAud: number;
+  acquisitionDate: string | null;
 };
 
 type HistoricalAccumulator = {
@@ -21,12 +25,18 @@ type HistoricalAccumulator = {
   capitalAdjustmentsAud: number;
 };
 
-function historyKey(input: Pick<StoredTransaction, "ownerType" | "broker" | "accountKey" | "instrumentKey" | "symbol" | "exchange">) {
+/*
+ * Keyed without the account, as the parcel engine is. The account on a row says which export
+ * carried it, not which holding it belongs to: the same Directshares position arrives as
+ * "DIRECTSHARES" from the All Trades Report and as "4317403" from the contract notes. Keying on it
+ * split BOE into three schedule rows closing at 56,837 units between them, against a real holding
+ * of none.
+ */
+function historyKey(input: Pick<StoredTransaction, "ownerType" | "broker" | "instrumentKey" | "symbol" | "exchange">) {
   return [
     input.ownerType,
     input.broker,
-    input.accountKey,
-    input.instrumentKey || `${input.symbol}:${input.exchange}`,
+    (input.instrumentKey || `${input.symbol}:${input.exchange}`).toUpperCase(),
   ].join("|");
 }
 
@@ -45,7 +55,7 @@ function historicalAccumulator(transaction: StoredTransaction): HistoricalAccumu
     market: transaction.exchange,
     code: transaction.symbol,
     name: transaction.description || transaction.symbol,
-    allocationMethod: "FIFO",
+    allocationMethod: parcelSelectionLabels[defaultParcelSelectionMethod],
     lots: [],
     openingBalanceAud: 0,
     openingQuantity: 0,
@@ -57,29 +67,58 @@ function historicalAccumulator(transaction: StoredTransaction): HistoricalAccumu
 
 function lotTotals(lots: HistoricalLot[]) {
   return lots.reduce((total, lot) => ({
-    quantity: total.quantity + lot.quantity,
-    costAud: total.costAud + lot.quantity * lot.costPerUnitAud,
+    quantity: total.quantity + lot.remainingQuantity,
+    costAud: total.costAud + lot.remainingQuantity * lot.costPerUnitAud,
   }), { quantity: 0, costAud: 0 });
 }
 
-function applyHistoricalTransaction(row: HistoricalAccumulator, transaction: StoredTransaction) {
+function statedActionRatio(transaction: StoredTransaction) {
+  const before = Number(transaction.raw?.actionQuantityBefore);
+  const after = Number(transaction.raw?.actionQuantityAfter);
+  if (!Number.isFinite(before) || !Number.isFinite(after) || before <= 0 || after <= 0) return null;
+  return { before, after };
+}
+
+function applyHistoricalTransaction(row: HistoricalAccumulator, transaction: StoredTransaction, method: ParcelSelection["method"]) {
+  /*
+   * A consolidation changes how many units a holding is made of and what each one cost, without
+   * changing the total. Skipping it left this schedule reporting PDN at a tenth of its real unit
+   * cost and BOE at an eighth, the same error the parcel engine carried until it was fixed.
+   */
+  if (transaction.type === "CORPORATE_ACTION") {
+    applyCorporateAction(row.lots, transaction.quantity ?? 0, statedActionRatio(transaction));
+    return 0;
+  }
+
   const quantity = Math.abs(transaction.quantity ?? 0);
   if (!quantity) return 0;
 
   if (transaction.type === "BUY") {
     const costAud = buyCostAud(transaction);
-    row.lots.push({ quantity, costPerUnitAud: quantity ? costAud / quantity : 0 });
+    row.lots.push({ remainingQuantity: quantity, costPerUnitAud: quantity ? costAud / quantity : 0, acquisitionDate: transaction.tradeDate });
     return 0;
   }
 
   let remaining = quantity;
   let costOfSalesAud = 0;
-  for (const lot of row.lots) {
+  /*
+   * Ordered by the same election the CGT used. A cost-of-sales figure that consumed a different
+   * parcel from the disposal printed beside it is not a second opinion, it is a contradiction:
+   * under a LIFO election this schedule reported $100 against the CGT's $200 for one sale.
+   */
+  const proceedsPerUnitAud = quantity ? saleProceedsAud(transaction) / quantity : 0;
+  const ordered = orderParcelsForDisposal(row.lots, method, (lot) => {
+    const gainPerUnitAud = proceedsPerUnitAud - lot.costPerUnitAud;
+    if (gainPerUnitAud <= 0) return gainPerUnitAud;
+    const eligible = isDiscountEligible(dateDiffDays(lot.acquisitionDate, transaction.tradeDate));
+    return eligible ? gainPerUnitAud * (1 - discountRateForOwner(transaction.ownerType)) : gainPerUnitAud;
+  });
+  for (const lot of ordered) {
     if (remaining <= 0) break;
-    if (lot.quantity <= 0) continue;
-    const matchedQuantity = Math.min(lot.quantity, remaining);
+    if (lot.remainingQuantity <= 0) continue;
+    const matchedQuantity = Math.min(lot.remainingQuantity, remaining);
     costOfSalesAud += matchedQuantity * lot.costPerUnitAud;
-    lot.quantity -= matchedQuantity;
+    lot.remainingQuantity -= matchedQuantity;
     remaining -= matchedQuantity;
   }
 
@@ -89,22 +128,24 @@ function applyHistoricalTransaction(row: HistoricalAccumulator, transaction: Sto
     costOfSalesAud += Math.max(0, proceedsAud - realisedAud);
   }
 
-  row.lots = row.lots.filter((lot) => lot.quantity > 0.000001);
+  row.lots = row.lots.filter((lot) => lot.remainingQuantity > 0.000001);
   return costOfSalesAud;
 }
 
-export function historicalCostRows(transactions: StoredTransaction[], startDate: string, endDate: string, priceBook?: PriceBook): EofyHistoricalCostRow[] {
+export function historicalCostRows(transactions: StoredTransaction[], startDate: string, endDate: string, priceBook?: PriceBook, selection: ParcelSelection = { method: defaultParcelSelectionMethod }): EofyHistoricalCostRow[] {
   const rows = new Map<string, HistoricalAccumulator>();
   const sorted = [...transactions]
-    .filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL")
+    .filter((transaction) => transaction.type === "BUY" || transaction.type === "SELL" || transaction.type === "CORPORATE_ACTION")
     .filter((transaction) => transaction.tradeDate <= endDate)
     .sort((a, b) => a.tradeDate.localeCompare(b.tradeDate) || a.externalId.localeCompare(b.externalId));
 
   for (const transaction of sorted) {
     const key = historyKey(transaction);
     const row = rows.get(key) ?? historicalAccumulator(transaction);
+    const method = methodForHolding(selection, transaction);
+    row.allocationMethod = parcelSelectionLabels[method];
     if (transaction.tradeDate < startDate) {
-      applyHistoricalTransaction(row, transaction);
+      applyHistoricalTransaction(row, transaction, method);
       const opening = lotTotals(row.lots);
       row.openingBalanceAud = opening.costAud;
       row.openingQuantity = opening.quantity;
@@ -114,9 +155,9 @@ export function historicalCostRows(transactions: StoredTransaction[], startDate:
 
     if (transaction.type === "BUY") {
       row.purchasesAud += buyCostAud(transaction);
-      applyHistoricalTransaction(row, transaction);
+      applyHistoricalTransaction(row, transaction, method);
     } else {
-      row.costOfSalesAud += applyHistoricalTransaction(row, transaction);
+      row.costOfSalesAud += applyHistoricalTransaction(row, transaction, method);
     }
     rows.set(key, row);
   }
