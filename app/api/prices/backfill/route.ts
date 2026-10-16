@@ -52,6 +52,7 @@ const BENCHMARK_BACKFILL_INSTRUMENTS: Record<string, PriceableInstrument> = {
   WIRE: benchmarkInstrument("WIRE", "ASX", "Global X Copper Miners ETF", "AUD", "Copper miners"),
   FCX: benchmarkInstrument("FCX", "NYSE", "Freeport-McMoRan", "USD", "Copper miners"),
   AEM: benchmarkInstrument("AEM", "NYSE", "Agnico Eagle Mines", "USD", "Gold miners"),
+  CMM: benchmarkInstrument("CMM", "ASX", "Capricorn Metals", "AUD", "Gold miners"),
   PAAS: benchmarkInstrument("PAAS", "NASDAQ", "Pan American Silver", "USD", "Silver miners"),
   XLE: benchmarkInstrument("XLE", "AMEX", "Energy Select Sector SPDR", "USD", "Oil"),
   XOP: benchmarkInstrument("XOP", "AMEX", "SPDR Oil & Gas Exploration ETF", "USD", "Oil"),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import TradingViewWidget from "@/components/TradingViewWidget";
 import { RatioChart, RelativePeriodCell, type RatioMode } from "@/components/relative/RatioChart";
@@ -190,7 +190,7 @@ function benchmarkInstrument(node: BenchmarkNode): DashboardHolding {
     name: node.label,
     exchange: node.tradingViewSymbol?.split(":")[0] ?? "",
     currency: node.basisCurrency,
-    assetClass: node.role,
+    assetClass: node.sector ?? node.role,
     quantity: 0,
     lastPrice: null,
     averageCostAud: 0,
@@ -228,13 +228,15 @@ function benchmarkOptionLabel(node: BenchmarkNode) {
 function savedIdeaNode(item: MinerFundamentals): BenchmarkNode {
   const symbol = item.symbol.trim().toUpperCase();
   const category = savedIdeaCategory(item);
+  const listing = customBenchmarkNode(symbol);
   return {
     id: `saved_idea:${category.toLowerCase().replace(/[^a-z0-9]+/g, "-")}:${symbol}`,
     label: item.name?.trim() || symbol,
     role: "candidate",
     symbol,
-    tradingViewSymbol: symbol,
-    basisCurrency: "USD",
+    tradingViewSymbol: listing?.tradingViewSymbol ?? symbol,
+    basisCurrency: listing?.basisCurrency ?? "USD",
+    sector: category === "Gold Producers" ? "Gold miners" : undefined,
     note: [category, item.projectStage, item.jurisdiction].filter(Boolean).join(" · ") || "Saved fundamentals idea",
   };
 }
@@ -494,6 +496,7 @@ function buildOpportunityRows(input: {
 }
 
 export default function RelativeLeadership({ view = "detail" }: { view?: "detail" | "opportunities" } = {}) {
+  const initialSelectionApplied = useRef(false);
   const [dashboards, setDashboards] = useState<DashboardMap>({});
   const [prices, setPrices] = useState<StoredDailyPrice[]>([]);
   const [fundamentals, setFundamentals] = useState<MinerFundamentals[]>([]);
@@ -587,20 +590,23 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   const permanentBenchmarkNodes = useMemo(() => benchmarkNodes.filter((node) => !customNodeIds.has(node.id) && !savedIdeaNodeIds.has(node.id)), [benchmarkNodes, customNodeIds, savedIdeaNodeIds]);
 
   useEffect(() => {
-    if (view !== "detail" || typeof window === "undefined") return;
+    // A link seeds the comparison once; later choices, custom tickers and backfills must win.
+    if (view !== "detail" || initialSelectionApplied.current || typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const kind = params.get("kind");
     const id = params.get("id");
     if (!kind || !id) return;
-    if (kind === "holding" && holdings.some((holding) => holding.id === id) && leftId !== id) {
+    if (kind === "holding" && holdings.some((holding) => holding.id === id)) {
+      initialSelectionApplied.current = true;
       setLeftBenchmarkId("");
       setLeftId(id);
     }
-    if (kind === "benchmark" && benchmarkNodes.some((node) => node.id === id) && leftBenchmarkId !== id) {
+    if (kind === "benchmark" && benchmarkNodes.some((node) => node.id === id)) {
+      initialSelectionApplied.current = true;
       setLeftId("");
       setLeftBenchmarkId(id);
     }
-  }, [view, holdings, benchmarkNodes, leftId, leftBenchmarkId]);
+  }, [view, holdings, benchmarkNodes]);
   const leftHolding = holdings.find((holding) => holding.id === leftId) ?? null;
   const rightHolding = holdings.find((holding) => holding.id === rightId) ?? null;
   const selectedLeftBenchmark = benchmarkNodes.find((node) => node.id === leftBenchmarkId) ?? null;

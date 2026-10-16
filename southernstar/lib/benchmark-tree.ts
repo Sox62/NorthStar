@@ -15,6 +15,7 @@ export type BenchmarkNode = {
   basisCurrency: "AUD" | "USD" | "CAD" | "GBP";
   instrumentType?: BenchmarkInstrumentType;
   currencyHedging?: CurrencyHedging;
+  sector?: Sector;
   note?: string;
 };
 
@@ -74,6 +75,7 @@ export const RESEARCH_BENCHMARKS: BenchmarkNode[] = [
   candidate("slx", "Silex Systems", "SLX", "ASX:SLX", "AUD"),
   candidate("smr", "NuScale Power", "SMR", "NYSE:SMR"),
   leader("aem", "Large gold miner leader", "AEM", "NYSE:AEM"),
+  { ...candidate("cmm", "Capricorn Metals", "CMM", "ASX:CMM", "AUD"), sector: "Gold miners" },
   leader("paas", "Silver miner leader", "PAAS", "NASDAQ:PAAS"),
   leader("fcx", "Copper miner leader", "FCX", "NYSE:FCX"),
   sectorEtf("xle", "Energy sector ETF", "XLE", "AMEX:XLE"),

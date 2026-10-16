@@ -53,6 +53,7 @@ export function customBenchmarkNode(input: string): BenchmarkNode | null {
     basisCurrency: known?.basisCurrency ?? currencyForVenue(resolvedVenue),
     instrumentType: known?.instrumentType ?? "equity",
     currencyHedging: known?.currencyHedging,
+    sector: known?.sector,
     note: "Typed comparison. Backfill history to chart the ratio in SouthernStar.",
   };
 }

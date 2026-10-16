@@ -63,6 +63,8 @@ test("a typed ticker becomes a chartable node, with or without a venue", () => {
   assert.equal(customBenchmarkNode("ASX:WIRE")?.basisCurrency, "AUD");
   assert.equal(customBenchmarkNode("SLX")?.basisCurrency, "AUD");
   assert.equal(customBenchmarkNode("SLX")?.tradingViewSymbol, "ASX:SLX");
+  assert.equal(customBenchmarkNode("CMM")?.tradingViewSymbol, "ASX:CMM");
+  assert.equal(customBenchmarkNode("CMM")?.basisCurrency, "AUD");
   assert.equal(customBenchmarkNode("TSX:CCO")?.basisCurrency, "CAD");
   assert.equal(customBenchmarkNode("LSE:SILV")?.basisCurrency, "GBP");
 });

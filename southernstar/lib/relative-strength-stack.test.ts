@@ -121,6 +121,36 @@ test("COPX/WIRE uses USD to AUD on the US ETF and AUD on the Australian ETF", ()
   closeTo(wireRatio?.windows.find((window) => window.key === "all")?.fxContributionPercent, 6.6666666667);
 });
 
+test("CMM resolves to ASX gold mining and compares its AUD closes against GDX in USD", () => {
+  const node = customBenchmarkNode("CMM")!;
+  const subject = {
+    ...dyl,
+    id: node.id,
+    symbol: node.symbol!,
+    exchange: node.tradingViewSymbol!.split(":")[0],
+    name: "Capricorn Metals",
+    currency: node.basisCurrency,
+    assetClass: node.sector!,
+  };
+  const stack = buildRelativeStrengthStack({
+    subject,
+    subjectNode: node,
+    prices: [
+      price("CMM", "ASX", "AUD", 8, "2026-08-03"),
+      price("CMM", "ASX", "AUD", 9, "2026-08-04"),
+      price("GDX", "ARCA", "USD", 40, "2026-08-03"),
+      price("GDX", "ARCA", "USD", 40, "2026-08-04"),
+    ],
+    fxRates: [fx("USD", 1.5, "2026-08-03"), fx("USD", 1.6, "2026-08-04")],
+  });
+  assert.deepEqual(stack.map((item) => item.denominator.symbol), ["SPY", "GDX", "AEM", "GOLD"]);
+  const sector = stack.find((item) => item.role === "sector")!;
+  assert.equal(sector.series.length, 2);
+  closeTo(sector.series.at(-1)?.ratio, 9 / (40 * 1.6) * 100);
+  closeTo(sector.windows.find((window) => window.key === "all")?.rawRatioReturnPercent, 12.5);
+  assert.deepEqual(relativeStrengthStackBackfillKeys(subject, stack), ["CMM:ASX", "SPY:AMEX", "GDX:AMEX", "AEM:NYSE", "GOLD:TVC"]);
+});
+
 test("relativeStrengthStackBackfillKeys includes subject and resolved benchmarks", () => {
   const stack = buildRelativeStrengthStack({
     subject: dyl,
