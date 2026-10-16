@@ -672,7 +672,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
     ? ratioTvExpression || "No TradingView ratio formula"
     : `${basisLabel} · ${rangeLabel}`;
   const primaryChartNote = primaryChartMode === "tv_ratio"
-    ? "TradingView comparison using quoted market prices. The external link opens this ratio in your saved TradingView layout. Desktop handoff on Mac is still being investigated."
+    ? "TradingView comparison using quoted market prices. The external link opens this ratio in your saved TradingView layout, in whichever browser handles the link — sign in to TradingView there, or it opens read-only with your indicators listed but not running."
     : "SouthernStar's ratio chart uses stored closes and the selected currency basis. The moving average is evidence only.";
   const currentPairSymbols = [left?.symbol, right?.symbol].filter(Boolean) as string[];
   const pairStructuralLevels = structuralLevels.filter((level) => currentPairSymbols.includes(level.symbol) || currentPairSymbols.includes(level.comparisonSymbol));

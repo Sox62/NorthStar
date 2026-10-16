@@ -1,3 +1,21 @@
+/*
+ * The saved layout these links open. The id is opaque and is not the layout's display name: this
+ * one is the layout shown as "SOX" in the TradingView app.
+ *
+ * A link lands in whichever browser macOS hands it to, and TradingView's session is per-browser.
+ * Opened where you are not signed in, the layout still renders — symbol, drawings and the names of
+ * its indicators — but shows "View Only Mode", runs no Pine scripts, and substitutes the default
+ * watchlist. That reads exactly like the layout being wrong, and is not: it is a signed-out
+ * browser.
+ *
+ * Opening the desktop app instead was investigated on 16 October 2026 and does not work. The app
+ * registers the `tradingview://` scheme and its handler matches /^tradingview:\/\/(\S+)$/, but it
+ * ignored every chart form tried (`tradingview://chart?symbol=`, and with a host and layout path).
+ * The only scheme strings in its bundle are `tradingview:link` and `tradingview:window`, which look
+ * like internal plumbing rather than a documented entry point. It also carries no
+ * `associated-domains` entitlement, so macOS cannot route an https tradingview.com link to it
+ * either. Don't spend time on this again without new evidence from TradingView.
+ */
 const DEFAULT_TRADINGVIEW_CHART_URL = "https://www.tradingview.com/chart/rps0WMxt/";
 
 export type TradingViewInstrument = {
