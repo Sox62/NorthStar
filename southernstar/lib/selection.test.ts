@@ -5,11 +5,12 @@ import { comparisonListingLabel, customBenchmarkNode, parseSelectionValue, selec
 
 test("listing labels distinguish US and ASX GDX using their quote currencies", () => {
   for (const exchange of ["US", "AMEX", "ARCA", "NYSEARCA"]) {
-    assert.equal(comparisonListingLabel({ symbol: "GDX", exchange, currency: "USD" }), "GDX · NYSE Arca (US) · USD");
+    assert.equal(comparisonListingLabel({ symbol: "GDX", exchange, currency: "USD" }), "GDX:NYSEARCA · USD");
   }
-  assert.equal(comparisonListingLabel({ symbol: "GDX", exchange: "ASX", currency: "AUD" }), "GDX · ASX · AUD");
-  assert.equal(comparisonListingLabel({ symbol: "CMM", exchange: "ASX", currency: "AUD" }), "CMM · ASX · AUD");
-  assert.equal(comparisonListingLabel({ symbol: "XYZ", exchange: "", currency: "USD" }), "XYZ · Exchange unspecified · USD");
+  assert.equal(comparisonListingLabel({ symbol: "GDX", exchange: "ASX", currency: "AUD" }), "GDX:ASX · AUD");
+  assert.equal(comparisonListingLabel({ symbol: "CMM", exchange: "ASX", currency: "AUD" }), "CMM:ASX · AUD");
+  assert.equal(comparisonListingLabel({ symbol: "URA", exchange: "ARCA", currency: "USD" }), "URA:NYSEARCA · USD");
+  assert.equal(comparisonListingLabel({ symbol: "XYZ", exchange: "", currency: "USD" }), "XYZ:UNSPECIFIED · USD");
 });
 
 test("a namespaced benchmark id survives the round trip", () => {

@@ -957,7 +957,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                   <ComparisonOptionGroups permanent={permanentBenchmarkNodes} custom={customNodes} savedGroups={savedIdeaGroups} side="left" />
                   <optgroup label="Holdings">
                     {holdings.map((holding) => (
-                      <option key={holding.id} value={selectionValue("holding", holding.id)}>{comparisonListingLabel(holding)} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
+                      <option key={holding.id} value={selectionValue("holding", holding.id)}>{comparisonListingLabel(holding)} · Holding {money(holding.marketValueAud)} AUD · {sectorForInstrument(holding)}</option>
                     ))}
                   </optgroup>
                 </select>
@@ -996,7 +996,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                   <ComparisonOptionGroups permanent={permanentBenchmarkNodes} custom={customNodes} savedGroups={savedIdeaGroups} side="right" />
                   <optgroup label="Holdings">
                     {holdings.map((holding) => (
-                      <option key={holding.id} value={selectionValue("holding", holding.id)}>{comparisonListingLabel(holding)} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
+                      <option key={holding.id} value={selectionValue("holding", holding.id)}>{comparisonListingLabel(holding)} · Holding {money(holding.marketValueAud)} AUD · {sectorForInstrument(holding)}</option>
                     ))}
                   </optgroup>
                 </select>

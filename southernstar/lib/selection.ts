@@ -9,10 +9,11 @@ export function comparisonListingLabel(instrument: { symbol: string; exchange?: 
   const symbol = instrument.symbol.trim().toUpperCase();
   const exchange = instrument.exchange?.trim().toUpperCase() ?? "";
   const usGdx = symbol === "GDX" && ["US", "USA", "AMEX", "ARCA", "NYSEARCA"].includes(exchange);
-  const venue = usGdx ? "NYSE Arca (US)"
+  const venue = usGdx ? "NYSEARCA"
     : ["AU", "AUS", "ASX", "CHIXAU"].includes(exchange) ? "ASX"
-      : exchange || "Exchange unspecified";
-  return `${symbol} · ${venue} · ${instrument.currency.trim().toUpperCase()}`;
+      : exchange === "ARCA" ? "NYSEARCA"
+        : exchange || "UNSPECIFIED";
+  return `${symbol}:${venue} · ${instrument.currency.trim().toUpperCase()}`;
 }
 
 export function selectionValue(kind: SelectionKind, id: string) {
