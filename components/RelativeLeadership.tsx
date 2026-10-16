@@ -15,7 +15,7 @@ import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, ratioReturnF
 import { buildRelativeStrengthStack, relativeStrengthStackBackfillKeys } from "@/southernstar/lib/relative-strength-stack";
 import { sectorForInstrument } from "@/southernstar/lib/sector-map";
 import { comparisonListingLabel, customBenchmarkNode, parseSelectionValue, selectionValue } from "@/southernstar/lib/selection";
-import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSavedLayoutUrl, tradingViewSymbolForInstrument } from "@/southernstar/lib/tradingview";
+import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/southernstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
 type PriceBookResponse = {
@@ -665,7 +665,6 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
   const rightTv = rightTvSymbol ? tradingViewChartUrl(rightTvSymbol) : "";
   const ratioTvExpression = leftTvSymbol && rightTvSymbol ? tradingViewRatioExpression(leftTvSymbol, rightTvSymbol) : "";
   const ratioTv = ratioTvExpression ? tradingViewRatioChartUrl(leftTvSymbol, rightTvSymbol) : "";
-  const savedTvLayout = tradingViewSavedLayoutUrl();
   const primaryChartTitle = primaryChartMode === "tv_ratio"
     ? `${leftSymbol}/${rightSymbol} TradingView ratio`
     : `${leftSymbol}/${rightSymbol} stored ratio`;
@@ -673,7 +672,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
     ? ratioTvExpression || "No TradingView ratio formula"
     : `${basisLabel} · ${rangeLabel}`;
   const primaryChartNote = primaryChartMode === "tv_ratio"
-    ? "TradingView comparison using quoted market prices. Launch in TV app opens your saved layout with your custom drawings."
+    ? "TradingView comparison using quoted market prices. The external link opens this ratio in your saved TradingView layout. Desktop handoff on Mac is still being investigated."
     : "SouthernStar's ratio chart uses stored closes and the selected currency basis. The moving average is evidence only.";
   const currentPairSymbols = [left?.symbol, right?.symbol].filter(Boolean) as string[];
   const pairStructuralLevels = structuralLevels.filter((level) => currentPairSymbols.includes(level.symbol) || currentPairSymbols.includes(level.comparisonSymbol));
@@ -1042,7 +1041,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                   <button type="button" aria-pressed={primaryChartMode === "stored_ratio"} className={primaryChartMode === "stored_ratio" ? "isActive" : ""} onClick={() => setPrimaryChartMode("stored_ratio")}>SS chart</button>
                   <button type="button" aria-pressed={primaryChartMode === "tv_ratio"} className={primaryChartMode === "tv_ratio" ? "isActive" : ""} onClick={() => setPrimaryChartMode("tv_ratio")}>TV in SS</button>
                 </div>
-                <a className="button" href={savedTvLayout} target="_blank" rel="noreferrer" title="Open your saved TradingView layout without changing its symbol">Launch in TV app</a>
+                {ratioTv ? <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={`Open ${ratioTvExpression} in your saved TradingView layout`}>Launch in TV app</a> : null}
               </div>
             </div>
             {primaryChartMode === "stored_ratio" ? (

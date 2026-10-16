@@ -1,19 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { tradingViewSavedLayoutUrl, tradingViewSymbolForInstrument } from "./tradingview";
+import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewSymbolForInstrument } from "./tradingview";
 
 const symbolFor = (symbol: string, exchange: string) => tradingViewSymbolForInstrument({ symbol, exchange });
 
-test("launching the annotated layout preserves its saved chart without a symbol override", () => {
+test("launching GSR preserves the saved layout and replaces its configured Gold symbol with the full ratio", () => {
   const original = process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL;
   try {
     delete process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL;
-    assert.equal(tradingViewSavedLayoutUrl(), "https://www.tradingview.com/chart/rps0WMxt/");
+    const defaultUrl = new URL(tradingViewRatioChartUrl("TVC:GOLD", "TVC:SILVER"));
+    assert.equal(defaultUrl.pathname, "/chart/rps0WMxt/");
+    assert.equal(defaultUrl.searchParams.get("symbol"), "TVC:GOLD/TVC:SILVER");
     process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL = "https://www.tradingview.com/chart/MyDrawingLayout/?symbol=TVC%3AGOLD&interval=D";
-    const url = new URL(tradingViewSavedLayoutUrl());
+    const url = new URL(tradingViewRatioChartUrl("TVC:GOLD", "TVC:SILVER"));
     assert.equal(url.pathname, "/chart/MyDrawingLayout/");
     assert.equal(url.searchParams.get("interval"), "D");
-    assert.equal(url.searchParams.has("symbol"), false);
+    assert.equal(url.searchParams.get("symbol"), "TVC:GOLD/TVC:SILVER");
+    // A precomputed ratio expression from a market tile must also remain intact.
+    assert.equal(new URL(tradingViewChartUrl("TVC:GOLD/TVC:SILVER")).searchParams.get("symbol"), "TVC:GOLD/TVC:SILVER");
   } finally {
     if (original === undefined) delete process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL;
     else process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL = original;
