@@ -76,6 +76,11 @@ export function tradingViewSymbolForInstrument(instrument: TradingViewInstrument
   return exchange ? `${exchange}:${symbol}` : symbol;
 }
 
+/** Open the user's annotated layout without replacing its saved chart or symbol. */
+export function tradingViewSavedLayoutUrl() {
+  return configuredTradingViewChartUrl().toString();
+}
+
 export function tradingViewChartUrl(symbol: string) {
   const url = configuredTradingViewChartUrl();
   url.searchParams.set("symbol", symbol);

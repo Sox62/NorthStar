@@ -210,7 +210,7 @@ NEXT_PUBLIC_TRADINGVIEW_CHART_URL=https://www.tradingview.com/chart/<your-layout
 
 `NEXT_PUBLIC_TRADINGVIEW_CHART_URL` is optional public configuration, not a secret. Set it to your saved TradingView chart layout URL if you want SouthernStar chart links to open your logged-in TradingView layout with the requested symbol applied.
 
-On Relative Leadership, **Copy ratio for desktop** and **Copy price for desktop** copy that saved-layout link with the selected listing or ratio. In the signed-in TradingView Desktop app, choose **Open link from clipboard** from the app menu. This is TradingView's [supported macOS workflow](https://www.tradingview.com/support/solutions/43000673907-how-to-open-a-tradingview-chart-link-in-desktop-app/); browser links are labelled separately. SouthernStar does not use the app's sign-in URL scheme to open charts. If clipboard access is unavailable, the chart URL is displayed for manual copying.
+Relative Leadership has three chart actions: **SS chart** for the stored comparison, **TV in SS** for the embedded TradingView comparison, and **Launch in TV app** for the saved TradingView layout. The launch action preserves the layout URL without forcing a different symbol or ratio, so the user's annotated charts can be opened through their TradingView account. The browser and operating system control whether the saved-layout link opens in the desktop app or a browser.
 
 ## PWA installation
 

@@ -1,8 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { tradingViewSymbolForInstrument } from "./tradingview";
+import { tradingViewSavedLayoutUrl, tradingViewSymbolForInstrument } from "./tradingview";
 
 const symbolFor = (symbol: string, exchange: string) => tradingViewSymbolForInstrument({ symbol, exchange });
+
+test("launching the annotated layout preserves its saved chart without a symbol override", () => {
+  const original = process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL;
+  try {
+    delete process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL;
+    assert.equal(tradingViewSavedLayoutUrl(), "https://www.tradingview.com/chart/rps0WMxt/");
+    process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL = "https://www.tradingview.com/chart/MyDrawingLayout/?interval=D";
+    const url = new URL(tradingViewSavedLayoutUrl());
+    assert.equal(url.pathname, "/chart/MyDrawingLayout/");
+    assert.equal(url.searchParams.get("interval"), "D");
+    assert.equal(url.searchParams.has("symbol"), false);
+  } finally {
+    if (original === undefined) delete process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL;
+    else process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL = original;
+  }
+});
 
 test("exchange codes are matched exactly, not by substring", () => {
   // "PHYSICAL" and "NYSEAMERICAN" both contain "CA", which used to route them to TSX.
