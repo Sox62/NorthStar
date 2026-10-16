@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { RESEARCH_BENCHMARKS } from "./benchmark-tree";
-import { customBenchmarkNode, parseSelectionValue, selectionValue } from "./selection";
+import { comparisonListingLabel, customBenchmarkNode, parseSelectionValue, selectionValue } from "./selection";
+
+test("listing labels distinguish US and ASX GDX using their quote currencies", () => {
+  for (const exchange of ["US", "AMEX", "ARCA", "NYSEARCA"]) {
+    assert.equal(comparisonListingLabel({ symbol: "GDX", exchange, currency: "USD" }), "GDX · NYSE Arca (US) · USD");
+  }
+  assert.equal(comparisonListingLabel({ symbol: "GDX", exchange: "ASX", currency: "AUD" }), "GDX · ASX · AUD");
+  assert.equal(comparisonListingLabel({ symbol: "CMM", exchange: "ASX", currency: "AUD" }), "CMM · ASX · AUD");
+  assert.equal(comparisonListingLabel({ symbol: "XYZ", exchange: "", currency: "USD" }), "XYZ · Exchange unspecified · USD");
+});
 
 test("a namespaced benchmark id survives the round trip", () => {
   // "benchmark:reserve:gold" used to parse to id "reserve", so GOLD could never be selected.

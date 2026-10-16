@@ -14,7 +14,7 @@ import { scoreEntryCondition } from "@/southernstar/lib/entry-score";
 import { applyRatioRange, buildInstrumentHistory, buildRatioSeries, ratioReturnForBasis, relativeReturnWindows, scoreRatioTrend, scoreRatioTrendVelocity, RATIO_RANGES, type RatioBasis, type RatioMovingAverageConfig, type RatioPoint, type RatioRangeKey, type RelativeScoreComponent } from "@/southernstar/lib/ratio-engine";
 import { buildRelativeStrengthStack, relativeStrengthStackBackfillKeys } from "@/southernstar/lib/relative-strength-stack";
 import { sectorForInstrument } from "@/southernstar/lib/sector-map";
-import { customBenchmarkNode, parseSelectionValue, selectionValue } from "@/southernstar/lib/selection";
+import { comparisonListingLabel, customBenchmarkNode, parseSelectionValue, selectionValue } from "@/southernstar/lib/selection";
 import { tradingViewChartUrl, tradingViewRatioChartUrl, tradingViewRatioExpression, tradingViewSymbolForInstrument } from "@/southernstar/lib/tradingview";
 
 type DashboardMap = Partial<Record<Scope, DashboardData>>;
@@ -222,7 +222,8 @@ function mergeBenchmarkNodes(nodes: BenchmarkNode[]) {
 
 function benchmarkOptionLabel(node: BenchmarkNode) {
   const symbol = node.symbol ?? node.label;
-  return `${symbol} · ${node.label}`;
+  const exchange = node.tradingViewSymbol?.includes(":") ? node.tradingViewSymbol.split(":")[0] : "";
+  return `${comparisonListingLabel({ symbol, exchange, currency: node.basisCurrency })} · ${node.label}`;
 }
 
 function savedIdeaNode(item: MinerFundamentals): BenchmarkNode {
@@ -903,6 +904,11 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
             <div>
               <p className="eyebrow">Analysis</p>
               <h1 className="cardTitle">{left.symbol} ÷ {right.symbol}</h1>
+              <p className="relativeListingPair">
+                <span>{comparisonListingLabel(left)}</span>
+                <span aria-hidden="true">÷</span>
+                <span>{comparisonListingLabel(right)}</span>
+              </p>
               <p className="cardIntro">{basisLabel} · {series.length} shared close{series.length === 1 ? "" : "s"} · {series.length ? `${dateLabel(series[0].date)} to ${dateLabel(series.at(-1)!.date)}` : "No overlapping price history yet"}</p>
             </div>
             <div className="relativeActions">
@@ -947,7 +953,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                   <ComparisonOptionGroups permanent={permanentBenchmarkNodes} custom={customNodes} savedGroups={savedIdeaGroups} side="left" />
                   <optgroup label="Holdings">
                     {holdings.map((holding) => (
-                      <option key={holding.id} value={selectionValue("holding", holding.id)}>{holding.symbol} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
+                      <option key={holding.id} value={selectionValue("holding", holding.id)}>{comparisonListingLabel(holding)} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
                     ))}
                   </optgroup>
                 </select>
@@ -986,7 +992,7 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                   <ComparisonOptionGroups permanent={permanentBenchmarkNodes} custom={customNodes} savedGroups={savedIdeaGroups} side="right" />
                   <optgroup label="Holdings">
                     {holdings.map((holding) => (
-                      <option key={holding.id} value={selectionValue("holding", holding.id)}>{holding.symbol} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
+                      <option key={holding.id} value={selectionValue("holding", holding.id)}>{comparisonListingLabel(holding)} · {sectorForInstrument(holding)} · {money(holding.marketValueAud)}</option>
                     ))}
                   </optgroup>
                 </select>
@@ -1051,6 +1057,10 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
               <div>
                 <p className="eyebrow">Chart</p>
                 <h3>{primaryChartTitle}</h3>
+                <p className="relativeListingPair">
+                  <span>{comparisonListingLabel(left)}</span>
+                  {primaryChartMode !== "price" ? <><span aria-hidden="true">÷</span><span>{comparisonListingLabel(right)}</span></> : null}
+                </p>
                 <span>{primaryChartSubtitle}</span>
               </div>
               <div className="relativeChartControls">

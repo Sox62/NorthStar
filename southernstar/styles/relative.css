@@ -178,6 +178,16 @@
   gap: 18px;
   align-items: end;
 }
+.relativeListingPair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 8px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
 .relativePairDivider {
   align-self: start;
   padding-top: 45px;

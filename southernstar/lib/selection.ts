@@ -4,6 +4,17 @@ export type SelectionKind = "holding" | "benchmark";
 
 export type Selection = { kind: SelectionKind; id: string } | null;
 
+/** Quote currency identifies the listing, independently of the ratio's display currency. */
+export function comparisonListingLabel(instrument: { symbol: string; exchange?: string | null; currency: string }) {
+  const symbol = instrument.symbol.trim().toUpperCase();
+  const exchange = instrument.exchange?.trim().toUpperCase() ?? "";
+  const usGdx = symbol === "GDX" && ["US", "USA", "AMEX", "ARCA", "NYSEARCA"].includes(exchange);
+  const venue = usGdx ? "NYSE Arca (US)"
+    : ["AU", "AUS", "ASX", "CHIXAU"].includes(exchange) ? "ASX"
+      : exchange || "Exchange unspecified";
+  return `${symbol} · ${venue} · ${instrument.currency.trim().toUpperCase()}`;
+}
+
 export function selectionValue(kind: SelectionKind, id: string) {
   return id ? `${kind}:${id}` : "";
 }
