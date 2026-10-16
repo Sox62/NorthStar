@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import TradingViewWidget from "@/components/TradingViewWidget";
+import TradingViewDesktopCopy from "@/components/TradingViewDesktopCopy";
 import { RatioChart, RelativePeriodCell, type RatioMode } from "@/components/relative/RatioChart";
 import { RelativeStrengthStack } from "@/components/relative/RelativeStrengthStack";
 import { AllocationReadPanel, EntryScorePanel, OpportunityMatrix, RelativeScorePanel, type OpportunityRow, type OpportunitySortKey, type RelativeEngineScore, type RelativeLayer } from "@/components/relative/ScorePanels";
@@ -921,12 +922,15 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
               </div>
               <button className="button" type="button" onClick={backfillSelected} disabled={backfillBusy}>{backfillBusy ? "Backfilling..." : "Backfill history"}</button>
               <details className="relativeTvMenu">
-                <summary>Open in TradingView</summary>
+                <summary>TradingView</summary>
                 <div>
+                  {ratioTv ? <TradingViewDesktopCopy url={ratioTv} label={`Copy ${left.symbol}/${right.symbol} for desktop`} /> : null}
+                  {leftTv ? <TradingViewDesktopCopy url={leftTv} label={`Copy ${left.symbol} price for desktop`} /> : null}
+                  {rightTv ? <TradingViewDesktopCopy url={rightTv} label={`Copy ${right.symbol} price for desktop`} /> : null}
                   {ratioTvExpression ? <button type="button" onClick={() => void copyRatioExpression()} title={ratioTvExpression}>{copiedRatio ? "Copied raw formula" : "Copy raw ratio formula"}</button> : null}
-                  {ratioTv ? <a href={ratioTv} target="_blank" rel="noreferrer" title={`TradingView formula attempt: ${ratioTvExpression}`}>{left.symbol}/{right.symbol} raw ratio</a> : null}
-                  {leftTv ? <a href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>{left.symbol} price</a> : null}
-                  {rightTv ? <a href={rightTv} target="_blank" rel="noreferrer" title={rightTvSymbol}>{right.symbol} price</a> : null}
+                  {ratioTv ? <a href={ratioTv} target="_blank" rel="noreferrer" title={ratioTvExpression}>{left.symbol}/{right.symbol} · browser</a> : null}
+                  {leftTv ? <a href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>{left.symbol} price · browser</a> : null}
+                  {rightTv ? <a href={rightTv} target="_blank" rel="noreferrer" title={rightTvSymbol}>{right.symbol} price · browser</a> : null}
                 </div>
               </details>
             </div>
@@ -1070,8 +1074,10 @@ export default function RelativeLeadership({ view = "detail" }: { view?: "detail
                   <button type="button" className={primaryChartMode === "price" ? "isActive" : ""} onClick={() => setPrimaryChartMode("price")}>Price</button>
                 </div>
                 <div className="relativeChartExternalLinks">
-                  {ratioTv ? <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={ratioTvExpression}>Open ratio in TradingView</a> : null}
-                  {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>Open price in TradingView</a> : null}
+                  {ratioTv ? <TradingViewDesktopCopy url={ratioTv} label="Copy ratio for desktop" /> : null}
+                  {leftTv ? <TradingViewDesktopCopy url={leftTv} label="Copy price for desktop" /> : null}
+                  {ratioTv ? <a className="button" href={ratioTv} target="_blank" rel="noreferrer" title={ratioTvExpression}>Ratio in browser</a> : null}
+                  {leftTv ? <a className="button" href={leftTv} target="_blank" rel="noreferrer" title={leftTvSymbol}>Price in browser</a> : null}
                 </div>
               </div>
             </div>

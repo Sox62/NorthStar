@@ -1,0 +1,42 @@
+.action {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.help {
+  max-width: 300px;
+  padding: 8px 10px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.action > button.copyButton {
+  flex: 0 0 auto;
+}
+
+.help p {
+  margin: 0;
+}
+
+.link {
+  width: 100%;
+  min-width: 0;
+  margin-top: 8px;
+  padding: 6px;
+  border: 1px solid rgba(106, 130, 153, .3);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+@media (max-width: 760px) {
+  .action {
+    flex: 1 1 170px;
+  }
+}
