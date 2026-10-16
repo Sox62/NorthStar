@@ -9,7 +9,7 @@ test("launching the annotated layout preserves its saved chart without a symbol 
   try {
     delete process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL;
     assert.equal(tradingViewSavedLayoutUrl(), "https://www.tradingview.com/chart/rps0WMxt/");
-    process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL = "https://www.tradingview.com/chart/MyDrawingLayout/?interval=D";
+    process.env.NEXT_PUBLIC_TRADINGVIEW_CHART_URL = "https://www.tradingview.com/chart/MyDrawingLayout/?symbol=TVC%3AGOLD&interval=D";
     const url = new URL(tradingViewSavedLayoutUrl());
     assert.equal(url.pathname, "/chart/MyDrawingLayout/");
     assert.equal(url.searchParams.get("interval"), "D");
